@@ -71,6 +71,15 @@ type StartRequest struct {
 	// Passive attaches to an already-running agent thread (a subagent spawned
 	// by the agent itself) without starting or resuming it.
 	Passive bool
+	// ApprovalReviewer chooses who reviews approval requests; empty keeps
+	// the agent's own configuration. Agents without the notion ignore it.
+	ApprovalReviewer domain.ApprovalReviewer
+}
+
+// ApprovalReviewerSetter is implemented by runtimes that can change the
+// approval reviewer while running; others pick it up on their next start.
+type ApprovalReviewerSetter interface {
+	SetApprovalReviewer(ctx context.Context, r domain.ApprovalReviewer) error
 }
 
 // AgentRuntime is one running agent conversation. Events are normalized

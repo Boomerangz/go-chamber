@@ -48,6 +48,8 @@ fields=(
   receiverThreadIds
   agentThreadId
   experimentalApi
+  approvalsReviewer
+  auto_review
 )
 
 fail=0

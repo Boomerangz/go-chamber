@@ -19,7 +19,8 @@ func SessionRepoContract(t *testing.T, newRepo func(t *testing.T) app.SessionRep
 	full := domain.SessionSnapshot{
 		ID: "a", Agent: domain.AgentClaude, Cwd: "/p", NativeID: "n1", ParentID: "parent",
 		Status: domain.StatusInterrupted, Title: "title",
-		Interruption: domain.Interruption{Reason: domain.ExitQuota, ResumeAfter: reset},
+		Interruption:     domain.Interruption{Reason: domain.ExitQuota, ResumeAfter: reset},
+		ApprovalReviewer: domain.ReviewerAuto,
 	}
 
 	t.Run("get missing", func(t *testing.T) {

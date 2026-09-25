@@ -13,6 +13,7 @@ var (
 	ErrInvalidTransition = errors.New("invalid session transition")
 	ErrNeedsRuntime      = errors.New("session has no attached runtime")
 	ErrNativeIDMismatch  = errors.New("runtime reported a different native session id")
+	ErrInvalidReviewer   = errors.New("invalid approval reviewer")
 )
 
 type SessionID string
@@ -39,6 +40,24 @@ const (
 	// StatusInterrupted: a turn ended abnormally; see Interruption.
 	StatusInterrupted SessionStatus = "interrupted"
 )
+
+// ApprovalReviewer decides who reviews the agent's approval requests
+// (sandbox escapes, network access, MCP prompts). Codex supports it; other
+// agents ignore it.
+type ApprovalReviewer string
+
+const (
+	// ReviewerDefault leaves the choice to the agent's own configuration.
+	ReviewerDefault ApprovalReviewer = ""
+	// ReviewerUser sends every approval request to the user.
+	ReviewerUser ApprovalReviewer = "user"
+	// ReviewerAuto lets the agent's reviewer subagent decide.
+	ReviewerAuto ApprovalReviewer = "auto_review"
+)
+
+func (r ApprovalReviewer) Valid() bool {
+	return r == ReviewerDefault || r == ReviewerUser || r == ReviewerAuto
+}
 
 // ExitReason explains why a runtime stopped or a turn was cut short.
 type ExitReason string
@@ -70,6 +89,7 @@ type Session struct {
 	status       SessionStatus
 	attached     bool
 	interruption Interruption
+	reviewer     ApprovalReviewer
 }
 
 // SessionSnapshot is the persistable state of a Session.
@@ -82,6 +102,8 @@ type SessionSnapshot struct {
 	Status       SessionStatus `json:"status"`
 	Title        string        `json:"title,omitempty"`
 	Interruption Interruption  `json:"interruption,omitempty"`
+	// ApprovalReviewer is empty when the agent's own configuration decides.
+	ApprovalReviewer ApprovalReviewer `json:"approvalReviewer,omitempty"`
 }
 
 func NewSession(id SessionID, agent AgentKind, cwd string) (*Session, error) {
@@ -114,6 +136,7 @@ func RestoreSession(snap SessionSnapshot) (*Session, error) {
 	s := &Session{
 		id: snap.ID, agent: snap.Agent, cwd: snap.Cwd, title: snap.Title,
 		nativeID: snap.NativeID, parentID: snap.ParentID, status: StatusDetached,
+		reviewer: snap.ApprovalReviewer,
 	}
 	switch snap.Status {
 	case StatusRunning:
@@ -218,5 +241,17 @@ func (s *Session) Snapshot() SessionSnapshot {
 	return SessionSnapshot{
 		ID: s.id, Agent: s.agent, Cwd: s.cwd, NativeID: s.nativeID, ParentID: s.parentID,
 		Status: s.status, Title: s.title, Interruption: s.interruption,
+		ApprovalReviewer: s.reviewer,
 	}
+}
+
+func (s *Session) ApprovalReviewer() ApprovalReviewer { return s.reviewer }
+
+// SetApprovalReviewer changes who reviews approval requests from now on.
+func (s *Session) SetApprovalReviewer(r ApprovalReviewer) error {
+	if !r.Valid() {
+		return fmt.Errorf("%w: %q", ErrInvalidReviewer, r)
+	}
+	s.reviewer = r
+	return nil
 }

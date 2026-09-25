@@ -212,6 +212,34 @@ func (m *Manager) StopTask(ctx context.Context, id domain.SessionID, taskID stri
 	return rt.StopTask(ctx, taskID)
 }
 
+// SetApprovalReviewer changes who reviews the session's approval requests.
+// A running runtime that supports it switches at once; otherwise the value
+// applies when the agent is next started.
+func (m *Manager) SetApprovalReviewer(ctx context.Context, id domain.SessionID, r domain.ApprovalReviewer) (domain.SessionSnapshot, error) {
+	s, err := m.session(ctx, id)
+	if err != nil {
+		return domain.SessionSnapshot{}, err
+	}
+	m.mu.Lock()
+	err = s.SetApprovalReviewer(r)
+	snap := s.Snapshot()
+	rt := m.runtimes[id]
+	m.mu.Unlock()
+	if err != nil {
+		return domain.SessionSnapshot{}, err
+	}
+	if err := m.cfg.Repo.Save(ctx, snap); err != nil {
+		return domain.SessionSnapshot{}, err
+	}
+	if setter, ok := rt.(ApprovalReviewerSetter); ok {
+		if err := setter.SetApprovalReviewer(ctx, r); err != nil {
+			return domain.SessionSnapshot{}, err
+		}
+	}
+	m.cfg.Bus.Publish(domain.Event{SessionID: id, Type: domain.EventSessionState, Session: &snap})
+	return snap, nil
+}
+
 // Interrupt stops the current turn if a runtime is attached.
 func (m *Manager) Interrupt(ctx context.Context, id domain.SessionID) error {
 	if _, err := m.session(ctx, id); err != nil {
@@ -292,6 +320,8 @@ func (m *Manager) ensureRuntimeFor(ctx context.Context, s *domain.Session, nativ
 		Cwd:       s.Cwd(),
 		NativeID:  nativeID,
 		Passive:   passive,
+
+		ApprovalReviewer: s.ApprovalReviewer(),
 	}
 	m.mu.Unlock()
 

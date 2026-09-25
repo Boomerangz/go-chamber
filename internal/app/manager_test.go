@@ -170,7 +170,9 @@ type fakeFactory struct {
 	mu       sync.Mutex
 	reqs     []StartRequest
 	runtimes []*fakeRuntime
-	err      error
+	// next, when set, is returned instead of a queued fakeRuntime.
+	next AgentRuntime
+	err  error
 }
 
 func (f *fakeFactory) Start(_ context.Context, req StartRequest) (AgentRuntime, error) {
@@ -179,6 +181,11 @@ func (f *fakeFactory) Start(_ context.Context, req StartRequest) (AgentRuntime, 
 	f.reqs = append(f.reqs, req)
 	if f.err != nil {
 		return nil, f.err
+	}
+	if f.next != nil {
+		rt := f.next
+		f.next = nil
+		return rt, nil
 	}
 	if len(f.runtimes) == 0 {
 		return nil, errors.New("no runtime queued")

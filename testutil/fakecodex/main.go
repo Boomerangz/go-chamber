@@ -9,6 +9,10 @@
 //	echo       always stream "echo: <prompt>"
 //	permission always request command approval, then continue
 //	question   always ask one requestUserInput question, then continue
+//
+// Like the real server, approvalsReviewer (thread/start, thread/resume,
+// turn/start; it sticks to the thread) set to "auto_review" settles approval
+// requests without asking the client.
 package main
 
 import (
@@ -28,6 +32,19 @@ type msg struct {
 }
 
 var seq int
+
+// reviewers holds the approval reviewer per thread.
+var reviewers = map[string]string{}
+
+func setReviewer(threadID string, params json.RawMessage) {
+	var p struct {
+		ApprovalsReviewer *string `json:"approvalsReviewer"`
+	}
+	if json.Unmarshal(params, &p) == nil && p.ApprovalsReviewer != nil {
+		reviewers[threadID] = *p.ApprovalsReviewer
+	}
+}
+
 var out *bufio.Writer
 var enc *json.Encoder
 
@@ -64,14 +81,17 @@ func main() {
 				Model string `json:"model"`
 			}
 			_ = json.Unmarshal(m.Params, &p)
+			threadID := nextID("thread")
+			setReviewer(threadID, m.Params)
 			respond(m.ID, map[string]any{"thread": map[string]any{
-				"id": nextID("thread"), "cwd": p.Cwd, "model": p.Model, "turns": []any{},
+				"id": threadID, "cwd": p.Cwd, "model": p.Model, "turns": []any{},
 			}})
 		case "thread/resume":
 			var p struct {
 				ThreadID string `json:"threadId"`
 			}
 			_ = json.Unmarshal(m.Params, &p)
+			setReviewer(p.ThreadID, m.Params)
 			respond(m.ID, map[string]any{"thread": map[string]any{
 				"id": p.ThreadID, "turns": []any{},
 			}})
@@ -84,6 +104,7 @@ func main() {
 				} `json:"input"`
 			}
 			_ = json.Unmarshal(m.Params, &p)
+			setReviewer(p.ThreadID, m.Params)
 			text := ""
 			for _, in := range p.Input {
 				if in.Type == "text" {
@@ -179,6 +200,16 @@ func permissionTurn(threadID, turnID, text string, pending map[string]func(json.
 		notify("item/completed", map[string]any{"threadId": threadID, "turnId": turnID,
 			"item": map[string]any{"type": "agentMessage", "id": "agent-final", "text": answer}})
 		turnCompleted(threadID, turnID, "completed", "agent-final", answer)
+	}
+	if reviewers[threadID] == "auto_review" {
+		delete(pending, reqID)
+		notify("item/completed", map[string]any{"threadId": threadID, "turnId": turnID,
+			"item": map[string]any{"type": "commandExecution", "id": itemID, "command": text,
+				"aggregatedOutput": "auto-approved: " + text, "exitCode": 0, "status": "completed"}})
+		notify("item/completed", map[string]any{"threadId": threadID, "turnId": turnID,
+			"item": map[string]any{"type": "agentMessage", "id": "agent-final", "text": "auto-approved: " + text}})
+		turnCompleted(threadID, turnID, "completed", "agent-final", "auto-approved: "+text)
+		return
 	}
 	serverRequest(reqID, "item/commandExecution/requestApproval", map[string]any{
 		"threadId": threadID, "turnId": turnID, "itemId": itemID, "command": text, "reason": "destructive",

@@ -83,18 +83,19 @@ func applyMigration(db *sql.DB, fsys fs.FS, name string, version int) error {
 
 type sessionRepo struct{ db *sql.DB }
 
-const sessionCols = "id, agent, cwd, native_id, parent_id, status, title, interruption_reason, resume_after"
+const sessionCols = "id, agent, cwd, native_id, parent_id, status, title, interruption_reason, resume_after, approval_reviewer"
 
 func (r sessionRepo) Save(ctx context.Context, s domain.SessionSnapshot) error {
 	resume := ""
 	if !s.Interruption.ResumeAfter.IsZero() {
 		resume = s.Interruption.ResumeAfter.UTC().Format(time.RFC3339Nano)
 	}
-	_, err := r.db.ExecContext(ctx, `INSERT INTO sessions (`+sessionCols+`) VALUES (?,?,?,?,?,?,?,?,?)
+	_, err := r.db.ExecContext(ctx, `INSERT INTO sessions (`+sessionCols+`) VALUES (?,?,?,?,?,?,?,?,?,?)
 		ON CONFLICT(id) DO UPDATE SET agent=excluded.agent, cwd=excluded.cwd, native_id=excluded.native_id,
 		parent_id=excluded.parent_id, status=excluded.status, title=excluded.title,
-		interruption_reason=excluded.interruption_reason, resume_after=excluded.resume_after`,
-		s.ID, s.Agent, s.Cwd, s.NativeID, s.ParentID, s.Status, s.Title, s.Interruption.Reason, resume)
+		interruption_reason=excluded.interruption_reason, resume_after=excluded.resume_after,
+		approval_reviewer=excluded.approval_reviewer`,
+		s.ID, s.Agent, s.Cwd, s.NativeID, s.ParentID, s.Status, s.Title, s.Interruption.Reason, resume, s.ApprovalReviewer)
 	return err
 }
 
@@ -128,7 +129,7 @@ type scanner interface{ Scan(dest ...any) error }
 func scanSession(row scanner) (domain.SessionSnapshot, error) {
 	var s domain.SessionSnapshot
 	var resume string
-	err := row.Scan(&s.ID, &s.Agent, &s.Cwd, &s.NativeID, &s.ParentID, &s.Status, &s.Title, &s.Interruption.Reason, &resume)
+	err := row.Scan(&s.ID, &s.Agent, &s.Cwd, &s.NativeID, &s.ParentID, &s.Status, &s.Title, &s.Interruption.Reason, &resume, &s.ApprovalReviewer)
 	if err != nil {
 		return domain.SessionSnapshot{}, err
 	}

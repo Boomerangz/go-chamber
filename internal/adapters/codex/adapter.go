@@ -371,7 +371,9 @@ func (s *Server) attachThread(nativeID string, session domain.SessionID) (*Runti
 func (s *Server) startThread(ctx context.Context, req app.StartRequest) (*Runtime, error) {
 	var thread rpcThread
 	if req.NativeID != "" {
-		res, err := s.client.Call(ctx, "thread/resume", map[string]any{"threadId": req.NativeID})
+		params := map[string]any{"threadId": req.NativeID}
+		addReviewer(params, req.ApprovalReviewer)
+		res, err := s.client.Call(ctx, "thread/resume", params)
 		if err != nil {
 			return nil, fmt.Errorf("codex: thread/resume: %w", err)
 		}
@@ -387,6 +389,7 @@ func (s *Server) startThread(ctx context.Context, req app.StartRequest) (*Runtim
 		if req.Model != "" {
 			params["model"] = req.Model
 		}
+		addReviewer(params, req.ApprovalReviewer)
 		res, err := s.client.Call(ctx, "thread/start", params)
 		if err != nil {
 			return nil, fmt.Errorf("codex: thread/start: %w", err)
@@ -408,6 +411,7 @@ func (s *Server) startThread(ctx context.Context, req app.StartRequest) (*Runtim
 		threadID: thread.ID,
 		mapper:   NewMapper(req.SessionID),
 		events:   make(chan domain.Event, 256),
+		reviewer: req.ApprovalReviewer,
 	}
 	s.mu.Lock()
 	s.threads[thread.ID] = rt
@@ -486,6 +490,7 @@ type Runtime struct {
 	mu        sync.Mutex
 	mapMu     sync.Mutex
 	turnID    string
+	reviewer  domain.ApprovalReviewer
 	closed    bool
 	closeOnce sync.Once
 }
@@ -524,10 +529,14 @@ func (r *Runtime) emit(ev domain.Event) {
 
 // Send starts a new turn on the thread.
 func (r *Runtime) Send(ctx context.Context, _ domain.TurnID, text string) error {
-	res, err := r.server.client.Call(ctx, "turn/start", map[string]any{
+	params := map[string]any{
 		"threadId": r.threadID,
 		"input":    []map[string]any{{"type": "text", "text": text}},
-	})
+	}
+	r.mu.Lock()
+	addReviewer(params, r.reviewer)
+	r.mu.Unlock()
+	res, err := r.server.client.Call(ctx, "turn/start", params)
 	if err != nil {
 		return fmt.Errorf("codex: turn/start: %w", err)
 	}
@@ -543,6 +552,23 @@ func (r *Runtime) Send(ctx context.Context, _ domain.TurnID, text string) error 
 		r.mapMu.Unlock()
 	}
 	return nil
+}
+
+// SetApprovalReviewer changes who reviews approval requests from the next
+// turn on; Codex keeps the value for the thread. The empty (agent default)
+// value cannot be sent, so the thread keeps the last explicit choice.
+func (r *Runtime) SetApprovalReviewer(_ context.Context, rev domain.ApprovalReviewer) error {
+	r.mu.Lock()
+	r.reviewer = rev
+	r.mu.Unlock()
+	return nil
+}
+
+// addReviewer sets approvalsReviewer unless the agent's own config decides.
+func addReviewer(params map[string]any, rev domain.ApprovalReviewer) {
+	if rev != domain.ReviewerDefault {
+		params["approvalsReviewer"] = string(rev)
+	}
 }
 
 // StopTask interrupts the active turn for a Codex collab agent.

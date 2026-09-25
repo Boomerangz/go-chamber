@@ -407,3 +407,47 @@ func TestCodexStartEmitsQuota(t *testing.T) {
 		t.Fatalf("quota event = %+v", last)
 	}
 }
+
+func permissionResult(t *testing.T, rt *Runtime) (req *domain.Request, result string) {
+	t.Helper()
+	if err := rt.Send(context.Background(), "t", "rm -rf x"); err != nil {
+		t.Fatal(err)
+	}
+	events := drainCodex(t, rt, func(ev domain.Event) bool {
+		return ev.Type == domain.EventRequestOpened || ev.Type == domain.EventTurnEnded
+	})
+	last := events[len(events)-1]
+	if last.Request != nil {
+		return last.Request, ""
+	}
+	return nil, last.Result.Text
+}
+
+func TestCodexApprovalReviewerOnStartAndLive(t *testing.T) {
+	rt := startCodex(t, app.StartRequest{ApprovalReviewer: domain.ReviewerAuto}, "FAKECODEX_MODE=permission")
+	if req, res := permissionResult(t, rt); req != nil || !strings.Contains(res, "auto-approved") {
+		t.Fatalf("auto reviewer: request %+v, result %q", req, res)
+	}
+	var _ app.ApprovalReviewerSetter = rt
+	if err := rt.SetApprovalReviewer(context.Background(), domain.ReviewerUser); err != nil {
+		t.Fatal(err)
+	}
+	if req, _ := permissionResult(t, rt); req == nil {
+		t.Fatal("user reviewer: want an approval request")
+	}
+}
+
+func TestCodexApprovalReviewerOnResume(t *testing.T) {
+	first := startCodex(t, app.StartRequest{}, "FAKECODEX_MODE=permission")
+	rt := startCodex(t, app.StartRequest{NativeID: first.NativeID(), ApprovalReviewer: domain.ReviewerAuto}, "FAKECODEX_MODE=permission")
+	if req, res := permissionResult(t, rt); req != nil || !strings.Contains(res, "auto-approved") {
+		t.Fatalf("request %+v, result %q", req, res)
+	}
+}
+
+func TestCodexDefaultReviewerIsNotSent(t *testing.T) {
+	rt := startCodex(t, app.StartRequest{}, "FAKECODEX_MODE=permission")
+	if req, _ := permissionResult(t, rt); req == nil {
+		t.Fatal("want an approval request with the agent's default reviewer")
+	}
+}

@@ -268,3 +268,40 @@ func TestNewChildSession(t *testing.T) {
 		t.Fatalf("restored parent = %q, %v", restored.ParentID(), err)
 	}
 }
+
+func TestApprovalReviewerDefaultsToAgentConfig(t *testing.T) {
+	s, _ := NewSession("s", AgentCodex, "/w")
+	if got := s.Snapshot().ApprovalReviewer; got != ReviewerDefault {
+		t.Fatalf("reviewer = %q, want agent default", got)
+	}
+}
+
+func TestSetApprovalReviewer(t *testing.T) {
+	s, _ := NewSession("s", AgentCodex, "/w")
+	for _, r := range []ApprovalReviewer{ReviewerAuto, ReviewerUser, ReviewerDefault} {
+		if err := s.SetApprovalReviewer(r); err != nil {
+			t.Fatalf("SetApprovalReviewer(%q): %v", r, err)
+		}
+		if got := s.ApprovalReviewer(); got != r {
+			t.Fatalf("reviewer = %q, want %q", got, r)
+		}
+	}
+	if err := s.SetApprovalReviewer("robot"); !errors.Is(err, ErrInvalidReviewer) {
+		t.Fatalf("err = %v, want ErrInvalidReviewer", err)
+	}
+	if got := s.ApprovalReviewer(); got != ReviewerDefault {
+		t.Fatalf("invalid value changed reviewer to %q", got)
+	}
+}
+
+func TestRestoreKeepsApprovalReviewer(t *testing.T) {
+	s, _ := NewSession("s", AgentCodex, "/w")
+	_ = s.SetApprovalReviewer(ReviewerAuto)
+	r, err := RestoreSession(s.Snapshot())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r.ApprovalReviewer() != ReviewerAuto || r.Snapshot().ApprovalReviewer != ReviewerAuto {
+		t.Fatalf("restored reviewer = %q", r.ApprovalReviewer())
+	}
+}

@@ -20,6 +20,7 @@ type Sessions interface {
 	Steer(ctx context.Context, id domain.SessionID, text string) error
 	Interrupt(ctx context.Context, id domain.SessionID) error
 	StopTask(ctx context.Context, id domain.SessionID, taskID string) error
+	SetApprovalReviewer(ctx context.Context, id domain.SessionID, r domain.ApprovalReviewer) (domain.SessionSnapshot, error)
 	RespondRequest(ctx context.Context, id domain.SessionID, requestID domain.RequestID, answer app.RequestAnswer) error
 	PendingRequests(ctx context.Context) []domain.Request
 	Account(ctx context.Context, agent domain.AgentKind) (app.AccountInfo, error)
@@ -39,6 +40,7 @@ func (s *server) routes() {
 		mux.HandleFunc("POST /api/sessions/{id}/steer", s.steer)
 		mux.HandleFunc("POST /api/sessions/{id}/tasks/{taskId}/stop", s.stopTask)
 		mux.HandleFunc("POST /api/sessions/{id}/interrupt", s.interrupt)
+		mux.HandleFunc("POST /api/sessions/{id}/approval-reviewer", s.setApprovalReviewer)
 		mux.HandleFunc("GET /api/sessions/{id}/events", s.sessionEvents)
 		mux.HandleFunc("POST /api/sessions/{id}/requests/{requestId}", s.respondRequest)
 		mux.HandleFunc("GET /api/requests", s.listRequests)
@@ -132,6 +134,21 @@ func (s *server) steer(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.WriteHeader(http.StatusAccepted)
+}
+
+func (s *server) setApprovalReviewer(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		Reviewer domain.ApprovalReviewer `json:"reviewer"`
+	}
+	if !decode(w, r, &body) {
+		return
+	}
+	snap, err := s.cfg.Sessions.SetApprovalReviewer(r.Context(), sessionID(r), body.Reviewer)
+	if err != nil {
+		s.fail(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, snap)
 }
 
 func (s *server) stopTask(w http.ResponseWriter, r *http.Request) {
@@ -259,6 +276,7 @@ func (s *server) fail(w http.ResponseWriter, err error) {
 		errors.Is(err, app.ErrTerminalNotFound):
 		writeJSON(w, http.StatusNotFound, errorBody{err.Error()})
 	case errors.Is(err, domain.ErrInvalidSession), errors.Is(err, domain.ErrInvalidTerminal),
+		errors.Is(err, domain.ErrInvalidReviewer),
 		errors.Is(err, app.ErrInvalidTerminalSize):
 		writeJSON(w, http.StatusBadRequest, errorBody{err.Error()})
 	case errors.Is(err, domain.ErrTerminalExited):

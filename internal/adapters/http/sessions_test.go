@@ -33,6 +33,7 @@ type fakeSessions struct {
 	accountErr  error
 	quotas      []domain.QuotaSnapshot
 	quota       domain.QuotaSnapshot
+	reviewer    domain.ApprovalReviewer
 }
 
 func (f *fakeSessions) CreateSession(_ context.Context, agent domain.AgentKind, cwd string) (domain.SessionSnapshot, error) {
@@ -74,6 +75,17 @@ func (f *fakeSessions) Steer(_ context.Context, _ domain.SessionID, text string)
 	}
 	f.steeredText = text
 	return nil
+}
+
+func (f *fakeSessions) SetApprovalReviewer(_ context.Context, id domain.SessionID, r domain.ApprovalReviewer) (domain.SessionSnapshot, error) {
+	if f.err != nil {
+		return domain.SessionSnapshot{}, f.err
+	}
+	if !r.Valid() {
+		return domain.SessionSnapshot{}, domain.ErrInvalidReviewer
+	}
+	f.reviewer = r
+	return domain.SessionSnapshot{ID: id, ApprovalReviewer: r}, nil
 }
 
 func (f *fakeSessions) StopTask(_ context.Context, _ domain.SessionID, taskID string) error {
@@ -393,5 +405,24 @@ func TestQuotasEndpoints(t *testing.T) {
 	unsupported := do(newSessionsServer(&fakeSessions{accountErr: app.ErrQuotasUnsupported}, nil), authed("POST", "/api/quotas/claude/refresh", ""))
 	if unsupported.Code != http.StatusNotImplemented {
 		t.Fatalf("unsupported = %d", unsupported.Code)
+	}
+}
+
+func TestApprovalReviewerEndpoint(t *testing.T) {
+	f := &fakeSessions{}
+	h := newSessionsServer(f, nil)
+	rec := do(h, authed("POST", "/api/sessions/a/approval-reviewer", `{"reviewer":"auto_review"}`))
+	if rec.Code != http.StatusOK || f.reviewer != domain.ReviewerAuto || !strings.Contains(rec.Body.String(), `"approvalReviewer":"auto_review"`) {
+		t.Fatalf("code=%d reviewer=%q body=%s", rec.Code, f.reviewer, rec.Body.String())
+	}
+	if rec := do(h, authed("POST", "/api/sessions/a/approval-reviewer", `{"reviewer":"robot"}`)); rec.Code != http.StatusBadRequest {
+		t.Fatalf("invalid reviewer code = %d", rec.Code)
+	}
+	if rec := do(h, authed("POST", "/api/sessions/a/approval-reviewer", `nope`)); rec.Code != http.StatusBadRequest {
+		t.Fatalf("bad json code = %d", rec.Code)
+	}
+	f.err = app.ErrSessionNotFound
+	if rec := do(h, authed("POST", "/api/sessions/a/approval-reviewer", `{"reviewer":"user"}`)); rec.Code != http.StatusNotFound {
+		t.Fatalf("unknown session code = %d", rec.Code)
 	}
 }
