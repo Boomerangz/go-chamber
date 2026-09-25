@@ -4,6 +4,9 @@ import { applyEvent, initialChat, type ChatState } from '../lib/events'
 
 export type Connection = 'connecting' | 'online' | 'offline'
 
+// Pane is the view shown on narrow screens, where only one fits at a time.
+export type Pane = 'sessions' | 'chat' | 'requests' | 'terminal'
+
 export interface SessionStore {
   sessions: api.Session[]
   activeId: string | null
@@ -11,8 +14,10 @@ export interface SessionStore {
   pendingRequests: api.SessionRequest[]
   quotas: api.QuotaSnapshot[]
   connection: Connection
+  pane: Pane
   error: string | null
 
+  setPane: (pane: Pane) => void
   loadSessions: () => Promise<void>
   loadRequests: () => Promise<void>
   loadQuotas: () => Promise<void>
@@ -39,9 +44,11 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
   pendingRequests: [],
   quotas: [],
   connection: 'connecting',
+  pane: 'sessions',
   error: null,
 
   setConnection: (connection) => set({ connection }),
+  setPane: (pane) => set({ pane }),
 
   async loadSessions() {
     try {
@@ -79,7 +86,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
 
   async selectSession(id) {
     buffered = null
-    set({ activeId: id, chat: initialChat(), error: null })
+    set({ activeId: id, chat: initialChat(), pane: 'chat', error: null })
     connect(get, set)
     await resync(get, set, id)
   },
@@ -262,6 +269,7 @@ export function resetStore(): void {
     pendingRequests: [],
     quotas: [],
     connection: 'connecting',
+    pane: 'sessions',
     error: null,
   })
 }

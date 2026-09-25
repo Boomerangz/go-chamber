@@ -23,9 +23,16 @@ export default function TerminalView({ id, autoFocus, onExit, onDisconnect }: Pr
   useEffect(() => {
     const el = host.current!
     const xterm = new XTerm({
-      fontFamily: 'ui-monospace, Menlo, monospace',
+      fontFamily: '"JetBrains Mono", "SF Mono", ui-monospace, Menlo, monospace',
       fontSize: 13,
+      lineHeight: 1.2,
       cursorBlink: true,
+      theme: {
+        background: '#0b0c14',
+        foreground: '#e4e6f0',
+        cursor: '#a78bfa',
+        selectionBackground: 'rgba(139, 92, 246, 0.35)',
+      },
     })
     const fit = new FitAddon()
     xterm.loadAddon(fit)

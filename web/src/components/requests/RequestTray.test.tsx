@@ -21,9 +21,19 @@ beforeEach(() => {
 })
 
 describe('RequestTray', () => {
-  it('renders nothing without pending requests', () => {
+  it('shows only an empty note without pending requests', () => {
     render(<RequestTray />)
     expect(screen.queryByLabelText('Pending requests')).toBeNull()
+    expect(screen.getByText('No pending requests')).toBeInTheDocument()
+  })
+
+  it('names the session a request belongs to', () => {
+    useSessionStore.setState({
+      sessions: [{ id: 's1', agent: 'codex', cwd: '/tmp/proj', status: 'running' }],
+      pendingRequests: [{ id: 'r1', sessionId: 's1', kind: 'question', state: 'pending', title: 'Pick one' }],
+    })
+    render(<RequestTray />)
+    expect(screen.getByRole('button', { name: /Pick one/ })).toHaveTextContent('proj')
   })
 
   it('lists requests and opens their session', async () => {
@@ -36,5 +46,6 @@ describe('RequestTray', () => {
     expect(screen.getByText('Run command')).toBeInTheDocument()
     await userEvent.click(screen.getByRole('button', { name: /Run command/ }))
     expect(useSessionStore.getState().activeId).toBe('s1')
+    expect(useSessionStore.getState().pane).toBe('chat')
   })
 })

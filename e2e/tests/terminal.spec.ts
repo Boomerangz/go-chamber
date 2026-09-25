@@ -2,11 +2,13 @@ import { expect, test } from '@playwright/test'
 import fs from 'node:fs'
 import os from 'node:os'
 import { token } from '../playwright.config'
+import { showPane } from './pane'
 
 // A real shell (SHELL=/bin/sh from the webServer command) in a pty.
 test('independent terminal: run a command, survive reload, exit, close', async ({ page }) => {
   const dir = fs.realpathSync(fs.mkdtempSync(`${os.tmpdir()}/gc-term-`))
   await page.goto(`/?token=${token}`)
+  await showPane(page, 'Terminal')
   const panel = page.getByRole('region', { name: 'Terminals' })
   await panel.getByLabel('terminal directory').fill(dir)
   await panel.getByRole('button', { name: 'New terminal' }).click()
@@ -28,6 +30,7 @@ test('independent terminal: run a command, survive reload, exit, close', async (
   await expect(screen.locator('.xterm-rows')).not.toContainText('1;2c')
 
   await page.reload()
+  await showPane(page, 'Terminal')
   // Tests run in parallel against one server: pick our own terminal.
   await panel.getByRole('tab', { name: dir.split('/').pop() }).click()
   const rows = panel.getByTestId('terminal-view').locator('.xterm-rows')
@@ -51,8 +54,10 @@ test('terminal in the session directory', async ({ page }) => {
   await page.goto(`/?token=${token}`)
   await page.getByLabel('working directory').fill(dir)
   await page.getByRole('button', { name: 'New session' }).click()
+  await expect(page.getByLabel('message')).toBeVisible()
 
   const panel = page.getByRole('region', { name: 'Terminals' })
+  await showPane(page, 'Terminal')
   await panel.getByRole('button', { name: 'In session dir' }).click()
   const screen = panel.getByTestId('terminal-view')
   await screen.click()

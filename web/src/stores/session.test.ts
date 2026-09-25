@@ -57,6 +57,18 @@ describe('session store', () => {
     expect(store().activeId).toBe('new')
   })
 
+  it('starts on the sessions pane and switches panes', () => {
+    expect(store().pane).toBe('sessions')
+    store().setPane('terminal')
+    expect(store().pane).toBe('terminal')
+  })
+
+  it('opens the chat pane when a session is selected', async () => {
+    store().setPane('requests')
+    await store().selectSession('a')
+    expect(store().pane).toBe('chat')
+  })
+
   it('applies history on select', async () => {
     ;(api.fetchEvents as Mock).mockResolvedValue([
       event({ seq: 1, item: item({ id: 'x', text: 'hi' }) }),

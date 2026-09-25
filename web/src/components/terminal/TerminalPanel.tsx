@@ -21,7 +21,8 @@ export default function TerminalPanel({ sessionId }: { sessionId: string | null 
   }, [load])
 
   return (
-    <section className="terminals" aria-label="Terminals">
+    <section className="terminals panel" aria-label="Terminals">
+      <h2 className="section-title">Terminals</h2>
       <form
         className="new-terminal"
         onSubmit={(e) => {
@@ -32,14 +33,17 @@ export default function TerminalPanel({ sessionId }: { sessionId: string | null 
         }}
       >
         <input
+          className="field"
           aria-label="terminal directory"
           placeholder="~ (home)"
           value={cwd}
           onChange={(e) => setCwd(e.target.value)}
         />
-        <button type="submit">New terminal</button>
+        <button type="submit" className="btn">
+          New terminal
+        </button>
         {sessionId && (
-          <button type="button" onClick={() => void open({ sessionId })}>
+          <button type="button" className="btn" onClick={() => void open({ sessionId })}>
             In session dir
           </button>
         )}
@@ -67,6 +71,11 @@ export default function TerminalPanel({ sessionId }: { sessionId: string | null 
         </ul>
       )}
       {error && <p className="error">{error}</p>}
+      {!activeId && (
+        <p className="terminal-hint">
+          {terminals.length > 0 ? 'Pick a terminal tab to attach.' : 'Open a shell in your home folder or the session folder.'}
+        </p>
+      )}
       {activeId && (
         <div
           className="terminal-panel"

@@ -28,7 +28,7 @@ export default function AccountPanel({ agent }: { agent: AgentKind }) {
         </span>
       ) : (
         <button
-          className="sign-in"
+          className="btn sign-in"
           onClick={() => {
             startLogin(agent)
               .then(setLogin)

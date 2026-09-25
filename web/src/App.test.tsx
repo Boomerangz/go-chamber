@@ -37,7 +37,7 @@ describe('App', () => {
   it('explains how to log in when unauthorized', async () => {
     vi.mocked(api.fetchHealth).mockResolvedValue('unauthorized')
     render(<App />)
-    expect(await screen.findByText(/token/i)).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Token required' })).toBeInTheDocument()
   })
 
   it('renders sessions and streamed items', async () => {
@@ -58,7 +58,8 @@ describe('App', () => {
       },
     })
     render(<App />)
-    expect(await screen.findByText('/tmp/proj')).toBeInTheDocument()
+    expect((await screen.findAllByText('/tmp/proj')).length).toBeGreaterThan(0)
+    expect(screen.getByRole('heading', { name: 'proj' })).toBeInTheDocument()
     expect(screen.getByText('hello')).toBeInTheDocument()
     expect(screen.getByText('echo: hello')).toBeInTheDocument()
     expect(screen.getByLabelText('message')).toBeInTheDocument()
@@ -107,5 +108,40 @@ describe('App', () => {
     render(<App />)
     expect(await screen.findByText('subagent: Task')).toBeInTheDocument()
     expect(document.querySelector('.subagent-items')?.textContent).toContain('working')
+  })
+
+  it('explains an interrupted session without history', async () => {
+    mockApi()
+    const session = {
+      id: 's1', agent: 'claude' as const, cwd: '/tmp/proj', status: 'interrupted' as const,
+      interruption: { reason: 'server_restart' },
+    }
+    vi.mocked(api.listSessions).mockResolvedValue([session])
+    useSessionStore.setState({ sessions: [session], activeId: 's1', chat: initialChat('detached') })
+    render(<App />)
+    expect(await screen.findByText('Turn interrupted')).toBeInTheDocument()
+    expect(screen.getByText(/go-chamber restarted mid-turn/)).toBeInTheDocument()
+    expect(document.querySelector('.chat-meta .status')?.textContent).toBe('interrupted')
+  })
+
+  it('invites to start a session when none is open', async () => {
+    mockApi()
+    useSessionStore.setState({ activeId: null })
+    render(<App />)
+    expect(await screen.findByRole('heading', { name: 'Start a session' })).toBeInTheDocument()
+    expect(screen.getByText('No sessions yet')).toBeInTheDocument()
+  })
+
+  it('switches panes from the pane bar', async () => {
+    mockApi()
+    vi.mocked(api.listRequests).mockResolvedValue([
+      { id: 'r1', sessionId: 's1', kind: 'permission', state: 'pending', title: 'Run' },
+    ])
+    useSessionStore.setState({ activeId: null })
+    render(<App />)
+    const terminal = await screen.findByRole('button', { name: 'Terminal' })
+    terminal.click()
+    expect(useSessionStore.getState().pane).toBe('terminal')
+    expect(await screen.findByRole('button', { name: /^Requests\s*1$/ })).toBeInTheDocument()
   })
 })

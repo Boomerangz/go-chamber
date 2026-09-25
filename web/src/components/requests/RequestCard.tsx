@@ -19,20 +19,24 @@ function PermissionCard({ request, onRespond }: RequestCardProps) {
   const toolName = request.payload?.toolName
   return (
     <div className="request permission">
+      <span className="request-eyebrow">Waiting for approval</span>
       <header className="request-title">{request.title || toolName || 'Permission required'}</header>
       {request.prompt && <p className="request-prompt">{request.prompt}</p>}
       {toolName && <code className="request-tool">{toolName}</code>}
       {request.payload?.input && <pre className="request-input">{JSON.stringify(request.payload.input, null, 2)}</pre>}
       <div className="request-actions">
-        <button onClick={() => onRespond(request.sessionId, request.id, { behavior: 'allow' })}>Allow</button>
+        <button className="btn btn-primary" onClick={() => onRespond(request.sessionId, request.id, { behavior: 'allow' })}>
+          Allow
+        </button>
         {request.payload?.suggestions != null && (
           <button
+            className="btn"
             onClick={() => onRespond(request.sessionId, request.id, { behavior: 'allow', allowForSession: true })}
           >
             Allow for session
           </button>
         )}
-        <button className="deny" onClick={() => setDenying((v) => !v)}>
+        <button className="btn btn-danger deny" onClick={() => setDenying((v) => !v)}>
           Deny
         </button>
       </div>
@@ -45,12 +49,15 @@ function PermissionCard({ request, onRespond }: RequestCardProps) {
           }}
         >
           <input
+            className="field"
             aria-label="deny reason"
             placeholder="Reason (optional)"
             value={reason}
             onChange={(e) => setReason(e.target.value)}
           />
-          <button type="submit">Confirm deny</button>
+          <button type="submit" className="btn btn-danger">
+            Confirm deny
+          </button>
         </form>
       )}
     </div>
@@ -87,25 +94,27 @@ function QuestionCard({ request, onRespond }: RequestCardProps) {
 
   return (
     <div className="request question">
+      <span className="request-eyebrow">Question</span>
       <header className="request-title">{request.title || 'Question'}</header>
       {request.prompt && <p className="request-prompt">{request.prompt}</p>}
       {questions.map((q: Question) => (
         <fieldset key={q.question} className="question">
           <legend>{q.question}</legend>
           {q.options?.map((opt) => (
-            <label key={opt.label}>
+            <label key={opt.label} className="option">
               <input
                 type={q.multiSelect ? 'checkbox' : 'radio'}
                 name={q.question}
                 checked={(selected[q.question] ?? []).includes(opt.label)}
                 onChange={() => toggle(q.question, opt.label, !!q.multiSelect)}
               />
-              <span>{opt.label}</span>
+              <span className="option-label">{opt.label}</span>
               {opt.description && <small>{opt.description}</small>}
             </label>
           ))}
           <label className="other">
             <input
+              className="field"
               type="text"
               aria-label={`other ${q.question}`}
               placeholder="Other…"
@@ -115,7 +124,7 @@ function QuestionCard({ request, onRespond }: RequestCardProps) {
           </label>
         </fieldset>
       ))}
-      <button className="submit-answer" onClick={submit}>
+      <button className="btn btn-primary submit-answer" onClick={submit}>
         Submit
       </button>
     </div>

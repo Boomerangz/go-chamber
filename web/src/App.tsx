@@ -4,14 +4,16 @@ import RequestCard from './components/requests/RequestCard'
 import QuotaWidget from './components/quota/QuotaWidget'
 import RequestTray from './components/requests/RequestTray'
 import TerminalPanel from './components/terminal/TerminalPanel'
-import { fetchHealth, type Health, type Item, type Session } from './lib/api'
+import { fetchHealth, type AgentKind, type ApprovalReviewer, type Health, type Item, type Session } from './lib/api'
+import { basename, displayStatus } from './lib/format'
 import { itemTree, sessionTree, type ItemNode, type SessionNode } from './lib/tree'
-import { useSessionStore } from './stores/session'
+import { useSessionStore, type Pane } from './stores/session'
 
 export default function App() {
   const [health, setHealth] = useState<Health | null>(null)
   const sessions = useSessionStore((s) => s.sessions)
   const activeId = useSessionStore((s) => s.activeId)
+  const pane = useSessionStore((s) => s.pane)
   const error = useSessionStore((s) => s.error)
   const loadSessions = useSessionStore((s) => s.loadSessions)
   const loadRequests = useSessionStore((s) => s.loadRequests)
@@ -38,44 +40,99 @@ export default function App() {
   return (
     <main className="app">
       <header className="topbar">
-        <h1>go-chamber</h1>
-        <span className={`health health-${health}`}>{health ?? 'connecting'}</span>
+        <div className="brand">
+          <span className="brand-mark" aria-hidden="true" />
+          <h1>go-chamber</h1>
+        </div>
+        <span className={`health health-${health ?? 'connecting'}`}>
+          <span className="dot" aria-hidden="true" />
+          {health ?? 'connecting'}
+        </span>
       </header>
       {health === 'unauthorized' && (
-        <p className="notice">
-          Open the URL with <code>?token=…</code> printed by go-chamber at startup.
-        </p>
+        <section className="notice panel">
+          <h2>Token required</h2>
+          <p>
+            Open the URL with <code>?token=…</code> printed by go-chamber at startup.
+          </p>
+        </section>
       )}
       {health === 'online' && (
-        <div className="layout">
-          <Sidebar
-            sessions={sessions}
-            activeId={activeId}
-            onCreate={(agent, cwd) => void createSession(agent, cwd)}
-            onSelect={(id) => void selectSession(id)}
-          />
-          {activeId ? <Chat /> : <section className="empty">Select or create a session.</section>}
-          <div className="workbench">
-            <RequestTray />
-            <TerminalPanel sessionId={activeId} />
+        <>
+          <div className="layout" data-pane={pane}>
+            <Sidebar
+              sessions={sessions}
+              activeId={activeId}
+              onCreate={(agent, cwd) => void createSession(agent, cwd)}
+              onSelect={(id) => void selectSession(id)}
+            />
+            {activeId ? <Chat /> : <EmptyChat />}
+            <div className="workbench">
+              <RequestTray />
+              <TerminalPanel sessionId={activeId} />
+            </div>
           </div>
-        </div>
+          <PaneBar />
+        </>
       )}
-      {error && <p className="error">{error}</p>}
+      {error && (
+        <p className="error toast" role="alert">
+          {error}
+        </p>
+      )}
     </main>
+  )
+}
+
+const panes: { id: Pane; label: string; icon: string }[] = [
+  { id: 'sessions', label: 'Sessions', icon: '☰' },
+  { id: 'chat', label: 'Chat', icon: '✦' },
+  { id: 'requests', label: 'Requests', icon: '◉' },
+  { id: 'terminal', label: 'Terminal', icon: '›_' },
+]
+
+// PaneBar switches views on narrow screens; hidden on desktop by CSS.
+function PaneBar() {
+  const pane = useSessionStore((s) => s.pane)
+  const setPane = useSessionStore((s) => s.setPane)
+  const pending = useSessionStore((s) => s.pendingRequests.length)
+  return (
+    <nav className="panebar" aria-label="Views">
+      {panes.map((p) => (
+        <button key={p.id} aria-pressed={pane === p.id} onClick={() => setPane(p.id)}>
+          <span className="panebar-icon" aria-hidden="true">
+            {p.icon}
+          </span>
+          {p.label}
+          {p.id === 'requests' && pending > 0 && <span className="badge">{pending}</span>}
+        </button>
+      ))}
+    </nav>
+  )
+}
+
+function EmptyChat() {
+  return (
+    <section className="chat empty panel">
+      <div className="hero">
+        <span className="hero-mark" aria-hidden="true" />
+        <h2>Start a session</h2>
+        <p>Pick an agent and a project folder on the left, or open an existing session.</p>
+      </div>
+    </section>
   )
 }
 
 function Sidebar(props: {
   sessions: Session[]
   activeId: string | null
-  onCreate: (agent: import('./lib/api').AgentKind, cwd: string) => void
+  onCreate: (agent: AgentKind, cwd: string) => void
   onSelect: (id: string) => void
 }) {
   const [cwd, setCwd] = useState('')
-  const [agent, setAgent] = useState<import('./lib/api').AgentKind>('claude')
+  const [agent, setAgent] = useState<AgentKind>('claude')
   return (
-    <aside className="sidebar">
+    <aside className="sidebar panel">
       <form
         className="new-session"
         onSubmit={(e) => {
@@ -83,20 +140,24 @@ function Sidebar(props: {
           if (cwd.trim()) props.onCreate(agent, cwd.trim())
         }}
       >
-        <select aria-label="agent" value={agent} onChange={(e) => setAgent(e.target.value as import('./lib/api').AgentKind)}>
-          <option value="claude">Claude</option>
-          <option value="codex">Codex</option>
-        </select>
-        <input
-          aria-label="working directory"
-          placeholder="/path/to/project"
-          value={cwd}
-          onChange={(e) => setCwd(e.target.value)}
-        />
-        <button type="submit">New session</button>
+        <div className="new-session-row">
+          <select className="field" aria-label="agent" value={agent} onChange={(e) => setAgent(e.target.value as AgentKind)}>
+            <option value="claude">Claude</option>
+            <option value="codex">Codex</option>
+          </select>
+          <input
+            className="field"
+            aria-label="working directory"
+            placeholder="/path/to/project"
+            value={cwd}
+            onChange={(e) => setCwd(e.target.value)}
+          />
+        </div>
+        <button type="submit" className="btn btn-primary">
+          New session
+        </button>
       </form>
-      <AccountPanel key={agent} agent={agent} />
-      <QuotaWidget />
+      <h2 className="section-title">Sessions</h2>
       <ul className="sessions">
         {sessionTree(props.sessions).map((node) => (
           <SessionNodeView
@@ -107,24 +168,29 @@ function Sidebar(props: {
             depth={0}
           />
         ))}
+        {props.sessions.length === 0 && <li className="sessions-empty">No sessions yet</li>}
       </ul>
+      <footer className="sidebar-footer">
+        <AccountPanel key={agent} agent={agent} />
+        <QuotaWidget />
+      </footer>
     </aside>
   )
 }
 
 // ApprovalReviewerSelect chooses who reviews Codex approval requests
 // (sandbox escapes, network access) for the active session.
-function ApprovalReviewerSelect() {
-  const session = useSessionStore((s) => s.sessions.find((x) => x.id === s.activeId))
+function ApprovalReviewerSelect({ session }: { session: Session }) {
   const setReviewer = useSessionStore((s) => s.setApprovalReviewer)
-  if (!session || session.agent !== 'codex') return null
+  if (session.agent !== 'codex') return null
   return (
     <label className="reviewer">
       Approvals
       <select
+        className="field field-sm"
         aria-label="approval reviewer"
         value={session.approvalReviewer ?? ''}
-        onChange={(e) => void setReviewer(session.id, e.target.value as import('./lib/api').ApprovalReviewer)}
+        onChange={(e) => void setReviewer(session.id, e.target.value as ApprovalReviewer)}
       >
         <option value="" disabled>
           from Codex config
@@ -144,8 +210,16 @@ function SessionUsage() {
   if (!tokens && !cost) return null
   return (
     <span className="usage" aria-label="session usage">
-      {tokens ? `${tokens} tokens` : ''}
-      {cost ? ` $${cost.toFixed(4)}` : ''}
+      {tokens ? `${tokens.toLocaleString()} tokens` : ''}
+      {cost ? ` · $${cost.toFixed(4)}` : ''}
+    </span>
+  )
+}
+
+function AgentAvatar({ agent }: { agent: AgentKind }) {
+  return (
+    <span className={`avatar avatar-${agent}`} aria-hidden="true">
+      {agent === 'claude' ? 'C' : 'X'}
     </span>
   )
 }
@@ -163,13 +237,18 @@ function SessionNodeView({
 }) {
   const session = node.session
   return (
-    <li>
+    <li className={depth > 0 ? 'session-child' : undefined}>
       <button
         className={session.id === activeId ? 'session active' : 'session'}
-        style={{ paddingLeft: 8 + depth * 14 }}
         onClick={() => onSelect(session.id)}
       >
-        <span className="session-title">{session.title || session.cwd}</span>
+        <AgentAvatar agent={session.agent} />
+        <span className="session-text">
+          <span className="session-title">{session.title || basename(session.cwd)}</span>
+          <span className="session-path">
+            <bdi>{session.cwd}</bdi>
+          </span>
+        </span>
         <span className={`status status-${session.status}`}>{session.status}</span>
       </button>
       {node.children.length > 0 && (
@@ -191,6 +270,7 @@ function SessionNodeView({
 
 function Chat() {
   const chat = useSessionStore((s) => s.chat)
+  const session = useSessionStore((s) => s.sessions.find((x) => x.id === s.activeId))
   const connection = useSessionStore((s) => s.connection)
   const send = useSessionStore((s) => s.send)
   const steer = useSessionStore((s) => s.steer)
@@ -198,54 +278,106 @@ function Chat() {
   const respond = useSessionStore((s) => s.respond)
   const stopTask = useSessionStore((s) => s.stopTask)
   const [text, setText] = useState('')
+  const status = displayStatus(chat, session)
+  const running = status === 'running'
+
+  const submit = () => {
+    const value = text.trim()
+    if (!value) return
+    if (running) {
+      void steer(value)
+    } else {
+      void send(value)
+    }
+    setText('')
+  }
 
   return (
-    <section className="chat">
-      <div className="chat-meta">
-        <span className={`status status-${chat.status}`}>{chat.status}</span>
-        <span className={`health health-${connection}`}>{connection}</span>
-        <SessionUsage />
-        <ApprovalReviewerSelect />
-      </div>
-      <ol className="items">
-        {itemTree(chat.order, chat.items).map((node) => (
-          <li key={node.item.id}>
-            <ItemView node={node} onStopTask={stopTask} />
-          </li>
+    <section className="chat panel">
+      <header className="chat-header">
+        {session && <AgentAvatar agent={session.agent} />}
+        <div className="chat-heading">
+          <h2>{session ? session.title || basename(session.cwd) : 'Session'}</h2>
+          {session && <span className="chat-path">{session.cwd}</span>}
+        </div>
+        <div className="chat-meta">
+          <span className={`status status-${status}`}>{status}</span>
+          {connection !== 'online' && <span className={`health health-${connection}`}>{connection}</span>}
+          <SessionUsage />
+          {session && <ApprovalReviewerSelect session={session} />}
+        </div>
+      </header>
+      <div className="scroll">
+        <ol className="items">
+          {itemTree(chat.order, chat.items).map((node) => (
+            <li key={node.item.id} className={`row row-${node.item.kind}`}>
+              <ItemView node={node} onStopTask={stopTask} />
+            </li>
+          ))}
+        </ol>
+        {chat.order.length === 0 && status !== 'interrupted' && (
+          <p className="chat-hint">Send a message to start. The agent runs in {session?.cwd ?? 'the session folder'}.</p>
+        )}
+        {Object.values(chat.requests).map((request) => (
+          <RequestCard key={request.id} request={request} onRespond={respond} />
         ))}
-      </ol>
-      {Object.values(chat.requests).map((request) => (
-        <RequestCard key={request.id} request={request} onRespond={respond} />
-      ))}
+      </div>
+      {status === 'interrupted' && session && <InterruptedBanner session={session} />}
       <form
         className="composer"
         onSubmit={(e) => {
           e.preventDefault()
-          const value = text.trim()
-          if (value) {
-            if (chat.status === 'running') {
-              void steer(value)
-            } else {
-              void send(value)
-            }
-            setText('')
-          }
+          submit()
         }}
       >
         <textarea
           aria-label="message"
           value={text}
+          rows={1}
           onChange={(e) => setText(e.target.value)}
-          placeholder="Message the agent…"
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+              e.preventDefault()
+              submit()
+            }
+          }}
+          placeholder={running ? 'Steer the running turn…' : 'Message the agent…  ⌘↵ to send'}
         />
-        {chat.status === 'running' ? <button type="submit">Steer</button> : <button type="submit">Send</button>}
-        {chat.status === 'running' && (
-          <button type="button" className="stop" onClick={() => void interrupt()}>
-            Stop
+        <div className="composer-actions">
+          {running && (
+            <button type="button" className="btn btn-danger stop" onClick={() => void interrupt()}>
+              Stop
+            </button>
+          )}
+          <button type="submit" className="btn btn-primary">
+            {running ? 'Steer' : 'Send'}
           </button>
-        )}
+        </div>
       </form>
     </section>
+  )
+}
+
+const interruptionText: Record<string, string> = {
+  crashed: 'the agent process exited unexpectedly',
+  idle_timeout: 'the agent was stopped after being idle',
+  server_restart: 'go-chamber restarted mid-turn',
+  quota: 'the subscription limit was reached',
+}
+
+function InterruptedBanner({ session }: { session: Session }) {
+  const reason = session.interruption?.reason
+  const after = session.interruption?.resumeAfter
+  return (
+    <div className="banner banner-warn" role="status">
+      <strong>Turn interrupted</strong>
+      <span>
+        {reason ? interruptionText[reason] ?? reason : 'the turn ended abnormally'}.{' '}
+        {after && !after.startsWith('0001')
+          ? `Resume after ${new Date(after).toLocaleTimeString()}.`
+          : 'Send a message to resume the session.'}
+      </span>
+    </div>
   )
 }
 
@@ -271,28 +403,39 @@ function ItemView({
       )
     case 'command':
       return (
-        <div className="item command">
+        <div className={`item command state-${item.status}`}>
+          <span className="item-icon" aria-hidden="true">
+            $
+          </span>
           <code>{commandText(item)}</code>
           {item.text && <pre>{item.text}</pre>}
         </div>
       )
     case 'file_change':
       return (
-        <div className="item file">
+        <div className={`item file state-${item.status}`}>
+          <span className="item-icon" aria-hidden="true">
+            ✎
+          </span>
           <code>{item.path || item.name}</code>
           {item.diff && <pre>{item.diff}</pre>}
         </div>
       )
     case 'subagent':
       return (
-        <div className="item subagent">
-          <span>subagent: {item.name}</span>
+        <div className={`item subagent state-${item.status}`}>
+          <div className="subagent-head">
+            <span className="item-icon" aria-hidden="true">
+              ⧉
+            </span>
+            <span>subagent: {item.name}</span>
+            {item.agentId && item.status !== 'completed' && item.status !== 'failed' && (
+              <button className="btn btn-ghost btn-xs stop-task" onClick={() => onStopTask(item.sessionId, item.agentId!)}>
+                Stop
+              </button>
+            )}
+          </div>
           {item.text && <pre>{item.text}</pre>}
-          {item.agentId && item.status !== 'completed' && item.status !== 'failed' && (
-            <button className="stop-task" onClick={() => onStopTask(item.sessionId, item.agentId!)}>
-              Stop
-            </button>
-          )}
           {node.children.length > 0 && (
             <ol className="subagent-items">
               {node.children.map((child) => (
@@ -306,7 +449,10 @@ function ItemView({
       )
     default:
       return (
-        <div className="item tool">
+        <div className={`item tool state-${item.status}`}>
+          <span className="item-icon" aria-hidden="true">
+            ⚙
+          </span>
           <code>{item.name}</code>
           {item.text && <pre>{item.text}</pre>}
         </div>

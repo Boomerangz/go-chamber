@@ -13,7 +13,7 @@ test('streams a fake agent reply end to end', async ({ page }) => {
 
   await expect(page.getByText('hello', { exact: true })).toBeVisible()
   await expect(page.getByText('echo: hello')).toBeVisible()
-  await expect(page.locator('.status', { hasText: 'idle' }).first()).toBeVisible()
+  await expect(page.locator('.chat-meta .status', { hasText: 'idle' })).toBeVisible()
 })
 
 test('shows a tool call card from the fake agent', async ({ page }) => {
