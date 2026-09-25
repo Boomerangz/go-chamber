@@ -5,10 +5,6 @@ import { useSessionStore } from '../../stores/session'
 
 const agentConfig = { claude: 'Claude settings', codex: 'Codex config' } as const
 
-const hints = {
-  claude: 'Models switch live. Changing effort restarts Claude; the conversation is kept.',
-  codex: 'Applies from the next turn.',
-} as const
 
 // ModelPicker chooses the session's model and reasoning effort.
 export default function ModelPicker({ session }: { session: Session }) {
@@ -101,7 +97,7 @@ export default function ModelPicker({ session }: { session: Session }) {
               </div>
             </div>
           )}
-          <p className="model-hint">{hints[session.agent]}</p>
+          <p className="model-hint">Applies from the next turn.</p>
         </div>
       )}
     </div>

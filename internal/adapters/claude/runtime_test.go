@@ -376,13 +376,30 @@ func TestRuntimeModelFlagsAndLiveSwitch(t *testing.T) {
 	}
 }
 
-func TestRuntimeModelChangesThatNeedARestart(t *testing.T) {
+func TestRuntimeEffortAndDefaultsSwitchLive(t *testing.T) {
 	rt := startFake(t, app.StartRequest{Model: "opus", Effort: "high"})
-	if err := rt.SetModel(context.Background(), "opus", "low"); !errors.Is(err, app.ErrRestartRequired) {
-		t.Fatalf("effort change err = %v", err)
+	if err := rt.SetModel(context.Background(), "opus", "low"); err != nil {
+		t.Fatal(err)
 	}
-	if err := rt.SetModel(context.Background(), "", "high"); !errors.Is(err, app.ErrRestartRequired) {
-		t.Fatalf("reset to default err = %v", err)
+	if got := askModel(t, rt); got != "model: opus effort: low" {
+		t.Fatalf("after effort change = %q", got)
+	}
+	if err := rt.SetModel(context.Background(), "", ""); err != nil {
+		t.Fatal(err)
+	}
+	if got := askModel(t, rt); got != "model:  effort: " {
+		t.Fatalf("after reset = %q", got)
+	}
+	// A model change re-applies the chosen effort: the CLI resets effort
+	// when it switches to a model without one (Haiku).
+	if err := rt.SetModel(context.Background(), "haiku", ""); err != nil {
+		t.Fatal(err)
+	}
+	if err := rt.SetModel(context.Background(), "sonnet", "max"); err != nil {
+		t.Fatal(err)
+	}
+	if got := askModel(t, rt); got != "model: sonnet effort: max" {
+		t.Fatalf("after model+effort = %q", got)
 	}
 }
 

@@ -69,7 +69,7 @@ describe('ModelPicker', () => {
     render(<ModelPicker session={session({ agent: 'claude', model: 'tiny' })} />)
     await userEvent.click(await screen.findByRole('button', { name: /Model:/ }))
     expect(screen.queryByRole('radiogroup', { name: 'effort' })).toBeNull()
-    expect(screen.getByText(/Changing effort restarts Claude/)).toBeInTheDocument()
+    expect(screen.getByText('From Claude settings')).toBeInTheDocument()
     await userEvent.click(screen.getByRole('radio', { name: /Tiny/ }))
     expect(api.setModel).not.toHaveBeenCalled()
   })

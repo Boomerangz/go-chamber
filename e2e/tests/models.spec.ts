@@ -32,7 +32,7 @@ test('chooses the Claude model before and during a session', async ({ page }) =>
   await expect(page.getByRole('button', { name: 'Model: Opus' })).toBeVisible()
   await ask(page, 'model: opus effort: ')
 
-  // A model switches live; effort restarts the CLI with --effort.
+  // Model and effort switch live in the running CLI.
   await pick(page, 'model', /^Sonnet/)
   await ask(page, 'model: sonnet effort: ')
   await pick(page, 'effort', 'high')

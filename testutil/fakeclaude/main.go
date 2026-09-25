@@ -44,9 +44,10 @@ type envelope struct {
 	} `json:"response"`
 	RequestID string `json:"request_id"`
 	Request   struct {
-		Subtype string `json:"subtype"`
-		TaskID  string `json:"task_id"`
-		Model   string `json:"model"`
+		Subtype  string                     `json:"subtype"`
+		TaskID   string                     `json:"task_id"`
+		Model    string                     `json:"model"`
+		Settings map[string]json.RawMessage `json:"settings"`
 	} `json:"request"`
 }
 
@@ -108,9 +109,17 @@ func main() {
 			switch env.Request.Subtype {
 			case "stop_task":
 				stopTask(enc, out, sessionID, env.RequestID, env.Request.TaskID)
-			case "set_model":
-				// Like the real CLI: switches the model of the live session.
-				model = env.Request.Model
+			case "set_model", "apply_flag_settings":
+				// Like the real CLI: set_model switches the live model (no
+				// model means the default); apply_flag_settings changes
+				// effortLevel (null means the default).
+				if env.Request.Subtype == "set_model" {
+					model = env.Request.Model
+					effort = "" // a new model starts from its own default
+				} else if raw, ok := env.Request.Settings["effortLevel"]; ok {
+					effort = ""
+					_ = json.Unmarshal(raw, &effort)
+				}
 				_ = enc.Encode(map[string]any{"type": "control_response", "response": map[string]any{
 					"subtype": "success", "request_id": env.RequestID, "response": map[string]any{},
 				}})

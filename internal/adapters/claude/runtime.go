@@ -182,36 +182,50 @@ func (r *Runtime) Respond(_ context.Context, requestID domain.RequestID, answer 
 	return r.writeLine(append(line, '\n'))
 }
 
-// SetModel switches the model of the live session with a set_model control
-// request. Effort is a start flag, and returning to the configured default
-// model has no control request, so both need a restart.
+// SetModel switches the live session: set_model changes the model (no
+// model means the configured default) and apply_flag_settings changes
+// effortLevel (null means the model's default). After a model change the
+// effort is sent again, since the CLI resets it for models without effort.
+// Verified on claude 2.1.x through get_settings "applied".
 func (r *Runtime) SetModel(_ context.Context, model, effort string) error {
 	r.modelMu.Lock()
 	defer r.modelMu.Unlock()
-	if effort != r.effort || (model == "" && r.model != "") {
-		return app.ErrRestartRequired
+	modelChanged := model != r.model
+	if modelChanged {
+		req := map[string]any{"subtype": "set_model"}
+		if model != "" {
+			req["model"] = model
+		}
+		if err := r.controlRequest(req); err != nil {
+			return err
+		}
+		r.model = model
 	}
-	if model == r.model {
-		return nil
+	if effort != r.effort || (modelChanged && effort != "") {
+		var level any
+		if effort != "" {
+			level = effort
+		}
+		req := map[string]any{"subtype": "apply_flag_settings", "settings": map[string]any{"effortLevel": level}}
+		if err := r.controlRequest(req); err != nil {
+			return err
+		}
+		r.effort = effort
 	}
-	if err := r.controlRequest(map[string]string{"subtype": "set_model", "model": model}); err != nil {
-		return err
-	}
-	r.model = model
 	return nil
 }
 
 // Interrupt asks the CLI to stop the current turn.
 func (r *Runtime) Interrupt(_ context.Context) error {
-	return r.controlRequest(map[string]string{"subtype": "interrupt"})
+	return r.controlRequest(map[string]any{"subtype": "interrupt"})
 }
 
 // StopTask asks the CLI to stop one background subagent task.
 func (r *Runtime) StopTask(_ context.Context, taskID string) error {
-	return r.controlRequest(map[string]string{"subtype": "stop_task", "task_id": taskID})
+	return r.controlRequest(map[string]any{"subtype": "stop_task", "task_id": taskID})
 }
 
-func (r *Runtime) controlRequest(request map[string]string) error {
+func (r *Runtime) controlRequest(request map[string]any) error {
 	r.writeMu.Lock()
 	r.reqCounter++
 	reqID := fmt.Sprintf("gc-%d", r.reqCounter)
