@@ -62,7 +62,10 @@ func run(ctx context.Context, args []string, out io.Writer) error {
 	}
 	defer store.Close()
 
-	events := hub.New()
+	eventLog := store.Events()
+	events := hub.NewLogged(eventLog, func(err error) {
+		_, _ = fmt.Fprintln(os.Stderr, "event log:", err)
+	})
 	codexFactory := &codex.Factory{}
 	runtimes := &router.Router{
 		Claude:   &claude.Factory{},
@@ -103,6 +106,7 @@ func run(ctx context.Context, args []string, out io.Writer) error {
 			Events:    events,
 			Terminals: terminals,
 			Folders:   app.NewFolders(app.FoldersConfig{Reader: fsys.Reader{}, Home: home}),
+			Search:    eventLog,
 		}),
 		ReadHeaderTimeout: 10 * time.Second,
 	}

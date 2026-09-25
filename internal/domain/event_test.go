@@ -49,3 +49,22 @@ func TestEventPayloadsRejectsEmptyDelta(t *testing.T) {
 		t.Fatalf("want ErrInvalidEvent, got %v", err)
 	}
 }
+
+func TestDetachItemsCopiesItems(t *testing.T) {
+	code := 1
+	item := &Item{ID: "i", Text: "a", Input: []byte(`{}`), ExitCode: &code}
+	events := DetachItems([]Event{{Type: EventItemUpdated, Item: item}, {Type: EventTurnEnded}})
+	item.Text = "changed"
+	item.Input[0] = 'x'
+	code = 2
+	got := events[0].Item
+	if got == item || got.Text != "a" || string(got.Input) != "{}" || *got.ExitCode != 1 {
+		t.Fatalf("detached item = %+v", got)
+	}
+	if events[1].Item != nil {
+		t.Fatal("event without item got one")
+	}
+	if got := DetachItems([]Event{{Item: &Item{ID: "n"}}}); got[0].Item.ExitCode != nil {
+		t.Fatal("nil exit code became non-nil")
+	}
+}

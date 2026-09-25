@@ -60,6 +60,11 @@ func (m *Mapper) SetTurn(turn domain.TurnID) { m.turn = turn }
 
 // Map parses one NDJSON protocol message into zero or more domain events.
 func (m *Mapper) Map(line []byte) ([]domain.Event, error) {
+	events, err := m.mapLine(line)
+	return domain.DetachItems(events), err
+}
+
+func (m *Mapper) mapLine(line []byte) ([]domain.Event, error) {
 	var raw rawMessage
 	if err := json.Unmarshal(line, &raw); err != nil {
 		return nil, fmt.Errorf("claude: parse message: %w", err)

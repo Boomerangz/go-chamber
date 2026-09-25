@@ -102,3 +102,21 @@ func (e Event) Valid() error {
 	}
 	return nil
 }
+
+// DetachItems replaces every event's Item with a copy. Mappers keep
+// mutating their items after emitting them, while the events are stored
+// and sent concurrently.
+func DetachItems(events []Event) []Event {
+	for i := range events {
+		if it := events[i].Item; it != nil {
+			c := *it
+			c.Input = append([]byte(nil), it.Input...)
+			if it.ExitCode != nil {
+				code := *it.ExitCode
+				c.ExitCode = &code
+			}
+			events[i].Item = &c
+		}
+	}
+	return events
+}

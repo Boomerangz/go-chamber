@@ -98,3 +98,25 @@ func TestExistingTitleIsKept(t *testing.T) {
 		t.Fatalf("title = %q", saved.Title)
 	}
 }
+
+func TestRestorePublishesNormalizedStatus(t *testing.T) {
+	repo, bus := newMemRepo(), newFakeBus()
+	ctx := context.Background()
+	_ = repo.Save(ctx, domain.SessionSnapshot{ID: "run", Agent: domain.AgentClaude, Cwd: "/p", Status: domain.StatusRunning})
+	_ = repo.Save(ctx, domain.SessionSnapshot{ID: "idle", Agent: domain.AgentClaude, Cwd: "/p", Status: domain.StatusIdle})
+	_ = repo.Save(ctx, domain.SessionSnapshot{ID: "same", Agent: domain.AgentClaude, Cwd: "/p", Status: domain.StatusDetached})
+	m := NewManager(ManagerConfig{Repo: repo, Runtimes: &fakeFactory{}, Bus: bus})
+	if _, err := m.Restore(ctx); err != nil {
+		t.Fatal(err)
+	}
+	got := map[domain.SessionID]domain.SessionStatus{}
+	for _, ev := range bus.snapshot() {
+		if ev.Type == domain.EventSessionState && ev.Session != nil {
+			got[ev.SessionID] = ev.Session.Status
+		}
+	}
+	want := map[domain.SessionID]domain.SessionStatus{"run": domain.StatusInterrupted, "idle": domain.StatusDetached}
+	if len(got) != len(want) || got["run"] != want["run"] || got["idle"] != want["idle"] {
+		t.Fatalf("published = %v", got)
+	}
+}

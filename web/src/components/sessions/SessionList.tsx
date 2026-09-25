@@ -1,10 +1,12 @@
-import { Fragment, useMemo } from 'react'
+import { Fragment, useEffect, useMemo } from 'react'
+import type { SearchHit, Session } from '../../lib/api'
 import {
   bucketOf,
   groupSessions,
   matchesQuery,
   relativeTime,
   sessionTitle,
+  snippetParts,
   visibleInGroup,
   type GroupMode,
   type SessionGroup,
@@ -30,8 +32,16 @@ export default function SessionList({ onCreateIn }: SessionListProps) {
   const setGroupMode = useSessionStore((s) => s.setGroupMode)
   const pending = useSessionStore((s) => s.pendingRequests)
   const selectSession = useSessionStore((s) => s.selectSession)
+  const searchHits = useSessionStore((s) => s.searchHits)
+  const searchMessages = useSessionStore((s) => s.searchMessages)
 
   const searching = query.trim() !== ''
+
+  // Message search runs on the server, a moment after typing stops.
+  useEffect(() => {
+    const timer = setTimeout(() => void searchMessages(query), 250)
+    return () => clearTimeout(timer)
+  }, [query, searchMessages])
   const groups = useMemo(() => {
     const matching = searching ? sessions.filter((s) => matchesQuery(s, query)) : sessions
     // Keep parents of matching children so the tree stays intact.
@@ -75,7 +85,15 @@ export default function SessionList({ onCreateIn }: SessionListProps) {
             onCreateIn={onCreateIn}
           />
         ))}
-        {groups.length === 0 && (
+        {searching && (
+          <MessageHits
+            hits={searchHits}
+            sessions={sessions}
+            activeId={activeId}
+            onSelect={(id) => void selectSession(id)}
+          />
+        )}
+        {groups.length === 0 && (!searching || searchHits.length === 0) && (
           <p className="sessions-empty">{searching ? 'No matching sessions' : 'No sessions yet'}</p>
         )}
       </div>
@@ -199,5 +217,46 @@ function SessionRow(props: {
         </ul>
       )}
     </li>
+  )
+}
+
+function MessageHits(props: {
+  hits: SearchHit[]
+  sessions: Session[]
+  activeId: string | null
+  onSelect: (id: string) => void
+}) {
+  const rows = props.hits
+    .map((hit) => ({ hit, session: props.sessions.find((s) => s.id === hit.sessionId) }))
+    .filter((r): r is { hit: SearchHit; session: Session } => r.session !== undefined)
+  if (rows.length === 0) return null
+  return (
+    <section className="message-hits" aria-label="Message matches">
+      <h3 className="section-title">In messages</h3>
+      <ul className="sessions">
+        {rows.map(({ hit, session }) => (
+          <li key={hit.sessionId}>
+            <button
+              className={session.id === props.activeId ? 'session hit active' : 'session hit'}
+              onClick={() => props.onSelect(session.id)}
+            >
+              <span className={`avatar avatar-sm avatar-${session.agent}`} aria-hidden="true">
+                {session.agent === 'claude' ? 'C' : 'X'}
+              </span>
+              <span className="session-text">
+                <span className="session-title">{sessionTitle(session)}</span>
+                <span className="snippet">
+                  {snippetParts(hit.snippet).map((p, i) => (p.match ? <mark key={i}>{p.text}</mark> : p.text))}
+                </span>
+                <span className="session-meta">
+                  <span>{session.cwd.split('/').filter(Boolean).pop()}</span>
+                  {hit.matches > 1 && <span>· {hit.matches} messages</span>}
+                </span>
+              </span>
+            </button>
+          </li>
+        ))}
+      </ul>
+    </section>
   )
 }

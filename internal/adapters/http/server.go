@@ -30,6 +30,8 @@ type Config struct {
 	Terminals Terminals
 	// Folders lists server directories for the folder picker when non-nil.
 	Folders Folders
+	// Search finds sessions by message text when non-nil.
+	Search MessageSearch
 }
 
 type server struct {

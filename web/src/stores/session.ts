@@ -19,11 +19,14 @@ export interface SessionStore {
   // groupModes is how each project folder is expanded in the sidebar.
   groupModes: Record<string, GroupMode>
   query: string
+  // searchHits are sessions whose messages match the query.
+  searchHits: api.SearchHit[]
   error: string | null
 
   setPane: (pane: Pane) => void
   setGroupMode: (cwd: string, mode: GroupMode) => void
   setQuery: (query: string) => void
+  searchMessages: (query: string) => Promise<void>
   loadSessions: () => Promise<void>
   loadRequests: () => Promise<void>
   loadQuotas: () => Promise<void>
@@ -51,6 +54,7 @@ function loadGroupModes(): Record<string, GroupMode> {
 }
 
 let socket: WebSocket | null = null
+let searchGeneration = 0
 let buffered: api.SessionEvent[] | null = null
 let generation = 0
 
@@ -64,6 +68,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
   pane: 'sessions',
   groupModes: loadGroupModes(),
   query: '',
+  searchHits: [],
   error: null,
 
   setConnection: (connection) => set({ connection }),
@@ -78,6 +83,20 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     }
   },
   setQuery: (query) => set({ query }),
+
+  async searchMessages(query) {
+    const mine = ++searchGeneration
+    if (query.trim().length < 2) {
+      set({ searchHits: [] })
+      return
+    }
+    try {
+      const hits = await api.searchMessages(query.trim())
+      if (mine === searchGeneration) set({ searchHits: hits })
+    } catch {
+      if (mine === searchGeneration) set({ searchHits: [] })
+    }
+  },
 
   async loadSessions() {
     try {
@@ -301,6 +320,7 @@ export function resetStore(): void {
     pane: 'sessions',
     groupModes: loadGroupModes(),
     query: '',
+    searchHits: [],
     error: null,
   })
 }

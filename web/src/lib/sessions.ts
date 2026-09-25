@@ -111,3 +111,23 @@ const agentName: Record<AgentKind, string> = { claude: 'Claude', codex: 'Codex' 
 export function sessionTitle(s: Session): string {
   return s.title || `New ${agentName[s.agent]} session`
 }
+
+export interface SnippetPart {
+  text: string
+  match: boolean
+}
+
+// snippetParts splits a search snippet into plain and matched text; the
+// server marks matches with [[ and ]].
+export function snippetParts(snippet: string): SnippetPart[] {
+  const parts: SnippetPart[] = []
+  const re = /\[\[(.*?)\]\]/g
+  let last = 0
+  for (let m = re.exec(snippet); m; m = re.exec(snippet)) {
+    if (m.index > last) parts.push({ text: snippet.slice(last, m.index), match: false })
+    parts.push({ text: m[1], match: true })
+    last = m.index + m[0].length
+  }
+  if (last < snippet.length) parts.push({ text: snippet.slice(last), match: false })
+  return parts
+}

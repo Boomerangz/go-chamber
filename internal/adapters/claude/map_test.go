@@ -159,13 +159,17 @@ func TestMapThinkingAndUnknownMessages(t *testing.T) {
 		`{"type":"unknown_future_type","session_id":"s1"}`,
 	)
 	var reasoning *domain.Item
+	text := ""
 	for _, ev := range evs {
 		if ev.Item != nil && ev.Item.Kind == domain.ItemReasoning {
 			reasoning = ev.Item
 		}
+		if ev.Type == domain.EventTextDelta && reasoning != nil && ev.Delta.ItemID == reasoning.ID {
+			text += ev.Delta.Text
+		}
 	}
-	if reasoning == nil || reasoning.Text != "hmm" {
-		t.Fatalf("reasoning = %+v (events %+v)", reasoning, evs)
+	if reasoning == nil || text != "hmm" {
+		t.Fatalf("reasoning = %+v, text %q (events %+v)", reasoning, text, evs)
 	}
 }
 
@@ -482,5 +486,25 @@ func TestMapRateLimit(t *testing.T) {
 	}
 	if evs := feed(t, m, `{"type":"rate_limit_event","session_id":"s1"}`); len(evs) != 0 {
 		t.Fatalf("no info = %+v", evs)
+	}
+}
+
+// Emitted items are snapshots: the mapper keeps mutating its own item while
+// the event is being stored and sent concurrently.
+func TestEmittedItemsAreSnapshots(t *testing.T) {
+	m := NewMapper("s1")
+	m.SetTurn("t1")
+	started := feed(t, m,
+		`{"type":"stream_event","session_id":"s1","uuid":"u1","event":{"type":"message_start","message":{"id":"msg_1","role":"assistant","content":[]}}}`,
+		`{"type":"stream_event","session_id":"s1","uuid":"u2","event":{"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}}`,
+	)
+	feed(t, m,
+		`{"type":"stream_event","session_id":"s1","uuid":"u3","event":{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"Hel"}}}`,
+		`{"type":"stream_event","session_id":"s1","uuid":"u5","event":{"type":"content_block_stop","index":0}}`,
+	)
+	for _, ev := range started {
+		if ev.Item != nil && (ev.Item.Text != "" || ev.Item.Status == domain.ItemCompleted) {
+			t.Fatalf("emitted item changed afterwards: %+v", ev.Item)
+		}
 	}
 }

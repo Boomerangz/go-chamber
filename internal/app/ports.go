@@ -127,3 +127,27 @@ type EventBus interface {
 	// returning the event with its per-session Seq assigned.
 	Publish(ev domain.Event) domain.Event
 }
+
+// EventLog persists the per-session event stream so history survives
+// restarts and can be searched.
+type EventLog interface {
+	Append(ctx context.Context, ev domain.Event) error
+	// History returns events with Seq > since, in order.
+	History(ctx context.Context, session domain.SessionID, since domain.Seq) ([]domain.Event, error)
+	// LastSeq is the highest stored Seq for a session, 0 when none.
+	LastSeq(ctx context.Context, session domain.SessionID) (domain.Seq, error)
+}
+
+// SearchHit is one session whose messages match a search.
+type SearchHit struct {
+	SessionID domain.SessionID `json:"sessionId"`
+	ItemID    domain.ItemID    `json:"itemId"`
+	// Snippet is the matching text with matches wrapped in [[ and ]].
+	Snippet string `json:"snippet"`
+	Matches int    `json:"matches"`
+}
+
+// MessageSearch finds sessions by the text of their messages.
+type MessageSearch interface {
+	Search(ctx context.Context, query string, limit int) ([]SearchHit, error)
+}

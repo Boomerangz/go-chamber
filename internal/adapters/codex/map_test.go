@@ -345,3 +345,17 @@ func TestMapTokenUsage(t *testing.T) {
 		t.Fatalf("events = %+v", events)
 	}
 }
+
+// Emitted items are snapshots: later notifications must not change them.
+func TestEmittedItemsAreSnapshots(t *testing.T) {
+	m := NewMapper("s1")
+	m.SetTurn("t1")
+	started := feedCodex(t, m, "item/started", `{"threadId":"th","turnId":"t1","item":{"type":"agentMessage","id":"i1","text":""}}`)
+	feedCodex(t, m, "item/agentMessage/delta", `{"threadId":"th","turnId":"t1","itemId":"i1","delta":"Hel"}`)
+	feedCodex(t, m, "item/completed", `{"threadId":"th","turnId":"t1","item":{"type":"agentMessage","id":"i1","text":"Hello"}}`)
+	for _, ev := range started {
+		if ev.Item != nil && (ev.Item.Text != "" || ev.Item.Status == domain.ItemCompleted) {
+			t.Fatalf("emitted item changed afterwards: %+v", ev.Item)
+		}
+	}
+}

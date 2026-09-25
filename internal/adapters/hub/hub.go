@@ -3,6 +3,7 @@
 package hub
 
 import (
+	"context"
 	"sync"
 
 	"github.com/igorzygin/go-chamber/internal/app"
@@ -21,6 +22,11 @@ type Hub struct {
 	seq     map[domain.SessionID]domain.Seq
 	buf     map[domain.SessionID][]domain.Event
 	subs    map[*Subscriber]struct{}
+
+	// log persists events when set; seq numbering then continues from it.
+	log     app.EventLog
+	onError func(error)
+	loaded  map[domain.SessionID]bool
 }
 
 func New() *Hub { return NewWithBuffer(DefaultBufferSize) }
@@ -39,8 +45,33 @@ func NewWithBuffer(bufSize int) *Hub {
 
 // Publish assigns the next sequence number for the session, stores the event
 // for replay and delivers it to current subscribers.
+// NewLogged returns a hub that persists every event to log and serves
+// history from it, so replay survives restarts. onError receives log
+// failures; the in-memory buffer keeps working without the log.
+func NewLogged(log app.EventLog, onError func(error)) *Hub {
+	h := New()
+	h.log = log
+	h.onError = onError
+	h.loaded = map[domain.SessionID]bool{}
+	return h
+}
+
+func (h *Hub) fail(err error) {
+	if err != nil && h.onError != nil {
+		h.onError(err)
+	}
+}
+
 func (h *Hub) Publish(ev domain.Event) domain.Event {
 	h.mu.Lock()
+	if h.log != nil && !h.loaded[ev.SessionID] {
+		last, err := h.log.LastSeq(context.Background(), ev.SessionID)
+		h.fail(err)
+		if last > h.seq[ev.SessionID] {
+			h.seq[ev.SessionID] = last
+		}
+		h.loaded[ev.SessionID] = true
+	}
 	h.seq[ev.SessionID]++
 	ev.Seq = h.seq[ev.SessionID]
 	buf := h.buf[ev.SessionID]
@@ -49,6 +80,10 @@ func (h *Hub) Publish(ev domain.Event) domain.Event {
 		buf = buf[len(buf)-h.bufSize:]
 	}
 	h.buf[ev.SessionID] = buf
+	if h.log != nil {
+		// Under the lock so events are stored in seq order.
+		h.fail(h.log.Append(context.Background(), ev))
+	}
 	subs := make([]*Subscriber, 0, len(h.subs))
 	for s := range h.subs {
 		subs = append(subs, s)
@@ -63,6 +98,13 @@ func (h *Hub) Publish(ev domain.Event) domain.Event {
 
 // History returns buffered events for a session with Seq greater than since.
 func (h *Hub) History(session domain.SessionID, since domain.Seq) []domain.Event {
+	if h.log != nil {
+		events, err := h.log.History(context.Background(), session, since)
+		if err == nil {
+			return events
+		}
+		h.fail(err)
+	}
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	var out []domain.Event

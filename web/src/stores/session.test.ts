@@ -14,6 +14,7 @@ vi.mock('../lib/api', () => ({
   setApprovalReviewer: vi.fn(),
   interrupt: vi.fn(),
   respondRequest: vi.fn(),
+  searchMessages: vi.fn(),
 }))
 
 import * as api from '../lib/api'
@@ -74,6 +75,29 @@ describe('session store', () => {
     localStorage.setItem('gc.groupModes', '[1]')
     resetStore()
     expect(store().groupModes).toEqual({})
+  })
+
+  it('searches messages and drops stale answers', async () => {
+    let resolveFirst: (v: unknown) => void = () => {}
+    ;(api.searchMessages as Mock)
+      .mockImplementationOnce(() => new Promise((r) => (resolveFirst = r)))
+      .mockResolvedValueOnce([{ sessionId: 's2', itemId: 'i', snippet: 'new', matches: 1 }])
+    const first = store().searchMessages('old')
+    await store().searchMessages('new')
+    resolveFirst([{ sessionId: 's1', itemId: 'i', snippet: 'old', matches: 1 }])
+    await first
+    expect(store().searchHits.map((h) => h.sessionId)).toEqual(['s2'])
+  })
+
+  it('clears hits for short queries and on errors', async () => {
+    useSessionStore.setState({ searchHits: [{ sessionId: 's', itemId: 'i', snippet: '', matches: 1 }] })
+    await store().searchMessages(' a ')
+    expect(store().searchHits).toEqual([])
+    expect(api.searchMessages).not.toHaveBeenCalled()
+    ;(api.searchMessages as Mock).mockRejectedValue(new Error('down'))
+    useSessionStore.setState({ searchHits: [{ sessionId: 's', itemId: 'i', snippet: '', matches: 1 }] })
+    await store().searchMessages('query')
+    expect(store().searchHits).toEqual([])
   })
 
   it('keeps the session search query', () => {

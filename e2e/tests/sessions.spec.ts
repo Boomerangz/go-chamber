@@ -19,6 +19,11 @@ test('groups sessions by project and finds them by title', async ({ page }) => {
     await expect(page.locator('.item.assistant', { hasText: `echo: ${text}` })).toBeVisible()
   }
   await expect(page.locator('.chat-header h2')).toHaveText('second topic')
+  // A later message doesn't rename the session but is found by content.
+  const word = `quasar${Date.now()}`
+  await page.getByLabel('message').fill(`mention ${word} here`)
+  await page.getByRole('button', { name: 'Send' }).click()
+  await expect(page.locator('.item.assistant', { hasText: word })).toBeVisible()
 
   await showPane(page, 'Sessions')
   const group = page.getByRole('region', { name: `Project ${name}` })
@@ -33,4 +38,12 @@ test('groups sessions by project and finds them by title', async ({ page }) => {
   await expect(group.locator('.session-title')).toHaveText(['first topic'])
   await group.locator('.session').click()
   await expect(page.locator('.chat-header h2')).toHaveText('first topic')
+
+  await showPane(page, 'Sessions')
+  await page.getByLabel('search sessions').fill(word.slice(0, -3))
+  const hits = page.getByRole('region', { name: 'Message matches' })
+  await expect(hits.locator('.session-title')).toHaveText(['second topic'])
+  await expect(hits.locator('mark').first()).toContainText(word)
+  await hits.locator('.session').click()
+  await expect(page.locator('.chat-header h2')).toHaveText('second topic')
 })

@@ -115,6 +115,8 @@ func (m *Manager) Restore(ctx context.Context) ([]domain.SessionSnapshot, error)
 			if err := m.cfg.Repo.Save(ctx, cur); err != nil {
 				return out, err
 			}
+			// Persisted history must show how the previous run ended.
+			m.cfg.Bus.Publish(domain.Event{SessionID: cur.ID, Type: domain.EventSessionState, Session: &cur})
 		}
 		out = append(out, cur)
 	}

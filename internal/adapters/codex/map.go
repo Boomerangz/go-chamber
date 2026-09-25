@@ -25,6 +25,10 @@ func (m *Mapper) SetTurn(turn domain.TurnID) { m.turn = turn }
 
 // MapNotification maps one server notification. Unknown methods are ignored.
 func (m *Mapper) MapNotification(method string, params json.RawMessage) []domain.Event {
+	return domain.DetachItems(m.mapNotification(method, params))
+}
+
+func (m *Mapper) mapNotification(method string, params json.RawMessage) []domain.Event {
 	switch method {
 	case "item/started":
 		var n itemNotification

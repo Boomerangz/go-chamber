@@ -17,6 +17,7 @@ import {
   stopTask,
   setApprovalReviewer,
   listFolders,
+  searchMessages,
 } from './api'
 
 afterEach(() => vi.unstubAllGlobals())
@@ -196,5 +197,14 @@ describe('listFolders API', () => {
     const fn = stubFetch(async () => json({ path: '/h', home: '/h', folders: [] }))
     await listFolders()
     expect(fn.mock.calls[0][0]).toBe('/api/folders')
+  })
+})
+
+describe('searchMessages API', () => {
+  it('encodes the query', async () => {
+    const fn = stubFetch(async () => json([{ sessionId: 's', itemId: 'i', snippet: '[[a]]', matches: 1 }]))
+    const hits = await searchMessages('a b&c')
+    expect(hits[0].sessionId).toBe('s')
+    expect(fn.mock.calls[0][0]).toBe('/api/search?q=a+b%26c')
   })
 })

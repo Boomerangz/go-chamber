@@ -292,3 +292,15 @@ export function listFolders(path = '', hidden = false): Promise<FolderListing> {
   const qs = q.toString()
   return request<FolderListing>(`/api/folders${qs ? `?${qs}` : ''}`)
 }
+
+export interface SearchHit {
+  sessionId: string
+  itemId: string
+  // snippet wraps matches in [[ and ]].
+  snippet: string
+  matches: number
+}
+
+export function searchMessages(query: string): Promise<SearchHit[]> {
+  return request<SearchHit[]>(`/api/search?${new URLSearchParams({ q: query })}`)
+}

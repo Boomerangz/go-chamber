@@ -58,6 +58,9 @@ func (s *server) routes() {
 		mux.HandleFunc("DELETE /api/terminals/{id}", s.closeTerminal)
 		mux.HandleFunc("GET /api/terminals/{id}/pty", s.terminalPTY)
 	}
+	if s.cfg.Search != nil {
+		mux.HandleFunc("GET /api/search", s.searchMessages)
+	}
 	if s.cfg.Folders != nil {
 		mux.HandleFunc("GET /api/folders", s.listFolders)
 	}

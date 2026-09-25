@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { Session } from './api'
-import { bucketOf, groupSessions, matchesQuery, relativeTime, sessionTitle, visibleInGroup } from './sessions'
+import { bucketOf, groupSessions, matchesQuery, relativeTime, sessionTitle, snippetParts, visibleInGroup } from './sessions'
 
 const now = new Date('2026-09-25T12:00:00Z')
 const s = (id: string, cwd: string, activeAt: string, over: Partial<Session> = {}): Session => ({
@@ -115,5 +115,20 @@ describe('sessionTitle', () => {
     expect(sessionTitle(s('x', '/p', '', { title: 'Fix it' }))).toBe('Fix it')
     expect(sessionTitle(s('x', '/p', ''))).toBe('New Claude session')
     expect(sessionTitle(s('x', '/p', '', { agent: 'codex' }))).toBe('New Codex session')
+  })
+})
+
+describe('snippetParts', () => {
+  it('splits matches from plain text', () => {
+    expect(snippetParts('…the [[picker]] uses a [[portal]].')).toEqual([
+      { text: '…the ', match: false },
+      { text: 'picker', match: true },
+      { text: ' uses a ', match: false },
+      { text: 'portal', match: true },
+      { text: '.', match: false },
+    ])
+    expect(snippetParts('[[a]]')).toEqual([{ text: 'a', match: true }])
+    expect(snippetParts('plain')).toEqual([{ text: 'plain', match: false }])
+    expect(snippetParts('')).toEqual([])
   })
 })

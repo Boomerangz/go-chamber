@@ -157,3 +157,12 @@ func TestQuotaRepoRoundTrip(t *testing.T) {
 		t.Fatalf("list = %+v, %v", list, err)
 	}
 }
+
+func TestEventLogContract(t *testing.T) {
+	apptest.EventLogContract(t, func(t *testing.T) interface {
+		app.EventLog
+		app.MessageSearch
+	} {
+		return openTest(t).Events()
+	})
+}
