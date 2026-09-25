@@ -8,6 +8,10 @@ export interface Interruption {
   resumeAfter?: string
 }
 
+// ApprovalReviewer decides who reviews the agent's approval requests (Codex);
+// absent means the agent's own configuration decides.
+export type ApprovalReviewer = 'user' | 'auto_review'
+
 export interface Session {
   id: string
   agent: AgentKind
@@ -17,6 +21,7 @@ export interface Session {
   status: SessionStatus
   title?: string
   interruption?: Interruption
+  approvalReviewer?: ApprovalReviewer
 }
 
 export type ItemKind =
@@ -220,6 +225,10 @@ export function startLogin(agent: AgentKind): Promise<LoginChallenge> {
 
 export function steer(id: string, text: string): Promise<void> {
   return request<void>(`/api/sessions/${encodeURIComponent(id)}/steer`, json({ text }))
+}
+
+export function setApprovalReviewer(id: string, reviewer: ApprovalReviewer): Promise<Session> {
+  return request<Session>(`/api/sessions/${encodeURIComponent(id)}/approval-reviewer`, json({ reviewer }))
 }
 
 export function stopTask(id: string, taskId: string): Promise<void> {

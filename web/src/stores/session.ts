@@ -22,6 +22,7 @@ export interface SessionStore {
   steer: (text: string) => Promise<void>
   interrupt: () => Promise<void>
   stopTask: (sessionId: string, taskId: string) => Promise<void>
+  setApprovalReviewer: (sessionId: string, reviewer: api.ApprovalReviewer) => Promise<void>
   respond: (sessionId: string, requestId: string, answer: api.RequestAnswerInput) => Promise<void>
   applyIncoming: (ev: api.SessionEvent) => void
   setConnection: (c: Connection) => void
@@ -100,6 +101,18 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     try {
       await api.steer(id, text)
       set({ error: null })
+    } catch (err) {
+      set({ error: errorMessage(err) })
+    }
+  },
+
+  async setApprovalReviewer(sessionId, reviewer) {
+    try {
+      const updated = await api.setApprovalReviewer(sessionId, reviewer)
+      set({
+        sessions: get().sessions.map((s) => (s.id === updated.id ? { ...s, ...updated } : s)),
+        error: null,
+      })
     } catch (err) {
       set({ error: errorMessage(err) })
     }

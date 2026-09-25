@@ -11,6 +11,7 @@ vi.mock('../lib/api', () => ({
   sendMessage: vi.fn(),
   steer: vi.fn(),
   stopTask: vi.fn(),
+  setApprovalReviewer: vi.fn(),
   interrupt: vi.fn(),
   respondRequest: vi.fn(),
 }))
@@ -113,6 +114,21 @@ describe('session store', () => {
     expect(api.steer).toHaveBeenCalledWith('a', 'more')
     await store().steer('  ')
     expect(api.steer).toHaveBeenCalledTimes(1)
+  })
+
+  it('sets the approval reviewer and updates the session', async () => {
+    useSessionStore.setState({ sessions: [{ id: 'a', agent: 'codex', cwd: '/p', status: 'idle' }] })
+    ;(api.setApprovalReviewer as Mock).mockResolvedValue({ id: 'a', agent: 'codex', cwd: '/p', status: 'idle', approvalReviewer: 'user' })
+    await store().setApprovalReviewer('a', 'user')
+    expect(api.setApprovalReviewer).toHaveBeenCalledWith('a', 'user')
+    expect(store().sessions[0].approvalReviewer).toBe('user')
+    expect(store().error).toBeNull()
+  })
+
+  it('reports approval reviewer errors', async () => {
+    ;(api.setApprovalReviewer as Mock).mockRejectedValue(new Error('nope'))
+    await store().setApprovalReviewer('a', 'user')
+    expect(store().error).toBe('nope')
   })
 
   it('stops a background task', async () => {

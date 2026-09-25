@@ -15,6 +15,7 @@ import {
   startLogin,
   steer,
   stopTask,
+  setApprovalReviewer,
 } from './api'
 
 afterEach(() => vi.unstubAllGlobals())
@@ -167,5 +168,17 @@ describe('quota API', () => {
     const fn = stubFetch(async () => json({ agent: 'codex' }))
     await refreshQuota('codex')
     expect(fn.mock.calls[0]![0]).toBe('/api/quotas/codex/refresh')
+  })
+})
+
+describe('setApprovalReviewer API', () => {
+  it('posts the reviewer and returns the session', async () => {
+    const fn = stubFetch(async () => json({ id: 's a', approvalReviewer: 'auto_review' }))
+    const session = await setApprovalReviewer('s a', 'auto_review')
+    expect(session.approvalReviewer).toBe('auto_review')
+    const [url, init] = fn.mock.calls[0]
+    expect(url).toBe('/api/sessions/s%20a/approval-reviewer')
+    expect(init?.method).toBe('POST')
+    expect(JSON.parse(String(init?.body))).toEqual({ reviewer: 'auto_review' })
   })
 })

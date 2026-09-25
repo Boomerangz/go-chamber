@@ -48,7 +48,8 @@ h1 { font-size: 1.25rem; margin: 0; }
 .status-interrupted { color: var(--bad); }
 
 .chat { display: flex; flex-direction: column; min-height: 0; min-width: 0; gap: 8px; }
-.chat-meta { display: flex; gap: 12px; }
+.chat-meta { display: flex; gap: 12px; align-items: baseline; flex-wrap: wrap; }
+.reviewer { display: flex; gap: 6px; align-items: baseline; font-size: 0.85rem; color: var(--muted); }
 .items { list-style: none; margin: 0; padding: 8px; overflow: auto; flex: 1; display: flex; flex-direction: column; gap: 8px; }
 .item { padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; white-space: pre-wrap; overflow-wrap: anywhere; }
 .item.user { background: var(--panel); }

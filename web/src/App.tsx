@@ -112,6 +112,30 @@ function Sidebar(props: {
   )
 }
 
+// ApprovalReviewerSelect chooses who reviews Codex approval requests
+// (sandbox escapes, network access) for the active session.
+function ApprovalReviewerSelect() {
+  const session = useSessionStore((s) => s.sessions.find((x) => x.id === s.activeId))
+  const setReviewer = useSessionStore((s) => s.setApprovalReviewer)
+  if (!session || session.agent !== 'codex') return null
+  return (
+    <label className="reviewer">
+      Approvals
+      <select
+        aria-label="approval reviewer"
+        value={session.approvalReviewer ?? ''}
+        onChange={(e) => void setReviewer(session.id, e.target.value as import('./lib/api').ApprovalReviewer)}
+      >
+        <option value="" disabled>
+          from Codex config
+        </option>
+        <option value="user">ask me</option>
+        <option value="auto_review">auto-review</option>
+      </select>
+    </label>
+  )
+}
+
 function SessionUsage() {
   const usage = useSessionStore((s) => s.chat.usage)
   const result = useSessionStore((s) => s.chat.result)
@@ -181,6 +205,7 @@ function Chat() {
         <span className={`status status-${chat.status}`}>{chat.status}</span>
         <span className={`health health-${connection}`}>{connection}</span>
         <SessionUsage />
+        <ApprovalReviewerSelect />
       </div>
       <ol className="items">
         {itemTree(chat.order, chat.items).map((node) => (
