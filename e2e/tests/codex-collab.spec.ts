@@ -4,7 +4,7 @@ import { showPane } from './pane'
 
 test('shows a codex collab subagent as a child session', async ({ page }) => {
   await page.goto(`/?token=${token}`)
-  await page.getByLabel('agent').selectOption('codex')
+  await page.getByRole('radio', { name: 'Codex' }).click()
   await page.getByLabel('working directory').fill('/tmp')
   await page.getByRole('button', { name: 'New session' }).click()
   await expect(page.getByLabel('message')).toBeVisible()

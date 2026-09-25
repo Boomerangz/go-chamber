@@ -267,3 +267,26 @@ export function getQuotas(): Promise<QuotaSnapshot[]> {
 export function refreshQuota(agent: AgentKind): Promise<QuotaSnapshot> {
   return request<QuotaSnapshot>(`/api/quotas/${agent}/refresh`, { method: 'POST' })
 }
+
+export interface Folder {
+  name: string
+  path: string
+  repo?: boolean
+}
+
+export interface FolderListing {
+  path: string
+  parent?: string
+  home: string
+  folders: Folder[]
+}
+
+// listFolders browses the server's filesystem for the folder picker; an
+// empty path means the home folder.
+export function listFolders(path = '', hidden = false): Promise<FolderListing> {
+  const q = new URLSearchParams()
+  if (path) q.set('path', path)
+  if (hidden) q.set('hidden', '1')
+  const qs = q.toString()
+  return request<FolderListing>(`/api/folders${qs ? `?${qs}` : ''}`)
+}

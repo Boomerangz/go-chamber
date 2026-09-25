@@ -3,7 +3,7 @@ import { token } from '../playwright.config'
 
 async function newCodexSession(page: import('@playwright/test').Page, cwd = '/tmp') {
   await page.goto(`/?token=${token}`)
-  await page.getByLabel('agent').selectOption('codex')
+  await page.getByRole('radio', { name: 'Codex' }).click()
   await page.getByLabel('working directory').fill(cwd)
   await page.getByRole('button', { name: 'New session' }).click()
   await expect(page.getByLabel('message')).toBeVisible()
@@ -39,7 +39,7 @@ test('answers a codex requestUserInput question', async ({ page }) => {
 
 test('starts a codex device-code login', async ({ page }) => {
   await page.goto(`/?token=${token}`)
-  await page.getByLabel('agent').selectOption('codex')
+  await page.getByRole('radio', { name: 'Codex' }).click()
   await expect(page.getByRole('button', { name: 'Sign in to Codex' })).toBeVisible()
   await page.getByRole('button', { name: 'Sign in to Codex' }).click()
   await expect(page.getByText('ABCD-EFGH')).toBeVisible()

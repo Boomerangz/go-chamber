@@ -16,6 +16,7 @@ import {
   steer,
   stopTask,
   setApprovalReviewer,
+  listFolders,
 } from './api'
 
 afterEach(() => vi.unstubAllGlobals())
@@ -180,5 +181,20 @@ describe('setApprovalReviewer API', () => {
     expect(url).toBe('/api/sessions/s%20a/approval-reviewer')
     expect(init?.method).toBe('POST')
     expect(JSON.parse(String(init?.body))).toEqual({ reviewer: 'auto_review' })
+  })
+})
+
+describe('listFolders API', () => {
+  it('asks for a path and hidden folders', async () => {
+    const fn = stubFetch(async () => json({ path: '/a b', home: '/h', folders: [] }))
+    const listing = await listFolders('/a b', true)
+    expect(listing.path).toBe('/a b')
+    expect(fn.mock.calls[0][0]).toBe('/api/folders?path=%2Fa+b&hidden=1')
+  })
+
+  it('defaults to home without hidden folders', async () => {
+    const fn = stubFetch(async () => json({ path: '/h', home: '/h', folders: [] }))
+    await listFolders()
+    expect(fn.mock.calls[0][0]).toBe('/api/folders')
   })
 })

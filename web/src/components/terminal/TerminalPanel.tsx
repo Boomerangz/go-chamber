@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useTerminalStore } from '../../stores/terminals'
+import FolderField from '../folders/FolderField'
 import TerminalView from './TerminalView'
 
 // TerminalPanel lists shells independent of sessions: a new terminal opens
@@ -32,13 +33,7 @@ export default function TerminalPanel({ sessionId }: { sessionId: string | null 
           setCwd('')
         }}
       >
-        <input
-          className="field"
-          aria-label="terminal directory"
-          placeholder="~ (home)"
-          value={cwd}
-          onChange={(e) => setCwd(e.target.value)}
-        />
+        <FolderField label="terminal directory" placeholder="~ (home)" value={cwd} onChange={setCwd} />
         <button type="submit" className="btn">
           New terminal
         </button>

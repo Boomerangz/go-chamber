@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react'
 import AccountPanel from './components/account/AccountPanel'
+import FolderField from './components/folders/FolderField'
 import RequestCard from './components/requests/RequestCard'
 import QuotaWidget from './components/quota/QuotaWidget'
 import RequestTray from './components/requests/RequestTray'
 import TerminalPanel from './components/terminal/TerminalPanel'
 import { fetchHealth, type AgentKind, type ApprovalReviewer, type Health, type Item, type Session } from './lib/api'
+import { recentFolders } from './lib/folders'
 import { basename, displayStatus } from './lib/format'
 import { itemTree, sessionTree, type ItemNode, type SessionNode } from './lib/tree'
 import { useSessionStore, type Pane } from './stores/session'
@@ -140,19 +142,27 @@ function Sidebar(props: {
           if (cwd.trim()) props.onCreate(agent, cwd.trim())
         }}
       >
-        <div className="new-session-row">
-          <select className="field" aria-label="agent" value={agent} onChange={(e) => setAgent(e.target.value as AgentKind)}>
-            <option value="claude">Claude</option>
-            <option value="codex">Codex</option>
-          </select>
-          <input
-            className="field"
-            aria-label="working directory"
-            placeholder="/path/to/project"
-            value={cwd}
-            onChange={(e) => setCwd(e.target.value)}
-          />
+        <div className="segmented" role="radiogroup" aria-label="agent">
+          {(['claude', 'codex'] as const).map((a) => (
+            <button
+              key={a}
+              type="button"
+              role="radio"
+              aria-checked={agent === a}
+              onClick={() => setAgent(a)}
+            >
+              <AgentAvatar agent={a} />
+              {a === 'claude' ? 'Claude' : 'Codex'}
+            </button>
+          ))}
         </div>
+        <FolderField
+          label="working directory"
+          placeholder="Choose a project folder"
+          value={cwd}
+          onChange={setCwd}
+          recent={recentFolders(props.sessions, 6)}
+        />
         <button type="submit" className="btn btn-primary">
           New session
         </button>
