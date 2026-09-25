@@ -6,7 +6,7 @@ import type { GroupMode } from '../lib/sessions'
 export type Connection = 'connecting' | 'online' | 'offline'
 
 // Pane is the view shown on narrow screens, where only one fits at a time.
-export type Pane = 'sessions' | 'chat' | 'requests' | 'terminal'
+export type Pane = 'sessions' | 'chat' | 'requests'
 
 export interface SessionStore {
   sessions: api.Session[]

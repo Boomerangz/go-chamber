@@ -7,12 +7,15 @@ import QuotaWidget from './components/quota/QuotaWidget'
 import RequestTray from './components/requests/RequestTray'
 import SessionList from './components/sessions/SessionList'
 import TerminalPanel from './components/terminal/TerminalPanel'
+import TerminalWorkspace from './components/terminal/TerminalWorkspace'
 import { fetchHealth, type AgentKind, type ApprovalReviewer, type Health, type Item, type Session } from './lib/api'
 import { recentFolders } from './lib/folders'
 import { sessionTitle } from './lib/sessions'
 import { displayStatus } from './lib/format'
 import { itemTree, type ItemNode } from './lib/tree'
+import { useLayoutStore, type Mode } from './stores/layout'
 import { useSessionStore, type Pane } from './stores/session'
+import { useTerminalStore } from './stores/terminals'
 
 export default function App() {
   const [health, setHealth] = useState<Health | null>(null)
@@ -24,6 +27,9 @@ export default function App() {
   const loadRequests = useSessionStore((s) => s.loadRequests)
   const loadQuotas = useSessionStore((s) => s.loadQuotas)
   const createSession = useSessionStore((s) => s.createSession)
+  const mode = useLayoutStore((s) => s.mode)
+  const dock = useLayoutStore((s) => s.dock)
+  const loadTerminals = useTerminalStore((s) => s.load)
 
   useEffect(() => {
     let alive = true
@@ -38,8 +44,9 @@ export default function App() {
       void loadSessions()
       void loadRequests()
       void loadQuotas()
+      void loadTerminals()
     }
-  }, [health, loadSessions, loadRequests, loadQuotas])
+  }, [health, loadSessions, loadRequests, loadQuotas, loadTerminals])
 
   return (
     <main className="app">
@@ -48,6 +55,7 @@ export default function App() {
           <span className="brand-mark" aria-hidden="true" />
           <h1>go-chamber</h1>
         </div>
+        {health === 'online' && <ModeSwitch />}
         <span className={`health health-${health ?? 'connecting'}`}>
           <span className="dot" aria-hidden="true" />
           {health ?? 'connecting'}
@@ -61,14 +69,26 @@ export default function App() {
           </p>
         </section>
       )}
-      {health === 'online' && (
+      {health === 'online' && mode === 'terminal' && (
+        <div className="layout term-layout">
+          <TerminalWorkspace sessions={sessions} />
+        </div>
+      )}
+      {health === 'online' && mode === 'agents' && (
         <>
-          <div className="layout" data-pane={pane}>
+          <div className="layout" data-pane={pane} data-dock={dock ?? 'closed'}>
             <Sidebar sessions={sessions} onCreate={(agent, cwd) => void createSession(agent, cwd)} />
             {activeId ? <Chat /> : <EmptyChat />}
-            <div className="workbench">
+            <div className="dock">
+              {dock && (
+                <div className="dock-body">
+                  {dock === 'requests' ? <RequestTray /> : <TerminalPanel sessionId={activeId} />}
+                </div>
+              )}
+              <DockRail />
+            </div>
+            <div className="requests-pane">
               <RequestTray />
-              <TerminalPanel sessionId={activeId} />
             </div>
           </div>
           <PaneBar />
@@ -83,11 +103,75 @@ export default function App() {
   )
 }
 
+const modes: { id: Mode; label: string }[] = [
+  { id: 'agents', label: 'Agents' },
+  { id: 'terminal', label: 'Terminal' },
+]
+
+// ModeSwitch flips between agent sessions and the terminal workspace.
+function ModeSwitch() {
+  const mode = useLayoutStore((s) => s.mode)
+  const setMode = useLayoutStore((s) => s.setMode)
+  const running = useTerminalStore((s) => s.terminals.filter((t) => t.status === 'running').length)
+  return (
+    <div className="segmented mode-switch" role="radiogroup" aria-label="Mode">
+      {modes.map((m) => (
+        <button key={m.id} type="button" role="radio" aria-checked={mode === m.id} onClick={() => setMode(m.id)}>
+          {m.label}
+          {m.id === 'terminal' && running > 0 && <span className="count">{running}</span>}
+        </button>
+      ))}
+    </div>
+  )
+}
+
+// DockRail is the collapsed dock: one button per tab, with counts.
+function DockRail() {
+  const dock = useLayoutStore((s) => s.dock)
+  const toggleDock = useLayoutStore((s) => s.toggleDock)
+  const pending = useSessionStore((s) => s.pendingRequests.length)
+  const running = useTerminalStore((s) => s.terminals.filter((t) => t.status === 'running').length)
+  const tabs = [
+    { id: 'requests' as const, label: 'Requests', icon: '◉', count: pending },
+    { id: 'terminal' as const, label: 'Terminal', icon: '›_', count: running },
+  ]
+  return (
+    <div className="dock-rail" role="toolbar" aria-label="Dock" aria-orientation="vertical">
+      {tabs.map((t) => (
+        <button
+          key={t.id}
+          type="button"
+          className={`rail-btn rail-${t.id}`}
+          aria-pressed={dock === t.id}
+          aria-label={t.count > 0 ? `${t.label} ${t.count}` : t.label}
+          title={t.label}
+          onClick={() => toggleDock(t.id)}
+        >
+          <span className="rail-icon" aria-hidden="true">
+            {t.icon}
+          </span>
+          {t.count > 0 && (
+            <span className="rail-count" aria-hidden="true">
+              {t.count}
+            </span>
+          )}
+        </button>
+      ))}
+      {dock && (
+        <button type="button" className="rail-btn rail-collapse" aria-label="Collapse dock" title="Collapse" onClick={() => toggleDock(dock)}>
+          <span className="rail-icon" aria-hidden="true">
+            »
+          </span>
+        </button>
+      )}
+    </div>
+  )
+}
+
 const panes: { id: Pane; label: string; icon: string }[] = [
   { id: 'sessions', label: 'Sessions', icon: '☰' },
   { id: 'chat', label: 'Chat', icon: '✦' },
   { id: 'requests', label: 'Requests', icon: '◉' },
-  { id: 'terminal', label: 'Terminal', icon: '›_' },
 ]
 
 // PaneBar switches views on narrow screens; hidden on desktop by CSS.

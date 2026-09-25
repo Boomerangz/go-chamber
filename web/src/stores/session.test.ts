@@ -144,8 +144,8 @@ describe('session store', () => {
 
   it('starts on the sessions pane and switches panes', () => {
     expect(store().pane).toBe('sessions')
-    store().setPane('terminal')
-    expect(store().pane).toBe('terminal')
+    store().setPane('requests')
+    expect(store().pane).toBe('requests')
   })
 
   it('opens the chat pane when a session is selected', async () => {

@@ -1,9 +1,13 @@
-import { render, screen } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { render, screen, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import App from './App'
 import * as api from './lib/api'
 import { initialChat } from './lib/events'
+import * as terminal from './lib/terminal'
+import { resetLayout } from './stores/layout'
 import { useSessionStore } from './stores/session'
+import { resetTerminals } from './stores/terminals'
 
 vi.mock('./lib/api', () => ({
   fetchHealth: vi.fn(),
@@ -18,6 +22,23 @@ vi.mock('./lib/api', () => ({
   respondRequest: vi.fn(),
   fetchEvents: vi.fn(),
 }))
+
+vi.mock('./components/terminal/TerminalView', () => ({
+  default: ({ id }: { id: string }) => <div data-testid="terminal-view">{id}</div>,
+}))
+vi.mock('./lib/terminal', () => ({ listTerminals: vi.fn(), openTerminal: vi.fn(), closeTerminal: vi.fn() }))
+
+const shell = (id: string, cwd: string, over: Partial<terminal.Terminal> = {}): terminal.Terminal => ({
+  id, cwd, shell: '/bin/sh', title: cwd.split('/').pop()!, status: 'running', exitCode: 0, createdAt: '', ...over,
+})
+
+beforeEach(() => {
+  localStorage.clear()
+  sessionStorage.clear()
+  resetLayout()
+  resetTerminals()
+  vi.mocked(terminal.listTerminals).mockResolvedValue([])
+})
 
 function mockApi() {
   vi.mocked(api.fetchHealth).mockResolvedValue('online')
@@ -140,10 +161,66 @@ describe('App', () => {
     ])
     useSessionStore.setState({ activeId: null })
     render(<App />)
-    const terminal = await screen.findByRole('button', { name: 'Terminal' })
-    terminal.click()
-    expect(useSessionStore.getState().pane).toBe('terminal')
-    expect(await screen.findByRole('button', { name: /^Requests\s*1$/ })).toBeInTheDocument()
+    const views = await screen.findByRole('navigation', { name: 'Views' })
+    within(views).getByRole('button', { name: 'Chat' }).click()
+    expect(useSessionStore.getState().pane).toBe('chat')
+    expect(await within(views).findByRole('button', { name: /^Requests\s*1$/ })).toBeInTheDocument()
+  })
+
+  it('keeps the dock collapsed to a rail until a tab is opened', async () => {
+    mockApi()
+    vi.mocked(api.listRequests).mockResolvedValue([
+      { id: 'r1', sessionId: 's1', kind: 'permission', state: 'pending', title: 'Run' },
+    ])
+    vi.mocked(terminal.listTerminals).mockResolvedValue([shell('t1', '/w/a'), shell('t2', '/w/b', { status: 'exited' })])
+    useSessionStore.setState({ activeId: null })
+    render(<App />)
+    const rail = await screen.findByRole('toolbar', { name: 'Dock' })
+    expect(await within(rail).findByRole('button', { name: 'Terminal 1' })).toHaveAttribute('aria-pressed', 'false')
+    expect(within(rail).getByRole('button', { name: 'Requests 1' })).toBeInTheDocument()
+    expect(screen.queryByRole('region', { name: 'Terminals' })).toBeNull()
+
+    await userEvent.click(within(rail).getByRole('button', { name: 'Terminal 1' }))
+    const dock = screen.getByRole('region', { name: 'Terminals' })
+    expect(within(dock).getByRole('tab', { name: 'a' })).toBeInTheDocument()
+    await userEvent.click(within(rail).getByRole('button', { name: 'Requests 1' }))
+    expect(screen.queryByRole('region', { name: 'Terminals' })).toBeNull()
+    expect(screen.getAllByRole('complementary', { name: 'Pending requests' }).length).toBeGreaterThan(0)
+    await userEvent.click(within(rail).getByRole('button', { name: 'Collapse dock' }))
+    expect(within(rail).getByRole('button', { name: 'Requests 1' })).toHaveAttribute('aria-pressed', 'false')
+  })
+
+  it('opens the dock terminal in terminal mode', async () => {
+    mockApi()
+    render(<App />)
+    await userEvent.click(await screen.findByRole('button', { name: /^Terminal/ }))
+    await userEvent.click(screen.getByRole('button', { name: 'Open in terminal mode' }))
+    expect(screen.getByRole('radio', { name: /Terminal/ })).toHaveAttribute('aria-checked', 'true')
+  })
+
+  it('switches to the terminal workspace, apart from the agents', async () => {
+    mockApi()
+    vi.mocked(api.listSessions).mockResolvedValue([
+      { id: 's1', agent: 'claude', cwd: '/w/proj', status: 'idle' },
+    ])
+    vi.mocked(terminal.listTerminals).mockResolvedValue([shell('t1', '/w/a')])
+    vi.mocked(terminal.openTerminal).mockResolvedValue(shell('t2', '/w/proj'))
+    useSessionStore.setState({ activeId: null })
+    render(<App />)
+    await userEvent.click(await screen.findByRole('radio', { name: /Terminal/ }))
+    expect(screen.queryByRole('heading', { name: 'Start a session' })).toBeNull()
+    expect(screen.queryByRole('navigation', { name: 'Views' })).toBeNull()
+    const ws = screen.getByRole('region', { name: 'Terminals' })
+    expect(await within(ws).findByText('Pick a terminal to attach.')).toBeInTheDocument()
+    expect(within(ws).getByRole('tab', { name: /a/ })).toHaveTextContent('/w/a')
+
+    await userEvent.click(within(ws).getByRole('button', { name: 'Open terminal in proj' }))
+    expect(terminal.openTerminal).toHaveBeenCalledWith({ cwd: '/w/proj' })
+    expect(within(ws).getByTestId('terminal-view')).toHaveTextContent('t2')
+    expect(within(ws).getByRole('tab', { selected: true })).toHaveTextContent('/w/proj')
+
+    await userEvent.click(screen.getByRole('radio', { name: 'Agents' }))
+    expect(screen.getByRole('heading', { name: 'Start a session' })).toBeInTheDocument()
   })
 
   it('groups sessions by project with collapse, older and search', async () => {

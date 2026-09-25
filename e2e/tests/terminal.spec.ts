@@ -2,19 +2,20 @@ import { expect, test } from '@playwright/test'
 import fs from 'node:fs'
 import os from 'node:os'
 import { token } from '../playwright.config'
-import { showPane } from './pane'
 
 // A real shell (SHELL=/bin/sh from the webServer command) in a pty.
 test('independent terminal: run a command, survive reload, exit, close', async ({ page }) => {
   const dir = fs.realpathSync(fs.mkdtempSync(`${os.tmpdir()}/gc-term-`))
   await page.goto(`/?token=${token}`)
-  await showPane(page, 'Terminal')
+  await page.getByRole('radio', { name: /^Terminal/ }).click()
   const panel = page.getByRole('region', { name: 'Terminals' })
+  await expect(page.getByRole('heading', { name: 'Start a session' })).toBeHidden()
   await panel.getByLabel('terminal directory').fill(dir)
   await panel.getByRole('button', { name: 'New terminal' }).click()
 
   const tab = panel.getByRole('tab', { selected: true })
-  await expect(tab).toHaveText(dir.split('/').pop()!)
+  await expect(tab).toContainText(dir.split('/').pop()!)
+  await expect(tab).toContainText(dir)
   const screen = panel.getByTestId('terminal-view')
   await screen.click()
   await page.keyboard.type('echo "hello-$((40+2)) in $(pwd)"\n')
@@ -29,10 +30,11 @@ test('independent terminal: run a command, survive reload, exit, close', async (
   await expect(screen.locator('.xterm-rows')).toContainText('before-2')
   await expect(screen.locator('.xterm-rows')).not.toContainText('1;2c')
 
+  // Terminal mode survives a reload.
   await page.reload()
-  await showPane(page, 'Terminal')
+  await expect(page.getByRole('radio', { name: /^Terminal/ })).toHaveAttribute('aria-checked', 'true')
   // Tests run in parallel against one server: pick our own terminal.
-  await panel.getByRole('tab', { name: dir.split('/').pop() }).click()
+  await panel.getByRole('tab', { name: new RegExp(dir.split('/').pop()!) }).click()
   const rows = panel.getByTestId('terminal-view').locator('.xterm-rows')
   await expect(rows).toContainText(`hello-42 in ${dir}`)
   await panel.getByTestId('terminal-view').click()
@@ -46,7 +48,9 @@ test('independent terminal: run a command, survive reload, exit, close', async (
   await expect(panel.getByRole('tab', { selected: true })).toContainText('exited 5')
 
   await panel.getByRole('button', { name: `Close terminal ${dir.split('/').pop()}` }).click()
-  await expect(panel.getByRole('tab')).toHaveCount(0)
+  await expect(panel.getByRole('tab', { name: new RegExp(dir.split('/').pop()!) })).toHaveCount(0)
+  await page.getByRole('radio', { name: 'Agents' }).click()
+  await expect(page.getByRole('button', { name: 'New session', exact: true })).toBeVisible()
 })
 
 test('terminal in the session directory', async ({ page }) => {
@@ -57,11 +61,37 @@ test('terminal in the session directory', async ({ page }) => {
   await expect(page.getByLabel('message')).toBeVisible()
 
   const panel = page.getByRole('region', { name: 'Terminals' })
-  await showPane(page, 'Terminal')
+  await page.getByRole('radio', { name: /^Terminal/ }).click()
+  await panel.getByRole('button', { name: `Open terminal in ${dir.split('/').pop()}` }).click()
+  const screen = panel.getByTestId('terminal-view')
+  await screen.click()
+  await page.keyboard.type('pwd\n')
+  await expect(screen.locator('.xterm-rows')).toContainText(dir)
+  await panel.getByRole('button', { name: `Close terminal ${dir.split('/').pop()}` }).click()
+})
+
+test('ad-hoc terminal docked next to the chat', async ({ page, isMobile }) => {
+  test.skip(isMobile, 'the dock is desktop-only; phones use terminal mode')
+  const dir = fs.realpathSync(fs.mkdtempSync(`${os.tmpdir()}/gc-dock-`))
+  await page.goto(`/?token=${token}`)
+  await page.getByLabel('working directory').fill(dir)
+  await page.getByRole('button', { name: 'New session', exact: true }).click()
+  await expect(page.getByLabel('message')).toBeVisible()
+
+  // Collapsed by default: only the rail shows.
+  const rail = page.getByRole('toolbar', { name: 'Dock' })
+  const panel = page.getByRole('region', { name: 'Terminals' })
+  await expect(panel).toBeHidden()
+  await rail.getByRole('button', { name: /^Terminal/ }).click()
   await panel.getByRole('button', { name: 'In session dir' }).click()
   const screen = panel.getByTestId('terminal-view')
   await screen.click()
   await page.keyboard.type('pwd\n')
   await expect(screen.locator('.xterm-rows')).toContainText(dir)
+  await expect(page.getByLabel('message')).toBeVisible()
+
+  await rail.getByRole('button', { name: 'Collapse dock' }).click()
+  await expect(panel).toBeHidden()
+  await rail.getByRole('button', { name: /^Terminal/ }).click()
   await panel.getByRole('button', { name: `Close terminal ${dir.split('/').pop()}` }).click()
 })
