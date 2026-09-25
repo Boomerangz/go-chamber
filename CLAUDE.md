@@ -91,6 +91,9 @@ e2e-сценарий для новой фичи есть.
   AskUserQuestion приходят как `control_request can_use_tool` только с
   `--permission-prompt-tool stdio`; без него (`--permission-prompts host` по умолчанию) CLI
   молча отказывает (`system/permission_denied`). Фейк `testutil/fakeclaude` повторяет оба правила.
+  Модель меняется на лету `control_request {subtype:"set_model", model}` (проверено: sonnet →
+  haiku). Effort в stream-json не виден (`init.effort` всегда null), поэтому его меняем
+  перезапуском с `--resume <id> --effort X`.
 - **Node 22+ и `localStorage` в vitest**: у Node свой глобальный `localStorage`, без
   `--localstorage-file` он `undefined` и перекрывает jsdom (`sessionStorage` при этом работает).
   `src/test/setup.ts` подставляет хранилище в памяти.
