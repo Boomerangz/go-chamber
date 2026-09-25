@@ -73,7 +73,7 @@ const (
 // quota interruptions to the moment the rate-limit window resets.
 type Interruption struct {
 	Reason      ExitReason `json:"reason,omitempty"`
-	ResumeAfter time.Time  `json:"resumeAfter,omitempty"`
+	ResumeAfter time.Time  `json:"resumeAfter,omitzero"`
 }
 
 // Session is the aggregate for a conversation with one agent. The agent
@@ -101,7 +101,7 @@ type SessionSnapshot struct {
 	ParentID     SessionID     `json:"parentId,omitempty"`
 	Status       SessionStatus `json:"status"`
 	Title        string        `json:"title,omitempty"`
-	Interruption Interruption  `json:"interruption,omitempty"`
+	Interruption Interruption  `json:"interruption,omitzero"`
 	// ApprovalReviewer is empty when the agent's own configuration decides.
 	ApprovalReviewer ApprovalReviewer `json:"approvalReviewer,omitempty"`
 }

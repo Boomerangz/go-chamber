@@ -13,7 +13,7 @@ var ErrInvalidQuota = errors.New("invalid quota snapshot")
 type QuotaWindow struct {
 	Name     string    `json:"name"`
 	UsedPct  float64   `json:"usedPct"`
-	ResetsAt time.Time `json:"resetsAt,omitempty"`
+	ResetsAt time.Time `json:"resetsAt,omitzero"`
 	Status   string    `json:"status,omitempty"`
 }
 
@@ -23,7 +23,7 @@ type QuotaSnapshot struct {
 	Windows   []QuotaWindow `json:"windows"`
 	Plan      string        `json:"plan,omitempty"`
 	Reached   bool          `json:"reached,omitempty"`
-	UpdatedAt time.Time     `json:"updatedAt,omitempty"`
+	UpdatedAt time.Time     `json:"updatedAt,omitzero"`
 }
 
 func (q QuotaSnapshot) Validate() error {

@@ -1,7 +1,9 @@
 package domain
 
 import (
+	"encoding/json"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 )
@@ -38,5 +40,24 @@ func TestQuotaEventsValidate(t *testing.T) {
 	}
 	if err := (Event{SessionID: "s", Type: EventUsage, Usage: &Usage{TotalTokens: 5}}).Valid(); err != nil {
 		t.Fatalf("valid usage: %v", err)
+	}
+}
+
+// A window without a known reset must not serialize Go's zero time: the UI
+// rendered it as "resets 1/1/1".
+func TestZeroTimesAreOmittedFromJSON(t *testing.T) {
+	raw, err := json.Marshal(QuotaSnapshot{Agent: AgentCodex, Windows: []QuotaWindow{{Name: "primary"}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s := string(raw); strings.Contains(s, "resetsAt") || strings.Contains(s, "updatedAt") {
+		t.Fatalf("zero times serialized: %s", s)
+	}
+	raw, err = json.Marshal(SessionSnapshot{ID: "s", Agent: AgentClaude, Cwd: "/", Status: StatusIdle})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s := string(raw); strings.Contains(s, "interruption") || strings.Contains(s, "resumeAfter") {
+		t.Fatalf("empty interruption serialized: %s", s)
 	}
 }
