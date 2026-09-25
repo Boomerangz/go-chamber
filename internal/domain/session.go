@@ -90,6 +90,8 @@ type Session struct {
 	attached     bool
 	interruption Interruption
 	reviewer     ApprovalReviewer
+	createdAt    time.Time
+	activeAt     time.Time
 }
 
 // SessionSnapshot is the persistable state of a Session.
@@ -104,6 +106,9 @@ type SessionSnapshot struct {
 	Interruption Interruption  `json:"interruption,omitzero"`
 	// ApprovalReviewer is empty when the agent's own configuration decides.
 	ApprovalReviewer ApprovalReviewer `json:"approvalReviewer,omitempty"`
+	CreatedAt        time.Time        `json:"createdAt,omitzero"`
+	// ActiveAt is the last time the user started a turn (or the creation).
+	ActiveAt time.Time `json:"activeAt,omitzero"`
 }
 
 func NewSession(id SessionID, agent AgentKind, cwd string) (*Session, error) {
@@ -136,7 +141,7 @@ func RestoreSession(snap SessionSnapshot) (*Session, error) {
 	s := &Session{
 		id: snap.ID, agent: snap.Agent, cwd: snap.Cwd, title: snap.Title,
 		nativeID: snap.NativeID, parentID: snap.ParentID, status: StatusDetached,
-		reviewer: snap.ApprovalReviewer,
+		reviewer: snap.ApprovalReviewer, createdAt: snap.CreatedAt, activeAt: snap.ActiveAt,
 	}
 	switch snap.Status {
 	case StatusRunning:
@@ -241,8 +246,16 @@ func (s *Session) Snapshot() SessionSnapshot {
 	return SessionSnapshot{
 		ID: s.id, Agent: s.agent, Cwd: s.cwd, NativeID: s.nativeID, ParentID: s.parentID,
 		Status: s.status, Title: s.title, Interruption: s.interruption,
-		ApprovalReviewer: s.reviewer,
+		ApprovalReviewer: s.reviewer, CreatedAt: s.createdAt, ActiveAt: s.activeAt,
 	}
+}
+
+// Touch records activity at now; the first touch is the creation time.
+func (s *Session) Touch(now time.Time) {
+	if s.createdAt.IsZero() {
+		s.createdAt = now
+	}
+	s.activeAt = now
 }
 
 func (s *Session) ApprovalReviewer() ApprovalReviewer { return s.reviewer }

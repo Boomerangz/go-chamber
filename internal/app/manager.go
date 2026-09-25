@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/igorzygin/go-chamber/internal/domain"
 )
@@ -23,6 +24,8 @@ type ManagerConfig struct {
 	QuotaProvider QuotaProvider
 	// NewID generates session, turn and item ids. Defaults to random hex.
 	NewID func() string
+	// Now stamps session creation and activity. Defaults to time.Now.
+	Now func() time.Time
 }
 
 // Manager is the session use-case boundary: it owns the in-memory registry
@@ -40,6 +43,9 @@ type Manager struct {
 func NewManager(cfg ManagerConfig) *Manager {
 	if cfg.NewID == nil {
 		cfg.NewID = randomID
+	}
+	if cfg.Now == nil {
+		cfg.Now = time.Now
 	}
 	return &Manager{
 		cfg:      cfg,
@@ -62,6 +68,7 @@ func (m *Manager) CreateSession(ctx context.Context, agent domain.AgentKind, cwd
 	if err != nil {
 		return domain.SessionSnapshot{}, err
 	}
+	s.Touch(m.cfg.Now().UTC())
 	if err := m.cfg.Repo.Save(ctx, s.Snapshot()); err != nil {
 		return domain.SessionSnapshot{}, err
 	}
@@ -128,6 +135,9 @@ func (m *Manager) SendMessage(ctx context.Context, id domain.SessionID, text str
 
 	m.mu.Lock()
 	err = s.TurnStarted()
+	if err == nil {
+		s.Touch(m.cfg.Now().UTC())
+	}
 	snap := s.Snapshot()
 	m.mu.Unlock()
 	if err != nil {

@@ -21,6 +21,8 @@ func SessionRepoContract(t *testing.T, newRepo func(t *testing.T) app.SessionRep
 		Status: domain.StatusInterrupted, Title: "title",
 		Interruption:     domain.Interruption{Reason: domain.ExitQuota, ResumeAfter: reset},
 		ApprovalReviewer: domain.ReviewerAuto,
+		CreatedAt:        reset.Add(-2 * time.Hour),
+		ActiveAt:         reset.Add(-time.Hour),
 	}
 
 	t.Run("get missing", func(t *testing.T) {

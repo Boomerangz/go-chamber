@@ -305,3 +305,21 @@ func TestRestoreKeepsApprovalReviewer(t *testing.T) {
 		t.Fatalf("restored reviewer = %q", r.ApprovalReviewer())
 	}
 }
+
+func TestSessionTouchStampsCreationOnceAndActivity(t *testing.T) {
+	s, _ := NewSession("s", AgentClaude, "/p")
+	t0 := time.Date(2026, 9, 25, 10, 0, 0, 0, time.UTC)
+	s.Touch(t0)
+	s.Touch(t0.Add(time.Hour))
+	snap := s.Snapshot()
+	if !snap.CreatedAt.Equal(t0) || !snap.ActiveAt.Equal(t0.Add(time.Hour)) {
+		t.Fatalf("snapshot times = %v / %v", snap.CreatedAt, snap.ActiveAt)
+	}
+	restored, err := RestoreSession(snap)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := restored.Snapshot(); !got.CreatedAt.Equal(t0) || !got.ActiveAt.Equal(t0.Add(time.Hour)) {
+		t.Fatalf("restored times = %v / %v", got.CreatedAt, got.ActiveAt)
+	}
+}

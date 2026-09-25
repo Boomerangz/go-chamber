@@ -83,19 +83,16 @@ func applyMigration(db *sql.DB, fsys fs.FS, name string, version int) error {
 
 type sessionRepo struct{ db *sql.DB }
 
-const sessionCols = "id, agent, cwd, native_id, parent_id, status, title, interruption_reason, resume_after, approval_reviewer"
+const sessionCols = "id, agent, cwd, native_id, parent_id, status, title, interruption_reason, resume_after, approval_reviewer, created_at, active_at"
 
 func (r sessionRepo) Save(ctx context.Context, s domain.SessionSnapshot) error {
-	resume := ""
-	if !s.Interruption.ResumeAfter.IsZero() {
-		resume = s.Interruption.ResumeAfter.UTC().Format(time.RFC3339Nano)
-	}
-	_, err := r.db.ExecContext(ctx, `INSERT INTO sessions (`+sessionCols+`) VALUES (?,?,?,?,?,?,?,?,?,?)
+	_, err := r.db.ExecContext(ctx, `INSERT INTO sessions (`+sessionCols+`) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
 		ON CONFLICT(id) DO UPDATE SET agent=excluded.agent, cwd=excluded.cwd, native_id=excluded.native_id,
 		parent_id=excluded.parent_id, status=excluded.status, title=excluded.title,
 		interruption_reason=excluded.interruption_reason, resume_after=excluded.resume_after,
-		approval_reviewer=excluded.approval_reviewer`,
-		s.ID, s.Agent, s.Cwd, s.NativeID, s.ParentID, s.Status, s.Title, s.Interruption.Reason, resume, s.ApprovalReviewer)
+		approval_reviewer=excluded.approval_reviewer, created_at=excluded.created_at, active_at=excluded.active_at`,
+		s.ID, s.Agent, s.Cwd, s.NativeID, s.ParentID, s.Status, s.Title, s.Interruption.Reason,
+		formatTime(s.Interruption.ResumeAfter), s.ApprovalReviewer, formatTime(s.CreatedAt), formatTime(s.ActiveAt))
 	return err
 }
 
@@ -128,17 +125,41 @@ type scanner interface{ Scan(dest ...any) error }
 
 func scanSession(row scanner) (domain.SessionSnapshot, error) {
 	var s domain.SessionSnapshot
-	var resume string
-	err := row.Scan(&s.ID, &s.Agent, &s.Cwd, &s.NativeID, &s.ParentID, &s.Status, &s.Title, &s.Interruption.Reason, &resume, &s.ApprovalReviewer)
+	var resume, created, active string
+	err := row.Scan(&s.ID, &s.Agent, &s.Cwd, &s.NativeID, &s.ParentID, &s.Status, &s.Title,
+		&s.Interruption.Reason, &resume, &s.ApprovalReviewer, &created, &active)
 	if err != nil {
 		return domain.SessionSnapshot{}, err
 	}
-	if resume != "" {
-		if s.Interruption.ResumeAfter, err = time.Parse(time.RFC3339Nano, resume); err != nil {
-			return domain.SessionSnapshot{}, fmt.Errorf("session %s: bad resume_after: %w", s.ID, err)
+	for _, f := range []struct {
+		name string
+		raw  string
+		dst  *time.Time
+	}{
+		{"resume_after", resume, &s.Interruption.ResumeAfter},
+		{"created_at", created, &s.CreatedAt},
+		{"active_at", active, &s.ActiveAt},
+	} {
+		if *f.dst, err = parseTime(f.raw); err != nil {
+			return domain.SessionSnapshot{}, fmt.Errorf("session %s: bad %s: %w", s.ID, f.name, err)
 		}
 	}
 	return s, nil
+}
+
+// formatTime stores a zero time as "" so legacy rows and unset times match.
+func formatTime(t time.Time) string {
+	if t.IsZero() {
+		return ""
+	}
+	return t.UTC().Format(time.RFC3339Nano)
+}
+
+func parseTime(raw string) (time.Time, error) {
+	if raw == "" {
+		return time.Time{}, nil
+	}
+	return time.Parse(time.RFC3339Nano, raw)
 }
 
 type quotaRepo struct{ db *sql.DB }
