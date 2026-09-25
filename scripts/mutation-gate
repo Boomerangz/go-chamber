@@ -14,7 +14,7 @@ GREMLINS="${GREMLINS:-$(go env GOPATH)/bin/gremlins}"
 
 threshold() {
   case "$1" in
-    ./internal/adapters/*) echo 65 ;;
+    ./internal/adapters/*|internal/adapters/*) echo 65 ;;
     *) echo 80 ;;
   esac
 }
