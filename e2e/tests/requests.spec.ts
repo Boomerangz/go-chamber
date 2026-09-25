@@ -4,7 +4,7 @@ import { token } from '../playwright.config'
 async function newSession(page: import('@playwright/test').Page) {
   await page.goto(`/?token=${token}`)
   await page.getByLabel('working directory').fill('/tmp')
-  await page.getByRole('button', { name: 'New session' }).click()
+  await page.getByRole('button', { name: 'New session', exact: true }).click()
   await expect(page.getByLabel('message')).toBeVisible()
 }
 

@@ -59,7 +59,8 @@ describe('App', () => {
     })
     render(<App />)
     expect((await screen.findAllByText('/tmp/proj')).length).toBeGreaterThan(0)
-    expect(screen.getByRole('heading', { name: 'proj' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'New Claude session' })).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: 'Project proj' })).toBeInTheDocument()
     expect(screen.getByText('hello')).toBeInTheDocument()
     expect(screen.getByText('echo: hello')).toBeInTheDocument()
     expect(screen.getByLabelText('message')).toBeInTheDocument()
@@ -143,5 +144,37 @@ describe('App', () => {
     terminal.click()
     expect(useSessionStore.getState().pane).toBe('terminal')
     expect(await screen.findByRole('button', { name: /^Requests\s*1$/ })).toBeInTheDocument()
+  })
+
+  it('groups sessions by project with collapse, older and search', async () => {
+    mockApi()
+    const mk = (i: number, cwd: string, title?: string) => ({
+      id: `s${i}`, agent: 'claude' as const, cwd, status: 'idle' as const, title,
+      activeAt: new Date(Date.UTC(2026, 8, 1 + i)).toISOString(),
+    })
+    const sessions = [...Array.from({ length: 7 }, (_, i) => mk(i, '/w/alpha', `alpha ${i}`)), mk(9, '/w/beta', 'beta task')]
+    vi.mocked(api.listSessions).mockResolvedValue(sessions)
+    vi.mocked(api.createSession).mockResolvedValue(mk(20, '/w/alpha'))
+    useSessionStore.setState({ activeId: null })
+    render(<App />)
+    const alpha = await screen.findByRole('region', { name: 'Project alpha' })
+    expect(alpha.querySelectorAll('.session')).toHaveLength(5)
+    screen.getByRole('button', { name: 'Show 2 older' }).click()
+    expect(await screen.findByRole('button', { name: 'Show less' })).toBeInTheDocument()
+    expect(alpha.querySelectorAll('.session')).toHaveLength(7)
+    const toggle = screen.getByRole('button', { name: /^alpha\s*\/w\/alpha/ })
+    toggle.click()
+    await vi.waitFor(() => expect(alpha.querySelectorAll('.session')).toHaveLength(0))
+    expect(useSessionStore.getState().groupModes['/w/alpha']).toBe('collapsed')
+
+    useSessionStore.getState().setQuery('beta')
+    await vi.waitFor(() => expect(screen.queryByRole('region', { name: 'Project alpha' })).toBeNull())
+    expect(screen.getByText('beta task')).toBeInTheDocument()
+    useSessionStore.getState().setQuery('zzz')
+    expect(await screen.findByText('No matching sessions')).toBeInTheDocument()
+    useSessionStore.getState().setQuery('')
+
+    ;(await screen.findByRole('button', { name: 'New session in alpha' })).click()
+    await vi.waitFor(() => expect(api.createSession).toHaveBeenCalledWith('claude', '/w/alpha'))
   })
 })

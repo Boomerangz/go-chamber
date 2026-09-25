@@ -1,0 +1,119 @@
+import { describe, expect, it } from 'vitest'
+import type { Session } from './api'
+import { bucketOf, groupSessions, matchesQuery, relativeTime, sessionTitle, visibleInGroup } from './sessions'
+
+const now = new Date('2026-09-25T12:00:00Z')
+const s = (id: string, cwd: string, activeAt: string, over: Partial<Session> = {}): Session => ({
+  id, agent: 'claude', cwd, status: 'idle', activeAt, createdAt: activeAt, ...over,
+})
+
+describe('groupSessions', () => {
+  const sessions = [
+    s('a1', '/p/alpha', '2026-09-20T10:00:00Z'),
+    s('b1', '/p/beta', '2026-09-25T11:00:00Z', { status: 'running' }),
+    s('a2', '/p/alpha', '2026-09-24T10:00:00Z'),
+    s('child', '/p/alpha', '2026-09-24T10:30:00Z', { parentId: 'a2' }),
+    s('old', '/p/gamma', ''),
+  ]
+  const groups = groupSessions(sessions)
+
+  it('groups top-level sessions by folder, most recent group first', () => {
+    expect(groups.map((g) => g.cwd)).toEqual(['/p/beta', '/p/alpha', '/p/gamma'])
+    expect(groups[1].name).toBe('alpha')
+  })
+
+  it('orders sessions newest first and nests children under parents', () => {
+    const alpha = groups[1]
+    expect(alpha.nodes.map((n) => n.session.id)).toEqual(['a2', 'a1'])
+    expect(alpha.nodes[0].children.map((n) => n.session.id)).toEqual(['child'])
+    expect(alpha.count).toBe(2)
+  })
+
+  it('flags running groups', () => {
+    expect(groups[0].running).toBe(true)
+    expect(groups[1].running).toBe(false)
+  })
+
+  it('counts a running child as a running group', () => {
+    const g = groupSessions([s('p', '/x', '2026-09-24T10:00:00Z'), s('c', '/x', '', { parentId: 'p', status: 'running' })])
+    expect(g[0].running).toBe(true)
+  })
+})
+
+describe('visibleInGroup', () => {
+  const group = groupSessions(
+    Array.from({ length: 8 }, (_, i) => s(`s${i}`, '/p', `2026-09-2${i}T00:00:00Z`)),
+  )[0]
+
+  it('hides everything when collapsed except the open session', () => {
+    expect(visibleInGroup(group, 'collapsed', 5, null)).toEqual({ shown: [], hidden: 8 })
+    expect(visibleInGroup(group, 'collapsed', 5, 's0').shown.map((n) => n.session.id)).toEqual(['s0'])
+  })
+
+  it('shows the recent N and keeps the open session visible', () => {
+    const recent = visibleInGroup(group, 'recent', 5, null)
+    expect(recent.shown.map((n) => n.session.id)).toEqual(['s7', 's6', 's5', 's4', 's3'])
+    expect(recent.hidden).toBe(3)
+    const withOld = visibleInGroup(group, 'recent', 5, 's0')
+    expect(withOld.shown.map((n) => n.session.id)).toEqual(['s7', 's6', 's5', 's4', 's3', 's0'])
+    expect(withOld.hidden).toBe(2)
+  })
+
+  it('shows everything in all mode', () => {
+    expect(visibleInGroup(group, 'all', 5, null)).toMatchObject({ hidden: 0 })
+    expect(visibleInGroup(group, 'all', 5, null).shown).toHaveLength(8)
+  })
+
+  it('finds an open child session inside a hidden parent', () => {
+    const g = groupSessions([
+      s('new', '/p', '2026-09-25T00:00:00Z'),
+      s('old', '/p', '2026-09-01T00:00:00Z'),
+      s('kid', '/p', '', { parentId: 'old' }),
+    ])[0]
+    expect(visibleInGroup(g, 'recent', 1, 'kid').shown.map((n) => n.session.id)).toEqual(['new', 'old'])
+  })
+})
+
+describe('bucketOf', () => {
+  it('names time buckets relative to now', () => {
+    expect(bucketOf('2026-09-25T01:00:00Z', now)).toBe('Today')
+    expect(bucketOf('2026-09-24T12:00:00Z', now)).toBe('Yesterday')
+    expect(bucketOf('2026-09-20T12:00:00Z', now)).toBe('This week')
+    expect(bucketOf('2026-09-01T12:00:00Z', now)).toBe('This month')
+    expect(bucketOf('2026-06-01T12:00:00Z', now)).toBe('Older')
+    expect(bucketOf(undefined, now)).toBe('Older')
+  })
+})
+
+describe('relativeTime', () => {
+  it('formats short relative times', () => {
+    expect(relativeTime('2026-09-25T11:59:40Z', now)).toBe('just now')
+    expect(relativeTime('2026-09-25T11:15:00Z', now)).toBe('45m ago')
+    expect(relativeTime('2026-09-25T09:00:00Z', now)).toBe('3h ago')
+    expect(relativeTime('2026-09-22T12:00:00Z', now)).toBe('3d ago')
+    expect(relativeTime('2026-06-01T12:00:00Z', now)).toMatch(/2026|Jun/)
+    expect(relativeTime(undefined, now)).toBe('')
+    expect(relativeTime('0001-01-01T00:00:00Z', now)).toBe('')
+  })
+})
+
+describe('matchesQuery', () => {
+  const session = s('x', '/Users/me/go-chamber', '', { title: 'Fix picker' })
+  it('matches title and path case-insensitively', () => {
+    expect(matchesQuery(session, 'PICKER')).toBe(true)
+    expect(matchesQuery(session, 'chamber')).toBe(true)
+    expect(matchesQuery(session, 'codex')).toBe(false)
+    expect(matchesQuery(session, '  ')).toBe(true)
+  })
+  it('matches the agent name', () => {
+    expect(matchesQuery(session, 'claude')).toBe(true)
+  })
+})
+
+describe('sessionTitle', () => {
+  it('uses the title or names the agent', () => {
+    expect(sessionTitle(s('x', '/p', '', { title: 'Fix it' }))).toBe('Fix it')
+    expect(sessionTitle(s('x', '/p', ''))).toBe('New Claude session')
+    expect(sessionTitle(s('x', '/p', '', { agent: 'codex' }))).toBe('New Codex session')
+  })
+})

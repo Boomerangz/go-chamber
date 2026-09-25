@@ -22,6 +22,8 @@ export interface Session {
   title?: string
   interruption?: Interruption
   approvalReviewer?: ApprovalReviewer
+  createdAt?: string
+  activeAt?: string
 }
 
 export type ItemKind =

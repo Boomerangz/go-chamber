@@ -2,8 +2,11 @@ package app
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
+
+	"github.com/igorzygin/go-chamber/internal/domain"
 )
 
 func TestSessionsRecordCreationAndLastActivity(t *testing.T) {
@@ -40,5 +43,58 @@ func TestManagerDefaultsToWallClock(t *testing.T) {
 	}
 	if time.Since(snap.CreatedAt) > time.Minute {
 		t.Fatalf("created at %v", snap.CreatedAt)
+	}
+}
+
+func TestFirstMessageTitlesTheSession(t *testing.T) {
+	m, repo, _, factory, _ := newTestManager(t)
+	snap := createClaude(t, m)
+	factory.runtimes = []*fakeRuntime{newFakeRuntime("native-1")}
+	long := "  Fix the folder picker:\n it submits the surrounding form when you press Enter in the filter  "
+	if err := m.SendMessage(context.Background(), snap.ID, long); err != nil {
+		t.Fatal(err)
+	}
+	saved, _ := repo.Get(context.Background(), snap.ID)
+	want := "Fix the folder picker: it submits the surrounding form when…"
+	if saved.Title != want {
+		t.Fatalf("title = %q, want %q", saved.Title, want)
+	}
+}
+
+func TestTitleFromText(t *testing.T) {
+	cases := map[string]string{
+		"short":                 "short",
+		"  a \n\t b ":           "a b",
+		"":                      "",
+		"привет мир":            "привет мир",
+		strings.Repeat("я", 70): strings.Repeat("я", 59) + "…",
+	}
+	for in, want := range cases {
+		if got := titleFromText(in); got != want {
+			t.Errorf("titleFromText(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
+
+func TestExistingTitleIsKept(t *testing.T) {
+	m, repo, _, factory, _ := newTestManager(t)
+	snap := createClaude(t, m)
+	rt := newFakeRuntime("native-1")
+	factory.runtimes = []*fakeRuntime{rt}
+	ctx := context.Background()
+	if err := m.SendMessage(ctx, snap.ID, "first"); err != nil {
+		t.Fatal(err)
+	}
+	rt.events <- domain.Event{SessionID: snap.ID, Type: domain.EventTurnEnded}
+	eventually(t, "idle session", func() bool {
+		s, _ := repo.Get(ctx, snap.ID)
+		return s.Status == domain.StatusIdle
+	})
+	if err := m.SendMessage(ctx, snap.ID, "second"); err != nil {
+		t.Fatal(err)
+	}
+	saved, _ := repo.Get(ctx, snap.ID)
+	if saved.Title != "first" {
+		t.Fatalf("title = %q", saved.Title)
 	}
 }

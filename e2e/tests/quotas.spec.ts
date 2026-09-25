@@ -6,7 +6,7 @@ test('shows codex quota bars and session usage', async ({ page }) => {
   await page.goto(`/?token=${token}`)
   await page.getByRole('radio', { name: 'Codex' }).click()
   await page.getByLabel('working directory').fill('/tmp')
-  await page.getByRole('button', { name: 'New session' }).click()
+  await page.getByRole('button', { name: 'New session', exact: true }).click()
   await expect(page.getByLabel('message')).toBeVisible()
 
   await page.getByLabel('message').fill('hello')
@@ -23,7 +23,7 @@ test('shows codex quota bars and session usage', async ({ page }) => {
 test('shows claude quota bars', async ({ page }) => {
   await page.goto(`/?token=${token}`)
   await page.getByLabel('working directory').fill('/tmp')
-  await page.getByRole('button', { name: 'New session' }).click()
+  await page.getByRole('button', { name: 'New session', exact: true }).click()
   await expect(page.getByLabel('message')).toBeVisible()
 
   await page.getByLabel('message').fill('hi')

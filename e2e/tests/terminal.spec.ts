@@ -53,7 +53,7 @@ test('terminal in the session directory', async ({ page }) => {
   const dir = fs.realpathSync(fs.mkdtempSync(`${os.tmpdir()}/gc-sess-`))
   await page.goto(`/?token=${token}`)
   await page.getByLabel('working directory').fill(dir)
-  await page.getByRole('button', { name: 'New session' }).click()
+  await page.getByRole('button', { name: 'New session', exact: true }).click()
   await expect(page.getByLabel('message')).toBeVisible()
 
   const panel = page.getByRole('region', { name: 'Terminals' })

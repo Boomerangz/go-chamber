@@ -5,7 +5,7 @@ async function newCodexSession(page: import('@playwright/test').Page, cwd = '/tm
   await page.goto(`/?token=${token}`)
   await page.getByRole('radio', { name: 'Codex' }).click()
   await page.getByLabel('working directory').fill(cwd)
-  await page.getByRole('button', { name: 'New session' }).click()
+  await page.getByRole('button', { name: 'New session', exact: true }).click()
   await expect(page.getByLabel('message')).toBeVisible()
 }
 
@@ -67,6 +67,6 @@ test('switches who reviews codex approvals', async ({ page }, info) => {
 
   // The choice survives a reload.
   await page.reload()
-  await page.getByRole('button', { name: cwd }).click()
+  await page.getByRole('region', { name: `Project ${cwd.split('/').pop()}` }).locator('.session').first().click()
   await expect(page.getByLabel('approval reviewer')).toHaveValue('user')
 })

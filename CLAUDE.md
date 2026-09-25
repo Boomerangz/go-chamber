@@ -91,5 +91,8 @@ e2e-сценарий для новой фичи есть.
   AskUserQuestion приходят как `control_request can_use_tool` только с
   `--permission-prompt-tool stdio`; без него (`--permission-prompts host` по умолчанию) CLI
   молча отказывает (`system/permission_denied`). Фейк `testutil/fakeclaude` повторяет оба правила.
+- **Node 22+ и `localStorage` в vitest**: у Node свой глобальный `localStorage`, без
+  `--localstorage-file` он `undefined` и перекрывает jsdom (`sessionStorage` при этом работает).
+  `src/test/setup.ts` подставляет хранилище в памяти.
 - Go-пакет `web` без тега `embedweb` отдаёт заглушку: `go test ./...` работает без
   `npm run build`, а `make build` встраивает настоящий `web/dist`.

@@ -30,6 +30,7 @@ const event = (over: Partial<SessionEvent>): SessionEvent => ({
 })
 
 beforeEach(() => {
+  localStorage.clear()
   vi.clearAllMocks()
   vi.stubGlobal('WebSocket', undefined)
   resetStore()
@@ -55,6 +56,29 @@ describe('session store', () => {
     expect(api.createSession).toHaveBeenCalledWith('claude', '/tmp/x')
     expect(store().sessions.map((s) => s.id)).toContain('new')
     expect(store().activeId).toBe('new')
+  })
+
+  it('remembers group modes across reloads', () => {
+    expect(store().groupModes).toEqual({})
+    store().setGroupMode('/p', 'all')
+    expect(store().groupModes).toEqual({ '/p': 'all' })
+    expect(JSON.parse(localStorage.getItem('gc.groupModes')!)).toEqual({ '/p': 'all' })
+    resetStore()
+    expect(store().groupModes).toEqual({ '/p': 'all' })
+  })
+
+  it('ignores broken stored group modes', () => {
+    localStorage.setItem('gc.groupModes', '{nope')
+    resetStore()
+    expect(store().groupModes).toEqual({})
+    localStorage.setItem('gc.groupModes', '[1]')
+    resetStore()
+    expect(store().groupModes).toEqual({})
+  })
+
+  it('keeps the session search query', () => {
+    store().setQuery('picker')
+    expect(store().query).toBe('picker')
   })
 
   it('starts on the sessions pane and switches panes', () => {

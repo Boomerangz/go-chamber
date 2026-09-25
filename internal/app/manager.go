@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -137,6 +138,9 @@ func (m *Manager) SendMessage(ctx context.Context, id domain.SessionID, text str
 	err = s.TurnStarted()
 	if err == nil {
 		s.Touch(m.cfg.Now().UTC())
+		if s.Title() == "" {
+			s.Rename(titleFromText(text))
+		}
 	}
 	snap := s.Snapshot()
 	m.mu.Unlock()
@@ -500,4 +504,16 @@ func (m *Manager) PendingRequests(context.Context) []domain.Request {
 		}
 	}
 	return out
+}
+
+const titleLimit = 60
+
+// titleFromText names a session after its first message: whitespace
+// collapsed, cut to titleLimit characters with an ellipsis.
+func titleFromText(text string) string {
+	title := strings.Join(strings.Fields(text), " ")
+	if r := []rune(title); len(r) > titleLimit {
+		title = strings.TrimRight(string(r[:titleLimit-1]), " ") + "…"
+	}
+	return title
 }

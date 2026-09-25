@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import * as api from '../lib/api'
 import { applyEvent, initialChat, type ChatState } from '../lib/events'
+import type { GroupMode } from '../lib/sessions'
 
 export type Connection = 'connecting' | 'online' | 'offline'
 
@@ -15,9 +16,14 @@ export interface SessionStore {
   quotas: api.QuotaSnapshot[]
   connection: Connection
   pane: Pane
+  // groupModes is how each project folder is expanded in the sidebar.
+  groupModes: Record<string, GroupMode>
+  query: string
   error: string | null
 
   setPane: (pane: Pane) => void
+  setGroupMode: (cwd: string, mode: GroupMode) => void
+  setQuery: (query: string) => void
   loadSessions: () => Promise<void>
   loadRequests: () => Promise<void>
   loadQuotas: () => Promise<void>
@@ -33,6 +39,17 @@ export interface SessionStore {
   setConnection: (c: Connection) => void
 }
 
+const GROUP_MODES_KEY = 'gc.groupModes'
+
+function loadGroupModes(): Record<string, GroupMode> {
+  try {
+    const raw: unknown = JSON.parse(localStorage.getItem(GROUP_MODES_KEY) ?? '{}')
+    return raw && typeof raw === 'object' && !Array.isArray(raw) ? (raw as Record<string, GroupMode>) : {}
+  } catch {
+    return {}
+  }
+}
+
 let socket: WebSocket | null = null
 let buffered: api.SessionEvent[] | null = null
 let generation = 0
@@ -45,10 +62,22 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
   quotas: [],
   connection: 'connecting',
   pane: 'sessions',
+  groupModes: loadGroupModes(),
+  query: '',
   error: null,
 
   setConnection: (connection) => set({ connection }),
   setPane: (pane) => set({ pane }),
+  setGroupMode: (cwd, mode) => {
+    const groupModes = { ...get().groupModes, [cwd]: mode }
+    set({ groupModes })
+    try {
+      localStorage.setItem(GROUP_MODES_KEY, JSON.stringify(groupModes))
+    } catch {
+      // storage unavailable: keep the mode for this page only
+    }
+  },
+  setQuery: (query) => set({ query }),
 
   async loadSessions() {
     try {
@@ -270,6 +299,8 @@ export function resetStore(): void {
     quotas: [],
     connection: 'connecting',
     pane: 'sessions',
+    groupModes: loadGroupModes(),
+    query: '',
     error: null,
   })
 }

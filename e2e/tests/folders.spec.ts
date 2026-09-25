@@ -31,6 +31,6 @@ test('picks a session folder with the folder picker', async ({ page }) => {
 
   await expect(picker).toHaveCount(0)
   await expect(page.getByLabel('working directory')).toHaveValue(path.join(root, 'beta'))
-  await page.getByRole('button', { name: 'New session' }).click()
+  await page.getByRole('button', { name: 'New session', exact: true }).click()
   await expect(page.locator('.chat-path', { hasText: path.join(root, 'beta') })).toBeVisible()
 })

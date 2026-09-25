@@ -4,7 +4,7 @@ import { token } from '../playwright.config'
 test('stops a background subagent task', async ({ page }) => {
   await page.goto(`/?token=${token}`)
   await page.getByLabel('working directory').fill('/tmp')
-  await page.getByRole('button', { name: 'New session' }).click()
+  await page.getByRole('button', { name: 'New session', exact: true }).click()
   await expect(page.getByLabel('message')).toBeVisible()
 
   await page.getByLabel('message').fill('run a subagent')

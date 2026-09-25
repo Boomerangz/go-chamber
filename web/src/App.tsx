@@ -4,11 +4,13 @@ import FolderField from './components/folders/FolderField'
 import RequestCard from './components/requests/RequestCard'
 import QuotaWidget from './components/quota/QuotaWidget'
 import RequestTray from './components/requests/RequestTray'
+import SessionList from './components/sessions/SessionList'
 import TerminalPanel from './components/terminal/TerminalPanel'
 import { fetchHealth, type AgentKind, type ApprovalReviewer, type Health, type Item, type Session } from './lib/api'
 import { recentFolders } from './lib/folders'
-import { basename, displayStatus } from './lib/format'
-import { itemTree, sessionTree, type ItemNode, type SessionNode } from './lib/tree'
+import { sessionTitle } from './lib/sessions'
+import { displayStatus } from './lib/format'
+import { itemTree, type ItemNode } from './lib/tree'
 import { useSessionStore, type Pane } from './stores/session'
 
 export default function App() {
@@ -21,7 +23,6 @@ export default function App() {
   const loadRequests = useSessionStore((s) => s.loadRequests)
   const loadQuotas = useSessionStore((s) => s.loadQuotas)
   const createSession = useSessionStore((s) => s.createSession)
-  const selectSession = useSessionStore((s) => s.selectSession)
 
   useEffect(() => {
     let alive = true
@@ -62,12 +63,7 @@ export default function App() {
       {health === 'online' && (
         <>
           <div className="layout" data-pane={pane}>
-            <Sidebar
-              sessions={sessions}
-              activeId={activeId}
-              onCreate={(agent, cwd) => void createSession(agent, cwd)}
-              onSelect={(id) => void selectSession(id)}
-            />
+            <Sidebar sessions={sessions} onCreate={(agent, cwd) => void createSession(agent, cwd)} />
             {activeId ? <Chat /> : <EmptyChat />}
             <div className="workbench">
               <RequestTray />
@@ -125,12 +121,7 @@ function EmptyChat() {
   )
 }
 
-function Sidebar(props: {
-  sessions: Session[]
-  activeId: string | null
-  onCreate: (agent: AgentKind, cwd: string) => void
-  onSelect: (id: string) => void
-}) {
+function Sidebar(props: { onCreate: (agent: AgentKind, cwd: string) => void; sessions: Session[] }) {
   const [cwd, setCwd] = useState('')
   const [agent, setAgent] = useState<AgentKind>('claude')
   return (
@@ -167,19 +158,7 @@ function Sidebar(props: {
           New session
         </button>
       </form>
-      <h2 className="section-title">Sessions</h2>
-      <ul className="sessions">
-        {sessionTree(props.sessions).map((node) => (
-          <SessionNodeView
-            key={node.session.id}
-            node={node}
-            activeId={props.activeId}
-            onSelect={props.onSelect}
-            depth={0}
-          />
-        ))}
-        {props.sessions.length === 0 && <li className="sessions-empty">No sessions yet</li>}
-      </ul>
+      <SessionList onCreateIn={(dir) => props.onCreate(agent, dir)} />
       <footer className="sidebar-footer">
         <AccountPanel key={agent} agent={agent} />
         <QuotaWidget />
@@ -234,50 +213,6 @@ function AgentAvatar({ agent }: { agent: AgentKind }) {
   )
 }
 
-function SessionNodeView({
-  node,
-  activeId,
-  onSelect,
-  depth,
-}: {
-  node: SessionNode
-  activeId: string | null
-  onSelect: (id: string) => void
-  depth: number
-}) {
-  const session = node.session
-  return (
-    <li className={depth > 0 ? 'session-child' : undefined}>
-      <button
-        className={session.id === activeId ? 'session active' : 'session'}
-        onClick={() => onSelect(session.id)}
-      >
-        <AgentAvatar agent={session.agent} />
-        <span className="session-text">
-          <span className="session-title">{session.title || basename(session.cwd)}</span>
-          <span className="session-path">
-            <bdi>{session.cwd}</bdi>
-          </span>
-        </span>
-        <span className={`status status-${session.status}`}>{session.status}</span>
-      </button>
-      {node.children.length > 0 && (
-        <ul className="sessions">
-          {node.children.map((child) => (
-            <SessionNodeView
-              key={child.session.id}
-              node={child}
-              activeId={activeId}
-              onSelect={onSelect}
-              depth={depth + 1}
-            />
-          ))}
-        </ul>
-      )}
-    </li>
-  )
-}
-
 function Chat() {
   const chat = useSessionStore((s) => s.chat)
   const session = useSessionStore((s) => s.sessions.find((x) => x.id === s.activeId))
@@ -307,7 +242,7 @@ function Chat() {
       <header className="chat-header">
         {session && <AgentAvatar agent={session.agent} />}
         <div className="chat-heading">
-          <h2>{session ? session.title || basename(session.cwd) : 'Session'}</h2>
+          <h2>{session ? sessionTitle(session) : 'Session'}</h2>
           {session && <span className="chat-path">{session.cwd}</span>}
         </div>
         <div className="chat-meta">
