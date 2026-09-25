@@ -1,0 +1,517 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-09-25T00:00:00Z",
+  "title": "Design System: go-chamber",
+  "extensions": {
+    "colorMeta": {
+      "paper": {
+        "role": "neutral",
+        "displayName": "Cool Paper",
+        "canonical": "#f3f3f1",
+        "tonalRamp": [
+          "oklch(15% 0.004 106)",
+          "oklch(25% 0.004 106)",
+          "oklch(35% 0.004 106)",
+          "oklch(45% 0.004 106)",
+          "oklch(55% 0.004 106)",
+          "oklch(70% 0.004 106)",
+          "oklch(85% 0.004 106)",
+          "oklch(95% 0.004 106)"
+        ]
+      },
+      "paper-2": {
+        "role": "neutral",
+        "displayName": "Pressed Paper",
+        "canonical": "#e9e9e5",
+        "tonalRamp": [
+          "oklch(15% 0.005 106)",
+          "oklch(25% 0.005 106)",
+          "oklch(35% 0.005 106)",
+          "oklch(45% 0.005 106)",
+          "oklch(55% 0.005 106)",
+          "oklch(70% 0.005 106)",
+          "oklch(85% 0.005 106)",
+          "oklch(95% 0.005 106)"
+        ]
+      },
+      "paper-3": {
+        "role": "neutral",
+        "displayName": "Deep Paper",
+        "canonical": "#dfdfda",
+        "tonalRamp": [
+          "oklch(15% 0.006 106)",
+          "oklch(25% 0.006 106)",
+          "oklch(35% 0.006 106)",
+          "oklch(45% 0.006 106)",
+          "oklch(55% 0.006 106)",
+          "oklch(70% 0.006 106)",
+          "oklch(85% 0.006 106)",
+          "oklch(95% 0.006 106)"
+        ]
+      },
+      "ink": {
+        "role": "neutral",
+        "displayName": "Ink",
+        "canonical": "#16171a",
+        "tonalRamp": [
+          "oklch(15% 0.006 270)",
+          "oklch(25% 0.006 270)",
+          "oklch(35% 0.006 270)",
+          "oklch(45% 0.006 270)",
+          "oklch(55% 0.006 270)",
+          "oklch(70% 0.006 270)",
+          "oklch(85% 0.006 270)",
+          "oklch(95% 0.006 270)"
+        ]
+      },
+      "ink-2": {
+        "role": "neutral",
+        "displayName": "Ink 2",
+        "canonical": "#45474d",
+        "tonalRamp": [
+          "oklch(15% 0.008 270)",
+          "oklch(25% 0.008 270)",
+          "oklch(35% 0.008 270)",
+          "oklch(45% 0.008 270)",
+          "oklch(55% 0.008 270)",
+          "oklch(70% 0.008 270)",
+          "oklch(85% 0.008 270)",
+          "oklch(95% 0.008 270)"
+        ]
+      },
+      "ink-3": {
+        "role": "neutral",
+        "displayName": "Ink 3",
+        "canonical": "#66686e",
+        "tonalRamp": [
+          "oklch(15% 0.008 270)",
+          "oklch(25% 0.008 270)",
+          "oklch(35% 0.008 270)",
+          "oklch(45% 0.008 270)",
+          "oklch(55% 0.008 270)",
+          "oklch(70% 0.008 270)",
+          "oklch(85% 0.008 270)",
+          "oklch(95% 0.008 270)"
+        ]
+      },
+      "rule": {
+        "role": "neutral",
+        "displayName": "Rule",
+        "canonical": "#d3d3cd",
+        "tonalRamp": [
+          "oklch(15% 0.007 106)",
+          "oklch(25% 0.007 106)",
+          "oklch(35% 0.007 106)",
+          "oklch(45% 0.007 106)",
+          "oklch(55% 0.007 106)",
+          "oklch(70% 0.007 106)",
+          "oklch(85% 0.007 106)",
+          "oklch(95% 0.007 106)"
+        ]
+      },
+      "rule-strong": {
+        "role": "neutral",
+        "displayName": "Strong Rule",
+        "canonical": "#a6a6a0",
+        "tonalRamp": [
+          "oklch(15% 0.008 106)",
+          "oklch(25% 0.008 106)",
+          "oklch(35% 0.008 106)",
+          "oklch(45% 0.008 106)",
+          "oklch(55% 0.008 106)",
+          "oklch(70% 0.008 106)",
+          "oklch(85% 0.008 106)",
+          "oklch(95% 0.008 106)"
+        ]
+      },
+      "act": {
+        "role": "primary",
+        "displayName": "Ink Blue",
+        "canonical": "#2433d6",
+        "tonalRamp": [
+          "oklch(15% 0.2 268)",
+          "oklch(25% 0.2 268)",
+          "oklch(35% 0.2 268)",
+          "oklch(45% 0.2 268)",
+          "oklch(55% 0.2 268)",
+          "oklch(70% 0.2 268)",
+          "oklch(85% 0.2 268)",
+          "oklch(95% 0.2 268)"
+        ]
+      },
+      "req-mark": {
+        "role": "secondary",
+        "displayName": "Requisition Amber",
+        "canonical": "#b86a00",
+        "tonalRamp": [
+          "oklch(15% 0.14 65)",
+          "oklch(25% 0.14 65)",
+          "oklch(35% 0.14 65)",
+          "oklch(45% 0.14 65)",
+          "oklch(55% 0.14 65)",
+          "oklch(70% 0.14 65)",
+          "oklch(85% 0.14 65)",
+          "oklch(95% 0.14 65)"
+        ]
+      },
+      "req": {
+        "role": "secondary",
+        "displayName": "Requisition Amber (text)",
+        "canonical": "#8f5200",
+        "tonalRamp": [
+          "oklch(15% 0.12 65)",
+          "oklch(25% 0.12 65)",
+          "oklch(35% 0.12 65)",
+          "oklch(45% 0.12 65)",
+          "oklch(55% 0.12 65)",
+          "oklch(70% 0.12 65)",
+          "oklch(85% 0.12 65)",
+          "oklch(95% 0.12 65)"
+        ]
+      },
+      "bad": {
+        "role": "tertiary",
+        "displayName": "Failure Red",
+        "canonical": "#b3261e",
+        "tonalRamp": [
+          "oklch(15% 0.17 28)",
+          "oklch(25% 0.17 28)",
+          "oklch(35% 0.17 28)",
+          "oklch(45% 0.17 28)",
+          "oklch(55% 0.17 28)",
+          "oklch(70% 0.17 28)",
+          "oklch(85% 0.17 28)",
+          "oklch(95% 0.17 28)"
+        ]
+      },
+      "paper-dark": {
+        "role": "neutral",
+        "displayName": "Night Sheet",
+        "tonalRamp": [
+          "oklch(15% 0.004 106)",
+          "oklch(25% 0.004 106)",
+          "oklch(35% 0.004 106)",
+          "oklch(45% 0.004 106)",
+          "oklch(55% 0.004 106)",
+          "oklch(70% 0.004 106)",
+          "oklch(85% 0.004 106)",
+          "oklch(95% 0.004 106)"
+        ]
+      },
+      "ink-dark": {
+        "role": "neutral",
+        "displayName": "Night Ink",
+        "tonalRamp": [
+          "oklch(15% 0.006 270)",
+          "oklch(25% 0.006 270)",
+          "oklch(35% 0.006 270)",
+          "oklch(45% 0.006 270)",
+          "oklch(55% 0.006 270)",
+          "oklch(70% 0.006 270)",
+          "oklch(85% 0.006 270)",
+          "oklch(95% 0.006 270)"
+        ]
+      },
+      "act-dark": {
+        "role": "primary",
+        "displayName": "Ink Blue (dark)",
+        "tonalRamp": [
+          "oklch(15% 0.2 268)",
+          "oklch(25% 0.2 268)",
+          "oklch(35% 0.2 268)",
+          "oklch(45% 0.2 268)",
+          "oklch(55% 0.2 268)",
+          "oklch(70% 0.2 268)",
+          "oklch(85% 0.2 268)",
+          "oklch(95% 0.2 268)"
+        ]
+      },
+      "req-mark-dark": {
+        "role": "secondary",
+        "displayName": "Requisition Amber (dark)",
+        "tonalRamp": [
+          "oklch(15% 0.14 65)",
+          "oklch(25% 0.14 65)",
+          "oklch(35% 0.14 65)",
+          "oklch(45% 0.14 65)",
+          "oklch(55% 0.14 65)",
+          "oklch(70% 0.14 65)",
+          "oklch(85% 0.14 65)",
+          "oklch(95% 0.14 65)"
+        ]
+      },
+      "bad-dark": {
+        "role": "tertiary",
+        "displayName": "Failure Red (dark)",
+        "tonalRamp": [
+          "oklch(15% 0.17 28)",
+          "oklch(25% 0.17 28)",
+          "oklch(35% 0.17 28)",
+          "oklch(45% 0.17 28)",
+          "oklch(55% 0.17 28)",
+          "oklch(70% 0.17 28)",
+          "oklch(85% 0.17 28)",
+          "oklch(95% 0.17 28)"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "headline": {
+        "displayName": "Headline",
+        "purpose": "Session title as document title; notice heading (hero 22px)."
+      },
+      "title": {
+        "displayName": "Title",
+        "purpose": "REQUIRES block title, terminal header title."
+      },
+      "transcript": {
+        "displayName": "Transcript",
+        "purpose": "Assistant and user turns within a 72ch measure."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "Default UI prose, tabular figures."
+      },
+      "body-sm": {
+        "displayName": "Body small",
+        "purpose": "Tool/command/file items, session titles, hints."
+      },
+      "masthead": {
+        "displayName": "Masthead",
+        "purpose": "Product name in the top bar."
+      },
+      "control": {
+        "displayName": "Control",
+        "purpose": "Every button, folder input, group names, tabs, crumbs."
+      },
+      "meta": {
+        "displayName": "Meta",
+        "purpose": "Paths, model, usage, health, lowercase status words, turn numbers."
+      },
+      "label": {
+        "displayName": "Label",
+        "purpose": "Uppercase section titles, buckets, REQUIRES and decision keywords, unseen mark."
+      }
+    },
+    "shadows": [
+      {
+        "name": "focus-ring",
+        "value": "0 0 0 1px var(--act)",
+        "purpose": "Focused field, folder field and composer; a line, not elevation."
+      },
+      {
+        "name": "meter-track",
+        "value": "inset 0 0 0 1px var(--rule)",
+        "purpose": "Hairline around the quota meter track."
+      }
+    ],
+    "motion": [
+      {
+        "name": "ease-out",
+        "value": "cubic-bezier(0.16, 1, 0.3, 1)",
+        "purpose": "All entries, settles and chevron turns."
+      },
+      {
+        "name": "dur-fast",
+        "value": "120ms",
+        "purpose": "Hover, border and colour changes; reduced-motion fade (linear)."
+      },
+      {
+        "name": "dur",
+        "value": "200ms",
+        "purpose": "Item and request entry; list re-order settle."
+      },
+      {
+        "name": "enter-settle",
+        "value": "opacity 0->1, translateY 2px->0, 200ms ease-out",
+        "purpose": "Every transcript item joining the page."
+      },
+      {
+        "name": "enter-margin",
+        "value": "opacity 0->1, translateX -12px->0, 200ms ease-out",
+        "purpose": "A request arriving from the left margin."
+      },
+      {
+        "name": "resolve",
+        "value": "--strike 0->1 at 45%, then opacity and height to 0; 450ms easeOut",
+        "purpose": "An answered request is struck through, then collapses."
+      },
+      {
+        "name": "meter-fill",
+        "value": "transform 400ms ease-out",
+        "purpose": "Quota meter fill."
+      },
+      {
+        "name": "reduced",
+        "value": "opacity only, 120ms linear; CSS guard removes all transitions and animations",
+        "purpose": "prefers-reduced-motion: reduce."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "narrow-desktop",
+        "value": "1100px"
+      },
+      {
+        "name": "mobile",
+        "value": "720px"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Button",
+      "kind": "button",
+      "refersTo": "button",
+      "description": "Default typed command on paper.",
+      "html": "<button class=\"ds-btn\">Allow for session</button>",
+      "css": ".ds-btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;height:30px;padding:0 12px;border:1px solid var(--rule-strong,#a6a6a0);border-radius:2px;background:var(--paper,#f3f3f1);color:var(--ink,#16171a);font-family:'PT Mono',ui-monospace,'SF Mono',Menlo,monospace;font-size:12.5px;font-weight:400;cursor:pointer;transition:background 120ms,border-color 120ms,color 120ms}.ds-btn:hover{border-color:var(--ink,#16171a)}.ds-btn:active{background:var(--paper-2,#e9e9e5)}.ds-btn:focus-visible{outline:2px solid var(--act-ring,rgba(36,51,214,.55));outline-offset:1px}"
+    },
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The one pressable action of a group, in ink-blue.",
+      "html": "<button class=\"ds-btn-primary\">Allow</button>",
+      "css": ".ds-btn-primary{display:inline-flex;align-items:center;justify-content:center;height:30px;padding:0 12px;border:1px solid var(--act,#2433d6);border-radius:2px;background:var(--act,#2433d6);color:var(--act-ink,#fff);font-family:'PT Mono',ui-monospace,'SF Mono',Menlo,monospace;font-size:12.5px;cursor:pointer;transition:border-color 120ms}.ds-btn-primary:hover{border-color:var(--ink,#16171a)}.ds-btn-primary:focus-visible{outline:2px solid var(--act-ring,rgba(36,51,214,.55));outline-offset:1px}"
+    },
+    {
+      "name": "Danger Button",
+      "kind": "button",
+      "refersTo": "button-danger",
+      "description": "Deny, Stop: ends or destroys something.",
+      "html": "<button class=\"ds-btn-danger\">Deny</button>",
+      "css": ".ds-btn-danger{display:inline-flex;align-items:center;justify-content:center;height:30px;padding:0 12px;border:1px solid var(--bad,#b3261e);border-radius:2px;background:transparent;color:var(--bad,#b3261e);font-family:'PT Mono',ui-monospace,'SF Mono',Menlo,monospace;font-size:12.5px;cursor:pointer;transition:background 120ms}.ds-btn-danger:hover{background:var(--bad-wash,rgba(179,38,30,.08))}.ds-btn-danger:focus-visible{outline:2px solid var(--act-ring,rgba(36,51,214,.55));outline-offset:1px}"
+    },
+    {
+      "name": "Field",
+      "kind": "input",
+      "refersTo": "field",
+      "description": "Text field: strong rule, ink-blue ring on focus.",
+      "html": "<input class=\"ds-field\" placeholder=\"Reason for denial\">",
+      "css": ".ds-field{height:32px;padding:0 10px;border:1px solid var(--rule-strong,#a6a6a0);border-radius:2px;background:var(--paper,#f3f3f1);color:var(--ink,#16171a);font:14px -apple-system,BlinkMacSystemFont,system-ui,sans-serif;transition:border-color 120ms}.ds-field::placeholder{color:var(--ink-3,#66686e)}.ds-field:hover{border-color:var(--ink-3,#66686e)}.ds-field:focus{outline:none;border-color:var(--act,#2433d6);box-shadow:0 0 0 1px var(--act,#2433d6)}"
+    },
+    {
+      "name": "Chip",
+      "kind": "chip",
+      "refersTo": "chip",
+      "description": "Recent folder or terminal project.",
+      "html": "<button class=\"ds-chip\">go-chamber</button>",
+      "css": ".ds-chip{display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 8px;border:1px solid var(--rule-strong,#a6a6a0);border-radius:2px;background:var(--paper,#f3f3f1);color:var(--ink-2,#45474d);font-family:'PT Mono',ui-monospace,monospace;font-size:12px;cursor:pointer}.ds-chip:hover{border-color:var(--ink,#16171a);color:var(--ink,#16171a)}.ds-chip:focus-visible{outline:2px solid var(--act-ring,rgba(36,51,214,.55));outline-offset:1px}"
+    },
+    {
+      "name": "State Marks",
+      "kind": "custom",
+      "refersTo": "",
+      "description": "State is form: solid running, hollow idle, struck interrupted, dashed detached. No hue.",
+      "html": "<div class=\"ds-states\"><span class=\"ds-status ds-running\">running</span><span class=\"ds-status\">idle</span><span class=\"ds-status ds-interrupted\">interrupted</span><span class=\"ds-status ds-detached\">detached</span></div>",
+      "css": ".ds-states{display:flex;gap:16px}.ds-status{display:inline-flex;align-items:center;gap:6px;font-family:'PT Mono',ui-monospace,monospace;font-size:12px;color:var(--ink-2,#45474d);text-transform:lowercase}.ds-status::before{content:'';width:8px;height:8px;border:1px solid currentColor;border-radius:1px}.ds-running{color:var(--ink,#16171a)}.ds-running::before{background:currentColor}.ds-interrupted{color:var(--ink,#16171a)}.ds-interrupted::before{background:linear-gradient(to top right,transparent 45%,currentColor 45% 60%,transparent 60%)}.ds-detached{color:var(--ink-3,#66686e)}.ds-detached::before{border-style:dashed}"
+    },
+    {
+      "name": "Session Row",
+      "kind": "nav",
+      "refersTo": "session-row-active",
+      "description": "TOC row as a label grid: agent box, title over state and age, amber request count.",
+      "html": "<button class=\"ds-session ds-active\"><span class=\"ds-avatar\">C</span><span class=\"ds-stext\"><span class=\"ds-stitle\">hello — привет</span><span class=\"ds-smeta\"><span class=\"ds-smark\">running</span><span>just now</span></span></span><span class=\"ds-count\">1</span></button>",
+      "css": ".ds-session{width:280px;display:grid;grid-template-columns:auto minmax(0,1fr) 18px;column-gap:9px;align-items:center;padding:6px 8px;border:1px solid transparent;border-radius:2px;background:none;text-align:left;color:inherit;cursor:pointer;transition:background 120ms}.ds-session:hover{background:var(--paper-2,#e9e9e5)}.ds-active{background:var(--paper-2,#e9e9e5);border-color:var(--rule-strong,#a6a6a0)}.ds-session:focus-visible{outline:2px solid var(--act-ring,rgba(36,51,214,.55));outline-offset:1px}.ds-avatar{display:grid;place-items:center;width:22px;height:22px;border:1px solid var(--rule-strong,#a6a6a0);border-radius:2px;font-family:'PT Mono',monospace;font-size:12px;background:var(--paper,#f3f3f1)}.ds-stext{display:grid;gap:1px;min-width:0}.ds-stitle{font:500 13px -apple-system,system-ui,sans-serif;color:var(--ink,#16171a);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.ds-smeta{display:flex;justify-content:space-between;font-family:'PT Mono',monospace;font-size:11.5px;color:var(--ink-3,#66686e)}.ds-smark{display:inline-flex;align-items:center;gap:5px;color:var(--ink,#16171a)}.ds-smark::before{content:'';width:7px;height:7px;background:currentColor;border-radius:1px}.ds-count{display:inline-grid;place-items:center;min-width:18px;height:18px;padding:0 4px;border-radius:2px;background:var(--req-mark,#b86a00);color:var(--paper,#f3f3f1);font-family:'PT Mono',monospace;font-size:11px}"
+    },
+    {
+      "name": "REQUIRES Block",
+      "kind": "custom",
+      "refersTo": "requires-block",
+      "description": "The signature: the only amber on screen, directly above the composer.",
+      "html": "<div class=\"ds-req\"><div class=\"ds-req-title\"><span class=\"ds-req-kw\">Requires approval</span>Run command</div><p class=\"ds-req-prompt\">Claude wants to run: make test</p><span class=\"ds-req-tool\">Bash</span><pre class=\"ds-req-input\">{ \"command\": \"make test\" }</pre><div class=\"ds-req-actions\"><button class=\"ds-rb ds-rb-primary\">Allow</button><button class=\"ds-rb\">Allow for session</button><button class=\"ds-rb ds-rb-danger\">Deny</button></div></div>",
+      "css": ".ds-req{position:relative;display:grid;gap:8px;max-width:560px;padding:12px 14px 14px;border:1px solid var(--req-mark,#b86a00);border-radius:2px;background:var(--paper,#f3f3f1);color:var(--ink,#16171a);font:14px/1.5 -apple-system,system-ui,sans-serif}.ds-req::before{content:'';position:absolute;left:-1px;right:-1px;top:-1px;height:3px;background:var(--req-mark,#b86a00)}.ds-req-title{display:flex;align-items:baseline;gap:10px;font-size:15px;font-weight:600}.ds-req-kw{font-family:'PT Mono',monospace;font-size:12px;font-weight:400;letter-spacing:.06em;text-transform:uppercase;color:var(--req,#8f5200)}.ds-req-prompt{margin:0;color:var(--ink-2,#45474d)}.ds-req-tool{font-family:'PT Mono',monospace;font-size:12.5px}.ds-req-tool::before{content:'tool: ';color:var(--ink-3,#66686e)}.ds-req-input{margin:0;padding:8px 12px;background:var(--paper-2,#e9e9e5);border-left:1px solid var(--rule-strong,#a6a6a0);color:var(--ink-2,#45474d);font:12.5px 'PT Mono',monospace}.ds-req-actions{display:flex;gap:8px;margin-top:4px}.ds-rb{height:30px;padding:0 12px;border:1px solid var(--rule-strong,#a6a6a0);border-radius:2px;background:var(--paper,#f3f3f1);color:var(--ink,#16171a);font:12.5px 'PT Mono',monospace;cursor:pointer}.ds-rb:hover{border-color:var(--ink,#16171a)}.ds-rb:focus-visible{outline:2px solid var(--act-ring,rgba(36,51,214,.55));outline-offset:1px}.ds-rb-primary{background:var(--act,#2433d6);border-color:var(--act,#2433d6);color:var(--act-ink,#fff)}.ds-rb-danger{background:transparent;border-color:var(--bad,#b3261e);color:var(--bad,#b3261e)}.ds-rb-danger:hover{background:var(--bad-wash,rgba(179,38,30,.08));border-color:var(--bad,#b3261e)}"
+    },
+    {
+      "name": "Decision Record",
+      "kind": "custom",
+      "refersTo": "",
+      "description": "What remains of an answered request: outcome keyword, struck name.",
+      "html": "<div class=\"ds-decision\"><span class=\"ds-decision-kw\">approved</span><span class=\"ds-decision-name\">Run command</span></div><div class=\"ds-decision\"><span class=\"ds-decision-kw ds-denied\">denied</span><span class=\"ds-decision-name\">Write file</span></div>",
+      "css": ".ds-decision{display:flex;align-items:baseline;gap:10px;font:13px -apple-system,system-ui,sans-serif;color:var(--ink-2,#45474d);margin:4px 0}.ds-decision-kw{font-family:'PT Mono',monospace;font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink,#16171a)}.ds-denied{color:var(--bad,#b3261e)}.ds-decision-name{text-decoration:line-through;text-decoration-thickness:1px;text-decoration-color:var(--ink-3,#66686e)}"
+    },
+    {
+      "name": "Unseen Mark",
+      "kind": "custom",
+      "refersTo": "",
+      "description": "Ink label and dashed ink rule before the first unseen item.",
+      "html": "<div class=\"ds-unseen\">new since you left</div>",
+      "css": ".ds-unseen{display:flex;align-items:center;gap:10px;width:480px;color:var(--ink,#16171a);font-family:'PT Mono',monospace;font-size:11.5px;letter-spacing:.06em;text-transform:uppercase}.ds-unseen::after{content:'';flex:1;border-top:1px dashed var(--ink,#16171a)}"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Living Specification",
+    "overview": "Every session reads like an RFC that is still being written. The page is one sheet of cool paper printed in one ink; hairline rules divide it into regions, and nothing floats above it. PT Mono carries the structure (the masthead, section labels, turn numbers, metadata, normative keywords, and every button), while the system sans carries what people and agents actually say. The transcript is a numbered document: turn numbers hang in a left margin, user turns open a new ruled section with a vertical ink rule instead of a bubble, and tool output sits in indented plaintext blocks.\n\nColour is reserved for meaning, not mood. Ink-blue marks what you can press, amber marks what needs you, and red marks what broke or destroys. Everything else, including session state, is carried by the form of a small square mark. The world replaces an earlier dark glass and gradient look; that look is rejected, not softened.\n\nDensity is high but calm: long streamed sessions in Russian and English, several agents at once, a terminal alongside. Motion is short and typographic: items settle, requests slide in from the margin, and an answered request is struck through and folds into a one-line record.",
+    "keyCharacteristics": [
+      "One sheet, one ink, hairline rules; light and dark follow the system setting.",
+      "Structure in PT Mono, prose in the system sans.",
+      "State is form: solid, hollow, struck, dashed. No hue on state.",
+      "Three signal colours, each with one job: act, requires, fails.",
+      "Flat: no elevation shadows, 2px corners.",
+      "The REQUIRES block is the signature; its answer stays in the transcript as a struck record."
+    ],
+    "rules": [
+      {
+        "name": "The One Sheet Rule",
+        "body": "There is one surface colour. Regions are divided by 1px rules, never by a second panel tone; pressed paper appears only under a hovered or active row and behind output.",
+        "section": "colors"
+      },
+      {
+        "name": "The Act Rule",
+        "body": "Ink-blue means \"you can press this\" or \"this has focus\". If it cannot be pressed, it is not blue.",
+        "section": "colors"
+      },
+      {
+        "name": "The Needs-You Rule",
+        "body": "Amber means the owner is needed now. The REQUIRES block and pending counts hold it; nothing decorative ever does.",
+        "section": "colors"
+      },
+      {
+        "name": "The Broken Rule",
+        "body": "Red means something failed or will be destroyed. A Deny or Stop is red because it ends something, not for emphasis.",
+        "section": "colors"
+      },
+      {
+        "name": "The Mono Carries Structure Rule",
+        "body": "Anything that names, numbers, labels or commands is set in PT Mono; anything someone wrote to be read is set in the sans. Buttons are commands, so buttons are mono.",
+        "section": "typography"
+      },
+      {
+        "name": "The Bracket Rule",
+        "body": "Tags and outcomes that annotate a line are printed in square brackets generated by CSS: model tags, hook outcomes, the repo badge. Buttons are not bracketed.",
+        "section": "typography"
+      },
+      {
+        "name": "The Flat Sheet Rule",
+        "body": "No elevation shadow, blur, glass or gradient fill anywhere. Depth is expressed by a rule, a border weight change (rule to ink), or pressed paper.",
+        "section": "elevation"
+      },
+      {
+        "name": "The State Is Form Rule",
+        "body": "Session and agent state is a small square mark next to a lowercase word, and only its form changes: solid ink square = running, hollow = idle, struck (a diagonal slash) = interrupted, dashed outline = detached. State never takes a hue.",
+        "section": "shapes"
+      }
+    ],
+    "dos": [
+      "Do divide regions with 1px `rule` hairlines on the one `paper` sheet.",
+      "Do show state with the square mark's form (solid, hollow, struck, dashed) and a lowercase mono word.",
+      "Do reserve `act` for pressable controls, links and focus; `req-mark` for what needs the owner; `bad` for failure and destruction.",
+      "Do set buttons, labels, paths, numbers and keywords in PT Mono 400, and prose in the system sans.",
+      "Do keep 2px corners and 1px borders; draw counts as squares.",
+      "Do record every answered request as a decision line in the transcript.",
+      "Do give every new motion a reduced-motion variant that only fades.",
+      "Do keep light and dark on the same roles, switched by `prefers-color-scheme`."
+    ],
+    "donts": [
+      "Don't use elevation shadows, blur, glass, or gradient fills; `box-shadow` is allowed only as a 1px focus ring or inset hairline.",
+      "Don't put a hue on session or terminal state.",
+      "Don't use amber or ink-blue decoratively, or red for emphasis.",
+      "Don't use `paper-2` as a panel or card background.",
+      "Don't draw chat bubbles; user turns are ruled sections.",
+      "Don't use pill shapes or radii above 2px.",
+      "Don't load fonts from a CDN; the UI must work offline.",
+      "Don't style Claude or Codex as the default; both are a letter in the same box."
+    ]
+  }
+}

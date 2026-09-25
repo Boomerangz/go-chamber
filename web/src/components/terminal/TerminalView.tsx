@@ -3,6 +3,7 @@ import { Terminal as XTerm } from '@xterm/xterm'
 import '@xterm/xterm/css/xterm.css'
 import { useEffect, useRef } from 'react'
 import { connectTerminal } from '../../lib/terminal'
+import { terminalTheme } from '../../lib/theme'
 
 interface Props {
   id: string
@@ -22,18 +23,16 @@ export default function TerminalView({ id, autoFocus, onExit, onDisconnect }: Pr
 
   useEffect(() => {
     const el = host.current!
+    const scheme = window.matchMedia('(prefers-color-scheme: dark)')
     const xterm = new XTerm({
-      fontFamily: '"JetBrains Mono", "SF Mono", ui-monospace, Menlo, monospace',
+      fontFamily: '"PT Mono", "SF Mono", ui-monospace, Menlo, monospace',
       fontSize: 13,
       lineHeight: 1.2,
       cursorBlink: true,
-      theme: {
-        background: '#0b0c14',
-        foreground: '#e4e6f0',
-        cursor: '#a78bfa',
-        selectionBackground: 'rgba(139, 92, 246, 0.35)',
-      },
+      theme: terminalTheme(scheme.matches),
     })
+    const onScheme = () => (xterm.options.theme = terminalTheme(scheme.matches))
+    scheme.addEventListener?.('change', onScheme)
     const fit = new FitAddon()
     xterm.loadAddon(fit)
     xterm.open(el)
@@ -69,6 +68,7 @@ export default function TerminalView({ id, autoFocus, onExit, onDisconnect }: Pr
     resize()
     if (autoFocus) xterm.focus()
     return () => {
+      scheme.removeEventListener?.('change', onScheme)
       observer.disconnect()
       input.dispose()
       conn.close()

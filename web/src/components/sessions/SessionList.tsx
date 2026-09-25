@@ -1,3 +1,6 @@
+import { ChevronDown, Plus, Search } from 'lucide-react'
+import { motion, useReducedMotion } from 'motion/react'
+import { icon } from '../icon'
 import { Fragment, useEffect, useMemo } from 'react'
 import type { SearchHit, Session } from '../../lib/api'
 import {
@@ -12,6 +15,7 @@ import {
   type SessionGroup,
 } from '../../lib/sessions'
 import type { SessionNode } from '../../lib/tree'
+import { settle } from '../../lib/motion'
 import { useSessionStore } from '../../stores/session'
 
 // RECENT is how many sessions an expanded project shows before "older".
@@ -61,7 +65,7 @@ export default function SessionList({ onCreateIn }: SessionListProps) {
   return (
     <>
       <div className="session-search">
-        <span className="search-icon" aria-hidden="true" />
+        <Search {...icon(14)} />
         <input
           type="search"
           aria-label="search sessions"
@@ -128,8 +132,7 @@ function Group(props: {
           onClick={() => props.onMode(open ? 'collapsed' : 'recent')}
           disabled={props.searching}
         >
-          <span className="chevron" aria-hidden="true" />
-          <span className="folder-icon" aria-hidden="true" />
+          <ChevronDown {...icon(13)} className="icon chevron" />
           <span className="group-name">{group.name}</span>
           <span className="sr-only"> {group.cwd}</span>
           <span className="group-count">{group.count}</span>
@@ -146,7 +149,7 @@ function Group(props: {
           title={`New session in ${group.cwd}`}
           onClick={() => props.onCreateIn(group.cwd)}
         >
-          +
+          <Plus {...icon(15)} />
         </button>
       </header>
       {shown.length > 0 && (
@@ -188,8 +191,9 @@ function SessionRow(props: {
 }) {
   const s = props.node.session
   const waiting = props.pendingBySession.get(s.id) ?? 0
+  const reduced = useReducedMotion() ?? false
   return (
-    <li className={props.depth > 0 ? 'session-child' : undefined}>
+    <motion.li layout="position" transition={settle(reduced)} className={props.depth > 0 ? 'session-child' : undefined}>
       <button
         className={s.id === props.activeId ? 'session active' : 'session'}
         aria-current={s.id === props.activeId ? 'true' : undefined}
@@ -207,7 +211,7 @@ function SessionRow(props: {
             <span className="session-time">{relativeTime(s.activeAt ?? s.createdAt)}</span>
           </span>
         </span>
-        {waiting > 0 && <span className="badge">{waiting}</span>}
+        <span className="session-badge">{waiting > 0 && <span className="badge">{waiting}</span>}</span>
       </button>
       {props.node.children.length > 0 && (
         <ul className="sessions">
@@ -216,7 +220,7 @@ function SessionRow(props: {
           ))}
         </ul>
       )}
-    </li>
+    </motion.li>
   )
 }
 

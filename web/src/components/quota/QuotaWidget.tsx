@@ -1,3 +1,5 @@
+import { ChevronDown, RotateCw } from 'lucide-react'
+import { icon } from '../icon'
 import { useState } from 'react'
 import { refreshQuota } from '../../lib/api'
 import { resetLabel, windowLabel } from '../../lib/format'
@@ -22,13 +24,13 @@ export default function QuotaWidget() {
             <span key={q.agent} className="quota-mini">
               <span>{agentName[q.agent] ?? q.agent}</span>
               <span className={`bar bar-${level(top)}`}>
-                <span className="fill" style={{ width: `${top}%` }} />
+                <span className="fill" style={{ transform: `scaleX(${top / 100})` }} />
               </span>
               <span className="pct">{Math.round(top)}%</span>
             </span>
           )
         })}
-        <span className="chevron" aria-hidden="true" />
+        <ChevronDown {...icon(13)} className="icon chevron" />
       </summary>
       <div className="quotas" aria-label="Quotas">
         {quotas.map((q) => (
@@ -48,7 +50,7 @@ export default function QuotaWidget() {
                     .catch((e) => setError(message(e)))
                 }
               >
-                ↻
+                <RotateCw {...icon(13)} />
               </button>
             </header>
             {q.windows.map((w) => {
@@ -61,7 +63,7 @@ export default function QuotaWidget() {
                     <span className="pct">{Math.round(w.usedPct)}%</span>
                   </div>
                   <div className={`bar bar-${level(pct)}`}>
-                    <div className="fill" style={{ width: `${pct}%` }} />
+                    <div className="fill" style={{ transform: `scaleX(${pct / 100})` }} />
                   </div>
                   {reset && <small>{reset}</small>}
                 </div>

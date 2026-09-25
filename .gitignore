@@ -7,3 +7,6 @@
 /e2e/.data/
 .DS_Store
 /e2e/.installed
+/.impeccable/review/
+/.impeccable/hook.cache.json
+/.impeccable/questions/

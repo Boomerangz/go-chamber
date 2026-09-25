@@ -19,8 +19,10 @@ function PermissionCard({ request, onRespond }: RequestCardProps) {
   const toolName = request.payload?.toolName
   return (
     <div className="request permission">
-      <span className="request-eyebrow">Waiting for approval</span>
-      <header className="request-title">{request.title || toolName || 'Permission required'}</header>
+      <header className="request-title">
+        <span className="request-kw">Requires approval</span>
+        <span>{request.title || toolName || 'Permission required'}</span>
+      </header>
       {request.prompt && <p className="request-prompt">{request.prompt}</p>}
       {toolName && <code className="request-tool">{toolName}</code>}
       {request.payload?.input && <pre className="request-input">{JSON.stringify(request.payload.input, null, 2)}</pre>}
@@ -94,8 +96,10 @@ function QuestionCard({ request, onRespond }: RequestCardProps) {
 
   return (
     <div className="request question">
-      <span className="request-eyebrow">Question</span>
-      <header className="request-title">{request.title || 'Question'}</header>
+      <header className="request-title">
+        <span className="request-kw">Requires answer</span>
+        <span>{request.title || 'Question'}</span>
+      </header>
       {request.prompt && <p className="request-prompt">{request.prompt}</p>}
       {questions.map((q: Question) => (
         <fieldset key={q.question} className="question">

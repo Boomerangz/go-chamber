@@ -1,3 +1,5 @@
+import { SquareTerminal, X } from 'lucide-react'
+import { icon } from '../icon'
 import type { Session } from '../../lib/api'
 import { recentFolders } from '../../lib/folders'
 import { basename } from '../../lib/format'
@@ -34,7 +36,7 @@ export default function TerminalWorkspace({ sessions }: { sessions: Session[] })
                   aria-label={`Open terminal in ${basename(dir)}`}
                   onClick={() => void open({ cwd: dir })}
                 >
-                  <span aria-hidden="true">›_</span> {basename(dir)}
+                  <SquareTerminal {...icon(13)} /> {basename(dir)}
                 </button>
               ))}
             </div>
@@ -66,7 +68,7 @@ export default function TerminalWorkspace({ sessions }: { sessions: Session[] })
                   </span>
                 </button>
                 <button className="close-terminal" aria-label={`Close terminal ${t.title}`} onClick={() => void close(t.id)}>
-                  ×
+                  <X {...icon(14)} />
                 </button>
               </li>
             ))}
@@ -87,9 +89,6 @@ export default function TerminalWorkspace({ sessions }: { sessions: Session[] })
           </>
         ) : (
           <div className="hero">
-            <span className="hero-mark term-mark" aria-hidden="true">
-              ›_
-            </span>
             <h2>Terminal</h2>
             <p>{terminals.length > 0 ? 'Pick a terminal to attach.' : 'Open a shell in a folder or one of your projects.'}</p>
           </div>

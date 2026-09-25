@@ -1,4 +1,18 @@
-import { useEffect, useState } from 'react'
+import { Fragment, useEffect, useState, type ReactNode } from 'react'
+import { AnimatePresence, motion, useReducedMotion, type TargetAndTransition } from 'motion/react'
+import {
+  ChevronsRight,
+  FilePen,
+  Inbox,
+  List,
+  MessageSquareText,
+  SquareTerminal,
+  Terminal,
+  Webhook,
+  Workflow,
+  Wrench,
+} from 'lucide-react'
+import { icon } from './components/icon'
 import AccountPanel from './components/account/AccountPanel'
 import FolderField from './components/folders/FolderField'
 import ModelPicker from './components/models/ModelPicker'
@@ -12,7 +26,10 @@ import { fetchHealth, type AgentKind, type ApprovalReviewer, type Health, type I
 import { recentFolders } from './lib/folders'
 import { sessionTitle } from './lib/sessions'
 import { displayStatus } from './lib/format'
+import { enter } from './lib/motion'
+import { firstUnseen, loadSeen, saveSeen } from './lib/seen'
 import { itemTree, type ItemNode } from './lib/tree'
+import { turnNumbers } from './lib/turns'
 import { useLayoutStore, type Mode } from './stores/layout'
 import { useSessionStore, type Pane } from './stores/session'
 import { useTerminalStore } from './stores/terminals'
@@ -52,7 +69,6 @@ export default function App() {
     <main className="app">
       <header className="topbar">
         <div className="brand">
-          <span className="brand-mark" aria-hidden="true" />
           <h1>go-chamber</h1>
         </div>
         {health === 'online' && <ModeSwitch />}
@@ -78,7 +94,7 @@ export default function App() {
         <>
           <div className="layout" data-pane={pane} data-dock={dock ?? 'closed'}>
             <Sidebar sessions={sessions} onCreate={(agent, cwd) => void createSession(agent, cwd)} />
-            {activeId ? <Chat /> : <EmptyChat />}
+            {activeId ? <Chat key={activeId} /> : <EmptyChat />}
             <div className="dock">
               {dock && (
                 <div className="dock-body">
@@ -132,8 +148,8 @@ function DockRail() {
   const pending = useSessionStore((s) => s.pendingRequests.length)
   const running = useTerminalStore((s) => s.terminals.filter((t) => t.status === 'running').length)
   const tabs = [
-    { id: 'requests' as const, label: 'Requests', icon: '◉', count: pending },
-    { id: 'terminal' as const, label: 'Terminal', icon: '›_', count: running },
+    { id: 'requests' as const, label: 'Requests', icon: <Inbox {...icon(16)} />, count: pending },
+    { id: 'terminal' as const, label: 'Terminal', icon: <SquareTerminal {...icon(16)} />, count: running },
   ]
   return (
     <div className="dock-rail" role="toolbar" aria-label="Dock" aria-orientation="vertical">
@@ -147,9 +163,7 @@ function DockRail() {
           title={t.label}
           onClick={() => toggleDock(t.id)}
         >
-          <span className="rail-icon" aria-hidden="true">
-            {t.icon}
-          </span>
+          {t.icon}
           {t.count > 0 && (
             <span className="rail-count" aria-hidden="true">
               {t.count}
@@ -159,19 +173,17 @@ function DockRail() {
       ))}
       {dock && (
         <button type="button" className="rail-btn rail-collapse" aria-label="Collapse dock" title="Collapse" onClick={() => toggleDock(dock)}>
-          <span className="rail-icon" aria-hidden="true">
-            »
-          </span>
+          <ChevronsRight {...icon(16)} />
         </button>
       )}
     </div>
   )
 }
 
-const panes: { id: Pane; label: string; icon: string }[] = [
-  { id: 'sessions', label: 'Sessions', icon: '☰' },
-  { id: 'chat', label: 'Chat', icon: '✦' },
-  { id: 'requests', label: 'Requests', icon: '◉' },
+const panes: { id: Pane; label: string; icon: ReactNode }[] = [
+  { id: 'sessions', label: 'Sessions', icon: <List {...icon(18)} /> },
+  { id: 'chat', label: 'Chat', icon: <MessageSquareText {...icon(18)} /> },
+  { id: 'requests', label: 'Requests', icon: <Inbox {...icon(18)} /> },
 ]
 
 // PaneBar switches views on narrow screens; hidden on desktop by CSS.
@@ -183,9 +195,7 @@ function PaneBar() {
     <nav className="panebar" aria-label="Views">
       {panes.map((p) => (
         <button key={p.id} aria-pressed={pane === p.id} onClick={() => setPane(p.id)}>
-          <span className="panebar-icon" aria-hidden="true">
-            {p.icon}
-          </span>
+          {p.icon}
           {p.label}
           {p.id === 'requests' && pending > 0 && <span className="badge">{pending}</span>}
         </button>
@@ -198,7 +208,6 @@ function EmptyChat() {
   return (
     <section className="chat empty panel">
       <div className="hero">
-        <span className="hero-mark" aria-hidden="true" />
         <h2>Start a session</h2>
         <p>Pick an agent and a project folder on the left, or open an existing session.</p>
       </div>
@@ -310,6 +319,10 @@ function Chat() {
   const [text, setText] = useState('')
   const status = displayStatus(chat, session)
   const running = status === 'running'
+  const reduced = useReducedMotion() ?? false
+  const nodes = itemTree(chat.order, chat.items).filter((node) => !isBlank(node.item))
+  const turns = turnNumbers(nodes)
+  const unseen = useUnseen(session?.id, chat.order)
 
   const submit = () => {
     const value = text.trim()
@@ -340,18 +353,42 @@ function Chat() {
       </header>
       <div className="scroll">
         <ol className="items">
-          {itemTree(chat.order, chat.items).filter((node) => !isBlank(node.item)).map((node) => (
-            <li key={node.item.id} className={`row row-${node.item.kind}`}>
-              <ItemView node={node} onStopTask={stopTask} />
-            </li>
-          ))}
+          <AnimatePresence initial={false}>
+            {nodes.map((node) => (
+              <Fragment key={node.item.id}>
+                {node.item.id === unseen && (
+                  <li className="unseen-mark" aria-label="New since your last visit">
+                    new since you left
+                  </li>
+                )}
+                <motion.li className={`row row-${node.item.kind}`} {...enter(reduced)}>
+                  {turns.has(node.item.id) && (
+                    <span className="turn-no" aria-label={`turn ${turns.get(node.item.id)}`}>
+                      {turns.get(node.item.id)}.
+                    </span>
+                  )}
+                  <ItemView node={node} onStopTask={stopTask} />
+                </motion.li>
+              </Fragment>
+            ))}
+          </AnimatePresence>
         </ol>
         {chat.order.length === 0 && status !== 'interrupted' && (
           <p className="chat-hint">Send a message to start. The agent runs in {session?.cwd ?? 'the session folder'}.</p>
         )}
-        {Object.values(chat.requests).map((request) => (
-          <RequestCard key={request.id} request={request} onRespond={respond} />
-        ))}
+        <AnimatePresence initial={false}>
+          {Object.values(chat.requests).map((request) => (
+            <motion.div
+              key={request.id}
+              className="request-slot"
+              {...enter(reduced, 'margin')}
+              exit={reduced ? { opacity: 0 } : resolve}
+              ref={scrollOnMount}
+            >
+              <RequestCard request={request} onRespond={respond} />
+            </motion.div>
+          ))}
+        </AnimatePresence>
       </div>
       {status === 'interrupted' && session && <InterruptedBanner session={session} />}
       <form
@@ -387,6 +424,32 @@ function Chat() {
       </form>
     </section>
   )
+}
+
+// useUnseen remembers where the user stopped reading this session and returns
+// the first item that arrived since, for the "new since you left" mark.
+function useUnseen(sessionId: string | undefined, order: string[]): string | null {
+  // Read once: the mark stays where the user left, while new items stream in.
+  const [seen] = useState(() => (sessionId ? loadSeen(sessionId) : null))
+  const last = order[order.length - 1]
+  useEffect(() => {
+    if (sessionId && last) saveSeen(sessionId, last)
+  }, [sessionId, last])
+  return firstUnseen(order, seen)
+}
+
+// resolve strikes the answered request through, then folds it away.
+const resolve: TargetAndTransition = {
+  '--strike': [0, 1, 1],
+  opacity: [1, 1, 0],
+  height: [null, null, 0],
+  transition: { duration: 0.45, times: [0, 0.45, 1], ease: 'easeOut' },
+}
+
+// A pending request is the one thing the user must act on: bring all of it
+// into view when it arrives or when the session opens.
+function scrollOnMount(el: HTMLDivElement | null) {
+  el?.scrollIntoView({ block: 'nearest' })
 }
 
 const interruptionText: Record<string, string> = {
@@ -435,8 +498,8 @@ function ItemView({
     case 'command':
       return (
         <div className={`item command state-${item.status}`}>
-          <span className="item-icon" aria-hidden="true">
-            $
+          <span className="item-icon">
+            <Terminal {...icon(13)} />
           </span>
           <code>{commandText(item)}</code>
           {item.text && <pre>{item.text}</pre>}
@@ -445,8 +508,8 @@ function ItemView({
     case 'file_change':
       return (
         <div className={`item file state-${item.status}`}>
-          <span className="item-icon" aria-hidden="true">
-            ✎
+          <span className="item-icon">
+            <FilePen {...icon(13)} />
           </span>
           <code>{item.path || item.name}</code>
           {item.diff && <pre>{item.diff}</pre>}
@@ -454,12 +517,20 @@ function ItemView({
       )
     case 'hook':
       return <HookView item={item} />
+    case 'decision':
+      return (
+        <div className={`item decision decision-${item.decision ?? 'answered'}`}>
+          <span className="decision-kw">{item.decision ?? 'answered'}</span>
+          <span className="decision-name">{item.name || 'Request'}</span>
+          {item.text && <span className="decision-text">{item.text}</span>}
+        </div>
+      )
     case 'subagent':
       return (
         <div className={`item subagent state-${item.status}`}>
           <div className="subagent-head">
-            <span className="item-icon" aria-hidden="true">
-              ⧉
+            <span className="item-icon">
+              <Workflow {...icon(13)} />
             </span>
             <span>subagent: {item.name}</span>
             {item.agentId && item.status !== 'completed' && item.status !== 'failed' && (
@@ -483,8 +554,8 @@ function ItemView({
     default:
       return (
         <div className={`item tool state-${item.status}`}>
-          <span className="item-icon" aria-hidden="true">
-            ⚙
+          <span className="item-icon">
+            <Wrench {...icon(13)} />
           </span>
           <code>{item.name}</code>
           {item.text && <pre>{item.text}</pre>}
@@ -501,8 +572,8 @@ function HookView({ item }: { item: Item }) {
   const outcome = item.outcome ?? (item.status === 'streaming' || item.status === 'pending' ? 'running' : 'success')
   const head = (
     <>
-      <span className="item-icon" aria-hidden="true">
-        ⚡
+      <span className="item-icon">
+        <Webhook {...icon(13)} />
       </span>
       <span className="hook-name">{item.name} hook</span>
       <span className={`hook-badge hook-${outcome}`}>{hookBadge[outcome] ?? outcome}</span>

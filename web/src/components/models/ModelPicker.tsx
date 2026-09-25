@@ -1,3 +1,5 @@
+import { ChevronDown } from 'lucide-react'
+import { icon } from '../icon'
 import { useEffect, useRef, useState } from 'react'
 import type { Session } from '../../lib/api'
 import { effortsFor, modelLabel } from '../../lib/models'
@@ -55,9 +57,8 @@ export default function ModelPicker({ session }: { session: Session }) {
         aria-label={`Model: ${modelLabel(list, session)}`}
         onClick={() => setOpen((v) => !v)}
       >
-        <span className="model-spark" aria-hidden="true" />
         <span className="model-name">{modelLabel(list, session)}</span>
-        <span className="chevron" aria-hidden="true" />
+        <ChevronDown {...icon(13)} className="icon chevron" />
       </button>
       {open && (
         <div className="model-menu" role="dialog" aria-label="Choose model">

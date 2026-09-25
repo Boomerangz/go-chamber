@@ -1,3 +1,5 @@
+import { Maximize2, X } from 'lucide-react'
+import { icon } from '../icon'
 import { useLayoutStore } from '../../stores/layout'
 import { useTerminalStore } from '../../stores/terminals'
 import NewTerminalForm from './NewTerminalForm'
@@ -17,7 +19,7 @@ export default function TerminalPanel({ sessionId }: { sessionId: string | null 
       <header className="dock-header">
         <h2 className="section-title">Terminals</h2>
         <button type="button" className="btn btn-ghost btn-icon" aria-label="Open in terminal mode" title="Open in terminal mode" onClick={() => setMode('terminal')}>
-          <span aria-hidden="true">⤢</span>
+          <Maximize2 {...icon(14)} />
         </button>
       </header>
       <NewTerminalForm sessionId={sessionId} />
@@ -37,7 +39,7 @@ export default function TerminalPanel({ sessionId }: { sessionId: string | null 
                 {t.status === 'exited' && <span className="status"> exited {t.exitCode}</span>}
               </button>
               <button className="close-terminal" aria-label={`Close terminal ${t.title}`} onClick={() => void close(t.id)}>
-                ×
+                <X {...icon(13)} />
               </button>
             </li>
           ))}

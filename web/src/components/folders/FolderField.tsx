@@ -1,3 +1,5 @@
+import { Folder } from 'lucide-react'
+import { icon } from '../icon'
 import { useState } from 'react'
 import FolderPicker from './FolderPicker'
 
@@ -15,7 +17,7 @@ export default function FolderField({ label, placeholder, value, onChange, recen
   const [open, setOpen] = useState(false)
   return (
     <div className="folder-field">
-      <span className="folder-icon" aria-hidden="true" />
+      <Folder {...icon(14)} className="icon folder-icon" />
       <input
         aria-label={label}
         placeholder={placeholder}

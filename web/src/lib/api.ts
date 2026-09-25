@@ -40,6 +40,7 @@ export type ItemKind =
   | 'plan'
   | 'error'
   | 'hook'
+  | 'decision'
 
 export type ItemStatus = 'pending' | 'streaming' | 'completed' | 'failed'
 
@@ -59,6 +60,8 @@ export interface Item {
   agentId?: string
   // outcome is set for finished hooks.
   outcome?: 'success' | 'blocked' | 'error'
+  // decision is how the user resolved an agent request (decision items).
+  decision?: 'approved' | 'denied' | 'answered'
 }
 
 export interface Delta {

@@ -1,3 +1,5 @@
+import { CornerLeftUp, Folder, FolderGit2, X } from 'lucide-react'
+import { icon } from '../icon'
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { listFolders, type FolderListing } from '../../lib/api'
@@ -65,7 +67,7 @@ export default function FolderPicker({ start = '', recent = [], onPick, onClose 
         <header className="picker-header">
           <h2>Choose a folder</h2>
           <button type="button" className="btn btn-ghost btn-icon" aria-label="Close folder picker" onClick={onClose}>
-            ×
+            <X {...icon(16)} />
           </button>
         </header>
 
@@ -124,9 +126,7 @@ export default function FolderPicker({ start = '', recent = [], onPick, onClose 
           {listing?.parent && !query && (
             <li>
               <button type="button" className="folder-row folder-up" onClick={() => go(listing.parent!)}>
-                <span className="folder-icon" aria-hidden="true">
-                  ↰
-                </span>
+                <CornerLeftUp {...icon(14)} className="icon folder-icon" />
                 <span className="folder-name">..</span>
               </button>
             </li>
@@ -134,7 +134,11 @@ export default function FolderPicker({ start = '', recent = [], onPick, onClose 
           {shown.map((f) => (
             <li key={f.path} className="folder-item">
               <button type="button" className="folder-row" onClick={() => go(f.path)}>
-                <span className={f.repo ? 'folder-icon folder-icon-repo' : 'folder-icon'} aria-hidden="true" />
+                {f.repo ? (
+                  <FolderGit2 {...icon(14)} className="icon folder-icon folder-icon-repo" />
+                ) : (
+                  <Folder {...icon(14)} className="icon folder-icon" />
+                )}
                 <span className="folder-name">{f.name}</span>
                 {f.repo && <span className="repo-badge">git</span>}
               </button>
