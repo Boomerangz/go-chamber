@@ -1,0 +1,41 @@
+# Ручной smoke на настоящих CLI
+
+Перед релизом и после обновления `claude`/`codex`. Тратит немного подписки.
+
+```bash
+make build
+mkdir -p /tmp/gc-smoke/{data,proj} && echo smoke > /tmp/gc-smoke/data/token
+git -C /tmp/gc-smoke/proj init
+./bin/go-chamber -addr 127.0.0.1:7799 -data /tmp/gc-smoke/data
+# http://127.0.0.1:7799/?token=smoke
+```
+
+## Чек-лист
+
+| # | Сценарий | Ожидание |
+|---|---|---|
+| 1 | Claude: новая сессия в `/tmp/gc-smoke/proj`, «Reply with exactly one word: pong» | стрим, ответ `pong`, `nativeId` сохранён, статус `idle`, полоса квоты |
+| 2 | Claude: «Create hello.txt … Use the Write tool» | карточка разрешения + лоток; Allow → файл создан |
+| 3 | Claude: «Use AskUserQuestion … Red or Blue» | карточка вопроса; выбор → ответ с выбранным вариантом |
+| 4 | `kill -9` процесса `claude` посреди хода | статус `interrupted` (`crashed`) |
+| 5 | Новое сообщение после п.4 | процесс поднят с `--resume <тот же id>`, контекст помнит п.1 |
+| 6 | Codex: новая сессия, «pong» | стрим, ответ, квота и аккаунт |
+| 7 | Codex: команда, требующая сети (`curl -sI https://example.com`) | запрос одобрения; Allow → команда выполнена |
+| 8 | Codex: Stop посреди хода | статус `idle` |
+| 9 | Терминал: New terminal, `echo $0 $TERM` | shell пользователя, `xterm-256color` |
+
+## Прогон 2026-09-25 (claude 2.1.282, codex 0.153.0)
+
+Все 9 пунктов прошли после двух исправлений адаптера Claude (найдены этим прогоном):
+ожидание `system/init` до первого сообщения (сессия не стартовала вообще) и
+`--permission-prompts host` вместо `--permission-prompt-tool stdio` (разрешения молча
+отклонялись). Для Codex понадобились разовые переопределения через обёртку `codex -c …`
+из-за личного конфига: `model = "gpt-6-sol"` не поддерживается с ChatGPT-аккаунтом (сам
+`codex exec` падает так же), а `approvals_reviewer = "auto_review"` одобряет эскалации без
+пользователя.
+
+Замечено, но не исправлено:
+- история чата не переживает перезапуск go-chamber — элементы не сохраняются в SQLite;
+- модель треда Codex фиксируется при создании: `thread/resume` использует старую;
+- глобальные Stop-хуки пользователя (`~/.claude`, `~/.codex`) срабатывают и в сессиях
+  go-chamber и добавляют к ходу второй, служебный ответ.

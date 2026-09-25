@@ -1,0 +1,70 @@
+// Package router dispatches a session's StartRequest to the AgentRuntime
+// factory for its agent, keeping app and cmd free of agent-selection logic.
+package router
+
+import (
+	"context"
+	"fmt"
+
+	"github.com/igorzygin/go-chamber/internal/app"
+	"github.com/igorzygin/go-chamber/internal/domain"
+)
+
+// Router is an app.RuntimeFactory that delegates by agent kind.
+type Router struct {
+	Claude app.RuntimeFactory
+	Codex  app.RuntimeFactory
+	// Accounts handles login for agents that support it (Codex). Claude
+	// manages its own login through `claude login`.
+	Accounts app.AccountManager
+	// Quotas fetches live rate limits for agents that expose them (Codex).
+	Quotas app.QuotaProvider
+}
+
+// RateLimits implements app.QuotaProvider.
+func (r *Router) RateLimits(ctx context.Context, agent domain.AgentKind) (domain.QuotaSnapshot, error) {
+	if agent == domain.AgentCodex && r.Quotas != nil {
+		return r.Quotas.RateLimits(ctx, agent)
+	}
+	return domain.QuotaSnapshot{}, app.ErrQuotasUnsupported
+}
+
+// Account implements app.AccountManager.
+func (r *Router) Account(ctx context.Context, agent domain.AgentKind) (app.AccountInfo, error) {
+	if agent == domain.AgentCodex {
+		if r.Accounts == nil {
+			return app.AccountInfo{}, app.ErrAccountsUnsupported
+		}
+		return r.Accounts.Account(ctx, agent)
+	}
+	return app.AccountInfo{Agent: agent, LoggedIn: true, AuthMode: "cli"}, nil
+}
+
+// StartLogin implements app.AccountManager.
+func (r *Router) StartLogin(ctx context.Context, agent domain.AgentKind) (app.LoginChallenge, error) {
+	if agent == domain.AgentCodex && r.Accounts != nil {
+		return r.Accounts.StartLogin(ctx, agent)
+	}
+	return app.LoginChallenge{}, app.ErrAccountsUnsupported
+}
+
+func (r *Router) Start(ctx context.Context, req app.StartRequest) (app.AgentRuntime, error) {
+	switch req.Agent {
+	case domain.AgentClaude:
+		if r.Claude == nil {
+			return nil, fmt.Errorf("router: no runtime for %s", req.Agent)
+		}
+		return r.Claude.Start(ctx, req)
+	case domain.AgentCodex:
+		if r.Codex == nil {
+			return nil, fmt.Errorf("router: no runtime for %s", req.Agent)
+		}
+		return r.Codex.Start(ctx, req)
+	default:
+		return nil, fmt.Errorf("router: unknown agent %q", req.Agent)
+	}
+}
+
+var _ app.RuntimeFactory = (*Router)(nil)
+var _ app.AccountManager = (*Router)(nil)
+var _ app.QuotaProvider = (*Router)(nil)

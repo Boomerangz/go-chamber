@@ -1,0 +1,41 @@
+#!/usr/bin/env bash
+# Enforces coverage thresholds from CLAUDE.md on a Go coverprofile.
+# Usage: scripts/coverage-gate [coverage.out]
+set -euo pipefail
+profile="${1:-coverage.out}"
+module="$(go list -m)"
+
+awk -v mod="$module/" '
+  NR == 1 { next }                                   # "mode:" header
+  {
+    split($1, a, ":"); file = a[1]; sub(mod, "", file)
+    if (file ~ /^(cmd|testutil|scripts|web)\// || file ~ /\/apptest\//) next
+    n = split(file, parts, "/"); pkg = parts[1]
+    for (i = 2; i < n; i++) pkg = pkg "/" parts[i]
+    key = file ":" $1                                # dedupe blocks across profiles
+    if (key in seen) { if ($3 > 0 && !hit[key]) { hit[key] = 1; cov[pkg] += $2; tc += $2 }; next }
+    seen[key] = 1; hit[key] = ($3 > 0)
+    tot[pkg] += $2; tt += $2
+    if ($3 > 0) { cov[pkg] += $2; tc += $2 }
+  }
+  function need(p) {
+    if (p == "internal/domain") return 95
+    if (p ~ /^internal\/app(\/|$)/) return 90
+    if (p ~ /^internal\/adapters\//) return 80
+    return 85
+  }
+  END {
+    fail = 0
+    for (p in tot) {
+      pct = tot[p] ? 100 * cov[p] / tot[p] : 100
+      ok = pct + 1e-9 >= need(p)
+      printf "%-4s %-40s %6.1f%% (need %d%%)\n", ok ? "ok" : "FAIL", p, pct, need(p)
+      if (!ok) fail = 1
+    }
+    pct = tt ? 100 * tc / tt : 100
+    ok = pct + 1e-9 >= 85
+    printf "%-4s %-40s %6.1f%% (need 85%%)\n", ok ? "ok" : "FAIL", "TOTAL", pct
+    if (!ok) fail = 1
+    exit fail
+  }
+' "$profile"

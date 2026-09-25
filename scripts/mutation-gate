@@ -1,0 +1,44 @@
+#!/usr/bin/env bash
+# Enforces mutation-efficacy thresholds from CLAUDE.md with gremlins.
+# Usage: scripts/mutation-gate [package-dir...]   (default: all gated packages)
+# The timeout coefficient is raised because -race makes the default timeout
+# too short and mutants get reported as TIMED OUT instead of KILLED; with
+# all CPUs as workers the runs still time out, hence --workers 2.
+# pty/session_*.go list processes to send SIGHUP to; a mutant there signals
+# unrelated processes of the user (it once killed gremlins itself), so those
+# files are never mutated. --exclude-files patterns match paths relative to
+# the package directory.
+set -uo pipefail
+GREMLINS="${GREMLINS:-$(go env GOPATH)/bin/gremlins}"
+[[ -x "$GREMLINS" ]] || { echo "install: go install github.com/go-gremlins/gremlins/cmd/gremlins@latest" >&2; exit 2; }
+
+threshold() {
+  case "$1" in
+    ./internal/adapters/*) echo 65 ;;
+    *) echo 80 ;;
+  esac
+}
+
+if [[ $# -eq 0 ]]; then
+  set -- $(go list -f '{{if .GoFiles}}{{.Dir}}{{end}}' ./internal/... | sed "s|^$PWD|.|" | grep -v '/apptest$')
+fi
+
+fail=0
+log="$(mktemp)"
+for p in "$@"; do
+  t="$(threshold "$p")"
+  echo "== $p (efficacy >= ${t}%)"
+  "$GREMLINS" unleash --timeout-coefficient 20 --workers 2 --exclude-files "apptest/" --exclude-files '^session_(darwin|linux)\.go$' \
+    --invert-logical --invert-loopctrl --invert-assignments --remove-self-assignments \
+    --threshold-efficacy "$t" "$p" >"$log" 2>&1
+  rc=$?
+  grep -E 'LIVED|TIMED OUT|Killed:|Timed out:|efficacy|coverage:|threshold' "$log"
+  # gremlins v0.6.0 ignores --threshold-efficacy and exits 0, so the
+  # threshold is checked here from the report.
+  eff="$(sed -n 's/.*Test efficacy: \([0-9.]*\)%.*/\1/p' "$log" | tail -1)"
+  if [[ $rc -ne 0 || -z "$eff" ]] || ! awk -v e="$eff" -v t="$t" 'BEGIN { exit !(e >= t) }'; then
+    echo "FAIL $p (efficacy ${eff:-unknown}% < ${t}%)"; fail=1
+  fi
+done
+rm -f "$log"
+exit $fail

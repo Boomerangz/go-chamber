@@ -1,0 +1,26 @@
+version: "2"
+linters:
+  default: standard
+  enable:
+    - bodyclose
+    - errorlint
+    - gocritic
+    - misspell
+    - revive
+    - unconvert
+  settings:
+    errcheck:
+      # Deferred Close on read paths: the error carries no actionable info.
+      exclude-functions:
+        - (*database/sql.Rows).Close
+        - (*database/sql.DB).Close
+        - (*github.com/igorzygin/go-chamber/internal/adapters/sqlite.Store).Close
+        - (io.Closer).Close
+    revive:
+      rules:
+        - name: exported
+          disabled: true
+formatters:
+  enable:
+    - gofmt
+    - goimports
