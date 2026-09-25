@@ -69,7 +69,7 @@ func TestItemCannotFailBeforePending(t *testing.T) {
 func TestItemKindValid(t *testing.T) {
 	valid := []ItemKind{
 		ItemUserMessage, ItemAssistantMessage, ItemReasoning, ItemToolCall,
-		ItemCommand, ItemFileChange, ItemSubagent, ItemPlan, ItemError,
+		ItemCommand, ItemFileChange, ItemSubagent, ItemPlan, ItemError, ItemHook, ItemDecision,
 	}
 	for _, k := range valid {
 		if !k.Valid() {
@@ -117,5 +117,35 @@ func TestHookItems(t *testing.T) {
 	raw, _ = json.Marshal(Item{ID: "x", Kind: ItemCommand})
 	if strings.Contains(string(raw), "outcome") {
 		t.Fatalf("empty outcome serialized: %s", raw)
+	}
+}
+
+func TestDecisionFor(t *testing.T) {
+	cases := []struct {
+		kind  RequestKind
+		allow bool
+		want  Decision
+	}{
+		{RequestPermission, true, DecisionApproved},
+		{RequestPermission, false, DecisionDenied},
+		{RequestQuestion, true, DecisionAnswered},
+		{RequestQuestion, false, DecisionDenied},
+		{RequestElicitation, true, DecisionAnswered},
+	}
+	for _, c := range cases {
+		if got := DecisionFor(c.kind, c.allow); got != c.want {
+			t.Errorf("DecisionFor(%s, %v) = %s, want %s", c.kind, c.allow, got, c.want)
+		}
+	}
+}
+
+func TestDecisionValid(t *testing.T) {
+	for _, d := range []Decision{DecisionApproved, DecisionDenied, DecisionAnswered} {
+		if !d.Valid() {
+			t.Errorf("%s should be valid", d)
+		}
+	}
+	if Decision("maybe").Valid() {
+		t.Error("unknown decision must be invalid")
 	}
 }

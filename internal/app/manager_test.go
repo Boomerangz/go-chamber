@@ -652,6 +652,79 @@ func TestRequestLifecycle(t *testing.T) {
 	}
 }
 
+func TestRespondRequestRecordsDecision(t *testing.T) {
+	cases := []struct {
+		name     string
+		kind     domain.RequestKind
+		answer   RequestAnswer
+		decision domain.Decision
+		text     string
+	}{
+		{"approve", domain.RequestPermission, RequestAnswer{Allow: true}, domain.DecisionApproved, ""},
+		{"approve for session", domain.RequestPermission, RequestAnswer{Allow: true, AllowForSession: true}, domain.DecisionApproved, "for this session"},
+		{"deny", domain.RequestPermission, RequestAnswer{Message: "not now"}, domain.DecisionDenied, "not now"},
+		{"answer", domain.RequestQuestion, RequestAnswer{Allow: true, Answers: map[string][]string{"Pick?": {"Alpha", "Beta"}, "Also?": {"Yes"}}}, domain.DecisionAnswered, "Also? Yes\nPick? Alpha, Beta"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			m, _, bus, factory, _ := newTestManager(t)
+			ctx := context.Background()
+			snap := createClaude(t, m)
+			rt := newFakeRuntime("n1")
+			factory.runtimes = []*fakeRuntime{rt}
+			if err := m.SendMessage(ctx, snap.ID, "hi"); err != nil {
+				t.Fatal(err)
+			}
+			ev := requestEvent(snap.ID, "r1")
+			ev.Request.Kind = c.kind
+			ev.Request.Title = "Run command"
+			ev.Request.TurnID = "t7"
+			rt.events <- ev
+			eventually(t, "pending", func() bool { return len(m.PendingRequests(ctx)) == 1 })
+
+			if err := m.RespondRequest(ctx, snap.ID, "r1", c.answer); err != nil {
+				t.Fatal(err)
+			}
+			events := bus.snapshot()
+			if len(events) < 2 {
+				t.Fatalf("events = %+v", events)
+			}
+			rec := events[len(events)-2]
+			if rec.Type != domain.EventItemUpdated || rec.Item == nil {
+				t.Fatalf("decision not recorded before resolution: %+v", rec)
+			}
+			it := rec.Item
+			if it.Kind != domain.ItemDecision || it.Decision != c.decision || it.Name != "Run command" ||
+				it.Text != c.text || it.TurnID != "t7" || it.SessionID != snap.ID || it.Status != domain.ItemCompleted || it.ID == "" {
+				t.Fatalf("decision item = %+v", it)
+			}
+			if events[len(events)-1].Type != domain.EventRequestResolved {
+				t.Fatalf("last event = %+v", events[len(events)-1])
+			}
+		})
+	}
+}
+
+func TestFailedRespondRecordsNoDecision(t *testing.T) {
+	m, _, bus, factory, _ := newTestManager(t)
+	ctx := context.Background()
+	snap := createClaude(t, m)
+	rt := newFakeRuntime("n1")
+	factory.runtimes = []*fakeRuntime{rt}
+	if err := m.SendMessage(ctx, snap.ID, "hi"); err != nil {
+		t.Fatal(err)
+	}
+	rt.events <- requestEvent(snap.ID, "r1")
+	eventually(t, "pending", func() bool { return len(m.PendingRequests(ctx)) == 1 })
+	rt.respondErr = errors.New("boom")
+	_ = m.RespondRequest(ctx, snap.ID, "r1", RequestAnswer{Allow: true})
+	for _, ev := range bus.snapshot() {
+		if ev.Item != nil && ev.Item.Kind == domain.ItemDecision {
+			t.Fatalf("decision recorded for a failed answer: %+v", ev.Item)
+		}
+	}
+}
+
 func TestRespondRequestErrors(t *testing.T) {
 	m, _, _, factory, _ := newTestManager(t)
 	ctx := context.Background()

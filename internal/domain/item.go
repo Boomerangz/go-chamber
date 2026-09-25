@@ -32,7 +32,35 @@ const (
 	// ItemHook is a user-configured hook the agent ran (Stop,
 	// UserPromptSubmit…); Name is the hook event.
 	ItemHook ItemKind = "hook"
+	// ItemDecision records how the user resolved an agent request; Name is
+	// the request title and Text the deny reason or the chosen answers.
+	ItemDecision ItemKind = "decision"
 )
+
+// Decision is how the user resolved an agent request.
+type Decision string
+
+const (
+	DecisionApproved Decision = "approved"
+	DecisionDenied   Decision = "denied"
+	DecisionAnswered Decision = "answered"
+)
+
+func (d Decision) Valid() bool {
+	return d == DecisionApproved || d == DecisionDenied || d == DecisionAnswered
+}
+
+// DecisionFor names the outcome of answering a request of the given kind:
+// a granted permission is approved, a granted question is answered.
+func DecisionFor(kind RequestKind, allow bool) Decision {
+	switch {
+	case !allow:
+		return DecisionDenied
+	case kind == RequestPermission:
+		return DecisionApproved
+	}
+	return DecisionAnswered
+}
 
 // HookOutcome is how a hook run ended.
 type HookOutcome string
@@ -50,7 +78,7 @@ func (o HookOutcome) Valid() bool { return o == HookSuccess || o == HookBlocked 
 func (k ItemKind) Valid() bool {
 	switch k {
 	case ItemUserMessage, ItemAssistantMessage, ItemReasoning, ItemToolCall,
-		ItemCommand, ItemFileChange, ItemSubagent, ItemPlan, ItemError, ItemHook:
+		ItemCommand, ItemFileChange, ItemSubagent, ItemPlan, ItemError, ItemHook, ItemDecision:
 		return true
 	}
 	return false
@@ -94,6 +122,8 @@ type Item struct {
 	AgentID string `json:"agentId,omitempty"`
 	// Outcome is set for finished hooks.
 	Outcome HookOutcome `json:"outcome,omitempty"`
+	// Decision is set for decision items.
+	Decision Decision `json:"decision,omitempty"`
 }
 
 func NewItem(id ItemID, session SessionID, turn TurnID, parent ItemID, kind ItemKind) (*Item, error) {

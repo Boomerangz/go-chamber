@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -570,8 +571,46 @@ func (m *Manager) RespondRequest(ctx context.Context, sessionID domain.SessionID
 	_ = req.Resolve(data)
 	delete(m.pending[sessionID], requestID)
 	m.mu.Unlock()
+	m.recordDecision(req, answer)
 	m.cfg.Bus.Publish(domain.Event{SessionID: sessionID, Type: domain.EventRequestResolved, Request: req})
 	return nil
+}
+
+// recordDecision leaves the user's answer in the transcript as a one-line
+// record, so it outlives the request card.
+func (m *Manager) recordDecision(req *domain.Request, answer RequestAnswer) {
+	item, err := domain.NewItem(domain.ItemID(m.cfg.NewID()), req.SessionID, req.TurnID, "", domain.ItemDecision)
+	if err != nil {
+		return
+	}
+	item.Name = req.Title
+	item.Decision = domain.DecisionFor(req.Kind, answer.Allow)
+	item.Text = decisionText(answer)
+	_ = item.SetStatus(domain.ItemCompleted)
+	m.cfg.Bus.Publish(domain.Event{SessionID: req.SessionID, Type: domain.EventItemUpdated, Item: item})
+}
+
+// decisionText is the detail shown after a decision: the deny reason, the
+// session-wide grant, or each question with its chosen answers.
+func decisionText(a RequestAnswer) string {
+	switch {
+	case !a.Allow:
+		return a.Message
+	case len(a.Answers) > 0:
+		questions := make([]string, 0, len(a.Answers))
+		for q := range a.Answers {
+			questions = append(questions, q)
+		}
+		sort.Strings(questions)
+		lines := make([]string, len(questions))
+		for i, q := range questions {
+			lines[i] = q + " " + strings.Join(a.Answers[q], ", ")
+		}
+		return strings.Join(lines, "\n")
+	case a.AllowForSession:
+		return "for this session"
+	}
+	return ""
 }
 
 // PendingRequests returns every unanswered blocking request.
