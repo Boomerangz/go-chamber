@@ -39,6 +39,7 @@ export type ItemKind =
   | 'subagent'
   | 'plan'
   | 'error'
+  | 'hook'
 
 export type ItemStatus = 'pending' | 'streaming' | 'completed' | 'failed'
 
@@ -56,6 +57,8 @@ export interface Item {
   diff?: string
   exitCode?: number
   agentId?: string
+  // outcome is set for finished hooks.
+  outcome?: 'success' | 'blocked' | 'error'
 }
 
 export interface Delta {

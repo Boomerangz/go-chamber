@@ -508,3 +508,30 @@ func TestCodexModelCatalog(t *testing.T) {
 		t.Fatal("codex factory must reject claude")
 	}
 }
+
+func TestCodexShowsAStopHookThatBlocks(t *testing.T) {
+	rt := startCodex(t, app.StartRequest{})
+	if err := rt.Send(context.Background(), "t", "hook me"); err != nil {
+		t.Fatal(err)
+	}
+	events := drainCodex(t, rt, func(ev domain.Event) bool { return ev.Type == domain.EventTurnEnded })
+	var hook *domain.Item
+	answers := map[domain.ItemID]bool{}
+	for _, ev := range events {
+		if ev.Item == nil {
+			continue
+		}
+		switch ev.Item.Kind {
+		case domain.ItemHook:
+			hook = ev.Item
+		case domain.ItemAssistantMessage:
+			answers[ev.Item.ID] = true
+		}
+	}
+	if hook == nil || hook.Name != "Stop" || hook.Outcome != domain.HookBlocked || hook.Text != "Check your work first." {
+		t.Fatalf("hook = %+v", hook)
+	}
+	if len(answers) != 2 {
+		t.Fatalf("answers = %v", answers)
+	}
+}

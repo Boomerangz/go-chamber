@@ -73,6 +73,9 @@ func main() {
 		if a == "--permission-prompt-tool" && i+1 < len(args) && args[i+1] == "stdio" {
 			promptTool = true
 		}
+		if a == "--include-hook-events" {
+			hookEvents = true
+		}
 		if a == "--model" && i+1 < len(args) {
 			model = args[i+1]
 		}
@@ -144,6 +147,9 @@ var promptTool bool
 // model and effort come from --model/--effort; set_model changes model.
 var model, effort string
 
+// hookEvents is set by --include-hook-events.
+var hookEvents bool
+
 // askHost sends a can_use_tool control_request, or, without a prompt tool,
 // denies it at once as the real CLI does and finishes the turn.
 func askHost(enc *json.Encoder, out *bufio.Writer, sessionID string, p *pendingTurn, request map[string]any) *pendingTurn {
@@ -186,6 +192,8 @@ func startTurn(mode string, enc *json.Encoder, out *bufio.Writer, sessionID, pro
 			emitTaskTurn(enc, out, sessionID, prompt)
 		case strings.Contains(low, "bash"):
 			emitToolTurn(enc, out, sessionID, prompt)
+		case strings.Contains(low, "hook"):
+			emitHookTurn(enc, out, sessionID)
 		case strings.Contains(low, "which model"):
 			emitTextTurn(enc, out, sessionID, "model: "+model+" effort: "+effort)
 		default:
@@ -352,6 +360,31 @@ func writeToolResult(enc *json.Encoder, sessionID, toolUseID, content string, is
 }
 
 func emitTextTurn(enc *json.Encoder, out *bufio.Writer, sessionID, text string) {
+	emitText(enc, out, sessionID, text)
+	_ = enc.Encode(result(sessionID, text))
+}
+
+// emitHookTurn answers, then a Stop hook blocks and feeds back a reason, as
+// the real CLI does with a user Stop hook; the agent answers again.
+func emitHookTurn(enc *json.Encoder, out *bufio.Writer, sessionID string) {
+	emitText(enc, out, sessionID, "first answer")
+	reason := "Check your work first."
+	if hookEvents {
+		_ = enc.Encode(map[string]any{"type": "system", "subtype": "hook_started", "hook_id": "hook-1",
+			"hook_name": "Stop", "hook_event": "Stop", "session_id": sessionID})
+		block := `{"decision": "block", "reason": "` + reason + `"}` + "\n"
+		_ = enc.Encode(map[string]any{"type": "system", "subtype": "hook_response", "hook_id": "hook-1",
+			"hook_name": "Stop", "hook_event": "Stop", "output": block, "stdout": block, "stderr": "",
+			"exit_code": 0, "outcome": "success", "session_id": sessionID})
+	}
+	_ = enc.Encode(map[string]any{"type": "user", "session_id": sessionID, "isSynthetic": true,
+		"message": map[string]any{"role": "user", "content": []any{
+			map[string]any{"type": "text", "text": "Stop hook feedback:\n" + reason},
+		}}})
+	emitTextTurn(enc, out, sessionID, "checked after hook")
+}
+
+func emitText(enc *json.Encoder, out *bufio.Writer, sessionID, text string) {
 	msgID := "msg_" + strconv.Itoa(nextSeq())
 	_ = enc.Encode(map[string]any{
 		"type": "stream_event", "session_id": sessionID, "uuid": "u-" + msgID,
@@ -379,7 +412,6 @@ func emitTextTurn(enc *json.Encoder, out *bufio.Writer, sessionID, text string) 
 			map[string]any{"type": "text", "text": text},
 		}},
 	})
-	_ = enc.Encode(result(sessionID, text))
 }
 
 func emitToolTurn(enc *json.Encoder, out *bufio.Writer, sessionID, prompt string) {

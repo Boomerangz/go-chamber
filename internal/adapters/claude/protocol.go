@@ -35,6 +35,28 @@ type rawMessage struct {
 	IsBackgrounded *bool  `json:"is_backgrounded"`
 
 	RateLimitInfo *rawRateLimitInfo `json:"rate_limit_info"`
+
+	// system/hook_started and system/hook_response fields
+	// (--include-hook-events).
+	HookID    string `json:"hook_id"`
+	HookEvent string `json:"hook_event"`
+	Output    string `json:"output"`
+	Stdout    string `json:"stdout"`
+	Stderr    string `json:"stderr"`
+	ExitCode  *int   `json:"exit_code"`
+	Outcome   string `json:"outcome"`
+}
+
+// rawHookOutput is the JSON a hook may print to steer the agent.
+type rawHookOutput struct {
+	Decision           string `json:"decision"`
+	Reason             string `json:"reason"`
+	SystemMessage      string `json:"systemMessage"`
+	HookSpecificOutput struct {
+		AdditionalContext        string `json:"additionalContext"`
+		PermissionDecision       string `json:"permissionDecision"`
+		PermissionDecisionReason string `json:"permissionDecisionReason"`
+	} `json:"hookSpecificOutput"`
 }
 
 // rawRateLimitInfo is the payload of a rate_limit_event.

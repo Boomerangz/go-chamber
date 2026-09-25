@@ -179,6 +179,7 @@ func TestMapServerRequestResolved(t *testing.T) {
 
 func TestMapThreadHistory(t *testing.T) {
 	m := NewMapper("s1")
+	m.IncludeUserMessages = true
 	events := m.MapThread(rpcThread{Turns: []rpcTurn{
 		{ID: "t1", Status: "completed", Items: []rpcItem{
 			{Type: "userMessage", ID: "u1", Content: []rpcTextPart{{Type: "text", Text: "hi"}}},
@@ -356,6 +357,89 @@ func TestEmittedItemsAreSnapshots(t *testing.T) {
 	for _, ev := range started {
 		if ev.Item != nil && (ev.Item.Text != "" || ev.Item.Status == domain.ItemCompleted) {
 			t.Fatalf("emitted item changed afterwards: %+v", ev.Item)
+		}
+	}
+}
+
+func hookRun(id, event, status, statusMessage string, entries ...[2]string) string {
+	es := []map[string]string{}
+	for _, e := range entries {
+		es = append(es, map[string]string{"kind": e[0], "text": e[1]})
+	}
+	raw, _ := json.Marshal(map[string]any{"threadId": "th", "turnId": "t1", "run": map[string]any{
+		"id": id, "eventName": event, "handlerType": "command", "executionMode": "sync", "scope": "turn",
+		"sourcePath": "/h/.codex/hooks.json", "source": "user", "displayOrder": 1, "status": status,
+		"statusMessage": statusMessage, "startedAt": 1, "entries": es,
+	}})
+	return string(raw)
+}
+
+// Shapes as codex 0.157.0 sends them with a user Stop hook.
+func TestMapHookRuns(t *testing.T) {
+	m := NewMapper("s1")
+	m.SetTurn("t1")
+	started := feedCodex(t, m, "hook/started", hookRun("stop:1:/h", "stop", "running", "Agent Reflection"))
+	if len(started) != 1 || started[0].Item.Kind != domain.ItemHook || started[0].Item.Name != "Stop" ||
+		started[0].Item.Status != domain.ItemStreaming {
+		t.Fatalf("started = %+v", started)
+	}
+	done := feedCodex(t, m, "hook/completed", hookRun("stop:1:/h", "stop", "blocked", "Agent Reflection",
+		[2]string{"feedback", "Check your work."}, [2]string{"warning", "slow hook"}))
+	hook := done[0].Item
+	if hook.ID != started[0].Item.ID || hook.Outcome != domain.HookBlocked || hook.Status != domain.ItemCompleted ||
+		hook.Text != "Check your work.\nslow hook" {
+		t.Fatalf("completed = %+v", hook)
+	}
+
+	// The same run id comes again for the next Stop: a new item.
+	again := feedCodex(t, m, "hook/started", hookRun("stop:1:/h", "stop", "running", "Agent Reflection"))
+	if again[0].Item.ID == hook.ID {
+		t.Fatal("second run reused the first item")
+	}
+	ok := feedCodex(t, m, "hook/completed", hookRun("stop:1:/h", "stop", "completed", "Agent Reflection"))
+	if it := ok[0].Item; it.Outcome != domain.HookSuccess || it.Text != "Agent Reflection" {
+		t.Fatalf("plain completion = %+v", it)
+	}
+
+	feedCodex(t, m, "hook/started", hookRun("p:0", "preToolUse", "running", ""))
+	failed := feedCodex(t, m, "hook/completed", hookRun("p:0", "preToolUse", "failed", "", [2]string{"error", "exit 1"}))
+	if it := failed[0].Item; it.Name != "PreToolUse" || it.Outcome != domain.HookError || it.Status != domain.ItemFailed {
+		t.Fatalf("failed = %+v", it)
+	}
+	feedCodex(t, m, "hook/started", hookRun("s:0", "sessionStart", "running", ""))
+	stopped := feedCodex(t, m, "hook/completed", hookRun("s:0", "sessionStart", "stopped", "", [2]string{"stop", "halt"}))
+	if it := stopped[0].Item; it.Outcome != domain.HookBlocked {
+		t.Fatalf("stopped = %+v", it)
+	}
+
+	// A completion without a start still shows up; garbage is ignored.
+	orphan := feedCodex(t, m, "hook/completed", hookRun("x:0", "stop", "completed", "late"))
+	if len(orphan) != 1 || orphan[0].Item.Outcome != domain.HookSuccess {
+		t.Fatalf("orphan = %+v", orphan)
+	}
+	if evs := m.MapNotification("hook/started", json.RawMessage(`{"run":{}}`)); len(evs) != 0 {
+		t.Fatalf("empty run = %+v", evs)
+	}
+	if evs := m.MapNotification("hook/completed", json.RawMessage(`nope`)); len(evs) != 0 {
+		t.Fatalf("bad json = %+v", evs)
+	}
+}
+
+// go-chamber records the user's own messages itself; Codex echoing them as
+// userMessage items would show every message twice.
+func TestUserMessagesAreSkippedUnlessIncluded(t *testing.T) {
+	m := NewMapper("s1")
+	m.SetTurn("t1")
+	if evs := feedCodex(t, m, "item/completed", `{"threadId":"th","turnId":"t1","item":{"type":"userMessage","id":"u1","content":[{"type":"text","text":"hi"}]}}`); len(evs) != 0 {
+		t.Fatalf("echoed user message = %+v", evs)
+	}
+	history := m.MapThread(rpcThread{Turns: []rpcTurn{{ID: "t1", Status: "completed", Items: []rpcItem{
+		{Type: "userMessage", ID: "u2", Content: []rpcTextPart{{Type: "text", Text: "hi"}}},
+		{Type: "agentMessage", ID: "a1", Text: "hello"},
+	}}}})
+	for _, ev := range history {
+		if ev.Item != nil && ev.Item.Kind == domain.ItemUserMessage {
+			t.Fatalf("history user message = %+v", ev.Item)
 		}
 	}
 }

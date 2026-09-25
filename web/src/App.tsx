@@ -256,7 +256,7 @@ function Chat() {
       </header>
       <div className="scroll">
         <ol className="items">
-          {itemTree(chat.order, chat.items).map((node) => (
+          {itemTree(chat.order, chat.items).filter((node) => !isBlank(node.item)).map((node) => (
             <li key={node.item.id} className={`row row-${node.item.kind}`}>
               <ItemView node={node} onStopTask={stopTask} />
             </li>
@@ -368,6 +368,8 @@ function ItemView({
           {item.diff && <pre>{item.diff}</pre>}
         </div>
       )
+    case 'hook':
+      return <HookView item={item} />
     case 'subagent':
       return (
         <div className={`item subagent state-${item.status}`}>
@@ -405,6 +407,37 @@ function ItemView({
         </div>
       )
   }
+}
+
+const hookBadge: Record<string, string> = { success: 'ok', blocked: 'blocked', error: 'error' }
+
+// HookView shows a user-configured hook the agent ran; a hook that blocked
+// the agent explains why the agent continued.
+function HookView({ item }: { item: Item }) {
+  const outcome = item.outcome ?? (item.status === 'streaming' || item.status === 'pending' ? 'running' : 'success')
+  const head = (
+    <>
+      <span className="item-icon" aria-hidden="true">
+        ⚡
+      </span>
+      <span className="hook-name">{item.name} hook</span>
+      <span className={`hook-badge hook-${outcome}`}>{hookBadge[outcome] ?? outcome}</span>
+      {item.text && <span className="hook-preview">{item.text}</span>}
+    </>
+  )
+  if (!item.text) return <div className={`item hook outcome-${outcome}`}>{head}</div>
+  return (
+    <details className={`item hook outcome-${outcome}`}>
+      <summary>{head}</summary>
+      <pre>{item.text}</pre>
+    </details>
+  )
+}
+
+// isBlank hides finished assistant messages without text (Codex sends
+// them, e.g. after a hook continued the turn).
+function isBlank(item: Item): boolean {
+  return item.kind === 'assistant_message' && item.status === 'completed' && !item.text?.trim()
 }
 
 function commandText(item: Item): string {

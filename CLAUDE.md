@@ -95,6 +95,12 @@ e2e-сценарий для новой фичи есть.
   `apply_flag_settings {settings:{effortLevel}}` (`null` — effort модели по умолчанию; неизвестное
   значение молча игнорируется). В `init` effort не виден (всегда null) — реальное состояние
   показывает `control_request get_settings` → `response.applied.{model,effort}`.
+  Хуки видны только с `--include-hook-events`: `system/hook_started` и `system/hook_response`
+  (`hook_event`, `output`, `stderr`, `exit_code`; блокировка — `{"decision":"block"}` или exit 2).
+- **Codex app-server (0.157.0)**: хуки приходят как `hook/started` / `hook/completed`
+  (`run.status`: completed/blocked/failed/stopped, `run.entries[].text`); id прогона повторяется.
+  Codex сам присылает `userMessage` на каждое сообщение пользователя — для своих сессий его
+  не показываем (go-chamber записывает сообщение сам).
 - **Node 22+ и `localStorage` в vitest**: у Node свой глобальный `localStorage`, без
   `--localstorage-file` он `undefined` и перекрывает jsdom (`sessionStorage` при этом работает).
   `src/test/setup.ts` подставляет хранилище в памяти.

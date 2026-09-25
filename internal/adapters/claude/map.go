@@ -34,6 +34,7 @@ type Mapper struct {
 	inputBuf       map[string]string
 	pending        map[domain.RequestID]pendingRequest
 	tasks          map[string]domain.ItemID
+	hooks          map[string]domain.ItemID
 }
 
 func NewMapper(session domain.SessionID) *Mapper {
@@ -45,6 +46,7 @@ func NewMapper(session domain.SessionID) *Mapper {
 		inputBuf: map[string]string{},
 		pending:  map[domain.RequestID]pendingRequest{},
 		tasks:    map[string]domain.ItemID{},
+		hooks:    map[string]domain.ItemID{},
 	}
 }
 
@@ -439,8 +441,77 @@ func (m *Mapper) mapSystem(raw *rawMessage) []domain.Event {
 		return m.mapTaskStarted(raw)
 	case "task_notification":
 		return m.mapTaskNotification(raw)
+	case "hook_started":
+		return m.mapHookStarted(raw)
+	case "hook_response":
+		return m.mapHookResponse(raw)
 	}
 	return nil
+}
+
+func (m *Mapper) mapHookStarted(raw *rawMessage) []domain.Event {
+	if raw.HookID == "" || raw.HookEvent == "" {
+		return nil
+	}
+	item := m.create(domain.ItemHook, "")
+	item.Name = raw.HookEvent
+	_ = item.SetStatus(domain.ItemStreaming)
+	m.hooks[raw.HookID] = item.ID
+	return m.updated(item)
+}
+
+// mapHookResponse finishes a hook item. Exit code 2 and a "block"
+// decision mean the hook stopped the agent and fed its reason back; any
+// other failure is an error of the hook itself.
+func (m *Mapper) mapHookResponse(raw *rawMessage) []domain.Event {
+	item := m.items[m.hooks[raw.HookID]]
+	if item == nil {
+		return nil
+	}
+	delete(m.hooks, raw.HookID)
+	code := 0
+	if raw.ExitCode != nil {
+		code = *raw.ExitCode
+	}
+	item.ExitCode = &code
+	output := raw.Output
+	if output == "" {
+		output = raw.Stdout
+	}
+	text, blocked := hookResult(output)
+	if text == "" {
+		text = strings.TrimSpace(raw.Stderr)
+	}
+	item.Text = text
+	switch {
+	case blocked || code == 2:
+		item.Outcome = domain.HookBlocked
+		_ = item.SetStatus(domain.ItemCompleted)
+	case code != 0 || (raw.Outcome != "" && raw.Outcome != "success"):
+		item.Outcome = domain.HookError
+		_ = item.SetStatus(domain.ItemFailed)
+	default:
+		item.Outcome = domain.HookSuccess
+		_ = item.SetStatus(domain.ItemCompleted)
+	}
+	return m.updated(item)
+}
+
+// hookResult extracts what a hook told the agent from its stdout.
+func hookResult(output string) (text string, blocked bool) {
+	output = strings.TrimSpace(output)
+	var out rawHookOutput
+	if json.Unmarshal([]byte(output), &out) != nil {
+		return output, false
+	}
+	spec := out.HookSpecificOutput
+	blocked = out.Decision == "block" || spec.PermissionDecision == "deny"
+	for _, t := range []string{out.Reason, spec.PermissionDecisionReason, spec.AdditionalContext, out.SystemMessage} {
+		if t != "" {
+			return t, blocked
+		}
+	}
+	return "", blocked
 }
 
 func (m *Mapper) mapTaskStarted(raw *rawMessage) []domain.Event {

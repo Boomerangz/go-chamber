@@ -29,13 +29,28 @@ const (
 	ItemSubagent         ItemKind = "subagent"
 	ItemPlan             ItemKind = "plan"
 	ItemError            ItemKind = "error"
+	// ItemHook is a user-configured hook the agent ran (Stop,
+	// UserPromptSubmit…); Name is the hook event.
+	ItemHook ItemKind = "hook"
 )
+
+// HookOutcome is how a hook run ended.
+type HookOutcome string
+
+const (
+	HookSuccess HookOutcome = "success"
+	// HookBlocked: the hook stopped the agent and fed its reason back.
+	HookBlocked HookOutcome = "blocked"
+	HookError   HookOutcome = "error"
+)
+
+func (o HookOutcome) Valid() bool { return o == HookSuccess || o == HookBlocked || o == HookError }
 
 // Valid reports whether k is a kind the normalized model understands.
 func (k ItemKind) Valid() bool {
 	switch k {
 	case ItemUserMessage, ItemAssistantMessage, ItemReasoning, ItemToolCall,
-		ItemCommand, ItemFileChange, ItemSubagent, ItemPlan, ItemError:
+		ItemCommand, ItemFileChange, ItemSubagent, ItemPlan, ItemError, ItemHook:
 		return true
 	}
 	return false
@@ -77,6 +92,8 @@ type Item struct {
 	ExitCode *int `json:"exitCode,omitempty"`
 	// AgentID links a subagent item to its child session.
 	AgentID string `json:"agentId,omitempty"`
+	// Outcome is set for finished hooks.
+	Outcome HookOutcome `json:"outcome,omitempty"`
 }
 
 func NewItem(id ItemID, session SessionID, turn TurnID, parent ItemID, kind ItemKind) (*Item, error) {

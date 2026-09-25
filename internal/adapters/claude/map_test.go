@@ -508,3 +508,61 @@ func TestEmittedItemsAreSnapshots(t *testing.T) {
 		}
 	}
 }
+
+func hookItems(evs []domain.Event) map[string]domain.Item {
+	out := map[string]domain.Item{}
+	for _, ev := range evs {
+		if ev.Item != nil && ev.Item.Kind == domain.ItemHook {
+			out[string(ev.Item.ID)] = *ev.Item
+		}
+	}
+	return out
+}
+
+// Lines as claude 2.1.282 writes them with --include-hook-events.
+func TestMapHookEvents(t *testing.T) {
+	m := NewMapper("s1")
+	m.SetTurn("t1")
+	started := feed(t, m,
+		`{"type":"system","subtype":"hook_started","hook_id":"h1","hook_name":"Stop","hook_event":"Stop","session_id":"s1"}`,
+	)
+	if len(started) != 1 || started[0].Item.Kind != domain.ItemHook || started[0].Item.Status != domain.ItemStreaming ||
+		started[0].Item.Name != "Stop" || started[0].Item.TurnID != "t1" {
+		t.Fatalf("started = %+v", started)
+	}
+	evs := feed(t, m,
+		`{"type":"system","subtype":"hook_response","hook_id":"h1","hook_name":"Stop","hook_event":"Stop","output":"{\"decision\": \"block\", \"reason\": \"Check your work first.\"}\n","stdout":"{\"decision\": \"block\", \"reason\": \"Check your work first.\"}\n","stderr":"","exit_code":0,"outcome":"success","session_id":"s1"}`,
+		`{"type":"system","subtype":"hook_started","hook_id":"h2","hook_name":"UserPromptSubmit","hook_event":"UserPromptSubmit","session_id":"s1"}`,
+		`{"type":"system","subtype":"hook_response","hook_id":"h2","hook_name":"UserPromptSubmit","hook_event":"UserPromptSubmit","output":"{\"hookSpecificOutput\": {\"hookEventName\": \"UserPromptSubmit\", \"additionalContext\": \"Remember the plan.\"}}","stdout":"","stderr":"","exit_code":0,"outcome":"success","session_id":"s1"}`,
+		`{"type":"system","subtype":"hook_started","hook_id":"h3","hook_name":"Stop","hook_event":"Stop","session_id":"s1"}`,
+		`{"type":"system","subtype":"hook_response","hook_id":"h3","hook_name":"Stop","hook_event":"Stop","output":"","stdout":"","stderr":"","exit_code":0,"outcome":"success","session_id":"s1"}`,
+		`{"type":"system","subtype":"hook_started","hook_id":"h4","hook_name":"PreToolUse:Bash","hook_event":"PreToolUse","session_id":"s1"}`,
+		`{"type":"system","subtype":"hook_response","hook_id":"h4","hook_name":"PreToolUse:Bash","hook_event":"PreToolUse","output":"","stdout":"","stderr":"rm is not allowed\n","exit_code":2,"outcome":"error","session_id":"s1"}`,
+		`{"type":"system","subtype":"hook_started","hook_id":"h5","hook_name":"Stop","hook_event":"Stop","session_id":"s1"}`,
+		`{"type":"system","subtype":"hook_response","hook_id":"h5","hook_name":"Stop","hook_event":"Stop","output":"","stdout":"","stderr":"python: not found\n","exit_code":127,"outcome":"error","session_id":"s1"}`,
+		`{"type":"system","subtype":"hook_response","hook_id":"unknown","hook_event":"Stop","session_id":"s1"}`,
+		`{"type":"system","subtype":"hook_started","session_id":"s1"}`,
+	)
+	items := hookItems(evs)
+	if len(items) != 5 {
+		t.Fatalf("hook items = %+v", items)
+	}
+	byName := map[string]domain.Item{}
+	for _, it := range items {
+		if it.Status == domain.ItemCompleted || it.Status == domain.ItemFailed {
+			byName[it.Name+"|"+it.Text] = it
+		}
+	}
+	check := func(key string, outcome domain.HookOutcome, status domain.ItemStatus, code int) {
+		t.Helper()
+		it, ok := byName[key]
+		if !ok || it.Outcome != outcome || it.Status != status || it.ExitCode == nil || *it.ExitCode != code {
+			t.Errorf("%s: %+v (all %v)", key, it, byName)
+		}
+	}
+	check("Stop|Check your work first.", domain.HookBlocked, domain.ItemCompleted, 0)
+	check("UserPromptSubmit|Remember the plan.", domain.HookSuccess, domain.ItemCompleted, 0)
+	check("Stop|", domain.HookSuccess, domain.ItemCompleted, 0)
+	check("PreToolUse|rm is not allowed", domain.HookBlocked, domain.ItemCompleted, 2)
+	check("Stop|python: not found", domain.HookError, domain.ItemFailed, 127)
+}

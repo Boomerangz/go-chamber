@@ -15,10 +15,20 @@ type Mapper struct {
 	turn    domain.TurnID
 	items   map[domain.ItemID]*domain.Item
 	spawned map[string]bool
+	// IncludeUserMessages maps Codex's userMessage items. Off for sessions
+	// the user drives (go-chamber records their messages itself), on for
+	// subagent threads, whose prompts only Codex knows.
+	IncludeUserMessages bool
+	// hooks maps a running hook run id to its item; run ids repeat.
+	hooks   map[string]domain.ItemID
+	hookSeq int
 }
 
 func NewMapper(session domain.SessionID) *Mapper {
-	return &Mapper{session: session, items: map[domain.ItemID]*domain.Item{}, spawned: map[string]bool{}}
+	return &Mapper{
+		session: session, items: map[domain.ItemID]*domain.Item{}, spawned: map[string]bool{},
+		hooks: map[string]domain.ItemID{},
+	}
 }
 
 func (m *Mapper) SetTurn(turn domain.TurnID) { m.turn = turn }
@@ -30,6 +40,12 @@ func (m *Mapper) MapNotification(method string, params json.RawMessage) []domain
 
 func (m *Mapper) mapNotification(method string, params json.RawMessage) []domain.Event {
 	switch method {
+	case "hook/started", "hook/completed":
+		var n hookNotification
+		if err := json.Unmarshal(params, &n); err != nil || n.Run.ID == "" || n.Run.EventName == "" {
+			return nil
+		}
+		return m.mapHook(n.Run, method == "hook/completed")
 	case "item/started":
 		var n itemNotification
 		if err := json.Unmarshal(params, &n); err != nil {
@@ -328,7 +344,7 @@ func (m *Mapper) ensure(nativeID string, kind domain.ItemKind) (*domain.Item, bo
 
 func (m *Mapper) apply(it rpcItem, final bool) (*domain.Item, bool, []domain.Event) {
 	kind, ok := itemKind(it.Type)
-	if !ok || it.ID == "" {
+	if !ok || it.ID == "" || (kind == domain.ItemUserMessage && !m.IncludeUserMessages) {
 		return nil, false, nil
 	}
 	item, created, events := m.ensure(it.ID, kind)
@@ -511,4 +527,59 @@ func mustJSON(v any) json.RawMessage {
 		return nil
 	}
 	return b
+}
+
+type hookNotification struct {
+	Run rpcHookRun `json:"run"`
+}
+
+type rpcHookRun struct {
+	ID            string `json:"id"`
+	EventName     string `json:"eventName"`
+	Status        string `json:"status"`
+	StatusMessage string `json:"statusMessage"`
+	Entries       []struct {
+		Kind string `json:"kind"`
+		Text string `json:"text"`
+	} `json:"entries"`
+}
+
+// mapHook shows a user-configured hook run. "blocked" and "stopped" mean
+// the hook stopped the agent (its feedback goes back to the model).
+func (m *Mapper) mapHook(run rpcHookRun, done bool) []domain.Event {
+	item := m.items[m.hooks[run.ID]]
+	if item == nil {
+		m.hookSeq++
+		item, _ = domain.NewItem(domain.ItemID(fmt.Sprintf("hook-%d", m.hookSeq)), m.session, m.turn, "", domain.ItemHook)
+		item.Name = strings.ToUpper(run.EventName[:1]) + run.EventName[1:]
+		m.items[item.ID] = item
+		m.hooks[run.ID] = item.ID
+	}
+	if !done {
+		_ = item.SetStatus(domain.ItemStreaming)
+		return []domain.Event{{SessionID: m.session, Type: domain.EventItemUpdated, Item: item}}
+	}
+	delete(m.hooks, run.ID)
+	texts := make([]string, 0, len(run.Entries))
+	for _, e := range run.Entries {
+		if e.Text != "" {
+			texts = append(texts, e.Text)
+		}
+	}
+	item.Text = strings.Join(texts, "\n")
+	if item.Text == "" {
+		item.Text = run.StatusMessage
+	}
+	switch run.Status {
+	case "blocked", "stopped":
+		item.Outcome = domain.HookBlocked
+		_ = item.SetStatus(domain.ItemCompleted)
+	case "failed":
+		item.Outcome = domain.HookError
+		_ = item.SetStatus(domain.ItemFailed)
+	default:
+		item.Outcome = domain.HookSuccess
+		_ = item.SetStatus(domain.ItemCompleted)
+	}
+	return []domain.Event{{SessionID: m.session, Type: domain.EventItemUpdated, Item: item}}
 }

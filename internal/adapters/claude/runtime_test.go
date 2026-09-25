@@ -191,7 +191,7 @@ func TestFactoryArgsFor(t *testing.T) {
 	}{
 		{app.StartRequest{Model: "m", PermissionMode: "plan"}, "u1",
 			[]string{"-p", "--input-format stream-json", "--output-format stream-json",
-				"--include-partial-messages", "--permission-prompt-tool stdio", "--session-id u1", "--model m", "--permission-mode plan", "--debug"},
+				"--include-partial-messages", "--include-hook-events", "--permission-prompt-tool stdio", "--session-id u1", "--model m", "--permission-mode plan", "--debug"},
 			[]string{"--resume", "--fork-session"}},
 		{app.StartRequest{NativeID: "n"}, "n", []string{"--resume n"}, []string{"--session-id", "--fork-session"}},
 		{app.StartRequest{NativeID: "n", Fork: true}, "u2", []string{"--resume n --fork-session --session-id u2"}, nil},
@@ -418,5 +418,29 @@ func TestClaudeModelCatalog(t *testing.T) {
 	}
 	if _, err := f.Models(context.Background(), domain.AgentCodex); err == nil {
 		t.Fatal("claude catalog must reject codex")
+	}
+}
+
+func TestRuntimeShowsAStopHookThatBlocks(t *testing.T) {
+	rt := startFake(t, app.StartRequest{})
+	if err := rt.Send(context.Background(), "t1", "hook me"); err != nil {
+		t.Fatal(err)
+	}
+	events := drain(t, rt, func(ev domain.Event) bool { return ev.Type == domain.EventTurnEnded })
+	var hook *domain.Item
+	answers := map[domain.ItemID]bool{}
+	for _, ev := range events {
+		if ev.Item != nil && ev.Item.Kind == domain.ItemHook && ev.Item.Status == domain.ItemCompleted {
+			hook = ev.Item
+		}
+		if ev.Item != nil && ev.Item.Kind == domain.ItemAssistantMessage && ev.Item.Status == domain.ItemCompleted {
+			answers[ev.Item.ID] = true
+		}
+	}
+	if hook == nil || hook.Name != "Stop" || hook.Outcome != domain.HookBlocked || hook.Text != "Check your work first." {
+		t.Fatalf("hook = %+v", hook)
+	}
+	if len(answers) != 2 {
+		t.Fatalf("answers = %d, want the reply and the reply after the hook", len(answers))
 	}
 }

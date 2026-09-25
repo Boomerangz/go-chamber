@@ -1,7 +1,9 @@
 package domain
 
 import (
+	"encoding/json"
 	"errors"
+	"strings"
 	"testing"
 )
 
@@ -92,5 +94,28 @@ func TestAppendTextAndDelta(t *testing.T) {
 	}
 	if err := (Delta{Text: "x"}).Valid(); !errors.Is(err, ErrInvalidItem) {
 		t.Fatalf("delta without item id: want ErrInvalidItem, got %v", err)
+	}
+}
+
+func TestHookItems(t *testing.T) {
+	if !ItemHook.Valid() {
+		t.Fatal("hook kind must be valid")
+	}
+	for _, o := range []HookOutcome{HookSuccess, HookBlocked, HookError} {
+		if !o.Valid() {
+			t.Fatalf("%q invalid", o)
+		}
+	}
+	if HookOutcome("meh").Valid() || HookOutcome("").Valid() {
+		t.Fatal("unknown outcome accepted")
+	}
+	item := Item{ID: "h", Kind: ItemHook, Name: "Stop", Outcome: HookBlocked}
+	raw, _ := json.Marshal(item)
+	if !strings.Contains(string(raw), `"outcome":"blocked"`) {
+		t.Fatalf("json = %s", raw)
+	}
+	raw, _ = json.Marshal(Item{ID: "x", Kind: ItemCommand})
+	if strings.Contains(string(raw), "outcome") {
+		t.Fatalf("empty outcome serialized: %s", raw)
 	}
 }

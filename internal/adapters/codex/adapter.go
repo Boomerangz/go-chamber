@@ -415,7 +415,9 @@ func (s *Server) attachThread(nativeID string, session domain.SessionID) (*Runti
 		s.mu.Unlock()
 		return rt, nil
 	}
-	rt := &Runtime{server: s, threadID: nativeID, mapper: NewMapper(session), events: make(chan domain.Event, 256)}
+	mapper := NewMapper(session)
+	mapper.IncludeUserMessages = true
+	rt := &Runtime{server: s, threadID: nativeID, mapper: mapper, events: make(chan domain.Event, 256)}
 	s.threads[nativeID] = rt
 	orphans := s.orphans[nativeID]
 	delete(s.orphans, nativeID)

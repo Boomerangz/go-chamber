@@ -198,6 +198,8 @@ func startTurn(mode, threadID, turnID, text string, pending map[string]func(json
 			questionTurn(threadID, turnID, pending)
 		case strings.Contains(low, "collab"):
 			collabTurn(threadID, turnID, text)
+		case strings.Contains(low, "hook"):
+			hookTurn(threadID, turnID)
 		case strings.Contains(low, "which model"):
 			m := models[threadID]
 			replyTurn(threadID, turnID, text, "model: "+m[0]+" effort: "+m[1])
@@ -205,6 +207,32 @@ func startTurn(mode, threadID, turnID, text string, pending map[string]func(json
 			echoTurn(threadID, turnID, text)
 		}
 	}
+}
+
+// hookTurn answers, then a user Stop hook blocks with feedback (as with a
+// real ~/.codex/hooks.json) and the agent answers again.
+func hookTurn(threadID, turnID string) {
+	turnStarted(threadID, turnID)
+	message := func(text string) string {
+		id := nextID("msg")
+		notify("item/completed", map[string]any{"threadId": threadID, "turnId": turnID,
+			"item": map[string]any{"type": "agentMessage", "id": id, "text": text}})
+		return id
+	}
+	message("first answer")
+	run := func(status string, entries []any) map[string]any {
+		return map[string]any{"threadId": threadID, "turnId": turnID, "run": map[string]any{
+			"id": "stop:0:/fake/hooks.json", "eventName": "stop", "handlerType": "command", "executionMode": "sync",
+			"scope": "turn", "sourcePath": "/fake/hooks.json", "source": "user", "displayOrder": 0,
+			"status": status, "statusMessage": "Fake Reflection", "startedAt": 1, "entries": entries,
+		}}
+	}
+	notify("hook/started", run("running", []any{}))
+	notify("hook/completed", run("blocked", []any{map[string]any{"kind": "feedback", "text": "Check your work first."}}))
+	notify("item/completed", map[string]any{"threadId": threadID, "turnId": turnID, "item": map[string]any{
+		"type": "hookPrompt", "id": nextID("msg"), "fragments": []any{map[string]any{"text": "Check your work first.", "hookRunId": "stop:0"}}}})
+	last := message("checked after hook")
+	turnCompleted(threadID, turnID, "completed", last, "checked after hook")
 }
 
 func echoTurn(threadID, turnID, text string) {

@@ -30,6 +30,9 @@ func defaultArgs() []string {
 		"--output-format", "stream-json",
 		"--verbose",
 		"--include-partial-messages",
+		// Hooks from the user's settings run in these sessions too; their
+		// lifecycle is shown in the chat.
+		"--include-hook-events",
 		// Without a prompt tool the CLI denies anything that needs a
 		// permission (and AskUserQuestion) instead of asking the host.
 		"--permission-prompt-tool", "stdio",
