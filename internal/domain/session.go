@@ -5,7 +5,9 @@ package domain
 import (
 	"errors"
 	"fmt"
+	"strings"
 	"time"
+	"unicode"
 )
 
 var (
@@ -14,6 +16,7 @@ var (
 	ErrNeedsRuntime      = errors.New("session has no attached runtime")
 	ErrNativeIDMismatch  = errors.New("runtime reported a different native session id")
 	ErrInvalidReviewer   = errors.New("invalid approval reviewer")
+	ErrInvalidModel      = errors.New("invalid model choice")
 )
 
 type SessionID string
@@ -92,6 +95,8 @@ type Session struct {
 	reviewer     ApprovalReviewer
 	createdAt    time.Time
 	activeAt     time.Time
+	model        string
+	effort       string
 }
 
 // SessionSnapshot is the persistable state of a Session.
@@ -109,6 +114,9 @@ type SessionSnapshot struct {
 	CreatedAt        time.Time        `json:"createdAt,omitzero"`
 	// ActiveAt is the last time the user started a turn (or the creation).
 	ActiveAt time.Time `json:"activeAt,omitzero"`
+	// Model and Effort are empty when the agent's configuration decides.
+	Model  string `json:"model,omitempty"`
+	Effort string `json:"effort,omitempty"`
 }
 
 func NewSession(id SessionID, agent AgentKind, cwd string) (*Session, error) {
@@ -142,6 +150,7 @@ func RestoreSession(snap SessionSnapshot) (*Session, error) {
 		id: snap.ID, agent: snap.Agent, cwd: snap.Cwd, title: snap.Title,
 		nativeID: snap.NativeID, parentID: snap.ParentID, status: StatusDetached,
 		reviewer: snap.ApprovalReviewer, createdAt: snap.CreatedAt, activeAt: snap.ActiveAt,
+		model: snap.Model, effort: snap.Effort,
 	}
 	switch snap.Status {
 	case StatusRunning:
@@ -247,7 +256,24 @@ func (s *Session) Snapshot() SessionSnapshot {
 		ID: s.id, Agent: s.agent, Cwd: s.cwd, NativeID: s.nativeID, ParentID: s.parentID,
 		Status: s.status, Title: s.title, Interruption: s.interruption,
 		ApprovalReviewer: s.reviewer, CreatedAt: s.createdAt, ActiveAt: s.activeAt,
+		Model: s.model, Effort: s.effort,
 	}
+}
+
+// Model returns the chosen model and reasoning effort.
+func (s *Session) Model() (model, effort string) { return s.model, s.effort }
+
+// SetModel chooses the model and reasoning effort; empty values defer to
+// the agent's configuration. Values are agent-specific names, so only
+// their shape is checked.
+func (s *Session) SetModel(model, effort string) error {
+	for _, v := range []string{model, effort} {
+		if len(v) > 100 || strings.ContainsFunc(v, unicode.IsSpace) {
+			return fmt.Errorf("%w: %q", ErrInvalidModel, v)
+		}
+	}
+	s.model, s.effort = model, effort
+	return nil
 }
 
 // Touch records activity at now; the first touch is the creation time.

@@ -119,6 +119,18 @@ func (f *Factory) StartLogin(ctx context.Context, agent domain.AgentKind) (app.L
 	return srv.StartLogin(ctx, agent)
 }
 
+// Models implements app.ModelCatalog.
+func (f *Factory) Models(ctx context.Context, agent domain.AgentKind) ([]app.ModelInfo, error) {
+	if agent != domain.AgentCodex {
+		return nil, fmt.Errorf("codex: unsupported agent %q", agent)
+	}
+	srv, err := f.ensureServer(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return srv.Models(ctx)
+}
+
 // Close terminates the shared app-server.
 func (f *Factory) Close() {
 	f.mu.Lock()
@@ -243,6 +255,57 @@ func (s *Server) Account(ctx context.Context, agent domain.AgentKind) (app.Accou
 		info.Plan = out.Account.PlanType
 	}
 	return info, nil
+}
+
+// Models lists the visible models (model/list), following pagination.
+func (s *Server) Models(ctx context.Context) ([]app.ModelInfo, error) {
+	var out []app.ModelInfo
+	var cursor *string
+	for page := 0; page < 20; page++ {
+		params := map[string]any{}
+		if cursor != nil {
+			params["cursor"] = *cursor
+		}
+		res, err := s.client.Call(ctx, "model/list", params)
+		if err != nil {
+			return nil, fmt.Errorf("codex: model/list: %w", err)
+		}
+		var list struct {
+			Data []struct {
+				Model                  string `json:"model"`
+				DisplayName            string `json:"displayName"`
+				Description            string `json:"description"`
+				Hidden                 bool   `json:"hidden"`
+				IsDefault              bool   `json:"isDefault"`
+				DefaultReasoningEffort string `json:"defaultReasoningEffort"`
+				SupportedEfforts       []struct {
+					ReasoningEffort string `json:"reasoningEffort"`
+				} `json:"supportedReasoningEfforts"`
+			} `json:"data"`
+			NextCursor *string `json:"nextCursor"`
+		}
+		if err := json.Unmarshal(res, &list); err != nil {
+			return nil, fmt.Errorf("codex: model/list response: %w", err)
+		}
+		for _, m := range list.Data {
+			if m.Hidden {
+				continue
+			}
+			info := app.ModelInfo{
+				ID: m.Model, Name: m.DisplayName, Description: m.Description,
+				DefaultEffort: m.DefaultReasoningEffort, Default: m.IsDefault,
+			}
+			for _, e := range m.SupportedEfforts {
+				info.Efforts = append(info.Efforts, e.ReasoningEffort)
+			}
+			out = append(out, info)
+		}
+		if list.NextCursor == nil || *list.NextCursor == "" {
+			break
+		}
+		cursor = list.NextCursor
+	}
+	return out, nil
 }
 
 // StartLogin begins a ChatGPT device-code login.
@@ -373,6 +436,9 @@ func (s *Server) startThread(ctx context.Context, req app.StartRequest) (*Runtim
 	if req.NativeID != "" {
 		params := map[string]any{"threadId": req.NativeID}
 		addReviewer(params, req.ApprovalReviewer)
+		if req.Model != "" {
+			params["model"] = req.Model
+		}
 		res, err := s.client.Call(ctx, "thread/resume", params)
 		if err != nil {
 			return nil, fmt.Errorf("codex: thread/resume: %w", err)
@@ -412,6 +478,7 @@ func (s *Server) startThread(ctx context.Context, req app.StartRequest) (*Runtim
 		mapper:   NewMapper(req.SessionID),
 		events:   make(chan domain.Event, 256),
 		reviewer: req.ApprovalReviewer,
+		effort:   req.Effort,
 	}
 	s.mu.Lock()
 	s.threads[thread.ID] = rt
@@ -487,10 +554,14 @@ type Runtime struct {
 	mapper   *Mapper
 	events   chan domain.Event
 
-	mu        sync.Mutex
-	mapMu     sync.Mutex
-	turnID    string
-	reviewer  domain.ApprovalReviewer
+	mu       sync.Mutex
+	mapMu    sync.Mutex
+	turnID   string
+	reviewer domain.ApprovalReviewer
+	// model and effort override the thread's choice from the next turn on;
+	// empty values keep what the thread already uses.
+	model     string
+	effort    string
 	closed    bool
 	closeOnce sync.Once
 }
@@ -535,6 +606,12 @@ func (r *Runtime) Send(ctx context.Context, _ domain.TurnID, text string) error 
 	}
 	r.mu.Lock()
 	addReviewer(params, r.reviewer)
+	if r.model != "" {
+		params["model"] = r.model
+	}
+	if r.effort != "" {
+		params["effort"] = r.effort
+	}
 	r.mu.Unlock()
 	res, err := r.server.client.Call(ctx, "turn/start", params)
 	if err != nil {
@@ -560,6 +637,16 @@ func (r *Runtime) Send(ctx context.Context, _ domain.TurnID, text string) error 
 func (r *Runtime) SetApprovalReviewer(_ context.Context, rev domain.ApprovalReviewer) error {
 	r.mu.Lock()
 	r.reviewer = rev
+	r.mu.Unlock()
+	return nil
+}
+
+// SetModel switches the model and reasoning effort from the next turn on;
+// turn/start overrides stick to the thread. Empty values can't be sent, so
+// the thread keeps its last explicit choice.
+func (r *Runtime) SetModel(_ context.Context, model, effort string) error {
+	r.mu.Lock()
+	r.model, r.effort = model, effort
 	r.mu.Unlock()
 	return nil
 }
@@ -696,4 +783,6 @@ func (r *Runtime) closeEvents() {
 var _ app.RuntimeFactory = (*Factory)(nil)
 var _ app.AccountManager = (*Factory)(nil)
 var _ app.QuotaProvider = (*Factory)(nil)
+var _ app.ModelCatalog = (*Factory)(nil)
+var _ app.ModelSetter = (*Runtime)(nil)
 var _ app.AgentRuntime = (*Runtime)(nil)

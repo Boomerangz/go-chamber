@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"sync"
@@ -27,6 +28,8 @@ type ManagerConfig struct {
 	NewID func() string
 	// Now stamps session creation and activity. Defaults to time.Now.
 	Now func() time.Time
+	// Models optionally lists the models each agent offers.
+	Models ModelCatalog
 }
 
 // Manager is the session use-case boundary: it owns the in-memory registry
@@ -39,6 +42,9 @@ type Manager struct {
 	sessions map[domain.SessionID]*domain.Session
 	runtimes map[domain.SessionID]AgentRuntime
 	pending  map[domain.SessionID]map[domain.RequestID]*domain.Request
+	// restart marks sessions whose runtime must be replaced before the next
+	// turn (a model change it couldn't apply live).
+	restart map[domain.SessionID]bool
 }
 
 func NewManager(cfg ManagerConfig) *Manager {
@@ -53,6 +59,7 @@ func NewManager(cfg ManagerConfig) *Manager {
 		sessions: map[domain.SessionID]*domain.Session{},
 		runtimes: map[domain.SessionID]AgentRuntime{},
 		pending:  map[domain.SessionID]map[domain.RequestID]*domain.Request{},
+		restart:  map[domain.SessionID]bool{},
 	}
 }
 
@@ -90,6 +97,9 @@ func (m *Manager) GetSession(ctx context.Context, id domain.SessionID) (domain.S
 	if err != nil {
 		return domain.SessionSnapshot{}, err
 	}
+	// Runtime goroutines mutate sessions under m.mu.
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	return s.Snapshot(), nil
 }
 
@@ -131,6 +141,11 @@ func (m *Manager) SendMessage(ctx context.Context, id domain.SessionID, text str
 		return err
 	}
 	turn := domain.TurnID(m.cfg.NewID())
+	m.mu.Lock()
+	if m.restart[id] {
+		m.retire(s)
+	}
+	m.mu.Unlock()
 	rt, err := m.ensureRuntime(ctx, s)
 	if err != nil {
 		return err
@@ -256,6 +271,69 @@ func (m *Manager) SetApprovalReviewer(ctx context.Context, id domain.SessionID, 
 	return snap, nil
 }
 
+// SetModel chooses the session's model and reasoning effort. A runtime that
+// can switch does so at once; otherwise the agent is restarted (resuming
+// the conversation) now if idle, or before the next turn.
+func (m *Manager) SetModel(ctx context.Context, id domain.SessionID, model, effort string) (domain.SessionSnapshot, error) {
+	s, err := m.session(ctx, id)
+	if err != nil {
+		return domain.SessionSnapshot{}, err
+	}
+	m.mu.Lock()
+	err = s.SetModel(model, effort)
+	snap := s.Snapshot()
+	rt := m.runtimes[id]
+	m.mu.Unlock()
+	if err != nil {
+		return domain.SessionSnapshot{}, err
+	}
+	if err := m.cfg.Repo.Save(ctx, snap); err != nil {
+		return domain.SessionSnapshot{}, err
+	}
+	if rt != nil {
+		err := ErrRestartRequired
+		if setter, ok := rt.(ModelSetter); ok {
+			err = setter.SetModel(ctx, model, effort)
+		}
+		switch {
+		case errors.Is(err, ErrRestartRequired):
+			m.mu.Lock()
+			if s.Status() == domain.StatusRunning {
+				m.restart[id] = true
+			} else {
+				m.retire(s)
+			}
+			snap = s.Snapshot()
+			m.mu.Unlock()
+		case err != nil:
+			return domain.SessionSnapshot{}, err
+		}
+	}
+	m.cfg.Bus.Publish(domain.Event{SessionID: id, Type: domain.EventSessionState, Session: &snap})
+	return snap, nil
+}
+
+// retire detaches and closes the session's runtime so the next turn starts
+// a fresh one. Callers hold m.mu; the session must not be running.
+func (m *Manager) retire(s *domain.Session) {
+	delete(m.restart, s.ID())
+	rt := m.runtimes[s.ID()]
+	if rt == nil {
+		return
+	}
+	delete(m.runtimes, s.ID())
+	s.RuntimeExited(domain.ExitIdleTimeout)
+	go func() { _ = rt.Close() }()
+}
+
+// Models lists the models an agent offers.
+func (m *Manager) Models(ctx context.Context, agent domain.AgentKind) ([]ModelInfo, error) {
+	if m.cfg.Models == nil {
+		return nil, ErrModelsUnsupported
+	}
+	return m.cfg.Models.Models(ctx, agent)
+}
+
 // Interrupt stops the current turn if a runtime is attached.
 func (m *Manager) Interrupt(ctx context.Context, id domain.SessionID) error {
 	if _, err := m.session(ctx, id); err != nil {
@@ -339,6 +417,7 @@ func (m *Manager) ensureRuntimeFor(ctx context.Context, s *domain.Session, nativ
 
 		ApprovalReviewer: s.ApprovalReviewer(),
 	}
+	req.Model, req.Effort = s.Model()
 	m.mu.Unlock()
 
 	rt, err := m.cfg.Runtimes.Start(ctx, req)

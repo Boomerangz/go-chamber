@@ -46,6 +46,7 @@ type envelope struct {
 	Request   struct {
 		Subtype string `json:"subtype"`
 		TaskID  string `json:"task_id"`
+		Model   string `json:"model"`
 	} `json:"request"`
 }
 
@@ -70,6 +71,12 @@ func main() {
 		}
 		if a == "--permission-prompt-tool" && i+1 < len(args) && args[i+1] == "stdio" {
 			promptTool = true
+		}
+		if a == "--model" && i+1 < len(args) {
+			model = args[i+1]
+		}
+		if a == "--effort" && i+1 < len(args) {
+			effort = args[i+1]
 		}
 	}
 	mode := envOr("FAKECLAUDE_MODE", "auto")
@@ -98,8 +105,16 @@ func main() {
 				_ = out.Flush()
 			}
 		case "control_request":
-			if env.Request.Subtype == "stop_task" {
+			switch env.Request.Subtype {
+			case "stop_task":
 				stopTask(enc, out, sessionID, env.RequestID, env.Request.TaskID)
+			case "set_model":
+				// Like the real CLI: switches the model of the live session.
+				model = env.Request.Model
+				_ = enc.Encode(map[string]any{"type": "control_response", "response": map[string]any{
+					"subtype": "success", "request_id": env.RequestID, "response": map[string]any{},
+				}})
+				_ = out.Flush()
 			}
 		case "user":
 			if !initSent {
@@ -116,6 +131,9 @@ func main() {
 // the pending request to resume on the next control_response.
 // promptTool is set by --permission-prompt-tool stdio.
 var promptTool bool
+
+// model and effort come from --model/--effort; set_model changes model.
+var model, effort string
 
 // askHost sends a can_use_tool control_request, or, without a prompt tool,
 // denies it at once as the real CLI does and finishes the turn.
@@ -159,6 +177,8 @@ func startTurn(mode string, enc *json.Encoder, out *bufio.Writer, sessionID, pro
 			emitTaskTurn(enc, out, sessionID, prompt)
 		case strings.Contains(low, "bash"):
 			emitToolTurn(enc, out, sessionID, prompt)
+		case strings.Contains(low, "which model"):
+			emitTextTurn(enc, out, sessionID, "model: "+model+" effort: "+effort)
 		default:
 			emitTextTurn(enc, out, sessionID, "echo: "+prompt)
 		}

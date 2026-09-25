@@ -175,6 +175,6 @@ describe('App', () => {
     useSessionStore.getState().setQuery('')
 
     ;(await screen.findByRole('button', { name: 'New session in alpha' })).click()
-    await vi.waitFor(() => expect(api.createSession).toHaveBeenCalledWith('claude', '/w/alpha'))
+    await vi.waitFor(() => expect(api.createSession).toHaveBeenCalledWith('claude', '/w/alpha', undefined))
   })
 })

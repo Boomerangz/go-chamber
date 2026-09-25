@@ -128,3 +128,31 @@ func TestRouterRateLimits(t *testing.T) {
 		t.Fatalf("no provider err = %v", err)
 	}
 }
+
+type catalogFactory struct {
+	stubFactory
+	models []app.ModelInfo
+}
+
+func (c *catalogFactory) Models(_ context.Context, _ domain.AgentKind) ([]app.ModelInfo, error) {
+	return c.models, nil
+}
+
+func TestRouterModels(t *testing.T) {
+	claude := &catalogFactory{models: []app.ModelInfo{{ID: "opus"}}}
+	codex := &catalogFactory{models: []app.ModelInfo{{ID: "gpt"}}}
+	r := &Router{Claude: claude, Codex: codex}
+	for agent, want := range map[domain.AgentKind]string{domain.AgentClaude: "opus", domain.AgentCodex: "gpt"} {
+		models, err := r.Models(context.Background(), agent)
+		if err != nil || len(models) != 1 || models[0].ID != want {
+			t.Fatalf("%s models = %+v, %v", agent, models, err)
+		}
+	}
+	bare := &Router{Claude: &stubFactory{}}
+	if _, err := bare.Models(context.Background(), domain.AgentClaude); !errors.Is(err, app.ErrModelsUnsupported) {
+		t.Fatalf("no catalog err = %v", err)
+	}
+	if _, err := bare.Models(context.Background(), "gemini"); !errors.Is(err, app.ErrModelsUnsupported) {
+		t.Fatalf("unknown agent err = %v", err)
+	}
+}

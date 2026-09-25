@@ -349,3 +349,57 @@ func TestRuntimeStopTask(t *testing.T) {
 		t.Fatalf("stop task: %v", err)
 	}
 }
+
+func askModel(t *testing.T, rt *Runtime) string {
+	t.Helper()
+	if err := rt.Send(context.Background(), "t", "which model?"); err != nil {
+		t.Fatal(err)
+	}
+	events := drain(t, rt, func(ev domain.Event) bool { return ev.Type == domain.EventTurnEnded })
+	return events[len(events)-1].Result.Text
+}
+
+func TestRuntimeModelFlagsAndLiveSwitch(t *testing.T) {
+	rt := startFake(t, app.StartRequest{Model: "sonnet", Effort: "high"})
+	if got := askModel(t, rt); got != "model: sonnet effort: high" {
+		t.Fatalf("start = %q", got)
+	}
+	var _ app.ModelSetter = rt
+	if err := rt.SetModel(context.Background(), "haiku", "high"); err != nil {
+		t.Fatal(err)
+	}
+	if got := askModel(t, rt); got != "model: haiku effort: high" {
+		t.Fatalf("after set_model = %q", got)
+	}
+	if err := rt.SetModel(context.Background(), "haiku", "high"); err != nil {
+		t.Fatalf("same choice: %v", err)
+	}
+}
+
+func TestRuntimeModelChangesThatNeedARestart(t *testing.T) {
+	rt := startFake(t, app.StartRequest{Model: "opus", Effort: "high"})
+	if err := rt.SetModel(context.Background(), "opus", "low"); !errors.Is(err, app.ErrRestartRequired) {
+		t.Fatalf("effort change err = %v", err)
+	}
+	if err := rt.SetModel(context.Background(), "", "high"); !errors.Is(err, app.ErrRestartRequired) {
+		t.Fatalf("reset to default err = %v", err)
+	}
+}
+
+func TestClaudeModelCatalog(t *testing.T) {
+	f := &Factory{}
+	models, err := f.Models(context.Background(), domain.AgentClaude)
+	if err != nil || len(models) < 3 {
+		t.Fatalf("models = %+v, %v", models, err)
+	}
+	ids := map[string]app.ModelInfo{}
+	for _, m := range models {
+		ids[m.ID] = m
+	}
+	if len(ids["opus"].Efforts) == 0 || ids["sonnet"].Name != "Sonnet" {
+		t.Fatalf("models = %+v", models)
+	}
+	if _, err := f.Models(context.Background(), domain.AgentCodex); err == nil {
+		t.Fatal("claude catalog must reject codex")
+	}
+}

@@ -13,6 +13,9 @@ var ErrRequestNotFound = errors.New("request not found")
 var ErrAccountsUnsupported = errors.New("agent account management is not supported")
 var ErrQuotasUnsupported = errors.New("agent quota lookup is not supported")
 
+// ErrModelsUnsupported is returned when no model catalog is configured.
+var ErrModelsUnsupported = errors.New("agent model listing is not supported")
+
 // AccountInfo describes the agent's login state.
 type AccountInfo struct {
 	Agent    domain.AgentKind `json:"agent"`
@@ -66,6 +69,8 @@ type StartRequest struct {
 	Fork bool
 	// Model overrides the agent's default model when non-empty.
 	Model string
+	// Effort overrides the agent's reasoning effort when non-empty.
+	Effort string
 	// PermissionMode selects the agent's approval behaviour when non-empty.
 	PermissionMode string
 	// Passive attaches to an already-running agent thread (a subagent spawned
@@ -150,4 +155,31 @@ type SearchHit struct {
 // MessageSearch finds sessions by the text of their messages.
 type MessageSearch interface {
 	Search(ctx context.Context, query string, limit int) ([]SearchHit, error)
+}
+
+// ErrRestartRequired is returned by a ModelSetter that can only apply the
+// choice to a new agent process.
+var ErrRestartRequired = errors.New("model change needs an agent restart")
+
+// ModelSetter is implemented by runtimes that can switch the model (and
+// reasoning effort) of a live conversation.
+type ModelSetter interface {
+	SetModel(ctx context.Context, model, effort string) error
+}
+
+// ModelInfo describes one model an agent offers.
+type ModelInfo struct {
+	ID          string `json:"id"`
+	Name        string `json:"name"`
+	Description string `json:"description,omitempty"`
+	// Efforts are the reasoning efforts the model accepts, if any.
+	Efforts       []string `json:"efforts,omitempty"`
+	DefaultEffort string   `json:"defaultEffort,omitempty"`
+	// Default marks the model the agent uses when none is chosen.
+	Default bool `json:"default,omitempty"`
+}
+
+// ModelCatalog lists the models an agent offers.
+type ModelCatalog interface {
+	Models(ctx context.Context, agent domain.AgentKind) ([]ModelInfo, error)
 }

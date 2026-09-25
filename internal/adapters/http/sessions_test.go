@@ -34,6 +34,24 @@ type fakeSessions struct {
 	quotas      []domain.QuotaSnapshot
 	quota       domain.QuotaSnapshot
 	reviewer    domain.ApprovalReviewer
+	model       [2]string
+	models      []app.ModelInfo
+	modelsErr   error
+}
+
+func (f *fakeSessions) SetModel(_ context.Context, id domain.SessionID, model, effort string) (domain.SessionSnapshot, error) {
+	if f.err != nil {
+		return domain.SessionSnapshot{}, f.err
+	}
+	if strings.Contains(model, " ") {
+		return domain.SessionSnapshot{}, domain.ErrInvalidModel
+	}
+	f.model = [2]string{model, effort}
+	return domain.SessionSnapshot{ID: id, Model: model, Effort: effort}, nil
+}
+
+func (f *fakeSessions) Models(_ context.Context, _ domain.AgentKind) ([]app.ModelInfo, error) {
+	return f.models, f.modelsErr
 }
 
 func (f *fakeSessions) CreateSession(_ context.Context, agent domain.AgentKind, cwd string) (domain.SessionSnapshot, error) {
@@ -424,5 +442,49 @@ func TestApprovalReviewerEndpoint(t *testing.T) {
 	f.err = app.ErrSessionNotFound
 	if rec := do(h, authed("POST", "/api/sessions/a/approval-reviewer", `{"reviewer":"user"}`)); rec.Code != http.StatusNotFound {
 		t.Fatalf("unknown session code = %d", rec.Code)
+	}
+}
+
+func TestModelEndpoints(t *testing.T) {
+	f := &fakeSessions{models: []app.ModelInfo{{ID: "opus", Name: "Opus", Efforts: []string{"high"}}}}
+	h := newSessionsServer(f, nil)
+	rec := do(h, authed("GET", "/api/agents/claude/models", ""))
+	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), `"id":"opus"`) {
+		t.Fatalf("models: %d %s", rec.Code, rec.Body.String())
+	}
+	f.models = nil
+	if rec := do(h, authed("GET", "/api/agents/claude/models", "")); rec.Body.String() != "[]\n" {
+		t.Fatalf("empty models = %q", rec.Body.String())
+	}
+	f.modelsErr = app.ErrModelsUnsupported
+	if rec := do(h, authed("GET", "/api/agents/claude/models", "")); rec.Code != http.StatusNotImplemented {
+		t.Fatalf("unsupported code = %d", rec.Code)
+	}
+
+	rec = do(h, authed("POST", "/api/sessions/a/model", `{"model":"opus","effort":"high"}`))
+	if rec.Code != http.StatusOK || f.model != [2]string{"opus", "high"} || !strings.Contains(rec.Body.String(), `"effort":"high"`) {
+		t.Fatalf("set model: %d %v %s", rec.Code, f.model, rec.Body.String())
+	}
+	if rec := do(h, authed("POST", "/api/sessions/a/model", `{"model":"bad model"}`)); rec.Code != http.StatusBadRequest {
+		t.Fatalf("invalid model code = %d", rec.Code)
+	}
+	if rec := do(h, authed("POST", "/api/sessions/a/model", `nope`)); rec.Code != http.StatusBadRequest {
+		t.Fatalf("bad json code = %d", rec.Code)
+	}
+}
+
+func TestCreateSessionWithModel(t *testing.T) {
+	f := &fakeSessions{}
+	h := newSessionsServer(f, nil)
+	rec := do(h, authed("POST", "/api/sessions", `{"agent":"claude","cwd":"/p","model":"opus","effort":"max"}`))
+	if rec.Code != http.StatusCreated || f.model != [2]string{"opus", "max"} || !strings.Contains(rec.Body.String(), `"model":"opus"`) {
+		t.Fatalf("create: %d %v %s", rec.Code, f.model, rec.Body.String())
+	}
+	f.model = [2]string{"untouched", ""}
+	if rec := do(h, authed("POST", "/api/sessions", `{"agent":"claude","cwd":"/p"}`)); rec.Code != http.StatusCreated || f.model[0] != "untouched" {
+		t.Fatalf("create without model: %d %v", rec.Code, f.model)
+	}
+	if rec := do(h, authed("POST", "/api/sessions", `{"agent":"claude","cwd":"/p","model":"bad model"}`)); rec.Code != http.StatusBadRequest {
+		t.Fatalf("create with invalid model code = %d", rec.Code)
 	}
 }

@@ -21,12 +21,16 @@ export interface SessionStore {
   query: string
   // searchHits are sessions whose messages match the query.
   searchHits: api.SearchHit[]
+  // models caches each agent's model catalog; empty when unsupported.
+  models: Partial<Record<api.AgentKind, api.ModelInfo[]>>
   error: string | null
 
   setPane: (pane: Pane) => void
   setGroupMode: (cwd: string, mode: GroupMode) => void
   setQuery: (query: string) => void
   searchMessages: (query: string) => Promise<void>
+  loadModels: (agent: api.AgentKind) => Promise<void>
+  setModel: (sessionId: string, choice: api.ModelChoice) => Promise<void>
   loadSessions: () => Promise<void>
   loadRequests: () => Promise<void>
   loadQuotas: () => Promise<void>
@@ -53,6 +57,28 @@ function loadGroupModes(): Record<string, GroupMode> {
   }
 }
 
+const LAST_MODEL_KEY = 'gc.lastModel'
+
+// lastModel is the model choice last made for an agent; new sessions start
+// with it.
+function lastModel(agent: api.AgentKind): api.ModelChoice | undefined {
+  try {
+    const all = JSON.parse(localStorage.getItem(LAST_MODEL_KEY) ?? '{}') as Record<string, api.ModelChoice>
+    return all[agent]
+  } catch {
+    return undefined
+  }
+}
+
+function rememberModel(agent: api.AgentKind, choice: api.ModelChoice): void {
+  try {
+    const all = JSON.parse(localStorage.getItem(LAST_MODEL_KEY) ?? '{}') as Record<string, api.ModelChoice>
+    localStorage.setItem(LAST_MODEL_KEY, JSON.stringify({ ...all, [agent]: choice }))
+  } catch {
+    // storage unavailable: new sessions use the agent's default
+  }
+}
+
 let socket: WebSocket | null = null
 let searchGeneration = 0
 let buffered: api.SessionEvent[] | null = null
@@ -69,6 +95,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
   groupModes: loadGroupModes(),
   query: '',
   searchHits: [],
+  models: {},
   error: null,
 
   setConnection: (connection) => set({ connection }),
@@ -83,6 +110,30 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     }
   },
   setQuery: (query) => set({ query }),
+
+  async loadModels(agent) {
+    if (get().models[agent]) return
+    let list: api.ModelInfo[] = []
+    try {
+      list = await api.listModels(agent)
+    } catch {
+      // the agent can't list models: the picker offers only its default
+    }
+    set({ models: { ...get().models, [agent]: list } })
+  },
+
+  async setModel(sessionId, choice) {
+    try {
+      const updated = await api.setModel(sessionId, choice)
+      set({
+        sessions: get().sessions.map((s) => (s.id === updated.id ? { ...s, ...updated } : s)),
+        error: null,
+      })
+      rememberModel(updated.agent, choice)
+    } catch (err) {
+      set({ error: errorMessage(err) })
+    }
+  },
 
   async searchMessages(query) {
     const mine = ++searchGeneration
@@ -124,7 +175,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
 
   async createSession(agent, cwd) {
     try {
-      const created = await api.createSession(agent, cwd)
+      const created = await api.createSession(agent, cwd, lastModel(agent))
       set({ sessions: [...get().sessions, created], error: null })
       await get().selectSession(created.id)
     } catch (err) {
@@ -321,6 +372,7 @@ export function resetStore(): void {
     groupModes: loadGroupModes(),
     query: '',
     searchHits: [],
+    models: {},
     error: null,
   })
 }

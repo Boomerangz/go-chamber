@@ -24,6 +24,9 @@ export interface Session {
   approvalReviewer?: ApprovalReviewer
   createdAt?: string
   activeAt?: string
+  // model and effort are empty when the agent's configuration decides.
+  model?: string
+  effort?: string
 }
 
 export type ItemKind =
@@ -168,8 +171,13 @@ export function listSessions(): Promise<Session[]> {
   return request<Session[]>('/api/sessions')
 }
 
-export function createSession(agent: AgentKind, cwd: string): Promise<Session> {
-  return request<Session>('/api/sessions', json({ agent, cwd }))
+export interface ModelChoice {
+  model: string
+  effort: string
+}
+
+export function createSession(agent: AgentKind, cwd: string, choice?: ModelChoice): Promise<Session> {
+  return request<Session>('/api/sessions', json({ agent, cwd, ...choice }))
 }
 
 export function getSession(id: string): Promise<Session> {
@@ -303,4 +311,21 @@ export interface SearchHit {
 
 export function searchMessages(query: string): Promise<SearchHit[]> {
   return request<SearchHit[]>(`/api/search?${new URLSearchParams({ q: query })}`)
+}
+
+export interface ModelInfo {
+  id: string
+  name: string
+  description?: string
+  efforts?: string[]
+  defaultEffort?: string
+  default?: boolean
+}
+
+export function listModels(agent: AgentKind): Promise<ModelInfo[]> {
+  return request<ModelInfo[]>(`/api/agents/${agent}/models`)
+}
+
+export function setModel(id: string, choice: ModelChoice): Promise<Session> {
+  return request<Session>(`/api/sessions/${encodeURIComponent(id)}/model`, json(choice))
 }

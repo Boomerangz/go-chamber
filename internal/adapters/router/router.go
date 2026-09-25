@@ -48,6 +48,21 @@ func (r *Router) StartLogin(ctx context.Context, agent domain.AgentKind) (app.Lo
 	return app.LoginChallenge{}, app.ErrAccountsUnsupported
 }
 
+// Models asks the agent's runtime factory for its model catalog.
+func (r *Router) Models(ctx context.Context, agent domain.AgentKind) ([]app.ModelInfo, error) {
+	var f app.RuntimeFactory
+	switch agent {
+	case domain.AgentClaude:
+		f = r.Claude
+	case domain.AgentCodex:
+		f = r.Codex
+	}
+	if catalog, ok := f.(app.ModelCatalog); ok {
+		return catalog.Models(ctx, agent)
+	}
+	return nil, app.ErrModelsUnsupported
+}
+
 func (r *Router) Start(ctx context.Context, req app.StartRequest) (app.AgentRuntime, error) {
 	switch req.Agent {
 	case domain.AgentClaude:

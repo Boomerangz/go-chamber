@@ -38,6 +38,7 @@ methods=(
   turn/completed
   turn/plan/updated
   serverRequest/resolved
+  model/list
 )
 fields=(
   threadId
@@ -50,6 +51,12 @@ fields=(
   experimentalApi
   approvalsReviewer
   auto_review
+  supportedReasoningEfforts
+  defaultReasoningEffort
+  reasoningEffort
+  displayName
+  nextCursor
+  effort
 )
 
 fail=0

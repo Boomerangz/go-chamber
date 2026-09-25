@@ -17,7 +17,7 @@ export default defineConfig({
     setupFiles: ['./src/test/setup.ts'],
     coverage: {
       provider: 'v8',
-      include: ['src/lib/**', 'src/stores/**', 'src/components/requests/**', 'src/components/folders/**'],
+      include: ['src/lib/**', 'src/stores/**', 'src/components/requests/**', 'src/components/folders/**', 'src/components/models/**'],
       exclude: ['**/*.test.*'],
       thresholds: { lines: 80, branches: 80 },
     },

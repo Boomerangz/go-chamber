@@ -2,10 +2,12 @@ package claude
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"os"
 
 	"github.com/igorzygin/go-chamber/internal/app"
+	"github.com/igorzygin/go-chamber/internal/domain"
 )
 
 // Factory launches `claude` processes. It is the app.RuntimeFactory for
@@ -66,6 +68,9 @@ func (f *Factory) argsFor(req app.StartRequest, native string) []string {
 	if req.Model != "" {
 		args = append(args, "--model", req.Model)
 	}
+	if req.Effort != "" {
+		args = append(args, "--effort", req.Effort)
+	}
 	if req.PermissionMode != "" {
 		args = append(args, "--permission-mode", req.PermissionMode)
 	}
@@ -77,4 +82,25 @@ func (f *Factory) Start(ctx context.Context, req app.StartRequest) (app.AgentRun
 	return start(ctx, f, req)
 }
 
-var _ app.RuntimeFactory = (*Factory)(nil)
+// efforts are the --effort levels of `claude` (2.1.x).
+var efforts = []string{"low", "medium", "high", "xhigh", "max"}
+
+// Models implements app.ModelCatalog. The CLI has no listing command, so
+// these are its documented aliases, each resolving to the latest model of
+// the family.
+func (f *Factory) Models(_ context.Context, agent domain.AgentKind) ([]app.ModelInfo, error) {
+	if agent != domain.AgentClaude {
+		return nil, fmt.Errorf("claude: unsupported agent %q", agent)
+	}
+	return []app.ModelInfo{
+		{ID: "fable", Name: "Fable", Description: "Most capable, for the hardest long-running work", Efforts: efforts},
+		{ID: "opus", Name: "Opus", Description: "Deep reasoning for complex tasks", Efforts: efforts},
+		{ID: "sonnet", Name: "Sonnet", Description: "Fast and capable for everyday coding", Efforts: efforts},
+		{ID: "haiku", Name: "Haiku", Description: "Fastest, for quick and simple tasks"},
+	}, nil
+}
+
+var (
+	_ app.RuntimeFactory = (*Factory)(nil)
+	_ app.ModelCatalog   = (*Factory)(nil)
+)

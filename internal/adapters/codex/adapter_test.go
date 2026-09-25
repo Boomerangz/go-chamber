@@ -451,3 +451,60 @@ func TestCodexDefaultReviewerIsNotSent(t *testing.T) {
 		t.Fatal("want an approval request with the agent's default reviewer")
 	}
 }
+
+func askModel(t *testing.T, rt *Runtime) string {
+	t.Helper()
+	if err := rt.Send(context.Background(), "t", "which model?"); err != nil {
+		t.Fatal(err)
+	}
+	events := drainCodex(t, rt, func(ev domain.Event) bool { return ev.Type == domain.EventTurnEnded })
+	return events[len(events)-1].Result.Text
+}
+
+func TestCodexModelOnStartAndLive(t *testing.T) {
+	rt := startCodex(t, app.StartRequest{Model: "fake-small", Effort: "low"})
+	if got := askModel(t, rt); got != "model: fake-small effort: low" {
+		t.Fatalf("start model = %q", got)
+	}
+	var _ app.ModelSetter = rt
+	if err := rt.SetModel(context.Background(), "fake-large", "high"); err != nil {
+		t.Fatal(err)
+	}
+	if got := askModel(t, rt); got != "model: fake-large effort: high" {
+		t.Fatalf("live model = %q", got)
+	}
+}
+
+func TestCodexModelOnResumeAndDefaults(t *testing.T) {
+	first := startCodex(t, app.StartRequest{})
+	if got := askModel(t, first); got != "model:  effort: " {
+		t.Fatalf("default model sent: %q", got)
+	}
+	rt := startCodex(t, app.StartRequest{NativeID: first.NativeID(), Model: "fake-small"})
+	if got := askModel(t, rt); got != "model: fake-small effort: " {
+		t.Fatalf("resume model = %q", got)
+	}
+}
+
+func TestCodexModelCatalog(t *testing.T) {
+	f := &Factory{Binary: fakeBin, Stderr: os.Stderr, InitTimeout: 10 * time.Second}
+	t.Cleanup(f.Close)
+	models, err := f.Models(context.Background(), domain.AgentCodex)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(models) != 2 {
+		t.Fatalf("models = %+v", models)
+	}
+	large := models[0]
+	if large.ID != "fake-large" || large.Name != "Fake-large" || !large.Default || large.DefaultEffort != "medium" ||
+		strings.Join(large.Efforts, ",") != "low,medium,high" || large.Description == "" {
+		t.Fatalf("large = %+v", large)
+	}
+	if models[1].Default {
+		t.Fatalf("small marked default: %+v", models[1])
+	}
+	if _, err := f.Models(context.Background(), domain.AgentClaude); err == nil {
+		t.Fatal("codex factory must reject claude")
+	}
+}

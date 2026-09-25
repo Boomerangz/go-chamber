@@ -33,6 +33,10 @@ type Runtime struct {
 	writeMu    sync.Mutex
 	reqCounter int
 
+	modelMu sync.Mutex
+	model   string
+	effort  string
+
 	closeOnce sync.Once
 }
 
@@ -74,6 +78,8 @@ func start(ctx context.Context, cfg *Factory, req app.StartRequest) (*Runtime, e
 		events:   make(chan domain.Event, 256),
 		exit:     make(chan struct{}),
 		readDone: make(chan struct{}),
+		model:    req.Model,
+		effort:   req.Effort,
 	}
 	if err := cmd.Start(); err != nil {
 		return nil, fmt.Errorf("claude: start %s: %w", cfg.binary(), err)
@@ -174,6 +180,25 @@ func (r *Runtime) Respond(_ context.Context, requestID domain.RequestID, answer 
 		return err
 	}
 	return r.writeLine(append(line, '\n'))
+}
+
+// SetModel switches the model of the live session with a set_model control
+// request. Effort is a start flag, and returning to the configured default
+// model has no control request, so both need a restart.
+func (r *Runtime) SetModel(_ context.Context, model, effort string) error {
+	r.modelMu.Lock()
+	defer r.modelMu.Unlock()
+	if effort != r.effort || (model == "" && r.model != "") {
+		return app.ErrRestartRequired
+	}
+	if model == r.model {
+		return nil
+	}
+	if err := r.controlRequest(map[string]string{"subtype": "set_model", "model": model}); err != nil {
+		return err
+	}
+	r.model = model
+	return nil
 }
 
 // Interrupt asks the CLI to stop the current turn.

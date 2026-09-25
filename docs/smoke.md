@@ -25,6 +25,9 @@ git -C /tmp/gc-smoke/proj init
 | 8a | Codex: «Approvals: ask me», затем команда с сетью | карточка одобрения, даже если в конфиге `auto_review` |
 | 8b | Codex: «Approvals: auto-review», новый ход с той же командой | запроса нет, команда выполнена |
 | 9 | Терминал: New terminal, `echo $0 $TERM` | shell пользователя, `xterm-256color` |
+| 10 | Claude: модель Haiku до первого сообщения, затем Sonnet, затем effort low | процесс с `--model haiku`; Sonnet без перезапуска; после effort — `--resume <id> --model sonnet --effort low`, контекст сохранён |
+| 11 | Codex: модель из списка + effort low; затем несуществующая модель через API | ход проходит; для несуществующей — ошибка «model is not supported» |
+| 12 | Перезапуск go-chamber | история чатов на месте, поиск по тексту сообщений находит сессию |
 
 ## Прогон 2026-09-25 (claude 2.1.282, codex 0.153.0)
 

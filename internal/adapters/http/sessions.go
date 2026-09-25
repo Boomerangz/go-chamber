@@ -27,6 +27,8 @@ type Sessions interface {
 	StartLogin(ctx context.Context, agent domain.AgentKind) (app.LoginChallenge, error)
 	Quotas(ctx context.Context) ([]domain.QuotaSnapshot, error)
 	RefreshQuota(ctx context.Context, agent domain.AgentKind) (domain.QuotaSnapshot, error)
+	SetModel(ctx context.Context, id domain.SessionID, model, effort string) (domain.SessionSnapshot, error)
+	Models(ctx context.Context, agent domain.AgentKind) ([]app.ModelInfo, error)
 }
 
 func (s *server) routes() {
@@ -41,6 +43,8 @@ func (s *server) routes() {
 		mux.HandleFunc("POST /api/sessions/{id}/tasks/{taskId}/stop", s.stopTask)
 		mux.HandleFunc("POST /api/sessions/{id}/interrupt", s.interrupt)
 		mux.HandleFunc("POST /api/sessions/{id}/approval-reviewer", s.setApprovalReviewer)
+		mux.HandleFunc("POST /api/sessions/{id}/model", s.setModel)
+		mux.HandleFunc("GET /api/agents/{agent}/models", s.listModels)
 		mux.HandleFunc("GET /api/sessions/{id}/events", s.sessionEvents)
 		mux.HandleFunc("POST /api/sessions/{id}/requests/{requestId}", s.respondRequest)
 		mux.HandleFunc("GET /api/requests", s.listRequests)
@@ -83,8 +87,10 @@ func (s *server) listSessions(w http.ResponseWriter, r *http.Request) {
 
 func (s *server) createSession(w http.ResponseWriter, r *http.Request) {
 	var body struct {
-		Agent domain.AgentKind `json:"agent"`
-		Cwd   string           `json:"cwd"`
+		Agent  domain.AgentKind `json:"agent"`
+		Cwd    string           `json:"cwd"`
+		Model  string           `json:"model"`
+		Effort string           `json:"effort"`
 	}
 	if !decode(w, r, &body) {
 		return
@@ -94,7 +100,41 @@ func (s *server) createSession(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, err)
 		return
 	}
+	if body.Model != "" || body.Effort != "" {
+		if session, err = s.cfg.Sessions.SetModel(r.Context(), session.ID, body.Model, body.Effort); err != nil {
+			s.fail(w, err)
+			return
+		}
+	}
 	writeJSON(w, http.StatusCreated, session)
+}
+
+func (s *server) setModel(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		Model  string `json:"model"`
+		Effort string `json:"effort"`
+	}
+	if !decode(w, r, &body) {
+		return
+	}
+	session, err := s.cfg.Sessions.SetModel(r.Context(), sessionID(r), body.Model, body.Effort)
+	if err != nil {
+		s.fail(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, session)
+}
+
+func (s *server) listModels(w http.ResponseWriter, r *http.Request) {
+	models, err := s.cfg.Sessions.Models(r.Context(), domain.AgentKind(r.PathValue("agent")))
+	if err != nil {
+		s.fail(w, err)
+		return
+	}
+	if models == nil {
+		models = []app.ModelInfo{}
+	}
+	writeJSON(w, http.StatusOK, models)
 }
 
 func (s *server) getSession(w http.ResponseWriter, r *http.Request) {
@@ -282,7 +322,7 @@ func (s *server) fail(w http.ResponseWriter, err error) {
 		errors.Is(err, app.ErrTerminalNotFound):
 		writeJSON(w, http.StatusNotFound, errorBody{err.Error()})
 	case errors.Is(err, domain.ErrInvalidSession), errors.Is(err, domain.ErrInvalidTerminal),
-		errors.Is(err, domain.ErrInvalidReviewer),
+		errors.Is(err, domain.ErrInvalidReviewer), errors.Is(err, domain.ErrInvalidModel),
 		errors.Is(err, app.ErrInvalidTerminalSize):
 		writeJSON(w, http.StatusBadRequest, errorBody{err.Error()})
 	case errors.Is(err, app.ErrFolderNotFound):
@@ -293,7 +333,8 @@ func (s *server) fail(w http.ResponseWriter, err error) {
 		writeJSON(w, http.StatusForbidden, errorBody{err.Error()})
 	case errors.Is(err, domain.ErrTerminalExited):
 		writeJSON(w, http.StatusConflict, errorBody{err.Error()})
-	case errors.Is(err, app.ErrAccountsUnsupported), errors.Is(err, app.ErrQuotasUnsupported):
+	case errors.Is(err, app.ErrAccountsUnsupported), errors.Is(err, app.ErrQuotasUnsupported),
+		errors.Is(err, app.ErrModelsUnsupported):
 		writeJSON(w, http.StatusNotImplemented, errorBody{err.Error()})
 	default:
 		writeJSON(w, http.StatusInternalServerError, errorBody{err.Error()})

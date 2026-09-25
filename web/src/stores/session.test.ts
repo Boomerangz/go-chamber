@@ -15,6 +15,8 @@ vi.mock('../lib/api', () => ({
   interrupt: vi.fn(),
   respondRequest: vi.fn(),
   searchMessages: vi.fn(),
+  listModels: vi.fn(),
+  setModel: vi.fn(),
 }))
 
 import * as api from '../lib/api'
@@ -54,7 +56,7 @@ describe('session store', () => {
   it('creates and selects a session', async () => {
     ;(api.createSession as Mock).mockResolvedValue({ id: 'new' })
     await store().createSession('claude', '/tmp/x')
-    expect(api.createSession).toHaveBeenCalledWith('claude', '/tmp/x')
+    expect(api.createSession).toHaveBeenCalledWith('claude', '/tmp/x', undefined)
     expect(store().sessions.map((s) => s.id)).toContain('new')
     expect(store().activeId).toBe('new')
   })
@@ -98,6 +100,41 @@ describe('session store', () => {
     useSessionStore.setState({ searchHits: [{ sessionId: 's', itemId: 'i', snippet: '', matches: 1 }] })
     await store().searchMessages('query')
     expect(store().searchHits).toEqual([])
+  })
+
+  it('loads models once per agent', async () => {
+    ;(api.listModels as Mock).mockResolvedValue([{ id: 'opus', name: 'Opus' }])
+    await store().loadModels('claude')
+    await store().loadModels('claude')
+    expect(api.listModels).toHaveBeenCalledTimes(1)
+    expect(store().models.claude?.[0].id).toBe('opus')
+  })
+
+  it('keeps an empty catalog when models are unsupported', async () => {
+    ;(api.listModels as Mock).mockRejectedValue(new Error('501'))
+    await store().loadModels('codex')
+    expect(store().models.codex).toEqual([])
+  })
+
+  it('sets a session model and remembers it for the agent', async () => {
+    useSessionStore.setState({ sessions: [{ id: 'a', agent: 'codex', cwd: '/p', status: 'idle' }] })
+    ;(api.setModel as Mock).mockResolvedValue({ id: 'a', agent: 'codex', cwd: '/p', status: 'idle', model: 'gpt', effort: 'high' })
+    await store().setModel('a', { model: 'gpt', effort: 'high' })
+    expect(api.setModel).toHaveBeenCalledWith('a', { model: 'gpt', effort: 'high' })
+    expect(store().sessions[0].model).toBe('gpt')
+    expect(JSON.parse(localStorage.getItem('gc.lastModel')!)).toEqual({ codex: { model: 'gpt', effort: 'high' } })
+
+    ;(api.createSession as Mock).mockResolvedValue({ id: 'n', agent: 'codex', cwd: '/q', status: 'detached' })
+    await store().createSession('codex', '/q')
+    expect(api.createSession).toHaveBeenCalledWith('codex', '/q', { model: 'gpt', effort: 'high' })
+    await store().createSession('claude', '/q')
+    expect(api.createSession).toHaveBeenLastCalledWith('claude', '/q', undefined)
+  })
+
+  it('reports model errors', async () => {
+    ;(api.setModel as Mock).mockRejectedValue(new Error('bad model'))
+    await store().setModel('a', { model: 'x y', effort: '' })
+    expect(store().error).toBe('bad model')
   })
 
   it('keeps the session search query', () => {

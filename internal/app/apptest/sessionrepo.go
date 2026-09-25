@@ -23,6 +23,8 @@ func SessionRepoContract(t *testing.T, newRepo func(t *testing.T) app.SessionRep
 		ApprovalReviewer: domain.ReviewerAuto,
 		CreatedAt:        reset.Add(-2 * time.Hour),
 		ActiveAt:         reset.Add(-time.Hour),
+		Model:            "opus",
+		Effort:           "high",
 	}
 
 	t.Run("get missing", func(t *testing.T) {

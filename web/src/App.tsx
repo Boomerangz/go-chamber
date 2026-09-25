@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import AccountPanel from './components/account/AccountPanel'
 import FolderField from './components/folders/FolderField'
+import ModelPicker from './components/models/ModelPicker'
 import RequestCard from './components/requests/RequestCard'
 import QuotaWidget from './components/quota/QuotaWidget'
 import RequestTray from './components/requests/RequestTray'
@@ -249,6 +250,7 @@ function Chat() {
           <span className={`status status-${status}`}>{status}</span>
           {connection !== 'online' && <span className={`health health-${connection}`}>{connection}</span>}
           <SessionUsage />
+          {session && <ModelPicker session={session} />}
           {session && <ApprovalReviewerSelect session={session} />}
         </div>
       </header>

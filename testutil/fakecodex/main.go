@@ -36,6 +36,40 @@ var seq int
 // reviewers holds the approval reviewer per thread.
 var reviewers = map[string]string{}
 
+// models holds the model and effort per thread; like the real server,
+// turn/start overrides apply to that turn and the following ones.
+var models = map[string][2]string{}
+
+func setModel(threadID string, params json.RawMessage) {
+	var p struct {
+		Model  *string `json:"model"`
+		Effort *string `json:"effort"`
+	}
+	if json.Unmarshal(params, &p) != nil {
+		return
+	}
+	cur := models[threadID]
+	if p.Model != nil {
+		cur[0] = *p.Model
+	}
+	if p.Effort != nil {
+		cur[1] = *p.Effort
+	}
+	models[threadID] = cur
+}
+
+func effort(name string, efforts ...string) map[string]any {
+	opts := []map[string]any{}
+	for _, e := range efforts {
+		opts = append(opts, map[string]any{"reasoningEffort": e, "description": e + " effort"})
+	}
+	return map[string]any{
+		"id": name, "model": name, "displayName": strings.ToUpper(name[:1]) + name[1:],
+		"description": "fake model " + name, "hidden": false, "isDefault": name == "fake-large",
+		"defaultReasoningEffort": "medium", "supportedReasoningEfforts": opts,
+	}
+}
+
 func setReviewer(threadID string, params json.RawMessage) {
 	var p struct {
 		ApprovalsReviewer *string `json:"approvalsReviewer"`
@@ -83,6 +117,7 @@ func main() {
 			_ = json.Unmarshal(m.Params, &p)
 			threadID := nextID("thread")
 			setReviewer(threadID, m.Params)
+			setModel(threadID, m.Params)
 			respond(m.ID, map[string]any{"thread": map[string]any{
 				"id": threadID, "cwd": p.Cwd, "model": p.Model, "turns": []any{},
 			}})
@@ -92,6 +127,7 @@ func main() {
 			}
 			_ = json.Unmarshal(m.Params, &p)
 			setReviewer(p.ThreadID, m.Params)
+			setModel(p.ThreadID, m.Params)
 			respond(m.ID, map[string]any{"thread": map[string]any{
 				"id": p.ThreadID, "turns": []any{},
 			}})
@@ -105,6 +141,7 @@ func main() {
 			}
 			_ = json.Unmarshal(m.Params, &p)
 			setReviewer(p.ThreadID, m.Params)
+			setModel(p.ThreadID, m.Params)
 			text := ""
 			for _, in := range p.Input {
 				if in.Type == "text" {
@@ -114,6 +151,11 @@ func main() {
 			turnID := nextID("turn")
 			respond(m.ID, map[string]any{"turn": map[string]any{"id": turnID, "status": "inProgress", "items": []any{}}})
 			startTurn(mode, p.ThreadID, turnID, text, pending)
+		case "model/list":
+			respond(m.ID, map[string]any{"data": []any{
+				effort("fake-large", "low", "medium", "high"),
+				effort("fake-small", "low", "medium"),
+			}, "nextCursor": nil})
 		case "account/rateLimits/read":
 			respond(m.ID, map[string]any{"rateLimits": map[string]any{
 				"primary":   map[string]any{"usedPercent": 25, "resetsAt": 1790000000, "windowDurationMins": 300},
@@ -156,6 +198,9 @@ func startTurn(mode, threadID, turnID, text string, pending map[string]func(json
 			questionTurn(threadID, turnID, pending)
 		case strings.Contains(low, "collab"):
 			collabTurn(threadID, turnID, text)
+		case strings.Contains(low, "which model"):
+			m := models[threadID]
+			replyTurn(threadID, turnID, text, "model: "+m[0]+" effort: "+m[1])
 		default:
 			echoTurn(threadID, turnID, text)
 		}
@@ -163,14 +208,17 @@ func startTurn(mode, threadID, turnID, text string, pending map[string]func(json
 }
 
 func echoTurn(threadID, turnID, text string) {
+	replyTurn(threadID, turnID, text, "echo: "+text)
+}
+
+func replyTurn(threadID, turnID, text, answer string) {
 	turnStarted(threadID, turnID)
 	itemID := nextID("msg")
 	notify("item/started", map[string]any{"threadId": threadID, "turnId": turnID,
 		"item": map[string]any{"type": "agentMessage", "id": itemID, "text": ""}})
-	for _, chunk := range chunks("echo: "+text, 3) {
+	for _, chunk := range chunks(answer, 3) {
 		notify("item/agentMessage/delta", map[string]any{"threadId": threadID, "turnId": turnID, "itemId": itemID, "delta": chunk})
 	}
-	answer := "echo: " + text
 	notify("item/completed", map[string]any{"threadId": threadID, "turnId": turnID,
 		"item": map[string]any{"type": "agentMessage", "id": itemID, "text": answer}})
 	notify("thread/tokenUsage/updated", map[string]any{"threadId": threadID, "turnId": turnID,

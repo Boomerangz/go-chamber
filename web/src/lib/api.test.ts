@@ -18,6 +18,8 @@ import {
   setApprovalReviewer,
   listFolders,
   searchMessages,
+  listModels,
+  setModel,
 } from './api'
 
 afterEach(() => vi.unstubAllGlobals())
@@ -206,5 +208,23 @@ describe('searchMessages API', () => {
     const hits = await searchMessages('a b&c')
     expect(hits[0].sessionId).toBe('s')
     expect(fn.mock.calls[0][0]).toBe('/api/search?q=a+b%26c')
+  })
+})
+
+describe('model API', () => {
+  it('lists models and sets a session model', async () => {
+    const fn = stubFetch(async () => json([{ id: 'opus', name: 'Opus' }]))
+    expect((await listModels('claude'))[0].id).toBe('opus')
+    expect(fn.mock.calls[0][0]).toBe('/api/agents/claude/models')
+    const set = stubFetch(async () => json({ id: 's a', model: 'opus', effort: 'high' }))
+    expect((await setModel('s a', { model: 'opus', effort: 'high' })).effort).toBe('high')
+    expect(set.mock.calls[0][0]).toBe('/api/sessions/s%20a/model')
+    expect(JSON.parse(String(set.mock.calls[0][1]?.body))).toEqual({ model: 'opus', effort: 'high' })
+  })
+
+  it('creates a session with a model choice', async () => {
+    const fn = stubFetch(async () => json({ id: 'n' }))
+    await createSession('codex', '/p', { model: 'gpt', effort: '' })
+    expect(JSON.parse(String(fn.mock.calls[0][1]?.body))).toEqual({ agent: 'codex', cwd: '/p', model: 'gpt', effort: '' })
   })
 })

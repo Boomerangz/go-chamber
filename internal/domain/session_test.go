@@ -2,6 +2,7 @@ package domain
 
 import (
 	"errors"
+	"strings"
 	"testing"
 	"time"
 )
@@ -321,5 +322,31 @@ func TestSessionTouchStampsCreationOnceAndActivity(t *testing.T) {
 	}
 	if got := restored.Snapshot(); !got.CreatedAt.Equal(t0) || !got.ActiveAt.Equal(t0.Add(time.Hour)) {
 		t.Fatalf("restored times = %v / %v", got.CreatedAt, got.ActiveAt)
+	}
+}
+
+func TestSessionModelChoice(t *testing.T) {
+	s, _ := NewSession("s", AgentClaude, "/p")
+	if err := s.SetModel("opus", "high"); err != nil {
+		t.Fatal(err)
+	}
+	snap := s.Snapshot()
+	if snap.Model != "opus" || snap.Effort != "high" {
+		t.Fatalf("snapshot = %+v", snap)
+	}
+	restored, _ := RestoreSession(snap)
+	if m, e := restored.Model(); m != "opus" || e != "high" {
+		t.Fatalf("restored = %q %q", m, e)
+	}
+	for _, bad := range [][2]string{{"op us", ""}, {"", "hi gh"}, {strings.Repeat("m", 101), ""}, {"a\nb", ""}} {
+		if err := s.SetModel(bad[0], bad[1]); !errors.Is(err, ErrInvalidModel) {
+			t.Errorf("SetModel(%q, %q) = %v", bad[0], bad[1], err)
+		}
+	}
+	if m, _ := s.Model(); m != "opus" {
+		t.Fatalf("invalid choice changed the model to %q", m)
+	}
+	if err := s.SetModel("", ""); err != nil {
+		t.Fatalf("reset to defaults: %v", err)
 	}
 }
