@@ -28,6 +28,8 @@ type Config struct {
 	Events *hub.Hub
 	// Terminals serves shells over REST and a binary WebSocket when non-nil.
 	Terminals Terminals
+	// Folders lists server directories for the folder picker when non-nil.
+	Folders Folders
 }
 
 type server struct {

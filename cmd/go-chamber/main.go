@@ -21,6 +21,7 @@ import (
 
 	"github.com/igorzygin/go-chamber/internal/adapters/claude"
 	"github.com/igorzygin/go-chamber/internal/adapters/codex"
+	"github.com/igorzygin/go-chamber/internal/adapters/fsys"
 	httpapi "github.com/igorzygin/go-chamber/internal/adapters/http"
 	"github.com/igorzygin/go-chamber/internal/adapters/hub"
 	"github.com/igorzygin/go-chamber/internal/adapters/pty"
@@ -101,6 +102,7 @@ func run(ctx context.Context, args []string, out io.Writer) error {
 			Sessions:  manager,
 			Events:    events,
 			Terminals: terminals,
+			Folders:   app.NewFolders(app.FoldersConfig{Reader: fsys.Reader{}, Home: home}),
 		}),
 		ReadHeaderTimeout: 10 * time.Second,
 	}

@@ -58,6 +58,9 @@ func (s *server) routes() {
 		mux.HandleFunc("DELETE /api/terminals/{id}", s.closeTerminal)
 		mux.HandleFunc("GET /api/terminals/{id}/pty", s.terminalPTY)
 	}
+	if s.cfg.Folders != nil {
+		mux.HandleFunc("GET /api/folders", s.listFolders)
+	}
 	mux.HandleFunc("/api/", http.NotFound)
 	mux.Handle("/", spaHandler(s.cfg.Static))
 }
@@ -279,6 +282,12 @@ func (s *server) fail(w http.ResponseWriter, err error) {
 		errors.Is(err, domain.ErrInvalidReviewer),
 		errors.Is(err, app.ErrInvalidTerminalSize):
 		writeJSON(w, http.StatusBadRequest, errorBody{err.Error()})
+	case errors.Is(err, app.ErrFolderNotFound):
+		writeJSON(w, http.StatusNotFound, errorBody{err.Error()})
+	case errors.Is(err, app.ErrInvalidFolder):
+		writeJSON(w, http.StatusBadRequest, errorBody{err.Error()})
+	case errors.Is(err, app.ErrFolderForbidden):
+		writeJSON(w, http.StatusForbidden, errorBody{err.Error()})
 	case errors.Is(err, domain.ErrTerminalExited):
 		writeJSON(w, http.StatusConflict, errorBody{err.Error()})
 	case errors.Is(err, app.ErrAccountsUnsupported), errors.Is(err, app.ErrQuotasUnsupported):
