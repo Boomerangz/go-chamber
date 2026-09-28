@@ -45,7 +45,10 @@ test('marks what arrived since the session was last open', async ({ page }, info
   // Away in another session, the request is answered elsewhere and the
   // first session moves on.
   await open('/usr')
-  const [pending] = await (await page.request.get('/api/requests')).json()
+  const sessions: { id: string; title?: string }[] = await (await page.request.get('/api/sessions')).json()
+  const own = sessions.find((s) => s.title?.includes(text))
+  const requests: { id: string; sessionId: string }[] = await (await page.request.get('/api/requests')).json()
+  const pending = requests.find((r) => r.sessionId === own?.id)!
   const answered = await page.request.post(`/api/sessions/${pending.sessionId}/requests/${pending.id}`, {
     data: { behavior: 'allow' },
   })

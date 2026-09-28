@@ -131,6 +131,7 @@ export interface RequestAnswerInput {
   message?: string
   allowForSession?: boolean
   answers?: Record<string, string[]>
+  content?: Record<string, unknown>
 }
 
 export interface SessionEvent {

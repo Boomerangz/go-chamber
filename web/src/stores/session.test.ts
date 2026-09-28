@@ -460,3 +460,119 @@ describe('live stream consistency', () => {
     expect(store().error).toBeNull()
   })
 })
+
+describe('audit fixes', () => {
+  it('replaces the session so cleared fields do not linger', async () => {
+    useSessionStore.setState({ sessions: [{ id: 'a', agent: 'claude', cwd: '/p', status: 'idle', model: 'haiku', effort: 'low' } as never] })
+    ;(api.setModel as Mock).mockResolvedValue({ id: 'a', agent: 'claude', cwd: '/p', status: 'idle' })
+    await store().setModel('a', { model: '', effort: '' })
+    expect(store().sessions[0]!.model).toBeUndefined()
+    expect(store().sessions[0]!.effort).toBeUndefined()
+
+    useSessionStore.setState({ sessions: [{ id: 'a', agent: 'claude', cwd: '/p', status: 'interrupted', interruption: { reason: 'crashed' } } as never] })
+    store().applyIncoming({ seq: 1, sessionId: 'a', type: 'session.state', session: { id: 'a', agent: 'claude', cwd: '/p', status: 'idle' } as never })
+    expect(store().sessions[0]!.interruption).toBeUndefined()
+  })
+
+  it('does not let a superseded resync drop the newer one\'s buffer', async () => {
+    const server = fakeServer()
+    const releases: (() => void)[] = []
+    ;(api.fetchEvents as Mock).mockImplementation(
+      (_id: string, since: number) =>
+        new Promise((r) => releases.push(() => r([]))).then(() => [] as SessionEvent[]).then(() => {
+          void since
+          return []
+        }),
+    )
+    const selected = store().selectSession('a')
+    server.openSocket()
+    releases[0]!()
+    await selected
+    // the second resync is still in flight: a live event must be buffered.
+    server.publish({ item: item({ id: 'late' }), seq: 1 })
+    expect(store().chat.order).toEqual([])
+    releases[1]!()
+    await settle()
+    expect(store().chat.order).toEqual(['late'])
+    expect(api.fetchEvents).toHaveBeenCalledTimes(2)
+  })
+
+  it('reloads requests and quotas when the stream skips events', async () => {
+    const server = fakeServer()
+    ;(api.listRequests as Mock).mockResolvedValue([])
+    ;(api.getQuotas as Mock).mockResolvedValue([])
+    const selected = store().selectSession('a')
+    server.openSocket()
+    await selected
+    await settle()
+    vi.clearAllMocks()
+    ;(api.listRequests as Mock).mockResolvedValue([])
+    ;(api.getQuotas as Mock).mockResolvedValue([])
+    ;(api.fetchEvents as Mock).mockResolvedValue([])
+    // another session's stream skips seq 2
+    server.publish({ sessionId: 'b', item: item({ id: 'b1', sessionId: 'b' }) })
+    server.publish({ sessionId: 'b', item: item({ id: 'b2', sessionId: 'b' }) }, { drop: true })
+    server.publish({ sessionId: 'b', item: item({ id: 'b3', sessionId: 'b' }) })
+    await settle()
+    expect(api.listRequests).toHaveBeenCalled()
+    expect(api.getQuotas).toHaveBeenCalled()
+  })
+
+  it('keeps the event socket open without a session and reconnects after it drops', async () => {
+    vi.useFakeTimers()
+    try {
+      const sockets: { onopen: (() => void) | null; onclose: (() => void) | null }[] = []
+      class FakeWS {
+        onopen: (() => void) | null = null
+        onclose: (() => void) | null = null
+        onerror: (() => void) | null = null
+        onmessage: ((m: { data: string }) => void) | null = null
+        constructor() {
+          sockets.push(this)
+        }
+        close() {}
+      }
+      vi.stubGlobal('WebSocket', FakeWS)
+      ;(api.listSessions as Mock).mockResolvedValue([])
+      ;(api.listRequests as Mock).mockResolvedValue([])
+      ;(api.getQuotas as Mock).mockResolvedValue([])
+      store().connect()
+      expect(sockets).toHaveLength(1)
+      sockets[0]!.onopen?.()
+      sockets[0]!.onclose?.()
+      expect(store().connection).toBe('offline')
+      await vi.advanceTimersByTimeAsync(30_000)
+      expect(sockets).toHaveLength(2)
+      vi.clearAllMocks()
+      ;(api.listSessions as Mock).mockResolvedValue([])
+      ;(api.listRequests as Mock).mockResolvedValue([])
+      ;(api.getQuotas as Mock).mockResolvedValue([])
+      sockets[1]!.onopen?.()
+      expect(store().connection).toBe('online')
+      expect(api.listSessions).toHaveBeenCalled()
+      expect(api.listRequests).toHaveBeenCalled()
+      expect(api.getQuotas).toHaveBeenCalled()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('coalesces text deltas and flushes them before other events', async () => {
+    vi.useFakeTimers()
+    try {
+      useSessionStore.setState({ activeId: 'a' })
+      store().applyIncoming(event({ seq: 1, item: item({ id: 'i1', text: '' }) }))
+      store().applyIncoming(event({ seq: 2, type: 'text.delta', item: undefined, delta: { itemId: 'i1', text: 'he' } }))
+      store().applyIncoming(event({ seq: 3, type: 'text.delta', item: undefined, delta: { itemId: 'i1', text: 'llo' } }))
+      expect(store().chat.items.i1!.text).toBe('')
+      await vi.advanceTimersByTimeAsync(100)
+      expect(store().chat.items.i1!.text).toBe('hello')
+      store().applyIncoming(event({ seq: 4, type: 'text.delta', item: undefined, delta: { itemId: 'i1', text: '!' } }))
+      store().applyIncoming(event({ seq: 5, type: 'turn.ended', item: undefined }))
+      expect(store().chat.items.i1!.text).toBe('hello!')
+      expect(store().chat.lastSeq).toBe(5)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+})

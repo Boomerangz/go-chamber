@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useState, type ReactNode } from 'react'
+import { Fragment, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { AnimatePresence, motion, useReducedMotion, type TargetAndTransition } from 'motion/react'
 import {
   ChevronsRight,
@@ -43,6 +43,7 @@ export default function App() {
   const loadSessions = useSessionStore((s) => s.loadSessions)
   const loadRequests = useSessionStore((s) => s.loadRequests)
   const loadQuotas = useSessionStore((s) => s.loadQuotas)
+  const connect = useSessionStore((s) => s.connect)
   const createSession = useSessionStore((s) => s.createSession)
   const mode = useLayoutStore((s) => s.mode)
   const dock = useLayoutStore((s) => s.dock)
@@ -62,8 +63,9 @@ export default function App() {
       void loadRequests()
       void loadQuotas()
       void loadTerminals()
+      connect()
     }
-  }, [health, loadSessions, loadRequests, loadQuotas, loadTerminals])
+  }, [health, loadSessions, loadRequests, loadQuotas, loadTerminals, connect])
 
   return (
     <main className="app">
@@ -113,6 +115,9 @@ export default function App() {
       {error && (
         <p className="error toast" role="alert">
           {error}
+          <button className="btn toast-close" aria-label="Dismiss" onClick={() => useSessionStore.setState({ error: null })}>
+            ×
+          </button>
         </p>
       )}
     </main>
@@ -323,6 +328,7 @@ function Chat() {
   const nodes = itemTree(chat.order, chat.items).filter((node) => !isBlank(node.item))
   const turns = turnNumbers(nodes)
   const unseen = useUnseen(session?.id, chat.order)
+  const scrollRef = useStickToBottom(chat)
 
   const submit = () => {
     const value = text.trim()
@@ -351,7 +357,7 @@ function Chat() {
           {session && <ApprovalReviewerSelect session={session} />}
         </div>
       </header>
-      <div className="scroll">
+      <div className="scroll" ref={scrollRef}>
         <ol className="items">
           <AnimatePresence initial={false}>
             {nodes.map((node) => (
@@ -385,7 +391,7 @@ function Chat() {
               exit={reduced ? { opacity: 0 } : resolve}
               ref={scrollOnMount}
             >
-              <RequestCard request={request} onRespond={respond} />
+              <RequestCard request={request} agent={session?.agent} onRespond={respond} />
             </motion.div>
           ))}
         </AnimatePresence>
@@ -444,6 +450,27 @@ const resolve: TargetAndTransition = {
   opacity: [1, 1, 0],
   height: [null, null, 0],
   transition: { duration: 0.45, times: [0, 0.45, 1], ease: 'easeOut' },
+}
+
+// useStickToBottom keeps the chat scrolled to the end while new output
+// streams in, unless the user scrolled up to read.
+function useStickToBottom(dep: unknown) {
+  const ref = useRef<HTMLDivElement>(null)
+  const pinned = useRef(true)
+  useEffect(() => {
+    const el = ref.current
+    if (!el) return
+    const onScroll = () => {
+      pinned.current = el.scrollHeight - el.scrollTop - el.clientHeight < 48
+    }
+    el.addEventListener('scroll', onScroll, { passive: true })
+    return () => el.removeEventListener('scroll', onScroll)
+  }, [])
+  useLayoutEffect(() => {
+    const el = ref.current
+    if (el && pinned.current) el.scrollTop = el.scrollHeight
+  }, [dep])
+  return ref
 }
 
 // A pending request is the one thing the user must act on: bring all of it

@@ -44,6 +44,8 @@ export interface SessionStore {
   respond: (sessionId: string, requestId: string, answer: api.RequestAnswerInput) => Promise<void>
   applyIncoming: (ev: api.SessionEvent) => void
   setConnection: (c: Connection) => void
+  // connect keeps the live event socket open, reconnecting when it drops.
+  connect: () => void
 }
 
 const GROUP_MODES_KEY = 'gc.groupModes'
@@ -83,6 +85,25 @@ let socket: WebSocket | null = null
 let searchGeneration = 0
 let buffered: api.SessionEvent[] | null = null
 let generation = 0
+let reconnectTimer: ReturnType<typeof setTimeout> | null = null
+let reconnectDelay = 1000
+// queued holds live events for the active chat not yet folded in: text
+// deltas are applied at most every DELTA_FLUSH_MS so fast streams don't
+// re-render the whole chat per token.
+let queued: api.SessionEvent[] = []
+let flushTimer: ReturnType<typeof setTimeout> | null = null
+const DELTA_FLUSH_MS = 100
+// lastSeqs is the last live seq seen per session, to spot events the hub
+// dropped for sessions other than the open one.
+let lastSeqs: Record<string, number> = {}
+
+// replaceSession swaps in the server's copy: Go omits empty fields, so
+// merging would keep values the server has cleared.
+function replaceSession(sessions: api.Session[], updated: api.Session): api.Session[] {
+  return sessions.some((s) => s.id === updated.id)
+    ? sessions.map((s) => (s.id === updated.id ? updated : s))
+    : [...sessions, updated]
+}
 
 export const useSessionStore = create<SessionStore>((set, get) => ({
   sessions: [],
@@ -99,6 +120,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
   error: null,
 
   setConnection: (connection) => set({ connection }),
+  connect: () => connect(get, set),
   setPane: (pane) => set({ pane }),
   setGroupMode: (cwd, mode) => {
     const groupModes = { ...get().groupModes, [cwd]: mode }
@@ -125,10 +147,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
   async setModel(sessionId, choice) {
     try {
       const updated = await api.setModel(sessionId, choice)
-      set({
-        sessions: get().sessions.map((s) => (s.id === updated.id ? { ...s, ...updated } : s)),
-        error: null,
-      })
+      set({ sessions: replaceSession(get().sessions, updated), error: null })
       rememberModel(updated.agent, choice)
     } catch (err) {
       set({ error: errorMessage(err) })
@@ -185,6 +204,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
 
   async selectSession(id) {
     buffered = null
+    dropQueued()
     set({ activeId: id, chat: initialChat(), pane: 'chat', error: null })
     connect(get, set)
     await resync(get, set, id)
@@ -215,10 +235,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
   async setApprovalReviewer(sessionId, reviewer) {
     try {
       const updated = await api.setApprovalReviewer(sessionId, reviewer)
-      set({
-        sessions: get().sessions.map((s) => (s.id === updated.id ? { ...s, ...updated } : s)),
-        error: null,
-      })
+      set({ sessions: replaceSession(get().sessions, updated), error: null })
     } catch (err) {
       set({ error: errorMessage(err) })
     }
@@ -253,15 +270,15 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
   },
 
   applyIncoming(ev) {
-    if (ev.session) {
-      const sessions = get().sessions
-      const known = sessions.some((s) => s.id === ev.session!.id)
-      set({
-        sessions: known
-          ? sessions.map((s) => (s.id === ev.session!.id ? { ...s, ...ev.session! } : s))
-          : [...sessions, ev.session],
-      })
+    const prev = lastSeqs[ev.sessionId]
+    lastSeqs[ev.sessionId] = Math.max(prev ?? 0, ev.seq)
+    if (prev !== undefined && ev.seq > prev + 1) {
+      // The hub dropped events for this slow consumer; the tray and quotas
+      // may have missed some, so reload them.
+      void get().loadRequests()
+      void get().loadQuotas()
     }
+    if (ev.session) set({ sessions: replaceSession(get().sessions, ev.session) })
     if (ev.type === 'quota' && ev.quota) {
       const quotas = get().quotas
       const known = quotas.some((q) => q.agent === ev.quota!.agent)
@@ -284,12 +301,16 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       buffered.push(ev)
       return
     }
-    if (ev.seq > get().chat.lastSeq + 1) {
+    const last = queued.length > 0 ? queued[queued.length - 1]!.seq : get().chat.lastSeq
+    if (ev.seq > last + 1) {
       // The hub drops events for slow consumers; refetch the gap from history.
+      flush(get, set)
       void resync(get, set, id)
       return
     }
-    set({ chat: applyEvent(get().chat, ev) })
+    queued.push(ev)
+    if (ev.type !== 'text.delta') flush(get, set)
+    else flushTimer ??= setTimeout(() => flush(get, set), DELTA_FLUSH_MS)
   },
 }))
 
@@ -298,20 +319,36 @@ function connect(
   set: (partial: Partial<SessionStore>) => void,
 ): void {
   if (socket || typeof WebSocket === 'undefined') return
+  if (reconnectTimer) {
+    clearTimeout(reconnectTimer)
+    reconnectTimer = null
+  }
   const scheme = typeof location !== 'undefined' && location.protocol === 'https:' ? 'wss' : 'ws'
   const host = typeof location !== 'undefined' ? location.host : 'localhost'
   const ws = new WebSocket(`${scheme}://${host}/api/ws`)
   socket = ws
   ws.onopen = () => {
+    reconnectDelay = 1000
     set({ connection: 'online' })
+    // Anything missed while offline: reload the lists the socket feeds.
+    lastSeqs = {}
+    void get().loadSessions()
+    void get().loadRequests()
+    void get().loadQuotas()
     // The server subscribes us only now: anything published between the
     // history snapshot and this point never reaches the socket.
     const id = get().activeId
     if (id) void resync(get, set, id)
   }
   ws.onclose = () => {
+    if (socket !== ws) return
     socket = null
     set({ connection: 'offline' })
+    reconnectTimer = setTimeout(() => {
+      reconnectTimer = null
+      connect(get, set)
+    }, reconnectDelay)
+    reconnectDelay = Math.min(reconnectDelay * 2, 30_000)
   }
   ws.onerror = () => set({ connection: 'offline' })
   ws.onmessage = (msg) => {
@@ -333,6 +370,7 @@ async function resync(
   id: string,
 ): Promise<void> {
   const mine = ++generation
+  flush(get, set)
   const live: api.SessionEvent[] = []
   buffered = live
   try {
@@ -344,8 +382,28 @@ async function resync(
   } catch (err) {
     if (mine === generation) set({ error: errorMessage(err) })
   } finally {
-    buffered = null
+    // A newer resync owns the buffer now; leave it alone.
+    if (mine === generation) buffered = null
   }
+}
+
+// flush folds queued live events into the active chat.
+function flush(get: () => SessionStore, set: (partial: Partial<SessionStore>) => void): void {
+  if (flushTimer) {
+    clearTimeout(flushTimer)
+    flushTimer = null
+  }
+  if (queued.length === 0) return
+  let chat = get().chat
+  for (const ev of queued) chat = applyEvent(chat, ev)
+  queued = []
+  set({ chat })
+}
+
+function dropQueued(): void {
+  if (flushTimer) clearTimeout(flushTimer)
+  flushTimer = null
+  queued = []
 }
 
 function errorMessage(err: unknown): string {
@@ -359,6 +417,11 @@ export function resetStore(): void {
     socket.close()
     socket = null
   }
+  if (reconnectTimer) clearTimeout(reconnectTimer)
+  reconnectTimer = null
+  reconnectDelay = 1000
+  lastSeqs = {}
+  dropQueued()
   buffered = null
   generation++
   useSessionStore.setState({

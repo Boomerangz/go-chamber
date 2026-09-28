@@ -1,19 +1,40 @@
 import { useState } from 'react'
-import type { Question, RequestAnswerInput, SessionRequest } from '../../lib/api'
+import type { AgentKind, Question, RequestAnswerInput, SessionRequest } from '../../lib/api'
 
 export interface RequestCardProps {
   request: SessionRequest
-  onRespond: (sessionId: string, requestId: string, answer: RequestAnswerInput) => void
+  // agent owns the session; Codex always supports approving for the session.
+  agent?: AgentKind
+  onRespond: (sessionId: string, requestId: string, answer: RequestAnswerInput) => void | Promise<unknown>
 }
 
-// RequestCard renders a blocking agent request: a permission prompt or an
-// AskUserQuestion dialog.
-export default function RequestCard({ request, onRespond }: RequestCardProps) {
-  if (request.kind === 'question') return <QuestionCard request={request} onRespond={onRespond} />
-  return <PermissionCard request={request} onRespond={onRespond} />
+// RequestCard renders a blocking agent request: a permission prompt, an
+// AskUserQuestion dialog or an MCP elicitation form.
+export default function RequestCard(props: RequestCardProps) {
+  const [busy, setBusy] = useState(false)
+  // answer disables the card until the server accepted the answer, so a
+  // double click doesn't send it twice.
+  const answer = async (a: RequestAnswerInput) => {
+    if (busy) return
+    setBusy(true)
+    try {
+      await props.onRespond(props.request.sessionId, props.request.id, a)
+    } finally {
+      setBusy(false)
+    }
+  }
+  const inner = { ...props, busy, answer }
+  if (props.request.kind === 'question') return <QuestionCard {...inner} />
+  if (props.request.kind === 'elicitation') return <ElicitationCard {...inner} />
+  return <PermissionCard {...inner} />
 }
 
-function PermissionCard({ request, onRespond }: RequestCardProps) {
+interface CardProps extends RequestCardProps {
+  busy: boolean
+  answer: (a: RequestAnswerInput) => Promise<void>
+}
+
+function PermissionCard({ request, agent, busy, answer }: CardProps) {
   const [denying, setDenying] = useState(false)
   const [reason, setReason] = useState('')
   const toolName = request.payload?.toolName
@@ -27,18 +48,19 @@ function PermissionCard({ request, onRespond }: RequestCardProps) {
       {toolName && <code className="request-tool">{toolName}</code>}
       {request.payload?.input && <pre className="request-input">{JSON.stringify(request.payload.input, null, 2)}</pre>}
       <div className="request-actions">
-        <button className="btn btn-primary" onClick={() => onRespond(request.sessionId, request.id, { behavior: 'allow' })}>
+        <button className="btn btn-primary" disabled={busy} onClick={() => void answer({ behavior: 'allow' })}>
           Allow
         </button>
-        {request.payload?.suggestions != null && (
+        {(request.payload?.suggestions != null || agent === 'codex') && (
           <button
             className="btn"
-            onClick={() => onRespond(request.sessionId, request.id, { behavior: 'allow', allowForSession: true })}
+            disabled={busy}
+            onClick={() => void answer({ behavior: 'allow', allowForSession: true })}
           >
             Allow for session
           </button>
         )}
-        <button className="btn btn-danger deny" onClick={() => setDenying((v) => !v)}>
+        <button className="btn btn-danger deny" disabled={busy} onClick={() => setDenying((v) => !v)}>
           Deny
         </button>
       </div>
@@ -47,7 +69,7 @@ function PermissionCard({ request, onRespond }: RequestCardProps) {
           className="deny-form"
           onSubmit={(e) => {
             e.preventDefault()
-            onRespond(request.sessionId, request.id, { behavior: 'deny', message: reason })
+            void answer({ behavior: 'deny', message: reason })
           }}
         >
           <input
@@ -57,7 +79,7 @@ function PermissionCard({ request, onRespond }: RequestCardProps) {
             value={reason}
             onChange={(e) => setReason(e.target.value)}
           />
-          <button type="submit" className="btn btn-danger">
+          <button type="submit" className="btn btn-danger" disabled={busy}>
             Confirm deny
           </button>
         </form>
@@ -66,7 +88,7 @@ function PermissionCard({ request, onRespond }: RequestCardProps) {
   )
 }
 
-function QuestionCard({ request, onRespond }: RequestCardProps) {
+function QuestionCard({ request, busy, answer }: CardProps) {
   const questions = request.payload?.input?.questions ?? []
   const [selected, setSelected] = useState<Record<string, string[]>>({})
   const [other, setOther] = useState<Record<string, string>>({})
@@ -86,12 +108,13 @@ function QuestionCard({ request, onRespond }: RequestCardProps) {
   const submit = () => {
     const answers: Record<string, string[]> = {}
     for (const q of questions) {
-      const labels = [...(selected[q.question] ?? [])]
       const custom = other[q.question]?.trim()
-      if (custom) labels.push(custom)
+      const picked = selected[q.question] ?? []
+      // A single-choice question takes one answer: typed text wins over the radio.
+      const labels = q.multiSelect ? [...picked, ...(custom ? [custom] : [])] : custom ? [custom] : picked.slice(0, 1)
       if (labels.length > 0) answers[q.question] = labels
     }
-    onRespond(request.sessionId, request.id, { behavior: 'allow', answers })
+    void answer({ behavior: 'allow', answers })
   }
 
   return (
@@ -108,7 +131,7 @@ function QuestionCard({ request, onRespond }: RequestCardProps) {
             <label key={opt.label} className="option">
               <input
                 type={q.multiSelect ? 'checkbox' : 'radio'}
-                name={q.question}
+                name={`${request.id}:${q.question}`}
                 checked={(selected[q.question] ?? []).includes(opt.label)}
                 onChange={() => toggle(q.question, opt.label, !!q.multiSelect)}
               />
@@ -128,9 +151,95 @@ function QuestionCard({ request, onRespond }: RequestCardProps) {
           </label>
         </fieldset>
       ))}
-      <button className="btn btn-primary submit-answer" onClick={submit}>
+      <button className="btn btn-primary submit-answer" disabled={busy} onClick={submit}>
         Submit
       </button>
     </div>
+  )
+}
+
+interface SchemaField {
+  type?: string
+  title?: string
+  description?: string
+  enum?: string[]
+}
+
+interface ElicitationPayload {
+  message?: string
+  requestedSchema?: { properties?: Record<string, SchemaField>; required?: string[] }
+}
+
+// ElicitationCard renders an MCP elicitation's flat form schema (string,
+// number, integer, boolean, enum) and returns the values as content.
+function ElicitationCard({ request, busy, answer }: CardProps) {
+  const payload = (request.payload ?? {}) as ElicitationPayload
+  const fields = Object.entries(payload.requestedSchema?.properties ?? {})
+  const required = new Set(payload.requestedSchema?.required ?? [])
+  const [values, setValues] = useState<Record<string, string | boolean>>({})
+  const set = (name: string, v: string | boolean) => setValues((prev) => ({ ...prev, [name]: v }))
+
+  const submit = () => {
+    const content: Record<string, unknown> = {}
+    for (const [name, f] of fields) {
+      const v = values[name]
+      if (v === undefined || v === '') continue
+      content[name] = f.type === 'number' || f.type === 'integer' ? Number(v) : v
+    }
+    void answer({ behavior: 'allow', content })
+  }
+
+  return (
+    <form
+      className="request elicitation"
+      onSubmit={(e) => {
+        e.preventDefault()
+        submit()
+      }}
+    >
+      <header className="request-title">
+        <span className="request-kw">Requires input</span>
+        <span>{request.title || 'Input requested'}</span>
+      </header>
+      {payload.message && payload.message !== request.title && <p className="request-prompt">{payload.message}</p>}
+      {fields.map(([name, f]) => {
+        const label = f.title || name
+        const common = { id: `${request.id}:${name}`, 'aria-label': label, required: required.has(name) }
+        return (
+          <label key={name} className="field-row">
+            <span>{label}</span>
+            {f.type === 'boolean' ? (
+              <input {...common} type="checkbox" checked={!!values[name]} onChange={(e) => set(name, e.target.checked)} />
+            ) : f.enum ? (
+              <select {...common} className="field" value={String(values[name] ?? '')} onChange={(e) => set(name, e.target.value)}>
+                <option value="" />
+                {f.enum.map((o) => (
+                  <option key={o} value={o}>
+                    {o}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <input
+                {...common}
+                className="field"
+                type={f.type === 'number' || f.type === 'integer' ? 'number' : 'text'}
+                value={String(values[name] ?? '')}
+                onChange={(e) => set(name, e.target.value)}
+              />
+            )}
+            {f.description && <small>{f.description}</small>}
+          </label>
+        )
+      })}
+      <div className="request-actions">
+        <button type="submit" className="btn btn-primary" disabled={busy}>
+          Accept
+        </button>
+        <button type="button" className="btn btn-danger" disabled={busy} onClick={() => void answer({ behavior: 'deny' })}>
+          Decline
+        </button>
+      </div>
+    </form>
   )
 }

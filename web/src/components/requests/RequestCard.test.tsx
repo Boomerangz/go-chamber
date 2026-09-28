@@ -114,3 +114,80 @@ describe('RequestCard question', () => {
     })
   })
 })
+
+describe('RequestCard audit fixes', () => {
+  it('offers allow-for-session for codex permissions without suggestions', async () => {
+    const onRespond = vi.fn()
+    render(<RequestCard request={{ ...permission, payload: { toolName: 'command', input: {} } }} agent="codex" onRespond={onRespond} />)
+    await userEvent.click(screen.getByRole('button', { name: 'Allow for session' }))
+    expect(onRespond).toHaveBeenCalledWith('s1', 'r1', { behavior: 'allow', allowForSession: true })
+  })
+
+  it('sends one answer for a single-choice question when other is typed', async () => {
+    const { onRespond } = setup(question)
+    await userEvent.click(screen.getByRole('radio', { name: /Alpha/ }))
+    await userEvent.type(screen.getByLabelText('other Pick?'), 'Gamma')
+    await userEvent.click(screen.getByRole('button', { name: 'Submit' }))
+    expect(onRespond).toHaveBeenCalledWith('s1', 'q1', { behavior: 'allow', answers: { 'Pick?': ['Gamma'] } })
+  })
+
+  it('keeps radio groups of two cards with the same question apart', async () => {
+    render(
+      <>
+        <RequestCard request={question} onRespond={vi.fn()} />
+        <RequestCard request={{ ...question, id: 'q2' }} onRespond={vi.fn()} />
+      </>,
+    )
+    const radios = screen.getAllByRole('radio', { name: /Alpha/ })
+    await userEvent.click(radios[0]!)
+    await userEvent.click(radios[1]!)
+    expect(radios[0]).toBeChecked()
+    expect(radios[1]).toBeChecked()
+  })
+
+  it('renders an elicitation form and accepts with content', async () => {
+    const elicitation: SessionRequest = {
+      id: 'e1', sessionId: 's1', kind: 'elicitation', state: 'pending', title: 'Need details',
+      payload: {
+        message: 'Fill in',
+        requestedSchema: {
+          type: 'object',
+          required: ['name'],
+          properties: {
+            name: { type: 'string', title: 'Name' },
+            count: { type: 'integer', title: 'Count' },
+            ok: { type: 'boolean', title: 'OK' },
+            color: { type: 'string', title: 'Color', enum: ['red', 'blue'] },
+          },
+        },
+      } as never,
+    }
+    const { onRespond } = setup(elicitation)
+    await userEvent.type(screen.getByLabelText('Name'), 'Ann')
+    await userEvent.type(screen.getByLabelText('Count'), '3')
+    await userEvent.click(screen.getByLabelText('OK'))
+    await userEvent.selectOptions(screen.getByLabelText('Color'), 'blue')
+    await userEvent.click(screen.getByRole('button', { name: 'Accept' }))
+    expect(onRespond).toHaveBeenCalledWith('s1', 'e1', {
+      behavior: 'allow', content: { name: 'Ann', count: 3, ok: true, color: 'blue' },
+    })
+  })
+
+  it('declines an elicitation', async () => {
+    const { onRespond } = setup({ id: 'e1', sessionId: 's1', kind: 'elicitation', state: 'pending' })
+    await userEvent.click(screen.getByRole('button', { name: 'Decline' }))
+    expect(onRespond).toHaveBeenCalledWith('s1', 'e1', { behavior: 'deny' })
+  })
+
+  it('disables the buttons while an answer is in flight', async () => {
+    let release: () => void = () => {}
+    const onRespond = vi.fn(() => new Promise<void>((r) => (release = r)))
+    render(<RequestCard request={permission} onRespond={onRespond} />)
+    await userEvent.click(screen.getByRole('button', { name: 'Allow' }))
+    expect(screen.getByRole('button', { name: 'Allow' })).toBeDisabled()
+    await userEvent.click(screen.getByRole('button', { name: 'Allow' }))
+    expect(onRespond).toHaveBeenCalledTimes(1)
+    release()
+    await vi.waitFor(() => expect(screen.getByRole('button', { name: 'Allow' })).toBeEnabled())
+  })
+})

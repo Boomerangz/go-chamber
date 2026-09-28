@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react'
+import { act, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import App from './App'
@@ -37,6 +37,7 @@ beforeEach(() => {
   sessionStorage.clear()
   resetLayout()
   resetTerminals()
+  vi.stubGlobal('WebSocket', undefined)
   vi.mocked(terminal.listTerminals).mockResolvedValue([])
 })
 
@@ -48,6 +49,17 @@ function mockApi() {
 }
 
 describe('App', () => {
+  it('dismisses the error toast', async () => {
+    mockApi()
+    render(<App />)
+    await screen.findByText('online')
+    await new Promise((r) => setTimeout(r, 0))
+    act(() => useSessionStore.setState({ error: 'boom' }))
+    expect(await screen.findByText('boom')).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Dismiss' }))
+    expect(screen.queryByText('boom')).toBeNull()
+  })
+
   it('shows connection state from health check', async () => {
     mockApi()
     render(<App />)

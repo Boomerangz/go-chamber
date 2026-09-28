@@ -6,7 +6,7 @@ afterEach(cleanup)
 
 // Node 22+ ships its own global localStorage, which is undefined without
 // --localstorage-file and shadows jsdom's. Tests get an in-memory one.
-if (typeof globalThis.localStorage === 'undefined') {
+if (typeof globalThis.localStorage?.clear !== 'function') {
   const data = new Map<string, string>()
   const storage: Storage = {
     get length() {
