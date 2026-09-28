@@ -4,6 +4,7 @@ import type { Session } from '../../lib/api'
 import { recentFolders } from '../../lib/folders'
 import { basename } from '../../lib/format'
 import { useTerminalStore } from '../../stores/terminals'
+import EditableTitle from '../title/EditableTitle'
 import NewTerminalForm from './NewTerminalForm'
 import TerminalScreen from './TerminalScreen'
 
@@ -12,6 +13,7 @@ import TerminalScreen from './TerminalScreen'
 export default function TerminalWorkspace({ sessions }: { sessions: Session[] }) {
   const terminals = useTerminalStore((s) => s.terminals)
   const activeId = useTerminalStore((s) => s.activeId)
+  const rename = useTerminalStore((s) => s.rename)
   const error = useTerminalStore((s) => s.error)
   const open = useTerminalStore((s) => s.open)
   const close = useTerminalStore((s) => s.close)
@@ -81,7 +83,7 @@ export default function TerminalWorkspace({ sessions }: { sessions: Session[] })
           <>
             <header className="term-header">
               <span className={`term-dot term-${active.status}`} aria-hidden="true" />
-              <span className="term-title">{active.title}</span>
+              <EditableTitle className="term-title" value={active.title} label="terminal" onRename={(title) => rename(active.id, title)} />
               <span className="term-cwd">{active.cwd}</span>
               <span className="term-shell">{basename(active.shell)}</span>
             </header>

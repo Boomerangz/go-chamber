@@ -5,6 +5,7 @@ vi.mock('../lib/terminal', () => ({
   listTerminals: vi.fn(),
   openTerminal: vi.fn(),
   closeTerminal: vi.fn(),
+  renameTerminal: vi.fn(),
 }))
 
 import * as api from '../lib/terminal'
@@ -24,6 +25,15 @@ beforeEach(() => {
 })
 
 describe('terminal store', () => {
+  it('renames a terminal', async () => {
+    ;(api.listTerminals as Mock).mockResolvedValue([term(), term({ id: 't2' })])
+    await store().load()
+    ;(api.renameTerminal as Mock).mockResolvedValue(term({ id: 't2', title: 'logs' }))
+    await store().rename('t2', 'logs')
+    expect(api.renameTerminal).toHaveBeenCalledWith('t2', 'logs')
+    expect(store().terminals.map((t) => t.title)).toEqual(['h', 'logs'])
+  })
+
   it('loads terminals without opening one on its own', async () => {
     ;(api.listTerminals as Mock).mockResolvedValue([term(), term({ id: 't2' })])
     await store().load()

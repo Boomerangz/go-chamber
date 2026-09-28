@@ -46,6 +46,7 @@ export interface SessionStore {
   importHistory: (agent: api.AgentKind, nativeId: string) => Promise<void>
   stopTask: (sessionId: string, taskId: string) => Promise<void>
   setApprovalReviewer: (sessionId: string, reviewer: api.ApprovalReviewer) => Promise<void>
+  renameSession: (sessionId: string, title: string) => Promise<void>
   setPermissionMode: (sessionId: string, mode: string) => Promise<void>
   respond: (sessionId: string, requestId: string, answer: api.RequestAnswerInput) => Promise<void>
   applyIncoming: (ev: api.SessionEvent) => void
@@ -270,6 +271,15 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       const updated = await api.setPermissionMode(sessionId, mode)
       set({ sessions: replaceSession(get().sessions, updated), error: null })
       rememberMode(updated.agent, mode)
+    } catch (err) {
+      set({ error: errorMessage(err) })
+    }
+  },
+
+  async renameSession(sessionId, title) {
+    try {
+      const updated = await api.renameSession(sessionId, title)
+      set({ sessions: replaceSession(get().sessions, updated), error: null })
     } catch (err) {
       set({ error: errorMessage(err) })
     }

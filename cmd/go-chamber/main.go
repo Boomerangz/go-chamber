@@ -201,3 +201,9 @@ func claudeProjects(home string) string {
 	}
 	return filepath.Join(home, ".claude", "projects")
 }
+
+// The rename routes are found by type assertion; keep them reachable.
+var (
+	_ httpapi.SessionRenamer  = (*app.Manager)(nil)
+	_ httpapi.TerminalRenamer = (*app.Terminals)(nil)
+)

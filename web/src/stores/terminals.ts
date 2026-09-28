@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import {
   closeTerminal,
+  renameTerminal,
   listTerminals,
   openTerminal,
   type OpenTerminalOptions,
@@ -18,6 +19,7 @@ interface TerminalState {
   open: (opts: OpenTerminalOptions) => Promise<void>
   close: (id: string) => Promise<void>
   select: (id: string) => void
+  rename: (id: string, title: string) => Promise<void>
   markExited: (id: string, code: number) => void
 }
 
@@ -94,6 +96,14 @@ export const useTerminalStore = create<TerminalState>((set, get) => ({
         remember(activeId)
         return { terminals, activeId, error: null }
       })
+    } catch (err) {
+      set({ error: message(err) })
+    }
+  },
+  rename: async (id, title) => {
+    try {
+      const renamed = await renameTerminal(id, title)
+      set((s) => ({ terminals: s.terminals.map((t) => (t.id === id ? renamed : t)), error: null }))
     } catch (err) {
       set({ error: message(err) })
     }

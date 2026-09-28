@@ -12,6 +12,7 @@ vi.mock('../lib/api', () => ({
   steer: vi.fn(),
   stopTask: vi.fn(),
   setApprovalReviewer: vi.fn(),
+  renameSession: vi.fn(),
   interrupt: vi.fn(),
   respondRequest: vi.fn(),
   searchMessages: vi.fn(),
@@ -211,6 +212,14 @@ describe('session store', () => {
     expect(api.steer).toHaveBeenCalledWith('a', 'more')
     await store().steer('  ')
     expect(api.steer).toHaveBeenCalledTimes(1)
+  })
+
+  it('renames a session and keeps the server copy', async () => {
+    useSessionStore.setState({ sessions: [{ id: 'a', agent: 'claude', cwd: '/p', status: 'idle', title: 'old' }] })
+    ;(api.renameSession as Mock).mockResolvedValue({ id: 'a', agent: 'claude', cwd: '/p', status: 'idle', title: 'Notes' })
+    await store().renameSession('a', 'Notes')
+    expect(api.renameSession).toHaveBeenCalledWith('a', 'Notes')
+    expect(store().sessions[0].title).toBe('Notes')
   })
 
   it('sets the approval reviewer and updates the session', async () => {

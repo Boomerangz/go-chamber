@@ -24,6 +24,7 @@ import ComposerInput from './components/composer/ComposerInput'
 import Attachments from './components/composer/Attachments'
 import { useAttachments } from './components/composer/useAttachments'
 import InterruptedBanner from './components/chat/InterruptedBanner'
+import EditableTitle from './components/title/EditableTitle'
 import NotifyToggle from './components/notify/NotifyToggle'
 import RequestCard from './components/requests/RequestCard'
 import QuotaWidget from './components/quota/QuotaWidget'
@@ -365,6 +366,7 @@ function AgentAvatar({ agent }: { agent: AgentKind }) {
 function Chat() {
   const chat = useSessionStore((s) => s.chat)
   const session = useSessionStore((s) => s.sessions.find((x) => x.id === s.activeId))
+  const renameSession = useSessionStore((s) => s.renameSession)
   const connection = useSessionStore((s) => s.connection)
   const send = useSessionStore((s) => s.send)
   const steer = useSessionStore((s) => s.steer)
@@ -403,7 +405,11 @@ function Chat() {
       <header className="chat-header">
         {session && <AgentAvatar agent={session.agent} />}
         <div className="chat-heading">
-          <h2>{session ? sessionTitle(session) : 'Session'}</h2>
+          {session ? (
+            <EditableTitle heading value={sessionTitle(session)} label="session" onRename={(title) => renameSession(session.id, title)} />
+          ) : (
+            <h2>Session</h2>
+          )}
           {session && <span className="chat-path">{session.cwd}</span>}
         </div>
         <div className="chat-meta">

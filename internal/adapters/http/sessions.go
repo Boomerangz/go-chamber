@@ -388,7 +388,7 @@ func (s *server) fail(w http.ResponseWriter, err error) {
 	case errors.Is(err, domain.ErrInvalidSession), errors.Is(err, domain.ErrInvalidTerminal),
 		errors.Is(err, domain.ErrInvalidReviewer), errors.Is(err, domain.ErrInvalidModel),
 		errors.Is(err, domain.ErrInvalidPermissionMode),
-		errors.Is(err, app.ErrInvalidTerminalSize):
+		errors.Is(err, app.ErrInvalidTerminalSize), errors.Is(err, app.ErrTitleTooLong):
 		writeJSON(w, http.StatusBadRequest, errorBody{err.Error()})
 	case errors.Is(err, app.ErrFolderNotFound):
 		writeJSON(w, http.StatusNotFound, errorBody{err.Error()})

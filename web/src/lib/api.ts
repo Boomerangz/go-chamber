@@ -294,6 +294,10 @@ export function setApprovalReviewer(id: string, reviewer: ApprovalReviewer): Pro
   return request<Session>(`/api/sessions/${encodeURIComponent(id)}/approval-reviewer`, json({ reviewer }))
 }
 
+export function renameSession(id: string, title: string): Promise<Session> {
+  return request<Session>(`/api/sessions/${encodeURIComponent(id)}/title`, json({ title }))
+}
+
 export function setPermissionMode(id: string, mode: string): Promise<Session> {
   return request<Session>(`/api/sessions/${encodeURIComponent(id)}/permission-mode`, json({ mode }))
 }

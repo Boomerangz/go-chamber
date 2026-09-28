@@ -43,6 +43,14 @@ export function closeTerminal(id: string): Promise<void> {
   return request<void>(`/api/terminals/${encodeURIComponent(id)}`, { method: 'DELETE' })
 }
 
+export function renameTerminal(id: string, title: string): Promise<Terminal> {
+  return request<Terminal>(`/api/terminals/${encodeURIComponent(id)}/title`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ title }),
+  })
+}
+
 export function terminalURL(
   id: string,
   loc: { protocol: string; host: string } = window.location,
