@@ -119,6 +119,7 @@ func run(ctx context.Context, args []string, out io.Writer) error {
 			Terminals: terminals,
 			Folders:   app.NewFolders(app.FoldersConfig{Reader: fsys.Reader{}, Home: home}),
 			Search:    eventLog,
+			ImagesDir: filepath.Join(*dataDir, "images"),
 			Complete: app.NewCompleter(app.CompleterConfig{
 				Sessions: store.Sessions(),
 				Files:    &fsys.Files{},

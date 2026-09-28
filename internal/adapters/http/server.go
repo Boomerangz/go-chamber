@@ -34,6 +34,8 @@ type Config struct {
 	Search MessageSearch
 	// Complete suggests files and commands for the composer when non-nil.
 	Complete Completer
+	// ImagesDir stores images attached to messages when non-empty.
+	ImagesDir string
 	// Worktrees creates worktree sessions and serves the diff panel when non-nil.
 	Worktrees Worktrees
 }
@@ -50,6 +52,7 @@ func NewServer(cfg Config) http.Handler {
 	s := &server{cfg: cfg, mux: http.NewServeMux()}
 	s.routes()
 	s.completeRoutes()
+	s.imageRoutes()
 	s.worktreeRoutes()
 	return &auth{token: []byte(cfg.Token), next: s.mux}
 }

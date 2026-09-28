@@ -187,6 +187,12 @@ func (m *Manager) closeLeftoverRequests(id domain.SessionID) {
 // SendMessage starts a new turn: it lazily attaches (or resumes) the agent
 // runtime, records the user message and forwards it to the agent.
 func (m *Manager) SendMessage(ctx context.Context, id domain.SessionID, text string) error {
+	return m.SendInput(ctx, id, text, nil)
+}
+
+// SendInput starts a turn with text and attached images; the runtime must
+// take images when there are any.
+func (m *Manager) SendInput(ctx context.Context, id domain.SessionID, text string, images []Image) error {
 	s, err := m.session(ctx, id)
 	if err != nil {
 		return err
@@ -217,13 +223,23 @@ func (m *Manager) SendMessage(ctx context.Context, id domain.SessionID, text str
 		return err
 	}
 	m.cfg.Bus.Publish(domain.Event{SessionID: id, Type: domain.EventTurnStarted, Session: &snap})
-	if err := m.recordUserItem(ctx, s, turn, text); err != nil {
+	if err := m.recordUserItem(ctx, s, turn, text, images...); err != nil {
 		return err
 	}
 	if err := m.cfg.Repo.Save(ctx, snap); err != nil {
 		return err
 	}
-	if err := rt.Send(ctx, turn, text); err != nil {
+	send := func() error { return rt.Send(ctx, turn, text) }
+	if len(images) > 0 {
+		send = func() error {
+			sender, ok := rt.(ImageSender)
+			if !ok {
+				return ErrImagesUnsupported
+			}
+			return sender.SendImages(ctx, turn, text, images)
+		}
+	}
+	if err := send(); err != nil {
 		// The agent never got the turn; don't leave the session running.
 		m.mu.Lock()
 		_ = s.TurnCompleted()
@@ -236,12 +252,15 @@ func (m *Manager) SendMessage(ctx context.Context, id domain.SessionID, text str
 	return nil
 }
 
-func (m *Manager) recordUserItem(ctx context.Context, s *domain.Session, turn domain.TurnID, text string) error {
+func (m *Manager) recordUserItem(ctx context.Context, s *domain.Session, turn domain.TurnID, text string, images ...Image) error {
 	item, err := domain.NewItem(domain.ItemID(m.cfg.NewID()), s.ID(), turn, "", domain.ItemUserMessage)
 	if err != nil {
 		return err
 	}
 	item.Text = text
+	for _, img := range images {
+		item.Images = append(item.Images, img.ID)
+	}
 	if err := item.SetStatus(domain.ItemCompleted); err != nil {
 		return err
 	}

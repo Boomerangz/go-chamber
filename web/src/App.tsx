@@ -21,6 +21,8 @@ import Markdown from './components/markdown/Markdown'
 import ModelPicker from './components/models/ModelPicker'
 import PermissionModeSelect from './components/models/PermissionModeSelect'
 import ComposerInput from './components/composer/ComposerInput'
+import Attachments from './components/composer/Attachments'
+import { useAttachments } from './components/composer/useAttachments'
 import InterruptedBanner from './components/chat/InterruptedBanner'
 import RequestCard from './components/requests/RequestCard'
 import QuotaWidget from './components/quota/QuotaWidget'
@@ -28,7 +30,7 @@ import RequestTray from './components/requests/RequestTray'
 import SessionList from './components/sessions/SessionList'
 import TerminalPanel from './components/terminal/TerminalPanel'
 import TerminalWorkspace from './components/terminal/TerminalWorkspace'
-import { fetchHealth, type AgentKind, type ApprovalReviewer, type Health, type Item, type Session } from './lib/api'
+import { fetchHealth, imageUrl, type AgentKind, type ApprovalReviewer, type Health, type Item, type Session } from './lib/api'
 import { recentFolders } from './lib/folders'
 import { sessionTitle } from './lib/sessions'
 import { displayStatus } from './lib/format'
@@ -359,6 +361,7 @@ function Chat() {
   const setAutoContinue = useSessionStore((s) => s.setAutoContinue)
   const forkSession = useSessionStore((s) => s.forkSession)
   const [text, setText] = useState('')
+  const attachments = useAttachments(session?.id)
   const status = displayStatus(chat, session)
   const running = status === 'running'
   const reduced = useReducedMotion() ?? false
@@ -369,11 +372,14 @@ function Chat() {
 
   const submit = () => {
     const value = text.trim()
-    if (!value) return
+    const images = attachments.ids
+    // Steering takes text only; attached images wait for the next turn.
+    if (!value && (running || images.length === 0)) return
     if (running) {
       void steer(value)
     } else {
-      void send(value)
+      void send(value, images)
+      attachments.clear()
     }
     setText('')
   }
@@ -448,6 +454,7 @@ function Chat() {
       )}
       <form
         className="composer"
+        {...attachments.dropProps}
         onSubmit={(e) => {
           e.preventDefault()
           submit()
@@ -462,6 +469,7 @@ function Chat() {
           placeholder={running ? 'Steer the running turn…' : 'Message the agent…  ⌘↵ to send'}
         />
         <div className="composer-actions">
+          <Attachments state={attachments} />
           {running && (
             <button type="button" className="btn btn-danger stop" onClick={() => void interrupt()}>
               Stop
@@ -533,7 +541,20 @@ function ItemView({
   const item = node.item
   switch (item.kind) {
     case 'user_message':
-      return <div className="item user">{item.text}</div>
+      return (
+        <div className="item user">
+          {item.text}
+          {item.images?.length ? (
+            <div className="item-images">
+              {item.images.map((id) => (
+                <a key={id} href={imageUrl(item.sessionId, id)} target="_blank" rel="noopener noreferrer">
+                  <img src={imageUrl(item.sessionId, id)} alt="attached image" loading="lazy" />
+                </a>
+              ))}
+            </div>
+          ) : null}
+        </div>
+      )
     case 'assistant_message':
       return (
         <div className="item assistant">

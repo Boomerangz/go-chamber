@@ -37,7 +37,7 @@ export interface SessionStore {
   // createSession starts a session in cwd, or in a new worktree on branch chamber/<branch>.
   createSession: (agent: api.AgentKind, cwd: string, branch?: string) => Promise<void>
   selectSession: (id: string) => Promise<void>
-  send: (text: string) => Promise<void>
+  send: (text: string, images?: string[]) => Promise<void>
   steer: (text: string) => Promise<void>
   interrupt: () => Promise<void>
   continueSession: () => Promise<void>
@@ -242,11 +242,11 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     await resync(get, set, id)
   },
 
-  async send(text) {
+  async send(text, images) {
     const id = get().activeId
-    if (!id || !text.trim()) return
+    if (!id || (!text.trim() && !images?.length)) return
     try {
-      await api.sendMessage(id, text)
+      await (images?.length ? api.sendMessage(id, text, images) : api.sendMessage(id, text))
       set({ error: null })
     } catch (err) {
       set({ error: errorMessage(err) })

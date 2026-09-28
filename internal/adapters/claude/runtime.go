@@ -133,13 +133,13 @@ func (r *Runtime) Steer(_ context.Context, text string) error {
 }
 
 func (r *Runtime) sendUser(text string) error {
-	content, err := json.Marshal([]map[string]string{{"type": "text", "text": text}})
-	if err != nil {
-		return err
-	}
+	return r.sendContent([]any{map[string]string{"type": "text", "text": text}})
+}
+
+func (r *Runtime) sendContent(content []any) error {
 	line, err := json.Marshal(map[string]any{
 		"type":    "user",
-		"message": map[string]any{"role": "user", "content": json.RawMessage(content)},
+		"message": map[string]any{"role": "user", "content": content},
 	})
 	if err != nil {
 		return err

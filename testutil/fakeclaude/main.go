@@ -28,7 +28,9 @@ package main
 
 import (
 	"bufio"
+	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"os"
 	"strconv"
 	"strings"
@@ -557,14 +559,24 @@ func userText(raw json.RawMessage) string {
 		return s
 	}
 	var blocks []struct {
-		Type string `json:"type"`
-		Text string `json:"text"`
+		Type   string `json:"type"`
+		Text   string `json:"text"`
+		Source struct {
+			Type      string `json:"type"`
+			MediaType string `json:"media_type"`
+			Data      string `json:"data"`
+		} `json:"source"`
 	}
 	if err := json.Unmarshal(raw, &blocks); err == nil {
 		var b strings.Builder
 		for _, blk := range blocks {
-			if blk.Type == "text" {
+			switch blk.Type {
+			case "text":
 				b.WriteString(blk.Text)
+			case "image":
+				// Echo what arrived so tests can check the encoding.
+				data, _ := base64.StdEncoding.DecodeString(blk.Source.Data)
+				fmt.Fprintf(&b, "[image %s %d bytes] ", blk.Source.MediaType, len(data))
 			}
 		}
 		return b.String()

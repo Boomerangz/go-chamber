@@ -77,6 +77,8 @@ export interface Item {
   outcome?: 'success' | 'blocked' | 'error'
   // decision is how the user resolved an agent request (decision items).
   decision?: 'approved' | 'denied' | 'answered'
+  // images are the ids of pictures attached to a user message.
+  images?: string[]
 }
 
 export interface Delta {
@@ -206,8 +208,25 @@ export function getSession(id: string): Promise<Session> {
   return request<Session>(`/api/sessions/${encodeURIComponent(id)}`)
 }
 
-export function sendMessage(id: string, text: string): Promise<void> {
-  return request<void>(`/api/sessions/${encodeURIComponent(id)}/messages`, json({ text }))
+export function sendMessage(id: string, text: string, images?: string[]): Promise<void> {
+  return request<void>(`/api/sessions/${encodeURIComponent(id)}/messages`, json(images?.length ? { text, images } : { text }))
+}
+
+export interface UploadedImage {
+  id: string
+  mimeType: string
+}
+
+export function uploadImage(sessionId: string, file: Blob): Promise<UploadedImage> {
+  return request<UploadedImage>(`/api/sessions/${encodeURIComponent(sessionId)}/images`, {
+    method: 'POST',
+    headers: { 'Content-Type': file.type || 'application/octet-stream' },
+    body: file,
+  })
+}
+
+export function imageUrl(sessionId: string, imageId: string): string {
+  return `/api/sessions/${encodeURIComponent(sessionId)}/images/${encodeURIComponent(imageId)}`
 }
 
 export function interrupt(id: string): Promise<void> {

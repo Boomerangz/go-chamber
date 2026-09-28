@@ -170,6 +170,7 @@ func main() {
 				Input    []struct {
 					Type string `json:"type"`
 					Text string `json:"text"`
+					Path string `json:"path"`
 				} `json:"input"`
 			}
 			_ = json.Unmarshal(m.Params, &p)
@@ -178,8 +179,14 @@ func main() {
 			setPolicy(p.ThreadID, m.Params)
 			text := ""
 			for _, in := range p.Input {
-				if in.Type == "text" {
+				switch in.Type {
+				case "text":
 					text += in.Text
+				case "localImage":
+					// Echo what arrived so tests can check the path.
+					if st, err := os.Stat(in.Path); err == nil {
+						text += "[image " + strconv.FormatInt(st.Size(), 10) + " bytes] "
+					}
 				}
 			}
 			turnID := nextID("turn")

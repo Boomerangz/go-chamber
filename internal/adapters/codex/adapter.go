@@ -844,9 +844,13 @@ func (r *Runtime) pump() {
 
 // Send starts a new turn on the thread.
 func (r *Runtime) Send(ctx context.Context, _ domain.TurnID, text string) error {
+	return r.startTurn(ctx, []map[string]any{{"type": "text", "text": text}})
+}
+
+func (r *Runtime) startTurn(ctx context.Context, input []map[string]any) error {
 	params := map[string]any{
 		"threadId": r.threadID,
-		"input":    []map[string]any{{"type": "text", "text": text}},
+		"input":    input,
 	}
 	r.mu.Lock()
 	addReviewer(params, r.reviewer)

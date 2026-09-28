@@ -124,6 +124,8 @@ type Item struct {
 	Outcome HookOutcome `json:"outcome,omitempty"`
 	// Decision is set for decision items.
 	Decision Decision `json:"decision,omitempty"`
+	// Images are the ids of pictures attached to a user message.
+	Images []string `json:"images,omitempty"`
 }
 
 func NewItem(id ItemID, session SessionID, turn TurnID, parent ItemID, kind ItemKind) (*Item, error) {

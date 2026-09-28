@@ -1,0 +1,21 @@
+.attachments { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.attachments:empty { display: none; }
+.attachment { position: relative; display: inline-flex; }
+.attachment img, .item-images img {
+  width: 56px; height: 56px; object-fit: cover; border: 1px solid var(--rule-strong); border-radius: var(--r);
+}
+.attachment-remove {
+  position: absolute; top: -6px; right: -6px; width: 20px; height: 20px; padding: 0;
+  border: 1px solid var(--rule-strong); border-radius: 50%; background: var(--paper); color: var(--ink);
+  line-height: 1; cursor: pointer;
+}
+.attachment-busy { color: var(--ink-2); font-size: 12px; }
+.attachment-error { color: var(--danger, #b3261e); font-size: 12px; }
+.item-images { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.item-images img { width: 120px; height: auto; max-height: 120px; }
+@media (max-width: 720px) {
+  .attachment-remove { width: 28px; height: 28px; }
+}
+.composer:has(.attachment) { flex-wrap: wrap; }
+.composer:has(.attachment) .composer-actions { width: 100%; justify-content: flex-end; }
+.composer-actions .attachments { margin-right: auto; }

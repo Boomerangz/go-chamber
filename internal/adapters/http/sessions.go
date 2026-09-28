@@ -17,6 +17,7 @@ type Sessions interface {
 	ListSessions(ctx context.Context) ([]domain.SessionSnapshot, error)
 	GetSession(ctx context.Context, id domain.SessionID) (domain.SessionSnapshot, error)
 	SendMessage(ctx context.Context, id domain.SessionID, text string) error
+	SendInput(ctx context.Context, id domain.SessionID, text string, images []app.Image) error
 	Steer(ctx context.Context, id domain.SessionID, text string) error
 	Interrupt(ctx context.Context, id domain.SessionID) error
 	Continue(ctx context.Context, id domain.SessionID) error
@@ -163,16 +164,30 @@ func (s *server) getSession(w http.ResponseWriter, r *http.Request) {
 
 func (s *server) sendMessage(w http.ResponseWriter, r *http.Request) {
 	var body struct {
-		Text string `json:"text"`
+		Text   string   `json:"text"`
+		Images []string `json:"images"`
 	}
 	if !decode(w, r, &body) {
 		return
 	}
-	if body.Text == "" {
+	if body.Text == "" && len(body.Images) == 0 {
 		writeJSON(w, http.StatusBadRequest, errorBody{"text is required"})
 		return
 	}
-	if err := s.cfg.Sessions.SendMessage(r.Context(), sessionID(r), body.Text); err != nil {
+	send := func() error { return s.cfg.Sessions.SendMessage(r.Context(), sessionID(r), body.Text) }
+	if len(body.Images) > 0 && s.cfg.ImagesDir != "" {
+		images, err := s.resolveImages(r, body.Images)
+		if errors.Is(err, errUnknownImage) {
+			writeJSON(w, http.StatusBadRequest, errorBody{err.Error()})
+			return
+		}
+		if err != nil {
+			s.fail(w, err)
+			return
+		}
+		send = func() error { return s.cfg.Sessions.SendInput(r.Context(), sessionID(r), body.Text, images) }
+	}
+	if err := send(); err != nil {
 		s.fail(w, err)
 		return
 	}
@@ -384,7 +399,7 @@ func (s *server) fail(w http.ResponseWriter, err error) {
 	case errors.Is(err, domain.ErrTerminalExited), errors.Is(err, domain.ErrInvalidTransition):
 		writeJSON(w, http.StatusConflict, errorBody{err.Error()})
 	case errors.Is(err, app.ErrAccountsUnsupported), errors.Is(err, app.ErrQuotasUnsupported),
-		errors.Is(err, app.ErrModelsUnsupported):
+		errors.Is(err, app.ErrModelsUnsupported), errors.Is(err, app.ErrImagesUnsupported):
 		writeJSON(w, http.StatusNotImplemented, errorBody{err.Error()})
 	default:
 		writeJSON(w, http.StatusInternalServerError, errorBody{err.Error()})

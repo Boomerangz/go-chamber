@@ -111,6 +111,7 @@ func DetachItems(events []Event) []Event {
 		if it := events[i].Item; it != nil {
 			c := *it
 			c.Input = append([]byte(nil), it.Input...)
+			c.Images = append([]string(nil), it.Images...)
 			if it.ExitCode != nil {
 				code := *it.ExitCode
 				c.ExitCode = &code
