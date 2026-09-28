@@ -174,14 +174,11 @@ func TestExitDeliversTrailingEvents(t *testing.T) {
 	if err := rt.Send(context.Background(), "t1", "hi"); err != nil {
 		t.Fatal(err)
 	}
-	var ended bool
-	for ev := range rt.Events() {
-		if ev.Type == domain.EventTurnEnded {
-			ended = true
-		}
-	}
-	if !ended {
-		t.Fatal("turn/completed written right before exit was lost")
+	// The thread outlives the server (it is resumed on a new one), so wait
+	// for the turn's end rather than for the stream to close.
+	events := drainCodex(t, rt, func(ev domain.Event) bool { return ev.Type == domain.EventTurnEnded })
+	if end := events[len(events)-1].Result; end == nil || end.IsError {
+		t.Fatalf("turn/completed written right before exit was lost: %+v", end)
 	}
 }
 

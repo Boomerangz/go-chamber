@@ -34,6 +34,18 @@ func NewMapper(session domain.SessionID) *Mapper {
 
 func (m *Mapper) SetTurn(turn domain.TurnID) { m.turn = turn }
 
+// FailUnfinished marks every unfinished item failed, for a turn whose
+// server died under it.
+func (m *Mapper) FailUnfinished() []domain.Event {
+	var events []domain.Event
+	for _, item := range m.items {
+		if item.SetStatus(domain.ItemFailed) == nil {
+			events = append(events, domain.Event{SessionID: m.session, Type: domain.EventItemUpdated, Item: item})
+		}
+	}
+	return domain.DetachItems(events)
+}
+
 // MapNotification maps one server notification. Unknown methods are ignored.
 func (m *Mapper) MapNotification(method string, params json.RawMessage) []domain.Event {
 	return domain.DetachItems(m.mapNotification(method, params))

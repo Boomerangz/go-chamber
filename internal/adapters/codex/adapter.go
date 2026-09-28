@@ -24,9 +24,15 @@ type Factory struct {
 	Env         []string
 	Stderr      io.Writer
 	InitTimeout time.Duration
+	// RestartBackoff is the first delay before restarting a crashed
+	// app-server that still has threads; it doubles per attempt.
+	RestartBackoff time.Duration
+	// RestartAttempts bounds the restarts before the threads are closed.
+	RestartAttempts int
 
 	mu     sync.Mutex
 	server *Server
+	closed bool
 }
 
 func (f *Factory) binary() string {
@@ -136,9 +142,53 @@ func (f *Factory) Close() {
 	f.mu.Lock()
 	srv := f.server
 	f.server = nil
+	f.closed = true
 	f.mu.Unlock()
 	if srv != nil {
 		_ = srv.Close()
+	}
+}
+
+// supervise runs when an app-server exits. Its threads keep their event
+// streams: the server is restarted with backoff and every thread resumed on
+// it. Turns and requests in flight are lost and reported as such. Threads
+// are closed only if the server cannot be brought back.
+func (f *Factory) supervise(dead *Server) {
+	threads, stale := dead.takeAll()
+	for _, rt := range threads {
+		rt.interrupted(stale[rt.threadID])
+	}
+	if len(threads) == 0 {
+		return
+	}
+	backoff, attempts := f.RestartBackoff, f.RestartAttempts
+	if backoff <= 0 {
+		backoff = time.Second
+	}
+	if attempts <= 0 {
+		attempts = 5
+	}
+	for i := 0; i < attempts; i++ {
+		time.Sleep(backoff << i)
+		f.mu.Lock()
+		closed := f.closed
+		f.mu.Unlock()
+		if closed {
+			break
+		}
+		srv, err := f.ensureServer(context.Background())
+		if err != nil {
+			continue
+		}
+		for _, rt := range threads {
+			if err := srv.resume(rt); err != nil {
+				rt.closeEvents()
+			}
+		}
+		return
+	}
+	for _, rt := range threads {
+		rt.closeEvents()
 	}
 }
 
@@ -174,7 +224,7 @@ func (f *Factory) startServer(ctx context.Context) (*Server, error) {
 		// Wait closes stdout, so it must not run before the reader is done.
 		<-s.client.Done()
 		_ = cmd.Wait()
-		s.closeAll()
+		f.supervise(s)
 	}()
 
 	timeout := f.InitTimeout
@@ -343,17 +393,52 @@ func (s *Server) drainStderr(r io.Reader, dst io.Writer) {
 }
 
 func (s *Server) closeAll() {
+	threads, _ := s.takeAll()
+	for _, rt := range threads {
+		rt.closeEvents()
+	}
+}
+
+// takeAll detaches every thread and forgets buffered and pending messages,
+// returning the pending request ids per thread.
+func (s *Server) takeAll() ([]*Runtime, map[string][]domain.RequestID) {
 	s.mu.Lock()
-	threads := s.threads
+	threads := make([]*Runtime, 0, len(s.threads))
+	for _, rt := range s.threads {
+		threads = append(threads, rt)
+	}
 	s.threads = map[string]*Runtime{}
 	s.orphans = map[string][]orphan{}
 	s.mu.Unlock()
 	s.pmu.Lock()
+	stale := map[string][]domain.RequestID{}
+	for id, p := range s.pending {
+		stale[p.threadID] = append(stale[p.threadID], id)
+	}
 	s.pending = map[domain.RequestID]pendingServerRequest{}
 	s.pmu.Unlock()
-	for _, rt := range threads {
-		rt.closeEvents()
+	return threads, stale
+}
+
+// resume reattaches a thread of a crashed server to this one.
+func (s *Server) resume(rt *Runtime) error {
+	params := map[string]any{"threadId": rt.threadID}
+	rt.mu.Lock()
+	addReviewer(params, rt.reviewer)
+	if rt.model != "" {
+		params["model"] = rt.model
 	}
+	rt.mu.Unlock()
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	if _, err := s.client.Call(ctx, "thread/resume", params); err != nil {
+		return fmt.Errorf("codex: thread/resume: %w", err)
+	}
+	rt.mu.Lock()
+	rt.server = s
+	rt.mu.Unlock()
+	s.register(rt)
+	return nil
 }
 
 // Close terminates the process.
@@ -652,6 +737,38 @@ func (r *Runtime) mapServerRequest(method string, id, params json.RawMessage) (d
 	return r.mapper.MapServerRequest(method, id, params)
 }
 
+// current is the server the thread lives on; a restart moves it.
+func (r *Runtime) current() *Server {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.server
+}
+
+// interrupted reports the loss of the server under a turn: requests go
+// stale, unfinished items fail and the running turn ends with an error.
+func (r *Runtime) interrupted(stale []domain.RequestID) {
+	r.mapMu.Lock()
+	session := r.mapper.session
+	events := r.mapper.FailUnfinished()
+	r.mapMu.Unlock()
+	for _, id := range stale {
+		r.emit(domain.Event{SessionID: session, Type: domain.EventRequestResolved,
+			Request: &domain.Request{ID: id, SessionID: session, Kind: domain.RequestPermission, State: domain.RequestStale}})
+	}
+	for _, ev := range events {
+		r.emit(ev)
+	}
+	r.mu.Lock()
+	turn := r.turnID
+	r.turnID = ""
+	r.mu.Unlock()
+	if turn != "" {
+		r.emit(domain.Event{SessionID: session, Type: domain.EventTurnEnded, Result: &domain.TurnResult{
+			IsError: true, Error: "codex app-server restarted; the turn was interrupted",
+		}})
+	}
+}
+
 func (r *Runtime) NativeID() string            { return r.threadID }
 func (r *Runtime) Events() <-chan domain.Event { return r.events }
 
@@ -714,7 +831,7 @@ func (r *Runtime) Send(ctx context.Context, _ domain.TurnID, text string) error 
 		params["effort"] = r.effort
 	}
 	r.mu.Unlock()
-	res, err := r.server.client.Call(ctx, "turn/start", params)
+	res, err := r.current().client.Call(ctx, "turn/start", params)
 	if err != nil {
 		return fmt.Errorf("codex: turn/start: %w", err)
 	}
@@ -772,7 +889,7 @@ func (r *Runtime) Steer(ctx context.Context, text string) error {
 	if turnID == "" {
 		return errors.New("codex: no active turn to steer")
 	}
-	_, err := r.server.client.Call(ctx, "turn/steer", map[string]any{
+	_, err := r.current().client.Call(ctx, "turn/steer", map[string]any{
 		"threadId": r.threadID, "expectedTurnId": turnID,
 		"input": []map[string]any{{"type": "text", "text": text}},
 	})
@@ -788,7 +905,7 @@ func (r *Runtime) Interrupt(ctx context.Context) error {
 	if turnID == "" {
 		return nil
 	}
-	_, err := r.server.client.Call(ctx, "turn/interrupt", map[string]any{
+	_, err := r.current().client.Call(ctx, "turn/interrupt", map[string]any{
 		"threadId": r.threadID, "turnId": turnID,
 	})
 	return err
@@ -796,7 +913,8 @@ func (r *Runtime) Interrupt(ctx context.Context) error {
 
 // Respond answers a pending approval or question.
 func (r *Runtime) Respond(_ context.Context, requestID domain.RequestID, answer app.RequestAnswer) error {
-	p, ok := r.server.takePending(requestID)
+	srv := r.current()
+	p, ok := srv.takePending(requestID)
 	if !ok {
 		return fmt.Errorf("codex: no pending request %s", requestID)
 	}
@@ -804,7 +922,7 @@ func (r *Runtime) Respond(_ context.Context, requestID domain.RequestID, answer 
 	if err != nil {
 		return err
 	}
-	return r.server.client.Respond(p.id, result)
+	return srv.client.Respond(p.id, result)
 }
 
 func codexDecision(p pendingServerRequest, answer app.RequestAnswer) (any, error) {
@@ -869,11 +987,12 @@ func approvalDecision(answer app.RequestAnswer) string {
 // Close closes the runtime's event stream; the shared server stays up.
 func (r *Runtime) Close() error {
 	r.closeOnce.Do(func() {
-		r.server.mu.Lock()
-		if r.server.threads[r.threadID] == r {
-			delete(r.server.threads, r.threadID)
+		srv := r.current()
+		srv.mu.Lock()
+		if srv.threads[r.threadID] == r {
+			delete(srv.threads, r.threadID)
 		}
-		r.server.mu.Unlock()
+		srv.mu.Unlock()
 		r.mu.Lock()
 		r.closed = true
 		r.mu.Unlock()
