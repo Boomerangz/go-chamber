@@ -244,6 +244,7 @@ func (s *server) respondRequest(w http.ResponseWriter, r *http.Request) {
 		Message         string              `json:"message"`
 		AllowForSession bool                `json:"allowForSession"`
 		Answers         map[string][]string `json:"answers"`
+		Content         json.RawMessage     `json:"content"`
 	}
 	if !decode(w, r, &body) {
 		return
@@ -253,6 +254,7 @@ func (s *server) respondRequest(w http.ResponseWriter, r *http.Request) {
 		Message:         body.Message,
 		AllowForSession: body.AllowForSession,
 		Answers:         body.Answers,
+		Content:         body.Content,
 	}
 	requestID := domain.RequestID(r.PathValue("requestId"))
 	if err := s.cfg.Sessions.RespondRequest(r.Context(), sessionID(r), requestID, answer); err != nil {
@@ -331,7 +333,7 @@ func (s *server) fail(w http.ResponseWriter, err error) {
 		writeJSON(w, http.StatusBadRequest, errorBody{err.Error()})
 	case errors.Is(err, app.ErrFolderForbidden):
 		writeJSON(w, http.StatusForbidden, errorBody{err.Error()})
-	case errors.Is(err, domain.ErrTerminalExited):
+	case errors.Is(err, domain.ErrTerminalExited), errors.Is(err, domain.ErrInvalidTransition):
 		writeJSON(w, http.StatusConflict, errorBody{err.Error()})
 	case errors.Is(err, app.ErrAccountsUnsupported), errors.Is(err, app.ErrQuotasUnsupported),
 		errors.Is(err, app.ErrModelsUnsupported):

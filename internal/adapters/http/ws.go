@@ -17,7 +17,9 @@ func (s *server) websocket(w http.ResponseWriter, r *http.Request) {
 	}
 	defer func() { _ = c.CloseNow() }()
 
-	ctx := r.Context()
+	// The client sends nothing; reading only notices close frames and a
+	// vanished peer, which cancels ctx.
+	ctx := c.CloseRead(r.Context())
 	sub := s.cfg.Events.Subscribe()
 	defer sub.Close()
 

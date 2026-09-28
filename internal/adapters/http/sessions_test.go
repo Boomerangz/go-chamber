@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -244,6 +245,14 @@ func TestSendMessageInternalError(t *testing.T) {
 	h := newSessionsServer(&fakeSessions{err: errors.New("boom")}, nil)
 	rec := do(h, authed("POST", "/api/sessions/a/messages", `{"text":"hi"}`))
 	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("code = %d", rec.Code)
+	}
+}
+
+func TestSendMessageWhileRunningConflicts(t *testing.T) {
+	h := newSessionsServer(&fakeSessions{err: fmt.Errorf("%w: turn already running", domain.ErrInvalidTransition)}, nil)
+	rec := do(h, authed("POST", "/api/sessions/a/messages", `{"text":"hi"}`))
+	if rec.Code != http.StatusConflict {
 		t.Fatalf("code = %d", rec.Code)
 	}
 }

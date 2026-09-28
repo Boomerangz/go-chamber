@@ -90,3 +90,15 @@ func TestDefaultBufferSize(t *testing.T) {
 		t.Fatalf("bufSize = %d", h.bufSize)
 	}
 }
+
+func TestSubscribersCount(t *testing.T) {
+	h := New()
+	sub := h.Subscribe()
+	if h.Subscribers() != 1 {
+		t.Fatalf("subscribers = %d", h.Subscribers())
+	}
+	sub.Close()
+	if h.Subscribers() != 0 {
+		t.Fatalf("subscribers after close = %d", h.Subscribers())
+	}
+}

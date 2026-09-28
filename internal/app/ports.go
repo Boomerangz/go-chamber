@@ -3,6 +3,7 @@ package app
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 
 	"github.com/igorzygin/go-chamber/internal/domain"
@@ -119,6 +120,8 @@ type RequestAnswer struct {
 	AllowForSession bool
 	// Answers maps a question's text to the selected option label(s).
 	Answers map[string][]string
+	// Content is the form data an accepted MCP elicitation returns.
+	Content json.RawMessage
 }
 
 // RuntimeFactory starts agent processes.

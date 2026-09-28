@@ -31,6 +31,14 @@ type ManagerConfig struct {
 	Now func() time.Time
 	// Models optionally lists the models each agent offers.
 	Models ModelCatalog
+	// History optionally replays the event log; Restore uses it to close
+	// requests a previous process left open.
+	History EventHistory
+}
+
+// EventHistory replays a session's published events.
+type EventHistory interface {
+	History(session domain.SessionID, since domain.Seq) []domain.Event
 }
 
 // Manager is the session use-case boundary: it owns the in-memory registry
@@ -122,6 +130,10 @@ func (m *Manager) Restore(ctx context.Context) ([]domain.SessionSnapshot, error)
 		m.sessions[s.ID()] = s
 		m.mu.Unlock()
 		cur := s.Snapshot()
+		if snap.Status == domain.StatusRunning {
+			// Requests only open during a turn.
+			m.closeLeftoverRequests(cur.ID)
+		}
 		if cur != snap {
 			if err := m.cfg.Repo.Save(ctx, cur); err != nil {
 				return out, err
@@ -134,6 +146,33 @@ func (m *Manager) Restore(ctx context.Context) ([]domain.SessionSnapshot, error)
 	return out, nil
 }
 
+// closeLeftoverRequests marks requests the previous process never resolved
+// as stale, so replayed history doesn't show them as answerable.
+func (m *Manager) closeLeftoverRequests(id domain.SessionID) {
+	if m.cfg.History == nil {
+		return
+	}
+	open := map[domain.RequestID]*domain.Request{}
+	var order []domain.RequestID
+	for _, ev := range m.cfg.History.History(id, 0) {
+		switch {
+		case ev.Request == nil:
+		case ev.Type == domain.EventRequestOpened:
+			open[ev.Request.ID] = ev.Request
+			order = append(order, ev.Request.ID)
+		case ev.Type == domain.EventRequestResolved:
+			delete(open, ev.Request.ID)
+		}
+	}
+	for _, rid := range order {
+		if req := open[rid]; req != nil {
+			delete(open, rid)
+			req.MarkStale()
+			m.cfg.Bus.Publish(domain.Event{SessionID: id, Type: domain.EventRequestResolved, Request: req})
+		}
+	}
+}
+
 // SendMessage starts a new turn: it lazily attaches (or resumes) the agent
 // runtime, records the user message and forwards it to the agent.
 func (m *Manager) SendMessage(ctx context.Context, id domain.SessionID, text string) error {
@@ -143,7 +182,8 @@ func (m *Manager) SendMessage(ctx context.Context, id domain.SessionID, text str
 	}
 	turn := domain.TurnID(m.cfg.NewID())
 	m.mu.Lock()
-	if m.restart[id] {
+	// A running turn keeps its runtime; the restart waits for the next turn.
+	if m.restart[id] && s.Status() != domain.StatusRunning {
 		m.retire(s)
 	}
 	m.mu.Unlock()
@@ -172,7 +212,17 @@ func (m *Manager) SendMessage(ctx context.Context, id domain.SessionID, text str
 	if err := m.cfg.Repo.Save(ctx, snap); err != nil {
 		return err
 	}
-	return rt.Send(ctx, turn, text)
+	if err := rt.Send(ctx, turn, text); err != nil {
+		// The agent never got the turn; don't leave the session running.
+		m.mu.Lock()
+		_ = s.TurnCompleted()
+		snap = s.Snapshot()
+		m.mu.Unlock()
+		_ = m.cfg.Repo.Save(ctx, snap)
+		m.cfg.Bus.Publish(domain.Event{SessionID: id, Type: domain.EventSessionState, Session: &snap})
+		return err
+	}
+	return nil
 }
 
 func (m *Manager) recordUserItem(ctx context.Context, s *domain.Session, turn domain.TurnID, text string) error {
@@ -392,8 +442,12 @@ func (m *Manager) session(ctx context.Context, id domain.SessionID) (*domain.Ses
 		return nil, err
 	}
 	m.mu.Lock()
+	defer m.mu.Unlock()
+	// A concurrent caller may have loaded it meanwhile; keep one instance.
+	if existing := m.sessions[id]; existing != nil {
+		return existing, nil
+	}
 	m.sessions[id] = s
-	m.mu.Unlock()
 	return s, nil
 }
 
@@ -477,16 +531,35 @@ func (m *Manager) spawnSubagent(parent *domain.Session, sp *domain.SubagentSpawn
 // consume pumps runtime events into the bus and applies state changes until
 // the runtime exits.
 func (m *Manager) consume(s *domain.Session, rt AgentRuntime) {
+	// open tracks unfinished items, failed if the process dies under them.
+	open := map[domain.ItemID]domain.Item{}
 	for ev := range rt.Events() {
 		if err := ev.Valid(); err != nil {
 			continue
 		}
 		ev.SessionID = s.ID()
+		if ev.Type == domain.EventQuota {
+			ev.Quota = m.mergeQuota(*ev.Quota)
+		}
 
 		// Record request/session state before publishing, so a client that
 		// reacts to the event immediately can answer without racing us.
 		m.mu.Lock()
+		if m.runtimes[s.ID()] != rt {
+			// A retired runtime still flushing output; its session moved on.
+			m.mu.Unlock()
+			continue
+		}
+		quotaStop := false
 		switch ev.Type {
+		case domain.EventItemUpdated:
+			if ev.Item.Status.Terminal() {
+				delete(open, ev.Item.ID)
+			} else {
+				open[ev.Item.ID] = *ev.Item
+			}
+		case domain.EventQuota:
+			quotaStop = ev.Quota.Reached && s.QuotaExhausted(ev.Quota.ResetsAt()) == nil
 		case domain.EventTurnEnded:
 			_ = s.TurnCompleted()
 		case domain.EventRequestOpened:
@@ -501,6 +574,10 @@ func (m *Manager) consume(s *domain.Session, rt AgentRuntime) {
 		m.mu.Unlock()
 
 		ev = m.cfg.Bus.Publish(ev)
+		if quotaStop {
+			_ = m.cfg.Repo.Save(context.Background(), snap)
+			m.cfg.Bus.Publish(domain.Event{SessionID: s.ID(), Type: domain.EventSessionState, Session: &snap})
+		}
 		switch ev.Type {
 		case domain.EventTurnEnded:
 			_ = m.cfg.Repo.Save(context.Background(), snap)
@@ -513,10 +590,23 @@ func (m *Manager) consume(s *domain.Session, rt AgentRuntime) {
 			}
 		}
 	}
-	m.detach(s, rt)
+	m.detach(s, rt, open)
 }
 
-func (m *Manager) detach(s *domain.Session, rt AgentRuntime) {
+// mergeQuota folds a partial quota report into the cached snapshot, so a
+// report on one window doesn't erase the others.
+// ponytail: read-merge-write without a lock; concurrent reports for one
+// agent may drop a window until its next report.
+func (m *Manager) mergeQuota(q domain.QuotaSnapshot) *domain.QuotaSnapshot {
+	if m.cfg.Quotas != nil {
+		if prev, ok, err := m.cfg.Quotas.GetQuota(context.Background(), q.Agent); err == nil && ok {
+			q = prev.Merge(q)
+		}
+	}
+	return &q
+}
+
+func (m *Manager) detach(s *domain.Session, rt AgentRuntime, open map[domain.ItemID]domain.Item) {
 	m.mu.Lock()
 	if m.runtimes[s.ID()] != rt {
 		m.mu.Unlock()
@@ -535,6 +625,11 @@ func (m *Manager) detach(s *domain.Session, rt AgentRuntime) {
 	for _, req := range stale {
 		req.MarkStale()
 		m.cfg.Bus.Publish(domain.Event{SessionID: s.ID(), Type: domain.EventRequestResolved, Request: req})
+	}
+	for _, item := range open {
+		if item.SetStatus(domain.ItemFailed) == nil {
+			m.cfg.Bus.Publish(domain.Event{SessionID: s.ID(), Type: domain.EventItemUpdated, Item: &item})
+		}
 	}
 	_ = m.cfg.Repo.Save(context.Background(), snap)
 	m.cfg.Bus.Publish(domain.Event{SessionID: s.ID(), Type: domain.EventSessionState, Session: &snap})
@@ -559,17 +654,25 @@ func (m *Manager) RespondRequest(ctx context.Context, sessionID domain.SessionID
 	m.mu.Lock()
 	req := m.pending[sessionID][requestID]
 	rt := m.runtimes[sessionID]
+	if req != nil && rt != nil {
+		// Claim it, so a second answer (double click, another tab) is refused.
+		delete(m.pending[sessionID], requestID)
+	}
 	m.mu.Unlock()
 	if req == nil || rt == nil {
 		return fmt.Errorf("%w: %s", ErrRequestNotFound, requestID)
 	}
 	if err := rt.Respond(ctx, requestID, answer); err != nil {
+		m.mu.Lock()
+		if m.runtimes[sessionID] == rt && m.pending[sessionID] != nil {
+			m.pending[sessionID][requestID] = req
+		}
+		m.mu.Unlock()
 		return err
 	}
 	data, _ := json.Marshal(answer)
 	m.mu.Lock()
 	_ = req.Resolve(data)
-	delete(m.pending[sessionID], requestID)
 	m.mu.Unlock()
 	m.recordDecision(req, answer)
 	m.cfg.Bus.Publish(domain.Event{SessionID: sessionID, Type: domain.EventRequestResolved, Request: req})

@@ -61,3 +61,49 @@ func TestZeroTimesAreOmittedFromJSON(t *testing.T) {
 		t.Fatalf("empty interruption serialized: %s", s)
 	}
 }
+
+func TestQuotaMergeKeepsWindowsNotReported(t *testing.T) {
+	prev := QuotaSnapshot{Agent: AgentClaude, Plan: "max", Windows: []QuotaWindow{
+		{Name: "five_hour", UsedPct: 10}, {Name: "seven_day", UsedPct: 50},
+	}}
+	got := prev.Merge(QuotaSnapshot{Agent: AgentClaude, Reached: true, Windows: []QuotaWindow{{Name: "seven_day", UsedPct: 100}}})
+	if len(got.Windows) != 2 || got.Windows[0].UsedPct != 10 || got.Windows[1].UsedPct != 100 {
+		t.Fatalf("windows = %+v", got.Windows)
+	}
+	if got.Plan != "max" || !got.Reached {
+		t.Fatalf("merged = %+v", got)
+	}
+	if prev.Windows[1].UsedPct != 50 {
+		t.Fatal("merge mutated the previous snapshot")
+	}
+	added := prev.Merge(QuotaSnapshot{Agent: AgentClaude, Plan: "pro", Windows: []QuotaWindow{{Name: "opus", UsedPct: 5}}})
+	if len(added.Windows) != 3 || added.Windows[2].Name != "opus" || added.Plan != "pro" {
+		t.Fatalf("added = %+v", added)
+	}
+	other := prev.Merge(QuotaSnapshot{Agent: AgentCodex, Windows: []QuotaWindow{{Name: "primary"}}})
+	if len(other.Windows) != 1 || other.Agent != AgentCodex {
+		t.Fatalf("other agent = %+v", other)
+	}
+}
+
+func TestQuotaResetsAt(t *testing.T) {
+	early, late := time.Unix(100, 0), time.Unix(200, 0)
+	exhausted := QuotaSnapshot{Windows: []QuotaWindow{
+		{Name: "a", UsedPct: 20, ResetsAt: late},
+		{Name: "b", Status: "rejected", ResetsAt: early},
+	}}
+	if got := exhausted.ResetsAt(); !got.Equal(early) {
+		t.Fatalf("exhausted resets = %v", got)
+	}
+	full := QuotaSnapshot{Windows: []QuotaWindow{{Name: "a", UsedPct: 100, ResetsAt: early}, {Name: "b", ResetsAt: late}}}
+	if got := full.ResetsAt(); !got.Equal(early) {
+		t.Fatalf("full resets = %v", got)
+	}
+	unmarked := QuotaSnapshot{Windows: []QuotaWindow{{Name: "a", ResetsAt: early}, {Name: "b", ResetsAt: late}}}
+	if got := unmarked.ResetsAt(); !got.Equal(late) {
+		t.Fatalf("unmarked resets = %v", got)
+	}
+	if !(QuotaSnapshot{}).ResetsAt().IsZero() {
+		t.Fatal("empty snapshot resets")
+	}
+}

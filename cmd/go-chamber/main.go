@@ -80,6 +80,7 @@ func run(ctx context.Context, args []string, out io.Writer) error {
 		Quotas:        store.Quotas(),
 		QuotaProvider: runtimes,
 		Bus:           events,
+		History:       events,
 		Models:        runtimes,
 	})
 	defer manager.Close()

@@ -3,7 +3,9 @@
 package hub
 
 import (
+	"cmp"
 	"context"
+	"slices"
 	"sync"
 
 	"github.com/igorzygin/go-chamber/internal/app"
@@ -27,6 +29,9 @@ type Hub struct {
 	log     app.EventLog
 	onError func(error)
 	loaded  map[domain.SessionID]bool
+	// lost marks sessions with events the log failed to store; their history
+	// fills the gaps from the buffer.
+	lost map[domain.SessionID]bool
 }
 
 func New() *Hub { return NewWithBuffer(DefaultBufferSize) }
@@ -53,6 +58,7 @@ func NewLogged(log app.EventLog, onError func(error)) *Hub {
 	h.log = log
 	h.onError = onError
 	h.loaded = map[domain.SessionID]bool{}
+	h.lost = map[domain.SessionID]bool{}
 	return h
 }
 
@@ -63,6 +69,12 @@ func (h *Hub) fail(err error) {
 }
 
 func (h *Hub) Publish(ev domain.Event) domain.Event {
+	// The publisher may keep mutating its item; stored and sent copies must not change.
+	ev = domain.DetachItems([]domain.Event{ev})[0]
+	if ev.Request != nil {
+		req := *ev.Request
+		ev.Request = &req
+	}
 	h.mu.Lock()
 	if h.log != nil && !h.loaded[ev.SessionID] {
 		last, err := h.log.LastSeq(context.Background(), ev.SessionID)
@@ -70,7 +82,8 @@ func (h *Hub) Publish(ev domain.Event) domain.Event {
 		if last > h.seq[ev.SessionID] {
 			h.seq[ev.SessionID] = last
 		}
-		h.loaded[ev.SessionID] = true
+		// Retried on the next event, so numbering catches up with the log.
+		h.loaded[ev.SessionID] = err == nil
 	}
 	h.seq[ev.SessionID]++
 	ev.Seq = h.seq[ev.SessionID]
@@ -82,7 +95,10 @@ func (h *Hub) Publish(ev domain.Event) domain.Event {
 	h.buf[ev.SessionID] = buf
 	if h.log != nil {
 		// Under the lock so events are stored in seq order.
-		h.fail(h.log.Append(context.Background(), ev))
+		if err := h.log.Append(context.Background(), ev); err != nil {
+			h.lost[ev.SessionID] = true
+			h.fail(err)
+		}
 	}
 	subs := make([]*Subscriber, 0, len(h.subs))
 	for s := range h.subs {
@@ -101,15 +117,37 @@ func (h *Hub) History(session domain.SessionID, since domain.Seq) []domain.Event
 	if h.log != nil {
 		events, err := h.log.History(context.Background(), session, since)
 		if err == nil {
-			return events
+			return h.fillLost(session, since, events)
 		}
 		h.fail(err)
 	}
 	h.mu.Lock()
 	defer h.mu.Unlock()
+	return h.buffered(session, since, nil)
+}
+
+// fillLost adds buffered events the log failed to store to its history.
+func (h *Hub) fillLost(session domain.SessionID, since domain.Seq, events []domain.Event) []domain.Event {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if !h.lost[session] {
+		return events
+	}
+	stored := make(map[domain.Seq]bool, len(events))
+	for _, ev := range events {
+		stored[ev.Seq] = true
+	}
+	events = append(events, h.buffered(session, since, stored)...)
+	slices.SortFunc(events, func(a, b domain.Event) int { return cmp.Compare(a.Seq, b.Seq) })
+	return events
+}
+
+// buffered returns buffered events after since that are not in skip.
+// Callers hold h.mu.
+func (h *Hub) buffered(session domain.SessionID, since domain.Seq, skip map[domain.Seq]bool) []domain.Event {
 	var out []domain.Event
 	for _, ev := range h.buf[session] {
-		if ev.Seq > since {
+		if ev.Seq > since && !skip[ev.Seq] {
 			out = append(out, ev)
 		}
 	}
@@ -123,6 +161,13 @@ func (h *Hub) Subscribe() *Subscriber {
 	h.subs[s] = struct{}{}
 	h.mu.Unlock()
 	return s
+}
+
+// Subscribers is the number of live subscribers.
+func (h *Hub) Subscribers() int {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return len(h.subs)
 }
 
 func (h *Hub) unsubscribe(s *Subscriber) {

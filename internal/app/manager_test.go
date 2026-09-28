@@ -965,7 +965,14 @@ func (r *fakeQuotaRepo) SaveQuota(_ context.Context, q domain.QuotaSnapshot) err
 	r.saved = append(r.saved, q)
 	return nil
 }
-func (r *fakeQuotaRepo) GetQuota(context.Context, domain.AgentKind) (domain.QuotaSnapshot, bool, error) {
+func (r *fakeQuotaRepo) GetQuota(_ context.Context, agent domain.AgentKind) (domain.QuotaSnapshot, bool, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for i := len(r.saved) - 1; i >= 0; i-- {
+		if r.saved[i].Agent == agent {
+			return r.saved[i], true, nil
+		}
+	}
 	return domain.QuotaSnapshot{}, false, nil
 }
 func (r *fakeQuotaRepo) ListQuotas(context.Context) ([]domain.QuotaSnapshot, error) {

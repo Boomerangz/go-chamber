@@ -84,3 +84,32 @@ func TestWebSocketRejectsCrossOrigin(t *testing.T) {
 		t.Fatal("want cross-origin dial to fail")
 	}
 }
+
+func TestWebSocketUnsubscribesWhenClientLeaves(t *testing.T) {
+	events := hub.New()
+	ts := httptest.NewServer(newSessionsServer(&fakeSessions{}, events))
+	defer ts.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	c, _, err := websocket.Dial(ctx, ts.URL+"/api/ws", &websocket.DialOptions{ //nolint:bodyclose // a successful upgrade has no body to close
+		HTTPHeader: http.Header{"Cookie": {"gc_token=" + testToken}},
+	})
+	if err != nil {
+		t.Fatalf("dial: %v", err)
+	}
+	waitSubscribers(t, events, 1)
+	_ = c.Close(websocket.StatusNormalClosure, "bye")
+	waitSubscribers(t, events, 0)
+}
+
+func waitSubscribers(t *testing.T, events *hub.Hub, want int) {
+	t.Helper()
+	deadline := time.Now().Add(3 * time.Second)
+	for events.Subscribers() != want {
+		if time.Now().After(deadline) {
+			t.Fatalf("subscribers = %d, want %d", events.Subscribers(), want)
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+}

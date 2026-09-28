@@ -98,3 +98,63 @@ func TestLoggedHubWithoutErrorHandler(t *testing.T) {
 		t.Fatal("buffer history expected")
 	}
 }
+
+func TestPublishDetachesItem(t *testing.T) {
+	h := New()
+	sub := h.Subscribe()
+	defer sub.Close()
+	item := &domain.Item{ID: "i", SessionID: "a", Kind: domain.ItemAssistantMessage, Text: "he"}
+	h.Publish(domain.Event{SessionID: "a", Type: domain.EventItemUpdated, Item: item})
+	item.Text = "hello" // a mapper keeps appending streamed text
+	if got := (<-sub.Events()).Item.Text; got != "he" {
+		t.Fatalf("delivered text = %q", got)
+	}
+	if got := h.History("a", 0)[0].Item.Text; got != "he" {
+		t.Fatalf("buffered text = %q", got)
+	}
+
+	req := &domain.Request{ID: "r", SessionID: "a", Kind: domain.RequestPermission, State: domain.RequestPending}
+	h.Publish(domain.Event{SessionID: "a", Type: domain.EventRequestOpened, Request: req})
+	req.State = domain.RequestResolved // the manager resolves it later
+	if got := (<-sub.Events()).Request.State; got != domain.RequestPending {
+		t.Fatalf("delivered request state = %s", got)
+	}
+}
+
+func TestHistoryKeepsEventsTheLogLost(t *testing.T) {
+	log := &memLog{}
+	h := NewLogged(log, nil)
+	h.Publish(ev("a", domain.EventTurnStarted))
+	log.mu.Lock()
+	log.appendErr = errors.New("busy")
+	log.mu.Unlock()
+	h.Publish(ev("a", domain.EventItemUpdated))
+	log.mu.Lock()
+	log.appendErr = nil
+	log.mu.Unlock()
+	h.Publish(ev("a", domain.EventTurnEnded))
+
+	got := h.History("a", 0)
+	if len(got) != 3 || got[0].Seq != 1 || got[1].Seq != 2 || got[1].Type != domain.EventItemUpdated || got[2].Seq != 3 {
+		t.Fatalf("history = %+v", got)
+	}
+	if got := h.History("a", 2); len(got) != 1 || got[0].Seq != 3 {
+		t.Fatalf("history since 2 = %+v", got)
+	}
+}
+
+func TestLastSeqFailureIsRetried(t *testing.T) {
+	log := &memLog{}
+	NewLogged(log, nil).Publish(ev("a", domain.EventTurnStarted))
+	log.events = append(log.events, domain.Event{SessionID: "a", Seq: 2, Type: domain.EventTurnEnded})
+
+	log.readErr = errors.New("locked")
+	h := NewLogged(log, nil)
+	h.Publish(ev("a", domain.EventSessionState))
+	log.mu.Lock()
+	log.readErr = nil
+	log.mu.Unlock()
+	if got := h.Publish(ev("a", domain.EventSessionState)); got.Seq != 3 {
+		t.Fatalf("seq after recovered LastSeq = %d", got.Seq)
+	}
+}

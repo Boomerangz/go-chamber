@@ -3,6 +3,7 @@ package domain
 import (
 	"errors"
 	"fmt"
+	"slices"
 	"time"
 )
 
@@ -39,6 +40,46 @@ func (q QuotaSnapshot) Validate() error {
 		}
 	}
 	return nil
+}
+
+// Merge returns the snapshot updated with next. Agents report windows one at
+// a time, so windows next doesn't mention are kept.
+func (q QuotaSnapshot) Merge(next QuotaSnapshot) QuotaSnapshot {
+	if q.Agent != next.Agent {
+		return next
+	}
+	merged := next
+	merged.Windows = append([]QuotaWindow(nil), q.Windows...)
+	for _, w := range next.Windows {
+		i := slices.IndexFunc(merged.Windows, func(old QuotaWindow) bool { return old.Name == w.Name })
+		if i < 0 {
+			merged.Windows = append(merged.Windows, w)
+		} else {
+			merged.Windows[i] = w
+		}
+	}
+	if merged.Plan == "" {
+		merged.Plan = q.Plan
+	}
+	return merged
+}
+
+// ResetsAt is when a reached limit lifts: the latest reset among exhausted
+// windows, or among all windows when none is marked exhausted.
+func (q QuotaSnapshot) ResetsAt() time.Time {
+	var all, exhausted time.Time
+	for _, w := range q.Windows {
+		if w.ResetsAt.After(all) {
+			all = w.ResetsAt
+		}
+		if (w.Status == "rejected" || w.UsedPct >= 100) && w.ResetsAt.After(exhausted) {
+			exhausted = w.ResetsAt
+		}
+	}
+	if !exhausted.IsZero() {
+		return exhausted
+	}
+	return all
 }
 
 // Usage is token/cost accounting for a session or turn.
