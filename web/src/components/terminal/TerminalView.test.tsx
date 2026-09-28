@@ -18,6 +18,7 @@ vi.mock('@xterm/xterm', () => ({
       reset: vi.fn(),
       focus: vi.fn(),
       onData: vi.fn(() => ({ dispose: vi.fn() })),
+      parser: { registerCsiHandler: vi.fn(() => ({ dispose: vi.fn() })) },
       dispose: vi.fn(),
     }
     xterms.push(t)

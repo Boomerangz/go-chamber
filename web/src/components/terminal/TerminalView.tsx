@@ -3,6 +3,7 @@ import { Unicode11Addon } from '@xterm/addon-unicode11'
 import { Terminal as XTerm } from '@xterm/xterm'
 import '@xterm/xterm/css/xterm.css'
 import { useEffect, useRef } from 'react'
+import { answerVersionQuery } from '../../lib/xtversion'
 import { connectTerminal, type TerminalConnection } from '../../lib/terminal'
 import { terminalTheme } from '../../lib/theme'
 import { useTerminalStore } from '../../stores/terminals'
@@ -97,9 +98,11 @@ function liveFor(id: string, host: HTMLElement, callbacks: Callbacks): Live {
   const input = xterm.onData((data) => {
     if (ready) live.conn.send(data)
   })
+  const version = answerVersionQuery(xterm, () => ready, (data) => live.conn.send(data))
   live.dispose = () => {
     scheme.removeEventListener?.('change', onScheme)
     input.dispose()
+    version.dispose()
     live.conn.close()
     xterm.dispose()
     el.remove()
