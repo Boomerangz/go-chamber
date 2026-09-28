@@ -7,7 +7,8 @@ import { initialChat } from './lib/events'
 import * as terminal from './lib/terminal'
 import { resetLayout } from './stores/layout'
 import { useSessionStore } from './stores/session'
-import { resetTerminals } from './stores/terminals'
+import { resetTerminals, useTerminalStore } from './stores/terminals'
+import { useLayoutStore } from './stores/layout'
 
 vi.mock('./lib/api', () => ({
   fetchHealth: vi.fn(),
@@ -33,6 +34,8 @@ const shell = (id: string, cwd: string, over: Partial<terminal.Terminal> = {}): 
 })
 
 beforeEach(() => {
+  history.replaceState(null, '', '/')
+  useSessionStore.setState({ activeId: null, sessions: [], chat: initialChat() })
   localStorage.clear()
   sessionStorage.clear()
   resetLayout()
@@ -108,6 +111,36 @@ describe('App', () => {
     expect(screen.getByText('echo: hello')).toBeInTheDocument()
     expect(screen.getByLabelText('message')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'New session' })).toBeInTheDocument()
+  })
+
+  it('opens the session named in the URL and follows later selections', async () => {
+    mockApi()
+    vi.mocked(api.fetchEvents).mockResolvedValue([])
+    history.replaceState(null, '', '/s/s1')
+    render(<App />)
+    await vi.waitFor(() => expect(useSessionStore.getState().activeId).toBe('s1'))
+    await act(async () => {
+      await useSessionStore.getState().selectSession('s2')
+    })
+    expect(location.pathname).toBe('/s/s2')
+    await act(async () => {
+      history.back()
+      await new Promise((r) => setTimeout(r, 50))
+    })
+    await vi.waitFor(() => expect(useSessionStore.getState().activeId).toBe('s1'))
+  })
+
+  it('opens the terminal named in the URL', async () => {
+    mockApi()
+    vi.mocked(terminal.listTerminals).mockResolvedValue([shell('t1', '/tmp'), shell('t2', '/usr')])
+    history.replaceState(null, '', '/t/t2')
+    render(<App />)
+    await vi.waitFor(() => expect(useLayoutStore.getState().mode).toBe('terminal'))
+    await vi.waitFor(() => expect(useTerminalStore.getState().activeId).toBe('t2'))
+    act(() => useTerminalStore.getState().select('t1'))
+    expect(location.pathname).toBe('/t/t1')
+    act(() => useLayoutStore.getState().setMode('agents'))
+    expect(location.pathname).toBe('/t/t1')
   })
 
   it('renders tool and reasoning items', async () => {

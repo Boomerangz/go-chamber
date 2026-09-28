@@ -65,8 +65,7 @@ test('switches who reviews codex approvals', async ({ page }, info) => {
   await page.getByRole('button', { name: 'Allow', exact: true }).click()
   await expect(page.locator('.item.assistant', { hasText: 'approved: manual permission run' }).last()).toBeVisible()
 
-  // The choice survives a reload.
+  // The choice survives a reload, which reopens the same session.
   await page.reload()
-  await page.getByRole('region', { name: `Project ${cwd.split('/').pop()}` }).locator('.session').first().click()
   await expect(page.getByLabel('approval reviewer')).toHaveValue('user')
 })

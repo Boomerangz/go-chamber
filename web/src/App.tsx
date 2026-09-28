@@ -38,6 +38,7 @@ import { displayStatus } from './lib/format'
 import { enter } from './lib/motion'
 import { firstUnseen, loadSeen, saveSeen } from './lib/seen'
 import { itemTree, type ItemNode } from './lib/tree'
+import { parseRoute, routePath } from './lib/route'
 import { turnNumbers } from './lib/turns'
 import { useLayoutStore, type Mode } from './stores/layout'
 import { useSessionStore, type Pane } from './stores/session'
@@ -75,6 +76,8 @@ export default function App() {
       connect()
     }
   }, [health, loadSessions, loadRequests, loadQuotas, loadTerminals, connect])
+
+  useRouteSync(health === 'online')
 
   return (
     <main className="app">
@@ -689,4 +692,39 @@ function commandText(item: Item): string {
     return String((input as { command: unknown }).command)
   }
   return item.name ?? 'command'
+}
+
+// useRouteSync keeps the URL on the open session (/s/<id>) or terminal
+// (/t/<id>): a reload or a shared link reopens it, and Back returns to the
+// previous one.
+function useRouteSync(online: boolean) {
+  useEffect(() => {
+    if (!online) return
+    const apply = () => {
+      const route = parseRoute(location.pathname)
+      if (route.kind === 'session') {
+        useLayoutStore.getState().setMode('agents')
+        if (useSessionStore.getState().activeId !== route.id) void useSessionStore.getState().selectSession(route.id)
+      } else if (route.kind === 'terminal') {
+        useLayoutStore.getState().setMode('terminal')
+        useTerminalStore.getState().select(route.id)
+      }
+    }
+    const current = () =>
+      routePath(useLayoutStore.getState().mode, useSessionStore.getState().activeId, useTerminalStore.getState().activeId)
+    // ponytail: with nothing open the URL keeps the last session or terminal,
+    // so Back never lands on an empty step; a reload then reopens that one.
+    const follow = () => {
+      const path = current()
+      if (path !== '/' && path !== location.pathname) history.pushState(null, '', path + location.search)
+    }
+    apply()
+    if (current() !== '/' && current() !== location.pathname) history.replaceState(null, '', current() + location.search)
+    const unsubscribe = [useLayoutStore.subscribe(follow), useSessionStore.subscribe(follow), useTerminalStore.subscribe(follow)]
+    window.addEventListener('popstate', apply)
+    return () => {
+      unsubscribe.forEach((u) => u())
+      window.removeEventListener('popstate', apply)
+    }
+  }, [online])
 }
