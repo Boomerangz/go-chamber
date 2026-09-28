@@ -372,3 +372,27 @@ func TestStateChangingRequestsRequireSameOrigin(t *testing.T) {
 		}
 	}
 }
+
+func TestCoalesceMergesQueuedOutput(t *testing.T) {
+	out := make(chan []byte, 4)
+	out <- []byte("b")
+	out <- []byte("c")
+	out <- []byte("d")
+	first := make([]byte, 1, 8)
+	first[0] = 'a'
+	frame, open := coalesce(first, out, 3)
+	if string(frame) != "abc" || !open {
+		t.Fatalf("frame %q open %v, want \"abc\" true", frame, open)
+	}
+	if spare := first[:2]; spare[1] != 0 {
+		t.Fatalf("coalesce wrote into the shared chunk: %q", spare)
+	}
+	if got := <-out; string(got) != "d" {
+		t.Fatalf("left in queue %q, want \"d\"", got)
+	}
+	close(out)
+	frame, open = coalesce([]byte("e"), out, 3)
+	if string(frame) != "e" || open {
+		t.Fatalf("closed queue: frame %q open %v, want \"e\" false", frame, open)
+	}
+}

@@ -24,7 +24,11 @@ const (
 	defaultRows       = 24
 	// subscriberBuffer is how many output chunks a client may lag behind
 	// before it is dropped; it reattaches and catches up from scrollback.
-	subscriberBuffer = 256
+	// A pty read is ~1 KiB (macOS) to 4 KiB (Linux), so a multi-megabyte
+	// full-screen repaint fits without forcing a reattach and replay.
+	// ponytail: counted in chunks, not bytes; ceiling is 4096 × the 32 KiB read
+	// buffer per client. Count queued bytes if that ever matters.
+	subscriberBuffer = 4096
 )
 
 // PTY is a shell process attached to a pseudo-terminal. Read yields output

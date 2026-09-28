@@ -107,13 +107,45 @@ func (s *server) terminalPTY(w http.ResponseWriter, r *http.Request) {
 				s.terminalEnded(ctx, c, id, att.Lagged())
 				return
 			}
-			if err := c.Write(ctx, websocket.MessageBinary, chunk); err != nil {
+			frame, open := coalesce(chunk, att.Output, maxTerminalFrame)
+			if err := c.Write(ctx, websocket.MessageBinary, frame); err != nil {
+				return
+			}
+			if !open {
+				s.terminalEnded(ctx, c, id, att.Lagged())
 				return
 			}
 		case <-ctx.Done():
 			return
 		}
 	}
+}
+
+// maxTerminalFrame caps one output frame. A full-screen repaint arrives from
+// the pty in ~1 KiB reads; sending them as a few large frames saves the
+// per-frame cost on both ends.
+const maxTerminalFrame = 256 << 10
+
+// coalesce appends output already queued behind first, up to maxFrame bytes.
+// Chunks are shared with other clients, so it copies before appending. open
+// is false once the queue is closed.
+func coalesce(first []byte, out <-chan []byte, maxFrame int) (frame []byte, open bool) {
+	frame = first
+	for len(frame) < maxFrame {
+		select {
+		case chunk, ok := <-out:
+			if !ok {
+				return frame, false
+			}
+			if len(frame) == len(first) {
+				frame = append(make([]byte, 0, maxFrame), first...)
+			}
+			frame = append(frame, chunk...)
+		default:
+			return frame, true
+		}
+	}
+	return frame, true
 }
 
 // terminalEnded tells the client why output stopped: the shell exited, the

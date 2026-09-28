@@ -696,6 +696,7 @@ h1 { font-family: var(--font-mono); font-size: 14px; font-weight: 400; letter-sp
   flex: 1; min-width: 0; min-height: 260px; padding: 8px 10px;
   border: 1px solid var(--rule); background: var(--paper); overflow: hidden;
 }
+.terminal-screen { height: 100%; }
 
 /* ---------- terminal mode ---------- */
 .layout.term-layout { grid-template-columns: minmax(0, 1fr); }
