@@ -28,6 +28,7 @@ import (
 	"github.com/igorzygin/go-chamber/internal/adapters/pty"
 	"github.com/igorzygin/go-chamber/internal/adapters/router"
 	"github.com/igorzygin/go-chamber/internal/adapters/sqlite"
+	"github.com/igorzygin/go-chamber/internal/adapters/webpush"
 	"github.com/igorzygin/go-chamber/internal/app"
 	"github.com/igorzygin/go-chamber/internal/domain"
 	"github.com/igorzygin/go-chamber/web"
@@ -107,6 +108,14 @@ func run(ctx context.Context, args []string, out io.Writer) error {
 	// Closing shells also ends their WebSockets, which Shutdown doesn't track.
 	defer terminals.CloseAll()
 
+	push, err := webpush.Open(*dataDir, "mailto:go-chamber@localhost")
+	if err != nil {
+		return err
+	}
+	notifySub := events.Subscribe()
+	defer notifySub.Close()
+	go app.NewNotifications(store.Sessions()).Watch(ctx, notifySub.Events(), push)
+
 	ln, err := net.Listen("tcp", *addr)
 	if err != nil {
 		return err
@@ -131,6 +140,7 @@ func run(ctx context.Context, args []string, out io.Writer) error {
 				Git:      git.Repo{},
 				Root:     filepath.Join(*dataDir, "worktrees"),
 			}),
+			Push: push,
 			History: app.NewHistory(app.HistoryConfig{
 				Repo: store.Sessions(),
 				Bus:  events,

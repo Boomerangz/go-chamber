@@ -177,7 +177,7 @@ select.field option { background: var(--paper); color: var(--ink); }
 }
 .topbar > :last-child { justify-self: end; }
 .topbar-end { display: flex; align-items: center; gap: 10px; }
-@media (max-width: 720px) { .topbar-end .btn { display: none; } }
+@media (max-width: 720px) { .topbar-end .signout { display: none; } }
 .brand { display: flex; align-items: baseline; gap: 10px; }
 h1 { font-family: var(--font-mono); font-size: 14px; font-weight: 400; letter-spacing: 0.01em; }
 

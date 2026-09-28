@@ -41,6 +41,8 @@ type Config struct {
 	Worktrees Worktrees
 	// History lists and imports sessions recorded outside go-chamber when non-nil.
 	History HistoryService
+	// Push registers browsers for notifications when non-nil.
+	Push PushSubscriptions
 }
 
 type server struct {
@@ -58,6 +60,7 @@ func NewServer(cfg Config) http.Handler {
 	s.imageRoutes()
 	s.worktreeRoutes()
 	s.historyRoutes()
+	s.pushRoutes()
 	return &auth{token: []byte(cfg.Token), next: s.mux}
 }
 
@@ -77,6 +80,13 @@ func (a *auth) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	if r.Method == http.MethodPost && r.URL.Path == "/login" {
 		a.loginForm(w, r)
+		return
+	}
+	if safeMethod(r.Method) && publicFiles[r.URL.Path] {
+		if r.URL.Path == "/sw.js" {
+			w.Header().Set("Cache-Control", "no-cache")
+		}
+		a.next.ServeHTTP(w, r)
 		return
 	}
 	if !a.authorized(r) {

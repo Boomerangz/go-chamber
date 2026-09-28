@@ -24,6 +24,7 @@ import ComposerInput from './components/composer/ComposerInput'
 import Attachments from './components/composer/Attachments'
 import { useAttachments } from './components/composer/useAttachments'
 import InterruptedBanner from './components/chat/InterruptedBanner'
+import NotifyToggle from './components/notify/NotifyToggle'
 import RequestCard from './components/requests/RequestCard'
 import QuotaWidget from './components/quota/QuotaWidget'
 import RequestTray from './components/requests/RequestTray'
@@ -91,8 +92,9 @@ export default function App() {
             <span className="dot" aria-hidden="true" />
             {health ?? 'connecting'}
           </span>
+          {health === 'online' && <NotifyToggle />}
           {health === 'online' && (
-            <form method="post" action="/logout">
+            <form method="post" action="/logout" className="signout">
               <button type="submit" className="btn btn-ghost">Sign out</button>
             </form>
           )}
