@@ -1,0 +1,1 @@
+ALTER TABLE sessions ADD COLUMN worktree TEXT NOT NULL DEFAULT '';

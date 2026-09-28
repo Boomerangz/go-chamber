@@ -100,6 +100,7 @@ type Session struct {
 	activeAt     time.Time
 	model        string
 	effort       string
+	worktree     *Worktree
 }
 
 // SessionSnapshot is the persistable state of a Session.
@@ -126,6 +127,8 @@ type SessionSnapshot struct {
 	// Model and Effort are empty when the agent's configuration decides.
 	Model  string `json:"model,omitempty"`
 	Effort string `json:"effort,omitempty"`
+	// Worktree is set when go-chamber created the session folder as a git worktree.
+	Worktree *Worktree `json:"worktree,omitempty"`
 }
 
 func NewSession(id SessionID, agent AgentKind, cwd string) (*Session, error) {
@@ -176,6 +179,10 @@ func RestoreSession(snap SessionSnapshot) (*Session, error) {
 		nativeID: snap.NativeID, parentID: snap.ParentID, forkOf: snap.ForkOf, status: StatusDetached,
 		reviewer: snap.ApprovalReviewer, mode: snap.PermissionMode, createdAt: snap.CreatedAt, activeAt: snap.ActiveAt,
 		model: snap.Model, effort: snap.Effort,
+	}
+	if snap.Worktree != nil {
+		wt := *snap.Worktree
+		s.worktree = &wt
 	}
 	switch snap.Status {
 	case StatusRunning:
@@ -302,7 +309,7 @@ func (s *Session) Snapshot() SessionSnapshot {
 		ID: s.id, Agent: s.agent, Cwd: s.cwd, NativeID: s.nativeID, ParentID: s.parentID, ForkOf: s.forkOf,
 		Status: s.status, Title: s.title, Interruption: s.interruption, AutoContinue: s.autoContinue,
 		ApprovalReviewer: s.reviewer, PermissionMode: s.mode, CreatedAt: s.createdAt, ActiveAt: s.activeAt,
-		Model: s.model, Effort: s.effort,
+		Model: s.model, Effort: s.effort, Worktree: s.Worktree(),
 	}
 }
 

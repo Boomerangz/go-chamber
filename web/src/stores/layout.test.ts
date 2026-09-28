@@ -31,6 +31,12 @@ describe('layout store', () => {
     expect(loadLayout().dock).toBeNull()
   })
 
+  it('opens the changes tab and remembers it', () => {
+    store().toggleDock('changes')
+    expect(store().dock).toBe('changes')
+    expect(loadLayout().dock).toBe('changes')
+  })
+
   it('ignores unknown or broken stored values', () => {
     localStorage.setItem('gc.layout', JSON.stringify({ mode: 'weird', dock: 'nope' }))
     expect(loadLayout()).toEqual({ mode: 'agents', dock: null })

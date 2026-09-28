@@ -4,7 +4,7 @@ import { create } from 'zustand'
 export type Mode = 'agents' | 'terminal'
 
 // Dock is the side panel next to the chat; null when collapsed to its rail.
-export type Dock = 'requests' | 'terminal' | null
+export type Dock = 'requests' | 'terminal' | 'changes' | null
 
 interface Layout {
   mode: Mode
@@ -24,7 +24,7 @@ export function loadLayout(): Layout {
     const raw = JSON.parse(localStorage.getItem(KEY) ?? '{}') as Partial<Layout>
     return {
       mode: raw.mode === 'terminal' ? 'terminal' : 'agents',
-      dock: raw.dock === 'requests' || raw.dock === 'terminal' ? raw.dock : null,
+      dock: raw.dock === 'requests' || raw.dock === 'terminal' || raw.dock === 'changes' ? raw.dock : null,
     }
   } catch {
     return { mode: 'agents', dock: null }

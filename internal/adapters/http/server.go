@@ -34,6 +34,8 @@ type Config struct {
 	Search MessageSearch
 	// Complete suggests files and commands for the composer when non-nil.
 	Complete Completer
+	// Worktrees creates worktree sessions and serves the diff panel when non-nil.
+	Worktrees Worktrees
 }
 
 type server struct {
@@ -48,6 +50,7 @@ func NewServer(cfg Config) http.Handler {
 	s := &server{cfg: cfg, mux: http.NewServeMux()}
 	s.routes()
 	s.completeRoutes()
+	s.worktreeRoutes()
 	return &auth{token: []byte(cfg.Token), next: s.mux}
 }
 

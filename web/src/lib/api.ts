@@ -33,6 +33,15 @@ export interface Session {
   // model and effort are empty when the agent's configuration decides.
   model?: string
   effort?: string
+  // worktree is set when go-chamber created the session folder as a git worktree.
+  worktree?: Worktree
+}
+
+export interface Worktree {
+  repo: string
+  path: string
+  branch: string
+  base: string
 }
 
 export type ItemKind =
@@ -357,4 +366,32 @@ export function listModels(agent: AgentKind): Promise<ModelInfo[]> {
 
 export function setModel(id: string, choice: ModelChoice): Promise<Session> {
   return request<Session>(`/api/sessions/${encodeURIComponent(id)}/model`, json(choice))
+}
+
+export interface FileChange {
+  path: string
+  // status is git's letter (A, M, D, T) or '?' for an untracked file.
+  status: string
+}
+
+export interface Changes {
+  repository: boolean
+  base?: string
+  files: FileChange[]
+}
+
+export function createWorktreeSession(agent: AgentKind, cwd: string, branch: string, choice?: ModelChoice): Promise<Session> {
+  return request<Session>('/api/worktrees', json({ agent, cwd, branch, ...choice }))
+}
+
+export function getChanges(id: string): Promise<Changes> {
+  return request<Changes>(`/api/sessions/${encodeURIComponent(id)}/changes`)
+}
+
+export function getFileDiff(id: string, path: string): Promise<{ diff: string }> {
+  return request(`/api/sessions/${encodeURIComponent(id)}/changes/diff?path=${encodeURIComponent(path)}`)
+}
+
+export function removeWorktree(id: string, force: boolean): Promise<Session> {
+  return request<Session>(`/api/sessions/${encodeURIComponent(id)}/worktree${force ? '?force=1' : ''}`, { method: 'DELETE' })
 }

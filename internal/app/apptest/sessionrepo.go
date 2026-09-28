@@ -28,6 +28,7 @@ func SessionRepoContract(t *testing.T, newRepo func(t *testing.T) app.SessionRep
 		PermissionMode:   "plan",
 		ForkOf:           "origin",
 		AutoContinue:     true,
+		Worktree:         &domain.Worktree{Repo: "/src/p", Path: "/p", Branch: "chamber/x", Base: "abc"},
 	}
 
 	t.Run("get missing", func(t *testing.T) {
@@ -94,5 +95,8 @@ func SessionRepoContract(t *testing.T, newRepo func(t *testing.T) app.SessionRep
 func equal(a, b domain.SessionSnapshot) bool {
 	ai, bi := a.Interruption, b.Interruption
 	a.Interruption, b.Interruption = domain.Interruption{}, domain.Interruption{}
-	return a == b && ai.Reason == bi.Reason && ai.ResumeAfter.Equal(bi.ResumeAfter)
+	aw, bw := a.Worktree, b.Worktree
+	a.Worktree, b.Worktree = nil, nil
+	sameWorktree := (aw == nil) == (bw == nil) && (aw == nil || *aw == *bw)
+	return a == b && sameWorktree && ai.Reason == bi.Reason && ai.ResumeAfter.Equal(bi.ResumeAfter)
 }

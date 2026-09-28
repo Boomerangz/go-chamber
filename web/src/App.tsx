@@ -2,6 +2,7 @@ import { Fragment, useEffect, useLayoutEffect, useRef, useState, type ReactNode 
 import { AnimatePresence, motion, useReducedMotion, type TargetAndTransition } from 'motion/react'
 import {
   ChevronsRight,
+  FileDiff,
   FilePen,
   Inbox,
   List,
@@ -14,6 +15,7 @@ import {
 } from 'lucide-react'
 import { icon } from './components/icon'
 import AccountPanel from './components/account/AccountPanel'
+import DiffPanel from './components/changes/DiffPanel'
 import FolderField from './components/folders/FolderField'
 import Markdown from './components/markdown/Markdown'
 import ModelPicker from './components/models/ModelPicker'
@@ -99,12 +101,18 @@ export default function App() {
       {health === 'online' && mode === 'agents' && (
         <>
           <div className="layout" data-pane={pane} data-dock={dock ?? 'closed'}>
-            <Sidebar sessions={sessions} onCreate={(agent, cwd) => void createSession(agent, cwd)} />
+            <Sidebar sessions={sessions} onCreate={(agent, cwd, branch) => void createSession(agent, cwd, branch)} />
             {activeId ? <Chat key={activeId} /> : <EmptyChat />}
             <div className="dock">
               {dock && (
                 <div className="dock-body">
-                  {dock === 'requests' ? <RequestTray /> : <TerminalPanel sessionId={activeId} />}
+                  {dock === 'requests' ? (
+                    <RequestTray />
+                  ) : dock === 'changes' ? (
+                    <DiffPanel key={activeId} sessionId={activeId} />
+                  ) : (
+                    <TerminalPanel sessionId={activeId} />
+                  )}
                 </div>
               )}
               <DockRail />
@@ -112,6 +120,7 @@ export default function App() {
             <div className="requests-pane">
               <RequestTray />
             </div>
+            <div className="changes-pane">{pane === 'changes' && <DiffPanel key={activeId} sessionId={activeId} />}</div>
           </div>
           <PaneBar />
         </>
@@ -159,6 +168,7 @@ function DockRail() {
   const tabs = [
     { id: 'requests' as const, label: 'Requests', icon: <Inbox {...icon(16)} />, count: pending },
     { id: 'terminal' as const, label: 'Terminal', icon: <SquareTerminal {...icon(16)} />, count: running },
+    { id: 'changes' as const, label: 'Changes', icon: <FileDiff {...icon(16)} />, count: 0 },
   ]
   return (
     <div className="dock-rail" role="toolbar" aria-label="Dock" aria-orientation="vertical">
@@ -193,6 +203,7 @@ const panes: { id: Pane; label: string; icon: ReactNode }[] = [
   { id: 'sessions', label: 'Sessions', icon: <List {...icon(18)} /> },
   { id: 'chat', label: 'Chat', icon: <MessageSquareText {...icon(18)} /> },
   { id: 'requests', label: 'Requests', icon: <Inbox {...icon(18)} /> },
+  { id: 'changes', label: 'Changes', icon: <FileDiff {...icon(18)} /> },
 ]
 
 // PaneBar switches views on narrow screens; hidden on desktop by CSS.
@@ -224,16 +235,18 @@ function EmptyChat() {
   )
 }
 
-function Sidebar(props: { onCreate: (agent: AgentKind, cwd: string) => void; sessions: Session[] }) {
+function Sidebar(props: { onCreate: (agent: AgentKind, cwd: string, branch?: string) => void; sessions: Session[] }) {
   const [cwd, setCwd] = useState('')
   const [agent, setAgent] = useState<AgentKind>('claude')
+  const [inWorktree, setInWorktree] = useState(false)
+  const [branch, setBranch] = useState('')
   return (
     <aside className="sidebar panel">
       <form
         className="new-session"
         onSubmit={(e) => {
           e.preventDefault()
-          if (cwd.trim()) props.onCreate(agent, cwd.trim())
+          if (cwd.trim() && (!inWorktree || branch.trim())) props.onCreate(agent, cwd.trim(), inWorktree ? branch.trim() : undefined)
         }}
       >
         <div className="segmented" role="radiogroup" aria-label="agent">
@@ -257,6 +270,23 @@ function Sidebar(props: { onCreate: (agent: AgentKind, cwd: string) => void; ses
           onChange={setCwd}
           recent={recentFolders(props.sessions, 6)}
         />
+        <label className="worktree-toggle">
+          <input type="checkbox" checked={inWorktree} onChange={(e) => setInWorktree(e.target.checked)} />
+          In a new worktree
+        </label>
+        {inWorktree && (
+          <label className="worktree-branch">
+            <span>chamber/</span>
+            <input
+              className="field"
+              aria-label="branch name"
+              placeholder="branch name"
+              value={branch}
+              required
+              onChange={(e) => setBranch(e.target.value)}
+            />
+          </label>
+        )}
         <button type="submit" className="btn btn-primary">
           New session
         </button>

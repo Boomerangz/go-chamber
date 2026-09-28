@@ -22,6 +22,7 @@ import (
 	"github.com/igorzygin/go-chamber/internal/adapters/claude"
 	"github.com/igorzygin/go-chamber/internal/adapters/codex"
 	"github.com/igorzygin/go-chamber/internal/adapters/fsys"
+	"github.com/igorzygin/go-chamber/internal/adapters/git"
 	httpapi "github.com/igorzygin/go-chamber/internal/adapters/http"
 	"github.com/igorzygin/go-chamber/internal/adapters/hub"
 	"github.com/igorzygin/go-chamber/internal/adapters/pty"
@@ -50,6 +51,13 @@ func run(ctx context.Context, args []string, out io.Writer) error {
 	if err := fl.Parse(args); err != nil {
 		return err
 	}
+	// Worktrees are created from inside other repositories, so the data
+	// directory must not be relative.
+	data, err := filepath.Abs(*dataDir)
+	if err != nil {
+		return err
+	}
+	dataDir = &data
 	if err := os.MkdirAll(*dataDir, 0o700); err != nil {
 		return err
 	}
@@ -115,6 +123,11 @@ func run(ctx context.Context, args []string, out io.Writer) error {
 				Sessions: store.Sessions(),
 				Files:    &fsys.Files{},
 				Commands: runtimes,
+			}),
+			Worktrees: app.NewWorktrees(app.WorktreesConfig{
+				Sessions: manager,
+				Git:      git.Repo{},
+				Root:     filepath.Join(*dataDir, "worktrees"),
 			}),
 		}),
 		ReadHeaderTimeout: 10 * time.Second,

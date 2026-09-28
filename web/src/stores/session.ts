@@ -6,7 +6,7 @@ import type { GroupMode } from '../lib/sessions'
 export type Connection = 'connecting' | 'online' | 'offline'
 
 // Pane is the view shown on narrow screens, where only one fits at a time.
-export type Pane = 'sessions' | 'chat' | 'requests'
+export type Pane = 'sessions' | 'chat' | 'requests' | 'changes'
 
 export interface SessionStore {
   sessions: api.Session[]
@@ -34,7 +34,8 @@ export interface SessionStore {
   loadSessions: () => Promise<void>
   loadRequests: () => Promise<void>
   loadQuotas: () => Promise<void>
-  createSession: (agent: api.AgentKind, cwd: string) => Promise<void>
+  // createSession starts a session in cwd, or in a new worktree on branch chamber/<branch>.
+  createSession: (agent: api.AgentKind, cwd: string, branch?: string) => Promise<void>
   selectSession: (id: string) => Promise<void>
   send: (text: string) => Promise<void>
   steer: (text: string) => Promise<void>
@@ -221,9 +222,11 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     }
   },
 
-  async createSession(agent, cwd) {
+  async createSession(agent, cwd, branch) {
     try {
-      const created = await api.createSession(agent, cwd, startChoice(agent))
+      const created = branch
+        ? await api.createWorktreeSession(agent, cwd, branch, startChoice(agent))
+        : await api.createSession(agent, cwd, startChoice(agent))
       set({ sessions: [...get().sessions, created], error: null })
       await get().selectSession(created.id)
     } catch (err) {
