@@ -37,6 +37,31 @@ var seq int
 // reviewers holds the approval reviewer per thread.
 var reviewers = map[string]string{}
 
+// policies holds the approval policy and sandbox type per thread; like the
+// real server, turn/start overrides stick to the thread. Policy "never"
+// runs commands without asking.
+var policies = map[string][2]string{}
+
+func setPolicy(threadID string, params json.RawMessage) {
+	var p struct {
+		ApprovalPolicy *string `json:"approvalPolicy"`
+		SandboxPolicy  *struct {
+			Type string `json:"type"`
+		} `json:"sandboxPolicy"`
+	}
+	if json.Unmarshal(params, &p) != nil {
+		return
+	}
+	cur := policies[threadID]
+	if p.ApprovalPolicy != nil {
+		cur[0] = *p.ApprovalPolicy
+	}
+	if p.SandboxPolicy != nil {
+		cur[1] = p.SandboxPolicy.Type
+	}
+	policies[threadID] = cur
+}
+
 // models holds the model and effort per thread; like the real server,
 // turn/start overrides apply to that turn and the following ones.
 var models = map[string][2]string{}
@@ -150,6 +175,7 @@ func main() {
 			_ = json.Unmarshal(m.Params, &p)
 			setReviewer(p.ThreadID, m.Params)
 			setModel(p.ThreadID, m.Params)
+			setPolicy(p.ThreadID, m.Params)
 			text := ""
 			for _, in := range p.Input {
 				if in.Type == "text" {
@@ -228,6 +254,9 @@ func startTurn(mode, threadID, turnID, text string, pending map[string]func(json
 			collabTurn(threadID, turnID, text)
 		case strings.Contains(low, "hook"):
 			hookTurn(threadID, turnID)
+		case strings.Contains(low, "current mode"):
+			pol := policies[threadID]
+			replyTurn(threadID, turnID, text, "mode: "+pol[0]+" "+pol[1])
 		case strings.Contains(low, "which model"):
 			m := models[threadID]
 			replyTurn(threadID, turnID, text, "model: "+m[0]+" effort: "+m[1])
@@ -305,7 +334,7 @@ func permissionTurn(threadID, turnID, text string, pending map[string]func(json.
 			"item": map[string]any{"type": "agentMessage", "id": "agent-final", "text": answer}})
 		turnCompleted(threadID, turnID, "completed", "agent-final", answer)
 	}
-	if reviewers[threadID] == "auto_review" {
+	if reviewers[threadID] == "auto_review" || policies[threadID][0] == "never" {
 		delete(pending, reqID)
 		notify("item/completed", map[string]any{"threadId": threadID, "turnId": turnID,
 			"item": map[string]any{"type": "commandExecution", "id": itemID, "command": text,

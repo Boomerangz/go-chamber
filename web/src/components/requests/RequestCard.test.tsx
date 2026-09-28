@@ -183,6 +183,16 @@ describe('RequestCard audit fixes', () => {
     expect(onRespond).toHaveBeenCalledWith('s1', 'e2', { behavior: 'allow', content: { agree: false } })
   })
 
+  it('shows the plan of an ExitPlanMode request as markdown', () => {
+    setup({
+      id: 'p1', sessionId: 's1', kind: 'permission', state: 'pending', title: 'Ready to code?',
+      payload: { toolName: 'ExitPlanMode', input: { plan: '## Plan\n\n1. **Fix** it' } } as never,
+    })
+    expect(screen.getByRole('heading', { name: 'Plan' })).toBeInTheDocument()
+    expect(screen.getByText('Fix').tagName).toBe('STRONG')
+    expect(screen.queryByText(/"plan"/)).not.toBeInTheDocument()
+  })
+
   it('declines an elicitation', async () => {
     const { onRespond } = setup({ id: 'e1', sessionId: 's1', kind: 'elicitation', state: 'pending' })
     await userEvent.click(screen.getByRole('button', { name: 'Decline' }))

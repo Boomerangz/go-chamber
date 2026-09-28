@@ -31,6 +31,7 @@ type Sessions interface {
 	Quotas(ctx context.Context) ([]domain.QuotaSnapshot, error)
 	RefreshQuota(ctx context.Context, agent domain.AgentKind) (domain.QuotaSnapshot, error)
 	SetModel(ctx context.Context, id domain.SessionID, model, effort string) (domain.SessionSnapshot, error)
+	SetPermissionMode(ctx context.Context, id domain.SessionID, mode string) (domain.SessionSnapshot, error)
 	Models(ctx context.Context, agent domain.AgentKind) ([]app.ModelInfo, error)
 }
 
@@ -50,6 +51,7 @@ func (s *server) routes() {
 		mux.HandleFunc("POST /api/sessions/{id}/fork", s.fork)
 		mux.HandleFunc("POST /api/sessions/{id}/approval-reviewer", s.setApprovalReviewer)
 		mux.HandleFunc("POST /api/sessions/{id}/model", s.setModel)
+		mux.HandleFunc("POST /api/sessions/{id}/permission-mode", s.setPermissionMode)
 		mux.HandleFunc("GET /api/agents/{agent}/models", s.listModels)
 		mux.HandleFunc("GET /api/sessions/{id}/events", s.sessionEvents)
 		mux.HandleFunc("POST /api/sessions/{id}/requests/{requestId}", s.respondRequest)
@@ -97,6 +99,7 @@ func (s *server) createSession(w http.ResponseWriter, r *http.Request) {
 		Cwd    string           `json:"cwd"`
 		Model  string           `json:"model"`
 		Effort string           `json:"effort"`
+		Mode   string           `json:"permissionMode"`
 	}
 	if !decode(w, r, &body) {
 		return
@@ -108,6 +111,12 @@ func (s *server) createSession(w http.ResponseWriter, r *http.Request) {
 	}
 	if body.Model != "" || body.Effort != "" {
 		if session, err = s.cfg.Sessions.SetModel(r.Context(), session.ID, body.Model, body.Effort); err != nil {
+			s.fail(w, err)
+			return
+		}
+	}
+	if body.Mode != "" {
+		if session, err = s.cfg.Sessions.SetPermissionMode(r.Context(), session.ID, body.Mode); err != nil {
 			s.fail(w, err)
 			return
 		}
@@ -363,6 +372,7 @@ func (s *server) fail(w http.ResponseWriter, err error) {
 		writeJSON(w, http.StatusNotFound, errorBody{err.Error()})
 	case errors.Is(err, domain.ErrInvalidSession), errors.Is(err, domain.ErrInvalidTerminal),
 		errors.Is(err, domain.ErrInvalidReviewer), errors.Is(err, domain.ErrInvalidModel),
+		errors.Is(err, domain.ErrInvalidPermissionMode),
 		errors.Is(err, app.ErrInvalidTerminalSize):
 		writeJSON(w, http.StatusBadRequest, errorBody{err.Error()})
 	case errors.Is(err, app.ErrFolderNotFound):

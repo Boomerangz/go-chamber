@@ -489,6 +489,7 @@ func (m *Manager) ensureRuntimeFor(ctx context.Context, s *domain.Session, nativ
 		Passive:   passive,
 
 		ApprovalReviewer: s.ApprovalReviewer(),
+		PermissionMode:   s.PermissionMode(),
 	}
 	req.Model, req.Effort = s.Model()
 	m.mu.Unlock()

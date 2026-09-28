@@ -26,6 +26,8 @@ export interface Session {
   // autoContinue resumes a quota-interrupted turn once the limit resets.
   autoContinue?: boolean
   approvalReviewer?: ApprovalReviewer
+  // permissionMode is empty when the agent's configuration decides.
+  permissionMode?: string
   createdAt?: string
   activeAt?: string
   // model and effort are empty when the agent's configuration decides.
@@ -262,6 +264,10 @@ export function steer(id: string, text: string): Promise<void> {
 
 export function setApprovalReviewer(id: string, reviewer: ApprovalReviewer): Promise<Session> {
   return request<Session>(`/api/sessions/${encodeURIComponent(id)}/approval-reviewer`, json({ reviewer }))
+}
+
+export function setPermissionMode(id: string, mode: string): Promise<Session> {
+  return request<Session>(`/api/sessions/${encodeURIComponent(id)}/permission-mode`, json({ mode }))
 }
 
 export function stopTask(id: string, taskId: string): Promise<void> {

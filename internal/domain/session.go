@@ -95,6 +95,7 @@ type Session struct {
 	interruption Interruption
 	autoContinue bool
 	reviewer     ApprovalReviewer
+	mode         string
 	createdAt    time.Time
 	activeAt     time.Time
 	model        string
@@ -117,7 +118,9 @@ type SessionSnapshot struct {
 	AutoContinue bool `json:"autoContinue,omitempty"`
 	// ApprovalReviewer is empty when the agent's own configuration decides.
 	ApprovalReviewer ApprovalReviewer `json:"approvalReviewer,omitempty"`
-	CreatedAt        time.Time        `json:"createdAt,omitzero"`
+	// PermissionMode is empty when the agent's configuration decides.
+	PermissionMode string    `json:"permissionMode,omitempty"`
+	CreatedAt      time.Time `json:"createdAt,omitzero"`
 	// ActiveAt is the last time the user started a turn (or the creation).
 	ActiveAt time.Time `json:"activeAt,omitzero"`
 	// Model and Effort are empty when the agent's configuration decides.
@@ -157,7 +160,7 @@ func NewForkSession(id SessionID, parent *Session) (*Session, error) {
 	}
 	s.forkOf = parent.id
 	s.title = strings.TrimSpace(parent.title + " (fork)")
-	s.model, s.effort, s.reviewer = parent.model, parent.effort, parent.reviewer
+	s.model, s.effort, s.reviewer, s.mode = parent.model, parent.effort, parent.reviewer, parent.mode
 	return s, nil
 }
 
@@ -171,7 +174,7 @@ func RestoreSession(snap SessionSnapshot) (*Session, error) {
 	s := &Session{
 		id: snap.ID, agent: snap.Agent, cwd: snap.Cwd, title: snap.Title,
 		nativeID: snap.NativeID, parentID: snap.ParentID, forkOf: snap.ForkOf, status: StatusDetached,
-		reviewer: snap.ApprovalReviewer, createdAt: snap.CreatedAt, activeAt: snap.ActiveAt,
+		reviewer: snap.ApprovalReviewer, mode: snap.PermissionMode, createdAt: snap.CreatedAt, activeAt: snap.ActiveAt,
 		model: snap.Model, effort: snap.Effort,
 	}
 	switch snap.Status {
@@ -298,7 +301,7 @@ func (s *Session) Snapshot() SessionSnapshot {
 	return SessionSnapshot{
 		ID: s.id, Agent: s.agent, Cwd: s.cwd, NativeID: s.nativeID, ParentID: s.parentID, ForkOf: s.forkOf,
 		Status: s.status, Title: s.title, Interruption: s.interruption, AutoContinue: s.autoContinue,
-		ApprovalReviewer: s.reviewer, CreatedAt: s.createdAt, ActiveAt: s.activeAt,
+		ApprovalReviewer: s.reviewer, PermissionMode: s.mode, CreatedAt: s.createdAt, ActiveAt: s.activeAt,
 		Model: s.model, Effort: s.effort,
 	}
 }

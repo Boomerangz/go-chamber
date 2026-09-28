@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import type { AgentKind, Question, RequestAnswerInput, SessionRequest } from '../../lib/api'
+import Markdown from '../markdown/Markdown'
 
 export interface RequestCardProps {
   request: SessionRequest
@@ -38,6 +39,9 @@ function PermissionCard({ request, agent, busy, answer }: CardProps) {
   const [denying, setDenying] = useState(false)
   const [reason, setReason] = useState('')
   const toolName = request.payload?.toolName
+  // ExitPlanMode asks to leave plan mode; its plan reads better as text.
+  const input = request.payload?.input as { plan?: unknown } | undefined
+  const plan = toolName === 'ExitPlanMode' && typeof input?.plan === 'string' ? input.plan : null
   return (
     <div className="request permission">
       <header className="request-title">
@@ -46,7 +50,13 @@ function PermissionCard({ request, agent, busy, answer }: CardProps) {
       </header>
       {request.prompt && <p className="request-prompt">{request.prompt}</p>}
       {toolName && <code className="request-tool">{toolName}</code>}
-      {request.payload?.input && <pre className="request-input">{JSON.stringify(request.payload.input, null, 2)}</pre>}
+      {plan !== null ? (
+        <div className="request-plan">
+          <Markdown text={plan} />
+        </div>
+      ) : (
+        request.payload?.input && <pre className="request-input">{JSON.stringify(request.payload.input, null, 2)}</pre>
+      )}
       <div className="request-actions">
         <button className="btn btn-primary" disabled={busy} onClick={() => void answer({ behavior: 'allow' })}>
           Allow

@@ -25,6 +25,9 @@ func SessionRepoContract(t *testing.T, newRepo func(t *testing.T) app.SessionRep
 		ActiveAt:         reset.Add(-time.Hour),
 		Model:            "opus",
 		Effort:           "high",
+		PermissionMode:   "plan",
+		ForkOf:           "origin",
+		AutoContinue:     true,
 	}
 
 	t.Run("get missing", func(t *testing.T) {

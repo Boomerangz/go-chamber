@@ -44,6 +44,7 @@ export interface SessionStore {
   forkSession: (sessionId: string) => Promise<void>
   stopTask: (sessionId: string, taskId: string) => Promise<void>
   setApprovalReviewer: (sessionId: string, reviewer: api.ApprovalReviewer) => Promise<void>
+  setPermissionMode: (sessionId: string, mode: string) => Promise<void>
   respond: (sessionId: string, requestId: string, answer: api.RequestAnswerInput) => Promise<void>
   applyIncoming: (ev: api.SessionEvent) => void
   setConnection: (c: Connection) => void
@@ -81,6 +82,31 @@ function rememberModel(agent: api.AgentKind, choice: api.ModelChoice): void {
     localStorage.setItem(LAST_MODEL_KEY, JSON.stringify({ ...all, [agent]: choice }))
   } catch {
     // storage unavailable: new sessions use the agent's default
+  }
+}
+
+const LAST_MODE_KEY = 'gc.lastPermissionMode'
+
+// startChoice is what a new session of the agent starts with: the model
+// and permission mode last chosen for it.
+function startChoice(agent: api.AgentKind): (api.ModelChoice & { permissionMode?: string }) | undefined {
+  let mode: string | undefined
+  try {
+    mode = (JSON.parse(localStorage.getItem(LAST_MODE_KEY) ?? '{}') as Record<string, string>)[agent]
+  } catch {
+    // storage unavailable: the agent's configuration decides
+  }
+  const model = lastModel(agent)
+  if (!mode) return model
+  return { model: '', effort: '', ...model, permissionMode: mode }
+}
+
+function rememberMode(agent: api.AgentKind, mode: string): void {
+  try {
+    const all = JSON.parse(localStorage.getItem(LAST_MODE_KEY) ?? '{}') as Record<string, string>
+    localStorage.setItem(LAST_MODE_KEY, JSON.stringify({ ...all, [agent]: mode }))
+  } catch {
+    // storage unavailable: new sessions use the agent's configuration
   }
 }
 
@@ -197,7 +223,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
 
   async createSession(agent, cwd) {
     try {
-      const created = await api.createSession(agent, cwd, lastModel(agent))
+      const created = await api.createSession(agent, cwd, startChoice(agent))
       set({ sessions: [...get().sessions, created], error: null })
       await get().selectSession(created.id)
     } catch (err) {
@@ -230,6 +256,16 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     try {
       await api.steer(id, text)
       set({ error: null })
+    } catch (err) {
+      set({ error: errorMessage(err) })
+    }
+  },
+
+  async setPermissionMode(sessionId, mode) {
+    try {
+      const updated = await api.setPermissionMode(sessionId, mode)
+      set({ sessions: replaceSession(get().sessions, updated), error: null })
+      rememberMode(updated.agent, mode)
     } catch (err) {
       set({ error: errorMessage(err) })
     }

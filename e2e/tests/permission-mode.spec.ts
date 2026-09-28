@@ -1,0 +1,50 @@
+import { expect, test, type Page } from '@playwright/test'
+import fs from 'node:fs'
+import os from 'node:os'
+import { token } from '../playwright.config'
+import { showPane } from './pane'
+
+async function newSession(page: Page, agent: 'Claude' | 'Codex') {
+  const dir = fs.realpathSync(fs.mkdtempSync(`${os.tmpdir()}/gc-mode-`))
+  await showPane(page, 'Sessions')
+  await page.getByRole('radio', { name: agent }).click()
+  await page.getByLabel('working directory').fill(dir)
+  await page.getByRole('button', { name: 'New session', exact: true }).click()
+  await expect(page.getByLabel('message')).toBeVisible()
+}
+
+async function say(page: Page, text: string) {
+  await page.getByLabel('message').fill(text)
+  await page.getByRole('button', { name: 'Send' }).click()
+}
+
+test('switches the Claude permission mode and approves a plan', async ({ page }) => {
+  await page.goto(`/?token=${token}`)
+  await newSession(page, 'Claude')
+  await page.getByLabel('permission mode').selectOption('plan')
+  await say(page, 'current mode?')
+  await expect(page.locator('.item.assistant', { hasText: 'mode: plan' })).toBeVisible()
+
+  await say(page, 'make a plan')
+  const card = page.locator('.request', { hasText: 'Ready to code?' })
+  await expect(card.getByRole('heading', { name: 'Plan' })).toBeVisible()
+  await card.getByRole('button', { name: 'Allow', exact: true }).click()
+  await expect(page.locator('.request')).toHaveCount(0)
+
+  // Switches live in the running CLI.
+  await page.getByLabel('permission mode').selectOption('acceptEdits')
+  await say(page, 'current mode?')
+  await expect(page.locator('.item.assistant', { hasText: 'mode: acceptEdits' })).toBeVisible()
+
+  // New sessions of the agent start in the last chosen mode.
+  await newSession(page, 'Claude')
+  await expect(page.getByLabel('permission mode')).toHaveValue('acceptEdits')
+})
+
+test('runs Codex commands without asking in full access', async ({ page }) => {
+  await page.goto(`/?token=${token}`)
+  await newSession(page, 'Codex')
+  await page.getByLabel('permission mode').selectOption('full-access')
+  await say(page, 'current mode?')
+  await expect(page.locator('.item.assistant', { hasText: 'mode: never dangerFullAccess' })).toBeVisible()
+})

@@ -615,7 +615,7 @@ func (s *Server) startThread(ctx context.Context, req app.StartRequest) (*Runtim
 	}
 
 	rt := s.newRuntime(thread.ID, NewMapper(req.SessionID))
-	rt.reviewer, rt.effort = req.ApprovalReviewer, req.Effort
+	rt.reviewer, rt.effort, rt.mode = req.ApprovalReviewer, req.Effort, req.PermissionMode
 	for _, ev := range rt.mapThread(thread) {
 		rt.emit(ev)
 	}
@@ -717,6 +717,10 @@ type Runtime struct {
 	effort    string
 	closed    bool
 	closeOnce sync.Once
+
+	// mode is the permission preset applied to each turn; empty keeps the
+	// thread's own policy.
+	mode string
 }
 
 func (r *Runtime) mapThread(thread rpcThread) []domain.Event {
@@ -852,6 +856,7 @@ func (r *Runtime) Send(ctx context.Context, _ domain.TurnID, text string) error 
 	if r.effort != "" {
 		params["effort"] = r.effort
 	}
+	addPermissionMode(params, r.mode)
 	r.mu.Unlock()
 	res, err := r.current().client.Call(ctx, "turn/start", params)
 	if err != nil {

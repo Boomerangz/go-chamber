@@ -52,6 +52,7 @@ type envelope struct {
 		Subtype  string                     `json:"subtype"`
 		TaskID   string                     `json:"task_id"`
 		Model    string                     `json:"model"`
+		Mode     string                     `json:"mode"`
 		Settings map[string]json.RawMessage `json:"settings"`
 	} `json:"request"`
 }
@@ -86,6 +87,10 @@ func main() {
 		}
 		if a == "--effort" && i+1 < len(args) {
 			effort = args[i+1]
+		}
+		if a == "--permission-mode" && i+1 < len(args) {
+			permissionMode = args[i+1]
+			bypassAvailable = permissionMode == "bypassPermissions"
 		}
 	}
 	mode := envOr("FAKECLAUDE_MODE", "auto")
@@ -136,6 +141,20 @@ func main() {
 					},
 				}})
 				_ = out.Flush()
+			case "set_permission_mode":
+				// Like the real CLI: bypassPermissions is only allowed in a
+				// process started with it.
+				if env.Request.Mode == "bypassPermissions" && !bypassAvailable {
+					_ = enc.Encode(map[string]any{"type": "control_response", "response": map[string]any{
+						"subtype": "error", "request_id": env.RequestID, "error": "bypassPermissions mode is disabled",
+					}})
+				} else {
+					permissionMode = env.Request.Mode
+					_ = enc.Encode(map[string]any{"type": "control_response", "response": map[string]any{
+						"subtype": "success", "request_id": env.RequestID, "response": map[string]any{},
+					}})
+				}
+				_ = out.Flush()
 			case "set_model", "apply_flag_settings":
 				// Like the real CLI: set_model switches the live model (no
 				// model means the default); apply_flag_settings changes
@@ -177,6 +196,11 @@ var promptTool bool
 
 // model and effort come from --model/--effort; set_model changes model.
 var model, effort string
+
+// permissionMode comes from --permission-mode; set_permission_mode changes
+// it. bypassAvailable is set when the process started in bypassPermissions.
+var permissionMode string
+var bypassAvailable bool
 
 // hookEvents is set by --include-hook-events.
 var hookEvents bool
@@ -236,6 +260,10 @@ func startTurn(mode string, enc *json.Encoder, out *bufio.Writer, sessionID, pro
 			os.Exit(3)
 		case strings.Contains(low, "hook"):
 			emitHookTurn(enc, out, sessionID)
+		case strings.Contains(low, "current mode"):
+			emitTextTurn(enc, out, sessionID, "mode: "+permissionMode)
+		case strings.Contains(low, "make a plan"):
+			return emitPlanApproval(enc, out, sessionID)
 		case strings.Contains(low, "which model"):
 			emitTextTurn(enc, out, sessionID, "model: "+model+" effort: "+effort)
 		default:
@@ -276,6 +304,24 @@ func emitPermission(enc *json.Encoder, out *bufio.Writer, sessionID, prompt stri
 			"tool_use_id": toolUseID,
 			"description": "Claude wants to run: " + prompt,
 			"title":       "Run command",
+		})
+}
+
+// emitPlanApproval asks to leave plan mode with a plan, as ExitPlanMode does.
+func emitPlanApproval(enc *json.Encoder, out *bufio.Writer, sessionID string) *pendingTurn {
+	toolUseID := "toolu_plan_" + strconv.Itoa(nextSeq())
+	input := map[string]any{"plan": "## Plan\n\n1. Read the code\n2. **Fix** the bug"}
+	_ = enc.Encode(map[string]any{
+		"type": "assistant", "session_id": sessionID, "uuid": "plan-" + toolUseID,
+		"parent_tool_use_id": nil,
+		"message": map[string]any{"id": "msg_" + toolUseID, "role": "assistant", "content": []any{
+			map[string]any{"type": "tool_use", "id": toolUseID, "name": "ExitPlanMode", "input": input},
+		}},
+	})
+	return askHost(enc, out, sessionID, &pendingTurn{requestID: "perm_" + strconv.Itoa(nextSeq()), toolUseID: toolUseID},
+		map[string]any{
+			"subtype": "can_use_tool", "tool_name": "ExitPlanMode", "input": input,
+			"tool_use_id": toolUseID, "title": "Ready to code?",
 		})
 }
 

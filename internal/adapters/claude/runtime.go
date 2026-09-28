@@ -45,6 +45,9 @@ type Runtime struct {
 	modelMu sync.Mutex
 	model   string
 	effort  string
+	// bypass is set when the process started in bypassPermissions, the only
+	// way the CLI lets a session switch to it.
+	bypass bool
 
 	closeOnce sync.Once
 }
@@ -91,6 +94,7 @@ func start(ctx context.Context, cfg *Factory, req app.StartRequest) (*Runtime, e
 		log:        cfg.stderr(),
 		control:    map[string]chan error{},
 		model:      req.Model,
+		bypass:     req.PermissionMode == "bypassPermissions",
 		effort:     req.Effort,
 	}
 	if err := cmd.Start(); err != nil {

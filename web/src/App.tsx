@@ -17,6 +17,7 @@ import AccountPanel from './components/account/AccountPanel'
 import FolderField from './components/folders/FolderField'
 import Markdown from './components/markdown/Markdown'
 import ModelPicker from './components/models/ModelPicker'
+import PermissionModeSelect from './components/models/PermissionModeSelect'
 import ComposerInput from './components/composer/ComposerInput'
 import InterruptedBanner from './components/chat/InterruptedBanner'
 import RequestCard from './components/requests/RequestCard'
@@ -360,6 +361,7 @@ function Chat() {
           {connection !== 'online' && <span className={`health health-${connection}`}>{connection}</span>}
           <SessionUsage />
           {session && <ModelPicker session={session} />}
+          {session && <PermissionModeSelect session={session} />}
           {session && <ApprovalReviewerSelect session={session} />}
           {session?.nativeId && (
             <button type="button" className="btn btn-ghost" onClick={() => void forkSession(session.id)}>
