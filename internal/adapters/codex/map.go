@@ -22,6 +22,7 @@ type Mapper struct {
 	// hooks maps a running hook run id to its item; run ids repeat.
 	hooks   map[string]domain.ItemID
 	hookSeq int
+	errSeq  int
 }
 
 func NewMapper(session domain.SessionID) *Mapper {
@@ -65,7 +66,14 @@ func (m *Mapper) mapNotification(method string, params json.RawMessage) []domain
 		if item == nil {
 			return nil
 		}
-		return refreshed
+		// receiverThreadIds may only be known once the spawn completes.
+		return append(refreshed, m.spawns(n.Item)...)
+	case "error":
+		var n errorNotification
+		if err := json.Unmarshal(params, &n); err != nil || n.WillRetry || n.Error.Message == "" {
+			return nil
+		}
+		return m.errorItem(n.Error.Message)
 	case "item/agentMessage/delta", "item/reasoning/textDelta", "item/reasoning/summaryTextDelta", "item/commandExecution/outputDelta", "item/plan/delta":
 		var n deltaNotification
 		if err := json.Unmarshal(params, &n); err != nil {
@@ -212,8 +220,13 @@ func (m *Mapper) MapServerRequest(method string, id json.RawMessage, params json
 			return domain.Event{}, false
 		}
 		title = "Apply file change"
+		// The request carries no path; the fileChange item streamed before it does.
+		input := map[string]any{"path": p.GrantRoot}
+		if item := m.items[domain.ItemID(p.ItemID)]; item != nil && item.Path != "" {
+			input = map[string]any{"path": item.Path, "diff": item.Diff}
+		}
 		payload = mustJSON(map[string]any{"itemId": p.ItemID, "reason": p.Reason, "grantRoot": p.GrantRoot,
-			"toolName": "fileChange", "input": map[string]any{"path": p.GrantRoot}})
+			"toolName": "fileChange", "input": input})
 	case "item/permissions/requestApproval":
 		title = "Grant permissions"
 		payload = params
@@ -527,6 +540,19 @@ func mustJSON(v any) json.RawMessage {
 		return nil
 	}
 	return b
+}
+
+// errorItem shows a turn error app-server gave up retrying.
+func (m *Mapper) errorItem(message string) []domain.Event {
+	m.errSeq++
+	item, err := domain.NewItem(domain.ItemID(fmt.Sprintf("error-%d", m.errSeq)), m.session, m.turn, "", domain.ItemError)
+	if err != nil {
+		return nil
+	}
+	item.Text = message
+	_ = item.SetStatus(domain.ItemFailed)
+	m.items[item.ID] = item
+	return []domain.Event{{SessionID: m.session, Type: domain.EventItemUpdated, Item: item}}
 }
 
 type hookNotification struct {

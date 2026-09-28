@@ -180,3 +180,10 @@ type elicitationParams struct {
 	Mode            string          `json:"mode"`
 	RequestedSchema json.RawMessage `json:"requestedSchema"`
 }
+
+type errorNotification struct {
+	ThreadID  string       `json:"threadId"`
+	TurnID    string       `json:"turnId"`
+	WillRetry bool         `json:"willRetry"`
+	Error     rpcTurnError `json:"error"`
+}

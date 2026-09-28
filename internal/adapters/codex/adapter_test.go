@@ -342,13 +342,14 @@ func TestCodexAccountLoggedIn(t *testing.T) {
 }
 
 func TestCodexSteer(t *testing.T) {
-	rt := startCodex(t, app.StartRequest{})
+	rt := startCodex(t, app.StartRequest{}, "FAKECODEX_MODE=permission")
 	if err := rt.Steer(context.Background(), "before"); err == nil {
 		t.Fatal("steer without an active turn should fail")
 	}
 	if err := rt.Send(context.Background(), "t1", "hi"); err != nil {
 		t.Fatal(err)
 	}
+	waitCodexRequest(t, rt) // the turn is paused, still active
 	if err := rt.Steer(context.Background(), "more"); err != nil {
 		t.Fatalf("steer: %v", err)
 	}

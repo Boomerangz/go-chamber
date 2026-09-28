@@ -171,6 +171,8 @@ func (f *Factory) startServer(ctx context.Context) (*Server, error) {
 	s.client = NewClient(stdout, stdin, s.handleServerRequest, s.handleNotification)
 	go s.drainStderr(stderr, f.stderr())
 	go func() {
+		// Wait closes stdout, so it must not run before the reader is done.
+		<-s.client.Done()
 		_ = cmd.Wait()
 		s.closeAll()
 	}()
@@ -210,8 +212,10 @@ type Server struct {
 
 	mu      sync.Mutex
 	threads map[string]*Runtime
-	pending map[domain.RequestID]pendingServerRequest
 	orphans map[string][]orphan
+
+	pmu     sync.Mutex
+	pending map[domain.RequestID]pendingServerRequest
 }
 
 // orphan is a message that arrived before its thread was attached.
@@ -342,7 +346,11 @@ func (s *Server) closeAll() {
 	s.mu.Lock()
 	threads := s.threads
 	s.threads = map[string]*Runtime{}
+	s.orphans = map[string][]orphan{}
 	s.mu.Unlock()
+	s.pmu.Lock()
+	s.pending = map[domain.RequestID]pendingServerRequest{}
+	s.pmu.Unlock()
 	for _, rt := range threads {
 		rt.closeEvents()
 	}
@@ -382,54 +390,97 @@ func (s *Server) allRuntimes() []*Runtime {
 	return out
 }
 
-func (s *Server) runtimeFor(threadID string) *Runtime {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return s.threads[threadID]
-}
-
 const maxOrphansPerThread = 512
 
-func (s *Server) bufferOrphan(threadID string, o orphan) {
-	if threadID == "" {
-		return
-	}
+// route hands a message to its thread's runtime, or buffers it until the
+// thread is attached. Holding s.mu keeps a thread's messages in order while
+// register replays its buffer.
+func (s *Server) route(threadID string, o orphan) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if rt := s.threads[threadID]; rt != nil {
+		s.deliver(rt, o)
+		return
+	}
 	if s.orphans == nil {
 		s.orphans = map[string][]orphan{}
 	}
 	queue := s.orphans[threadID]
 	queue = append(queue, o)
-	if len(queue) > maxOrphansPerThread {
-		queue = queue[len(queue)-maxOrphansPerThread:]
+	if drop := len(queue) - maxOrphansPerThread; drop > 0 {
+		for _, old := range queue[:drop] {
+			if old.isRequest {
+				s.respondErrorAsync(old.id, "request dropped before its thread was attached")
+			}
+		}
+		queue = queue[drop:]
 	}
 	s.orphans[threadID] = queue
+}
+
+// deliver maps a message for rt. Emitting never blocks, so it is safe to
+// call on the read loop and under s.mu.
+func (s *Server) deliver(rt *Runtime, o orphan) {
+	if !o.isRequest {
+		for _, ev := range rt.mapNotification(o.method, o.params) {
+			rt.emit(ev)
+		}
+		return
+	}
+	ev, ok := rt.mapServerRequest(o.method, o.id, o.params)
+	if !ok {
+		s.respondErrorAsync(o.id, "unsupported request: "+o.method)
+		return
+	}
+	s.pmu.Lock()
+	s.pending[ev.Request.ID] = pendingServerRequest{id: o.id, threadID: rt.threadID, method: o.method, params: o.params}
+	s.pmu.Unlock()
+	rt.emit(ev)
+}
+
+// respondErrorAsync answers off the read loop: a write to app-server's
+// stdin may block while it waits for us to read its stdout.
+func (s *Server) respondErrorAsync(id json.RawMessage, message string) {
+	go func() { _ = s.client.RespondError(id, -32601, message) }()
+}
+
+func (s *Server) newRuntime(threadID string, mapper *Mapper) *Runtime {
+	rt := &Runtime{
+		server: s, threadID: threadID, mapper: mapper,
+		events: make(chan domain.Event), wake: make(chan struct{}, 1), stop: make(chan struct{}),
+	}
+	go rt.pump()
+	return rt
+}
+
+// register attaches rt to its thread and replays what arrived before it.
+func (s *Server) register(rt *Runtime) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.registerLocked(rt)
+}
+
+func (s *Server) registerLocked(rt *Runtime) {
+	s.threads[rt.threadID] = rt
+	orphans := s.orphans[rt.threadID]
+	delete(s.orphans, rt.threadID)
+	for _, o := range orphans {
+		s.deliver(rt, o)
+	}
 }
 
 // attachThread registers a passive runtime for a thread the agent created
 // itself (a collab subagent) and replays messages buffered before it existed.
 func (s *Server) attachThread(nativeID string, session domain.SessionID) (*Runtime, error) {
 	s.mu.Lock()
+	defer s.mu.Unlock()
 	if rt := s.threads[nativeID]; rt != nil {
-		s.mu.Unlock()
 		return rt, nil
 	}
 	mapper := NewMapper(session)
 	mapper.IncludeUserMessages = true
-	rt := &Runtime{server: s, threadID: nativeID, mapper: mapper, events: make(chan domain.Event, 256)}
-	s.threads[nativeID] = rt
-	orphans := s.orphans[nativeID]
-	delete(s.orphans, nativeID)
-	s.mu.Unlock()
-
-	for _, o := range orphans {
-		if o.isRequest {
-			s.handleServerRequest(o.id, o.method, o.params)
-		} else {
-			s.handleNotification(o.method, o.params)
-		}
-	}
+	rt := s.newRuntime(nativeID, mapper)
+	s.registerLocked(rt)
 	return rt, nil
 }
 
@@ -474,21 +525,12 @@ func (s *Server) startThread(ctx context.Context, req app.StartRequest) (*Runtim
 		return nil, errors.New("codex: server returned an empty thread id")
 	}
 
-	rt := &Runtime{
-		server:   s,
-		threadID: thread.ID,
-		mapper:   NewMapper(req.SessionID),
-		events:   make(chan domain.Event, 256),
-		reviewer: req.ApprovalReviewer,
-		effort:   req.Effort,
-	}
-	s.mu.Lock()
-	s.threads[thread.ID] = rt
-	s.mu.Unlock()
-
+	rt := s.newRuntime(thread.ID, NewMapper(req.SessionID))
+	rt.reviewer, rt.effort = req.ApprovalReviewer, req.Effort
 	for _, ev := range rt.mapThread(thread) {
 		rt.emit(ev)
 	}
+	s.register(rt)
 	if q, err := s.RateLimits(ctx); err == nil {
 		rt.emit(domain.Event{SessionID: req.SessionID, Type: domain.EventQuota, Quota: &q})
 	}
@@ -505,19 +547,19 @@ func (s *Server) handleNotification(method string, params json.RawMessage) {
 		return
 	}
 	var meta struct {
-		ThreadID string `json:"threadId"`
+		ThreadID  string          `json:"threadId"`
+		RequestID json.RawMessage `json:"requestId"`
 	}
 	if err := json.Unmarshal(params, &meta); err != nil {
 		return
 	}
-	rt := s.runtimeFor(meta.ThreadID)
-	if rt == nil {
-		s.bufferOrphan(meta.ThreadID, orphan{method: method, params: params})
+	if method == "serverRequest/resolved" {
+		s.takePending(domain.RequestID(idKey(meta.RequestID)))
+	}
+	if meta.ThreadID == "" {
 		return
 	}
-	for _, ev := range rt.mapNotification(method, params) {
-		rt.emit(ev)
-	}
+	s.route(meta.ThreadID, orphan{method: method, params: params})
 }
 
 func (s *Server) handleServerRequest(id json.RawMessage, method string, params json.RawMessage) {
@@ -525,25 +567,18 @@ func (s *Server) handleServerRequest(id json.RawMessage, method string, params j
 		ThreadID string `json:"threadId"`
 	}
 	_ = json.Unmarshal(params, &meta)
-	rt := s.runtimeFor(meta.ThreadID)
-	if rt == nil {
-		s.bufferOrphan(meta.ThreadID, orphan{id: id, method: method, params: params, isRequest: true})
+	if meta.ThreadID == "" {
+		// Token refresh, attestation and v1 approvals: nothing here can
+		// answer them, and an unanswered request stalls app-server.
+		s.respondErrorAsync(id, "unsupported request: "+method)
 		return
 	}
-	ev, ok := rt.mapServerRequest(method, id, params)
-	if !ok {
-		_ = s.client.RespondError(id, -32601, "unsupported request: "+method)
-		return
-	}
-	s.mu.Lock()
-	s.pending[ev.Request.ID] = pendingServerRequest{id: id, threadID: meta.ThreadID, method: method, params: params}
-	s.mu.Unlock()
-	rt.emit(ev)
+	s.route(meta.ThreadID, orphan{id: id, method: method, params: params, isRequest: true})
 }
 
 func (s *Server) takePending(id domain.RequestID) (pendingServerRequest, bool) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.pmu.Lock()
+	defer s.pmu.Unlock()
 	p, ok := s.pending[id]
 	delete(s.pending, id)
 	return p, ok
@@ -556,9 +591,18 @@ type Runtime struct {
 	mapper   *Mapper
 	events   chan domain.Event
 
-	mu       sync.Mutex
-	mapMu    sync.Mutex
-	turnID   string
+	// queue holds events until pump hands them to a consumer, so a slow
+	// session never stalls the shared read loop.
+	queue []domain.Event
+	wake  chan struct{}
+	stop  chan struct{}
+
+	mu     sync.Mutex
+	mapMu  sync.Mutex
+	turnID string
+	// doneTurn is the last completed turn; a late turn/start response must
+	// not revive it.
+	doneTurn string
 	reviewer domain.ApprovalReviewer
 	// model and effort override the thread's choice from the next turn on;
 	// empty values keep what the thread already uses.
@@ -576,8 +620,30 @@ func (r *Runtime) mapThread(thread rpcThread) []domain.Event {
 
 func (r *Runtime) mapNotification(method string, params json.RawMessage) []domain.Event {
 	r.mapMu.Lock()
-	defer r.mapMu.Unlock()
-	return r.mapper.MapNotification(method, params)
+	events := r.mapper.MapNotification(method, params)
+	r.mapMu.Unlock()
+	if method == "turn/started" || method == "turn/completed" {
+		var n turnNotification
+		if json.Unmarshal(params, &n) == nil && n.Turn.ID != "" {
+			r.mu.Lock()
+			if method == "turn/started" {
+				r.turnID = n.Turn.ID
+			} else {
+				r.doneTurn = n.Turn.ID
+				if r.turnID == n.Turn.ID {
+					r.turnID = ""
+				}
+			}
+			r.mu.Unlock()
+		}
+	}
+	return events
+}
+
+func (r *Runtime) activeTurn() string {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.turnID
 }
 
 func (r *Runtime) mapServerRequest(method string, id, params json.RawMessage) (domain.Event, bool) {
@@ -591,13 +657,46 @@ func (r *Runtime) Events() <-chan domain.Event { return r.events }
 
 func (r *Runtime) emit(ev domain.Event) {
 	r.mu.Lock()
-	closed := r.closed
-	r.mu.Unlock()
-	if closed {
+	if r.closed {
+		r.mu.Unlock()
 		return
 	}
-	defer func() { _ = recover() }() // channel may close concurrently
-	r.events <- ev
+	r.queue = append(r.queue, ev)
+	r.mu.Unlock()
+	select {
+	case r.wake <- struct{}{}:
+	default:
+	}
+}
+
+// pump delivers queued events in order. After closeEvents it flushes the
+// queue and closes events; Close stops it at once.
+func (r *Runtime) pump() {
+	defer close(r.events)
+	for {
+		r.mu.Lock()
+		batch, closed := r.queue, r.closed
+		r.queue = nil
+		r.mu.Unlock()
+		for _, ev := range batch {
+			select {
+			case r.events <- ev:
+			case <-r.stop:
+				return
+			}
+		}
+		if len(batch) > 0 {
+			continue
+		}
+		if closed {
+			return
+		}
+		select {
+		case <-r.wake:
+		case <-r.stop:
+			return
+		}
+	}
 }
 
 // Send starts a new turn on the thread.
@@ -624,7 +723,9 @@ func (r *Runtime) Send(ctx context.Context, _ domain.TurnID, text string) error 
 	}
 	if err := json.Unmarshal(res, &out); err == nil && out.Turn.ID != "" {
 		r.mu.Lock()
-		r.turnID = out.Turn.ID
+		if out.Turn.ID != r.doneTurn {
+			r.turnID = out.Turn.ID
+		}
 		r.mu.Unlock()
 		r.mapMu.Lock()
 		r.mapper.SetTurn(domain.TurnID(out.Turn.ID))
@@ -667,9 +768,7 @@ func (r *Runtime) StopTask(ctx context.Context, _ string) error {
 
 // Steer appends input to the active turn.
 func (r *Runtime) Steer(ctx context.Context, text string) error {
-	r.mu.Lock()
-	turnID := r.turnID
-	r.mu.Unlock()
+	turnID := r.activeTurn()
 	if turnID == "" {
 		return errors.New("codex: no active turn to steer")
 	}
@@ -685,9 +784,7 @@ func (r *Runtime) Steer(ctx context.Context, text string) error {
 
 // Interrupt stops the active turn.
 func (r *Runtime) Interrupt(ctx context.Context) error {
-	r.mu.Lock()
-	turnID := r.turnID
-	r.mu.Unlock()
+	turnID := r.activeTurn()
 	if turnID == "" {
 		return nil
 	}
@@ -722,6 +819,9 @@ func codexDecision(p pendingServerRequest, answer app.RequestAnswer) (any, error
 		if !answer.Allow {
 			return map[string]any{"permissions": json.RawMessage(`{}`)}, nil
 		}
+		if answer.AllowForSession {
+			return map[string]any{"permissions": params.Permissions, "scope": "session"}, nil
+		}
 		return map[string]any{"permissions": params.Permissions}, nil
 	case "item/tool/requestUserInput":
 		var params userInputParams
@@ -730,19 +830,25 @@ func codexDecision(p pendingServerRequest, answer app.RequestAnswer) (any, error
 		}
 		answers := map[string]any{}
 		for _, q := range params.Questions {
-			labels := answer.Answers[q.Question]
-			if len(labels) == 0 {
-				labels = answer.Answers[q.ID]
+			labels := []string{}
+			if answer.Allow {
+				labels = append(labels, answer.Answers[q.Question]...)
+				if len(labels) == 0 {
+					labels = append(labels, answer.Answers[q.ID]...)
+				}
 			}
 			answers[q.ID] = map[string]any{"answers": labels}
 		}
 		return map[string]any{"answers": answers}, nil
 	case "mcpServer/elicitation/request":
-		action := "decline"
-		if answer.Allow {
-			action = "accept"
+		if !answer.Allow {
+			return map[string]any{"action": "decline"}, nil
 		}
-		return map[string]any{"action": action}, nil
+		content := answer.Content
+		if len(content) == 0 {
+			content = json.RawMessage(`{}`)
+		}
+		return map[string]any{"action": "accept", "content": content}, nil
 	}
 	return nil, errors.New("codex: unsupported request " + p.method)
 }
@@ -764,22 +870,27 @@ func approvalDecision(answer app.RequestAnswer) string {
 func (r *Runtime) Close() error {
 	r.closeOnce.Do(func() {
 		r.server.mu.Lock()
-		delete(r.server.threads, r.threadID)
+		if r.server.threads[r.threadID] == r {
+			delete(r.server.threads, r.threadID)
+		}
 		r.server.mu.Unlock()
-		r.closeEvents()
+		r.mu.Lock()
+		r.closed = true
+		r.mu.Unlock()
+		close(r.stop)
 	})
 	return nil
 }
 
+// closeEvents ends the stream after the queued events are delivered.
 func (r *Runtime) closeEvents() {
 	r.mu.Lock()
-	if r.closed {
-		r.mu.Unlock()
-		return
-	}
 	r.closed = true
 	r.mu.Unlock()
-	close(r.events)
+	select {
+	case r.wake <- struct{}{}:
+	default:
+	}
 }
 
 var _ app.RuntimeFactory = (*Factory)(nil)

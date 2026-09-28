@@ -35,8 +35,8 @@ type rpcMessage struct {
 	Error   *rpcError       `json:"error,omitempty"`
 }
 
-// Handler receives a server-initiated request. The owner answers it later
-// with Respond/RespondError, or immediately for stateless methods.
+// Handler receives a server-initiated request on the read loop, so it must
+// not block. The owner answers it later with Respond/RespondError.
 type Handler func(id json.RawMessage, method string, params json.RawMessage)
 
 // Client is a JSON-RPC 2.0 client over a stream. It correlates responses by
@@ -90,7 +90,9 @@ func (c *Client) read() {
 		}
 		switch {
 		case msg.Method != "" && len(msg.ID) > 0:
-			go c.handleRequest(msg)
+			// In line with notifications, so serverRequest/resolved never
+			// overtakes the request it resolves. Handlers must not block.
+			c.handleRequest(msg)
 		case msg.Method != "":
 			if c.nt != nil {
 				c.nt(msg.Method, msg.Params)

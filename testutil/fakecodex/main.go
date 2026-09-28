@@ -9,6 +9,7 @@
 //	echo       always stream "echo: <prompt>"
 //	permission always request command approval, then continue
 //	question   always ask one requestUserInput question, then continue
+//	exit-after-turn  echo the prompt, then exit right after turn/completed
 //
 // Like the real server, approvalsReviewer (thread/start, thread/resume,
 // turn/start; it sticks to the thread) set to "auto_review" settles approval
@@ -190,6 +191,10 @@ func startTurn(mode, threadID, turnID, text string, pending map[string]func(json
 		questionTurn(threadID, turnID, pending)
 	case "collab":
 		collabTurn(threadID, turnID, text)
+	case "exit-after-turn":
+		echoTurn(threadID, turnID, text)
+		_ = out.Flush()
+		os.Exit(0)
 	default: // auto
 		switch {
 		case strings.Contains(low, "permission"):
