@@ -46,6 +46,7 @@ func run(ctx context.Context, args []string, out io.Writer) error {
 	addr := fl.String("addr", "127.0.0.1:7777", "listen address")
 	home, _ := os.UserHomeDir()
 	dataDir := fl.String("data", filepath.Join(home, ".go-chamber"), "data directory")
+	idle := fl.Duration("idle-timeout", 15*time.Minute, "close idle Claude processes after this long (0 keeps them)")
 	if err := fl.Parse(args); err != nil {
 		return err
 	}
@@ -82,6 +83,7 @@ func run(ctx context.Context, args []string, out io.Writer) error {
 		Bus:           events,
 		History:       events,
 		Models:        runtimes,
+		IdleTimeout:   *idle,
 	})
 	defer manager.Close()
 	if _, err := manager.Restore(ctx); err != nil {

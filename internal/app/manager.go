@@ -34,6 +34,9 @@ type ManagerConfig struct {
 	// History optionally replays the event log; Restore uses it to close
 	// requests a previous process left open.
 	History EventHistory
+	// IdleTimeout closes a Claude process idle this long; the session becomes
+	// detached and resumes on the next message. Zero keeps processes alive.
+	IdleTimeout time.Duration
 }
 
 // EventHistory replays a session's published events.
@@ -54,6 +57,8 @@ type Manager struct {
 	// restart marks sessions whose runtime must be replaced before the next
 	// turn (a model change it couldn't apply live).
 	restart map[domain.SessionID]bool
+	// idle holds the timers that retire idle Claude processes.
+	idle map[domain.SessionID]*idleTimer
 }
 
 func NewManager(cfg ManagerConfig) *Manager {
@@ -69,6 +74,7 @@ func NewManager(cfg ManagerConfig) *Manager {
 		runtimes: map[domain.SessionID]AgentRuntime{},
 		pending:  map[domain.SessionID]map[domain.RequestID]*domain.Request{},
 		restart:  map[domain.SessionID]bool{},
+		idle:     map[domain.SessionID]*idleTimer{},
 	}
 }
 
@@ -420,6 +426,9 @@ func (m *Manager) Close() {
 	m.mu.Lock()
 	runtimes := m.runtimes
 	m.runtimes = map[domain.SessionID]AgentRuntime{}
+	for _, t := range m.idle {
+		t.Stop()
+	}
 	m.mu.Unlock()
 	for _, rt := range runtimes {
 		_ = rt.Close()
@@ -582,6 +591,7 @@ func (m *Manager) consume(s *domain.Session, rt AgentRuntime) {
 		case domain.EventTurnEnded:
 			_ = m.cfg.Repo.Save(context.Background(), snap)
 			m.cfg.Bus.Publish(domain.Event{SessionID: s.ID(), Type: domain.EventSessionState, Session: &snap})
+			m.armIdle(s, rt)
 		case domain.EventSubagentSpawned:
 			m.spawnSubagent(s, ev.Subagent)
 		case domain.EventQuota:
@@ -591,6 +601,41 @@ func (m *Manager) consume(s *domain.Session, rt AgentRuntime) {
 		}
 	}
 	m.detach(s, rt, open)
+}
+
+// armIdle (re)starts the timer that retires an idle Claude process.
+func (m *Manager) armIdle(s *domain.Session, rt AgentRuntime) {
+	if m.cfg.IdleTimeout <= 0 || s.Agent() != domain.AgentClaude {
+		return
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if t := m.idle[s.ID()]; t != nil {
+		t.Stop()
+	}
+	entry := &idleTimer{}
+	entry.Timer = time.AfterFunc(m.cfg.IdleTimeout, func() { m.retireIdle(s, rt, entry) })
+	m.idle[s.ID()] = entry
+}
+
+// idleTimer gives a timer an identity its own callback can compare.
+type idleTimer struct{ *time.Timer }
+
+// retireIdle closes the runtime if it is still current, idle and has no
+// pending requests; the session becomes detached.
+func (m *Manager) retireIdle(s *domain.Session, rt AgentRuntime, timer *idleTimer) {
+	m.mu.Lock()
+	if m.idle[s.ID()] != timer || m.runtimes[s.ID()] != rt ||
+		s.Status() != domain.StatusIdle || len(m.pending[s.ID()]) > 0 {
+		m.mu.Unlock()
+		return
+	}
+	delete(m.idle, s.ID())
+	m.retire(s)
+	snap := s.Snapshot()
+	m.mu.Unlock()
+	_ = m.cfg.Repo.Save(context.Background(), snap)
+	m.cfg.Bus.Publish(domain.Event{SessionID: s.ID(), Type: domain.EventSessionState, Session: &snap})
 }
 
 // mergeQuota folds a partial quota report into the cached snapshot, so a
