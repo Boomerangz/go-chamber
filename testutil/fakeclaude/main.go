@@ -11,6 +11,11 @@
 //	permission always prompt for Bash permission, then continue
 //	question   always ask one AskUserQuestion, then continue
 //	die        stream a partial answer and exit mid-turn
+//	huge       write a stdout line longer than the host's line limit
+//	longstderr write a 1 MiB stderr line, then answer like echo
+//	nocontrol  never answer control_requests
+//
+// set_model to "bad-model" is rejected with an error control_response.
 //
 // Like the real CLI, permission prompts and AskUserQuestion reach the host as
 // can_use_tool control_requests only with --permission-prompt-tool stdio;
@@ -109,13 +114,28 @@ func main() {
 				_ = out.Flush()
 			}
 		case "control_request":
+			if mode == "nocontrol" {
+				continue
+			}
 			switch env.Request.Subtype {
+			case "interrupt":
+				_ = enc.Encode(map[string]any{"type": "control_response", "response": map[string]any{
+					"subtype": "success", "request_id": env.RequestID, "response": map[string]any{},
+				}})
+				_ = out.Flush()
 			case "stop_task":
 				stopTask(enc, out, sessionID, env.RequestID, env.Request.TaskID)
 			case "set_model", "apply_flag_settings":
 				// Like the real CLI: set_model switches the live model (no
 				// model means the default); apply_flag_settings changes
 				// effortLevel (null means the default).
+				if env.Request.Subtype == "set_model" && env.Request.Model == "bad-model" {
+					_ = enc.Encode(map[string]any{"type": "control_response", "response": map[string]any{
+						"subtype": "error", "request_id": env.RequestID, "error": "model not available",
+					}})
+					_ = out.Flush()
+					continue
+				}
 				if env.Request.Subtype == "set_model" {
 					model = env.Request.Model
 					effort = "" // a new model starts from its own default
@@ -173,6 +193,13 @@ func startTurn(mode string, enc *json.Encoder, out *bufio.Writer, sessionID, pro
 		_ = out.Flush()
 		os.Exit(3)
 	case "echo":
+		emitTextTurn(enc, out, sessionID, "echo: "+prompt)
+	case "huge":
+		_, _ = out.WriteString(`{"type":"assistant","pad":"` + strings.Repeat("x", 17<<20) + "\"}\n")
+		_ = out.Flush()
+		select {}
+	case "longstderr":
+		_, _ = os.Stderr.WriteString(strings.Repeat("e", 1<<20) + "\n")
 		emitTextTurn(enc, out, sessionID, "echo: "+prompt)
 	case "tool":
 		emitToolTurn(enc, out, sessionID, prompt)

@@ -444,3 +444,80 @@ func TestRuntimeShowsAStopHookThatBlocks(t *testing.T) {
 		t.Fatalf("answers = %d, want the reply and the reply after the hook", len(answers))
 	}
 }
+
+func TestRuntimeOversizedLineEndsTheProcess(t *testing.T) {
+	rt := startFake(t, app.StartRequest{}, "FAKECLAUDE_MODE=huge")
+	if err := rt.Send(context.Background(), "t1", "hi"); err != nil {
+		t.Fatal(err)
+	}
+	drain(t, rt, func(domain.Event) bool { return false })
+}
+
+func TestRuntimeLongStderrLineDoesNotStallTheCLI(t *testing.T) {
+	f := &Factory{Binary: fakeBin, Env: []string{"FAKECLAUDE_MODE=longstderr"}, Stderr: io.Discard}
+	started, err := f.Start(context.Background(), app.StartRequest{SessionID: "s1", Agent: domain.AgentClaude, Cwd: t.TempDir()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	rt := started.(*Runtime)
+	t.Cleanup(func() { _ = rt.Close() })
+	if err := rt.Send(context.Background(), "t1", "hi"); err != nil {
+		t.Fatal(err)
+	}
+	if res := waitTurnEnd(t, rt); res.Text != "echo: hi" {
+		t.Fatalf("result = %+v", res)
+	}
+}
+
+func TestRuntimeRejectedModelKeepsTheOldOne(t *testing.T) {
+	rt := startFake(t, app.StartRequest{Model: "haiku"})
+	if err := rt.SetModel(context.Background(), "bad-model", ""); err == nil {
+		t.Fatal("want error for a rejected model")
+	}
+	if got := askModel(t, rt); !strings.Contains(got, "model: haiku") {
+		t.Fatalf("live model = %q", got)
+	}
+	if err := rt.SetModel(context.Background(), "sonnet", ""); err != nil {
+		t.Fatalf("switch after rejection: %v", err)
+	}
+	if got := askModel(t, rt); !strings.Contains(got, "model: sonnet") {
+		t.Fatalf("live model = %q", got)
+	}
+}
+
+func TestRuntimeControlRequestTimesOut(t *testing.T) {
+	old := controlTimeout
+	controlTimeout = 200 * time.Millisecond
+	t.Cleanup(func() { controlTimeout = old })
+	rt := startFake(t, app.StartRequest{}, "FAKECLAUDE_MODE=nocontrol")
+	if err := rt.Interrupt(context.Background()); err == nil {
+		t.Fatal("want timeout error")
+	}
+}
+
+func TestRuntimeControlRequestFailsWhenTheProcessExits(t *testing.T) {
+	rt := startFake(t, app.StartRequest{}, "FAKECLAUDE_MODE=nocontrol")
+	time.AfterFunc(100*time.Millisecond, rt.kill)
+	start := time.Now()
+	if err := rt.Interrupt(context.Background()); err == nil {
+		t.Fatal("want error")
+	}
+	if waited := time.Since(start); waited > controlTimeout/2 {
+		t.Fatalf("waited %s for a dead process", waited)
+	}
+}
+
+func TestRuntimeRespondKeepsTheRequestWhenTheWriteFails(t *testing.T) {
+	rt := startFake(t, app.StartRequest{}, "FAKECLAUDE_MODE=permission")
+	if err := rt.Send(context.Background(), "t1", "go"); err != nil {
+		t.Fatal(err)
+	}
+	req := waitRequest(t, rt)
+	_ = rt.stdin.Close()
+	if err := rt.Respond(context.Background(), req.ID, app.RequestAnswer{Allow: true}); err == nil {
+		t.Fatal("want write error")
+	}
+	if _, ok := rt.mapper.Pending(req.ID); !ok {
+		t.Fatal("request forgotten after a failed write")
+	}
+}

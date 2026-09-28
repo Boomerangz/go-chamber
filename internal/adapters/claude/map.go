@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/igorzygin/go-chamber/internal/domain"
@@ -23,45 +24,71 @@ type pendingRequest struct {
 // normalized domain events. It is stateful: it correlates streamed blocks
 // with the assistant messages and tool results that complete them.
 type Mapper struct {
+	mu      sync.Mutex
 	session domain.SessionID
 	turn    domain.TurnID
 
-	next           int
-	currentMessage string
-	byKey          map[string]domain.ItemID
-	byTool         map[string]domain.ItemID
-	items          map[domain.ItemID]*domain.Item
-	inputBuf       map[string]string
-	pending        map[domain.RequestID]pendingRequest
-	tasks          map[string]domain.ItemID
-	hooks          map[string]domain.ItemID
+	next int
+	// currentMessage is the streaming message id per parent_tool_use_id, so
+	// a subagent's stream does not take over the parent's.
+	currentMessage map[string]string
+	// assistantBlocks counts content blocks already seen per message: the
+	// CLI may send one assistant message per block, all with the same id.
+	assistantBlocks map[string]int
+	background      map[domain.ItemID]bool
+	byKey           map[string]domain.ItemID
+	byTool          map[string]domain.ItemID
+	items           map[domain.ItemID]*domain.Item
+	inputBuf        map[string]string
+	pending         map[domain.RequestID]pendingRequest
+	tasks           map[string]domain.ItemID
+	hooks           map[string]domain.ItemID
 }
 
 func NewMapper(session domain.SessionID) *Mapper {
 	return &Mapper{
-		session:  session,
-		byKey:    map[string]domain.ItemID{},
-		byTool:   map[string]domain.ItemID{},
-		items:    map[domain.ItemID]*domain.Item{},
-		inputBuf: map[string]string{},
-		pending:  map[domain.RequestID]pendingRequest{},
-		tasks:    map[string]domain.ItemID{},
-		hooks:    map[string]domain.ItemID{},
+		session:         session,
+		currentMessage:  map[string]string{},
+		assistantBlocks: map[string]int{},
+		background:      map[domain.ItemID]bool{},
+		byKey:           map[string]domain.ItemID{},
+		byTool:          map[string]domain.ItemID{},
+		items:           map[domain.ItemID]*domain.Item{},
+		inputBuf:        map[string]string{},
+		pending:         map[domain.RequestID]pendingRequest{},
+		tasks:           map[string]domain.ItemID{},
+		hooks:           map[string]domain.ItemID{},
 	}
 }
 
 // TakePending returns and forgets a remembered can_use_tool request.
 func (m *Mapper) TakePending(id domain.RequestID) (pendingRequest, bool) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	p, ok := m.pending[id]
 	delete(m.pending, id)
 	return p, ok
 }
 
 // SetTurn sets the turn id stamped on items produced from now on.
-func (m *Mapper) SetTurn(turn domain.TurnID) { m.turn = turn }
+func (m *Mapper) SetTurn(turn domain.TurnID) {
+	m.mu.Lock()
+	m.turn = turn
+	m.mu.Unlock()
+}
+
+// Pending returns a remembered can_use_tool request without forgetting it.
+func (m *Mapper) Pending(id domain.RequestID) (pendingRequest, bool) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	p, ok := m.pending[id]
+	return p, ok
+}
 
 // Map parses one NDJSON protocol message into zero or more domain events.
 func (m *Mapper) Map(line []byte) ([]domain.Event, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	events, err := m.mapLine(line)
 	return domain.DetachItems(events), err
 }
@@ -190,7 +217,7 @@ func (m *Mapper) mapStream(raw *rawMessage) []domain.Event {
 	case "message_start":
 		var msg rawStreamMessage
 		if err := json.Unmarshal(env.Message, &msg); err == nil && msg.ID != "" {
-			m.currentMessage = msg.ID
+			m.currentMessage[parent] = msg.ID
 		}
 	case "content_block_start":
 		return m.startBlock(env, parent)
@@ -207,7 +234,7 @@ func (m *Mapper) startBlock(env rawStreamEnvelope, parent string) []domain.Event
 	if err := json.Unmarshal(env.ContentBlock, &block); err != nil {
 		return nil
 	}
-	key := blockKey(m.currentMessage, parent, env.Index)
+	key := blockKey(m.currentMessage[parent], parent, env.Index)
 	switch block.Type {
 	case "text", "thinking":
 		kind := domain.ItemAssistantMessage
@@ -233,7 +260,7 @@ func (m *Mapper) blockDelta(env rawStreamEnvelope, parent string) []domain.Event
 	if err := json.Unmarshal(env.Delta, &delta); err != nil {
 		return nil
 	}
-	key := blockKey(m.currentMessage, parent, env.Index)
+	key := blockKey(m.currentMessage[parent], parent, env.Index)
 	item := m.items[m.byKey[key]]
 	if item == nil {
 		return nil
@@ -263,7 +290,7 @@ func (m *Mapper) delta(item *domain.Item, text string) []domain.Event {
 }
 
 func (m *Mapper) stopBlock(env rawStreamEnvelope, parent string) []domain.Event {
-	key := blockKey(m.currentMessage, parent, env.Index)
+	key := blockKey(m.currentMessage[parent], parent, env.Index)
 	item := m.items[m.byKey[key]]
 	if item == nil {
 		return nil
@@ -289,16 +316,19 @@ func (m *Mapper) mapAssistant(raw *rawMessage) []domain.Event {
 	if err := json.Unmarshal(raw.Message, &msg); err != nil {
 		return nil
 	}
-	if msg.ID != "" {
-		m.currentMessage = msg.ID
-	}
 	parent := parentOf(raw)
+	if msg.ID != "" {
+		m.currentMessage[parent] = msg.ID
+	}
+	seen := parent + "|" + msg.ID
+	base := m.assistantBlocks[seen]
+	m.assistantBlocks[seen] = base + len(msg.Content)
 	var (
 		events []domain.Event
 		items  []*domain.Item
 	)
 	for i, block := range msg.Content {
-		key := blockKey(msg.ID, parent, i)
+		key := blockKey(msg.ID, parent, base+i)
 		switch block.Type {
 		case "text":
 			item := m.ensureText(key, parent, domain.ItemAssistantMessage)
@@ -341,9 +371,9 @@ func (m *Mapper) ensureText(key, parent string, kind domain.ItemKind) *domain.It
 }
 
 func (m *Mapper) ensureTool(key, parent string, block rawBlock) *domain.Item {
-	item := m.items[m.byKey[key]]
+	item := m.items[m.byTool[block.ID]]
 	if item == nil {
-		item = m.items[m.byTool[block.ID]]
+		item = m.items[m.byKey[key]]
 	}
 	if item == nil {
 		item = m.create(toolKind(block.Name), parent)
@@ -382,6 +412,11 @@ func (m *Mapper) mapUser(raw *rawMessage) []domain.Event {
 			continue
 		}
 		item.Text = textFromToolResult(block.Content)
+		if item.Kind == domain.ItemSubagent && !block.IsError && (m.background[item.ID] || inputBool(item.Input, "run_in_background")) {
+			// The launch acknowledgement; task_notification brings the outcome.
+			events = append(events, m.updated(item)...)
+			continue
+		}
 		if item.Kind == domain.ItemCommand && item.ExitCode == nil {
 			code := 0
 			if block.IsError {
@@ -540,6 +575,9 @@ func (m *Mapper) mapTaskStarted(raw *rawMessage) []domain.Event {
 	}
 	item.AgentID = raw.TaskID
 	m.tasks[raw.TaskID] = item.ID
+	if raw.IsBackgrounded != nil && *raw.IsBackgrounded {
+		m.background[item.ID] = true
+	}
 	return m.updated(item)
 }
 
@@ -594,6 +632,15 @@ func toolKind(name string) domain.ItemKind {
 	default:
 		return domain.ItemToolCall
 	}
+}
+
+func inputBool(raw json.RawMessage, key string) bool {
+	var m map[string]any
+	if json.Unmarshal(raw, &m) != nil {
+		return false
+	}
+	b, _ := m[key].(bool)
+	return b
 }
 
 func inputString(raw json.RawMessage, keys ...string) string {

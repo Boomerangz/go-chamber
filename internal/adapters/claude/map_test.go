@@ -2,6 +2,7 @@ package claude
 
 import (
 	"encoding/json"
+	"strconv"
 	"testing"
 
 	"github.com/igorzygin/go-chamber/internal/domain"
@@ -565,4 +566,119 @@ func TestMapHookEvents(t *testing.T) {
 	check("Stop|", domain.HookSuccess, domain.ItemCompleted, 0)
 	check("PreToolUse|rm is not allowed", domain.HookBlocked, domain.ItemCompleted, 2)
 	check("Stop|python: not found", domain.HookError, domain.ItemFailed, 127)
+}
+
+func TestMapperIsSafeForConcurrentUse(t *testing.T) {
+	m := NewMapper("s1")
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		for i := range 200 {
+			id := "req-" + strconv.Itoa(i)
+			_, _ = m.Map([]byte(`{"type":"control_request","request_id":"` + id + `","request":{"subtype":"can_use_tool","tool_name":"Bash","input":{}}}`))
+		}
+	}()
+	for i := range 200 {
+		m.SetTurn(domain.TurnID("t" + strconv.Itoa(i)))
+		m.TakePending(domain.RequestID("req-" + strconv.Itoa(i)))
+	}
+	<-done
+}
+
+// The CLI sends one assistant message per content block, all with the same
+// message id; each must complete the item streamed under its block index.
+func TestMapAssistantOneBlockPerMessage(t *testing.T) {
+	m := NewMapper("s1")
+	m.SetTurn("t1")
+	evs := feed(t, m,
+		`{"type":"stream_event","session_id":"s1","event":{"type":"message_start","message":{"id":"msg_1"}}}`,
+		`{"type":"stream_event","session_id":"s1","event":{"type":"content_block_start","index":0,"content_block":{"type":"thinking"}}}`,
+		`{"type":"stream_event","session_id":"s1","event":{"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":"hmm"}}}`,
+		`{"type":"stream_event","session_id":"s1","event":{"type":"content_block_stop","index":0}}`,
+		`{"type":"assistant","session_id":"s1","parent_tool_use_id":null,"message":{"id":"msg_1","content":[{"type":"thinking","thinking":"hmm"}]}}`,
+		`{"type":"stream_event","session_id":"s1","event":{"type":"content_block_start","index":1,"content_block":{"type":"text"}}}`,
+		`{"type":"stream_event","session_id":"s1","event":{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"answer"}}}`,
+		`{"type":"stream_event","session_id":"s1","event":{"type":"content_block_stop","index":1}}`,
+		`{"type":"assistant","session_id":"s1","parent_tool_use_id":null,"message":{"id":"msg_1","content":[{"type":"text","text":"answer"}]}}`,
+		`{"type":"stream_event","session_id":"s1","event":{"type":"content_block_start","index":2,"content_block":{"type":"tool_use","id":"toolu_1","name":"Bash","input":{}}}}`,
+		`{"type":"stream_event","session_id":"s1","event":{"type":"content_block_stop","index":2}}`,
+		`{"type":"assistant","session_id":"s1","parent_tool_use_id":null,"message":{"id":"msg_1","content":[{"type":"tool_use","id":"toolu_1","name":"Bash","input":{"command":"ls"}}]}}`,
+	)
+	final := map[domain.ItemID]*domain.Item{}
+	for _, ev := range evs {
+		if ev.Item != nil {
+			final[ev.Item.ID] = ev.Item
+		}
+	}
+	if len(final) != 3 {
+		t.Fatalf("want 3 items, got %d: %+v", len(final), final)
+	}
+	for _, it := range final {
+		switch it.Kind {
+		case domain.ItemReasoning:
+			if it.Text != "hmm" || it.Name != "" {
+				t.Fatalf("reasoning = %+v", it)
+			}
+		case domain.ItemAssistantMessage:
+			if it.Text != "answer" {
+				t.Fatalf("answer = %+v", it)
+			}
+		case domain.ItemCommand:
+			if it.Name != "Bash" || string(it.Input) != `{"command":"ls"}` {
+				t.Fatalf("command = %+v", it)
+			}
+		default:
+			t.Fatalf("unexpected item %+v", it)
+		}
+	}
+}
+
+// A subagent's stream interleaved with the parent's must not steal the
+// parent's current message.
+func TestMapSubagentStreamDoesNotBreakParent(t *testing.T) {
+	m := NewMapper("s1")
+	evs := feed(t, m,
+		`{"type":"stream_event","session_id":"s1","event":{"type":"message_start","message":{"id":"msg_p"}}}`,
+		`{"type":"stream_event","session_id":"s1","event":{"type":"content_block_start","index":0,"content_block":{"type":"text"}}}`,
+		`{"type":"stream_event","session_id":"s1","parent_tool_use_id":"toolu_x","event":{"type":"message_start","message":{"id":"msg_s"}}}`,
+		`{"type":"stream_event","session_id":"s1","parent_tool_use_id":"toolu_x","event":{"type":"content_block_start","index":0,"content_block":{"type":"text"}}}`,
+		`{"type":"stream_event","session_id":"s1","parent_tool_use_id":"toolu_x","event":{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"sub"}}}`,
+		`{"type":"stream_event","session_id":"s1","event":{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"Hi"}}}`,
+		`{"type":"stream_event","session_id":"s1","event":{"type":"content_block_stop","index":0}}`,
+	)
+	var parent *domain.Item
+	for _, ev := range evs {
+		if ev.Item != nil && ev.Item.ParentItemID == "" && ev.Item.Kind == domain.ItemAssistantMessage && ev.Item.Text == "Hi" {
+			parent = ev.Item
+		}
+	}
+	if parent == nil || parent.Status != domain.ItemCompleted {
+		t.Fatalf("parent text lost: %+v", evs)
+	}
+}
+
+// A background Task's immediate "launched" tool_result is not its outcome.
+func TestMapBackgroundTaskLaunchResultIsNotFinal(t *testing.T) {
+	for name, lines := range map[string][]string{
+		"run_in_background input": {
+			`{"type":"assistant","session_id":"s1","parent_tool_use_id":null,"message":{"id":"msg_t","content":[{"type":"tool_use","id":"toolu_t","name":"Task","input":{"description":"bg","run_in_background":true}}]}}`,
+			`{"type":"user","session_id":"s1","parent_tool_use_id":null,"message":{"content":[{"type":"tool_result","tool_use_id":"toolu_t","content":"Async agent launched"}]}}`,
+			`{"type":"system","subtype":"task_started","session_id":"s1","task_id":"task-1","tool_use_id":"toolu_t","is_backgrounded":true}`,
+		},
+		"task_started first": {
+			`{"type":"assistant","session_id":"s1","parent_tool_use_id":null,"message":{"id":"msg_t","content":[{"type":"tool_use","id":"toolu_t","name":"Task","input":{"description":"bg"}}]}}`,
+			`{"type":"system","subtype":"task_started","session_id":"s1","task_id":"task-1","tool_use_id":"toolu_t","is_backgrounded":true}`,
+			`{"type":"user","session_id":"s1","parent_tool_use_id":null,"message":{"content":[{"type":"tool_result","tool_use_id":"toolu_t","content":"Async agent launched"}]}}`,
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			m := NewMapper("s1")
+			feed(t, m, lines...)
+			evs := feed(t, m, `{"type":"system","subtype":"task_notification","session_id":"s1","task_id":"task-1","status":"failed","summary":"boom"}`)
+			sub := lastItemKind(t, evs, domain.ItemSubagent)
+			if sub.Status != domain.ItemFailed || sub.Text != "boom" {
+				t.Fatalf("subagent = %+v", sub)
+			}
+		})
+	}
 }

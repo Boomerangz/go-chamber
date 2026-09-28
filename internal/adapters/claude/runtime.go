@@ -2,15 +2,19 @@ package claude
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
 	"os/exec"
+	"strings"
 	"sync"
+	"time"
 
 	"github.com/igorzygin/go-chamber/internal/app"
 	"github.com/igorzygin/go-chamber/internal/domain"
@@ -26,12 +30,17 @@ type Runtime struct {
 	cmd   *exec.Cmd
 	stdin io.WriteCloser
 
-	events   chan domain.Event
-	exit     chan struct{}
-	readDone chan struct{}
+	events     chan domain.Event
+	exit       chan struct{}
+	readDone   chan struct{}
+	stderrDone chan struct{}
+	log        io.Writer
 
 	writeMu    sync.Mutex
 	reqCounter int
+
+	controlMu sync.Mutex
+	control   map[string]chan error
 
 	modelMu sync.Mutex
 	model   string
@@ -70,16 +79,19 @@ func start(ctx context.Context, cfg *Factory, req app.StartRequest) (*Runtime, e
 	}
 
 	rt := &Runtime{
-		session:  req.SessionID,
-		native:   native,
-		mapper:   NewMapper(req.SessionID),
-		cmd:      cmd,
-		stdin:    stdin,
-		events:   make(chan domain.Event, 256),
-		exit:     make(chan struct{}),
-		readDone: make(chan struct{}),
-		model:    req.Model,
-		effort:   req.Effort,
+		session:    req.SessionID,
+		native:     native,
+		mapper:     NewMapper(req.SessionID),
+		cmd:        cmd,
+		stdin:      stdin,
+		events:     make(chan domain.Event, 256),
+		exit:       make(chan struct{}),
+		readDone:   make(chan struct{}),
+		stderrDone: make(chan struct{}),
+		log:        cfg.stderr(),
+		control:    map[string]chan error{},
+		model:      req.Model,
+		effort:     req.Effort,
 	}
 	if err := cmd.Start(); err != nil {
 		return nil, fmt.Errorf("claude: start %s: %w", cfg.binary(), err)
@@ -133,7 +145,7 @@ func (r *Runtime) sendUser(text string) error {
 
 // Respond answers a can_use_tool request with an allow or deny decision.
 func (r *Runtime) Respond(_ context.Context, requestID domain.RequestID, answer app.RequestAnswer) error {
-	req, ok := r.mapper.TakePending(requestID)
+	req, ok := r.mapper.Pending(requestID)
 	if !ok {
 		return fmt.Errorf("claude: no pending request %s", requestID)
 	}
@@ -179,7 +191,11 @@ func (r *Runtime) Respond(_ context.Context, requestID domain.RequestID, answer 
 	if err != nil {
 		return err
 	}
-	return r.writeLine(append(line, '\n'))
+	if err := r.writeLine(append(line, '\n')); err != nil {
+		return err
+	}
+	r.mapper.TakePending(requestID)
+	return nil
 }
 
 // SetModel switches the live session: set_model changes the model (no
@@ -225,6 +241,7 @@ func (r *Runtime) StopTask(_ context.Context, taskID string) error {
 	return r.controlRequest(map[string]any{"subtype": "stop_task", "task_id": taskID})
 }
 
+// controlRequest sends a control_request and waits for its control_response.
 func (r *Runtime) controlRequest(request map[string]any) error {
 	r.writeMu.Lock()
 	r.reqCounter++
@@ -238,7 +255,55 @@ func (r *Runtime) controlRequest(request map[string]any) error {
 	if err != nil {
 		return err
 	}
-	return r.writeLine(append(line, '\n'))
+	done := make(chan error, 1)
+	r.controlMu.Lock()
+	r.control[reqID] = done
+	r.controlMu.Unlock()
+	defer func() {
+		r.controlMu.Lock()
+		delete(r.control, reqID)
+		r.controlMu.Unlock()
+	}()
+	if err := r.writeLine(append(line, '\n')); err != nil {
+		return err
+	}
+	select {
+	case err := <-done:
+		return err
+	case <-r.readDone:
+		return fmt.Errorf("claude: process exited before answering %v", request["subtype"])
+	case <-time.After(controlTimeout):
+		return fmt.Errorf("claude: no answer to %v in %s", request["subtype"], controlTimeout)
+	}
+}
+
+// resolveControl hands a control_response to the request waiting for it.
+func (r *Runtime) resolveControl(line []byte) bool {
+	if !bytes.Contains(line, []byte(`"control_response"`)) {
+		return false
+	}
+	var msg struct {
+		Type     string `json:"type"`
+		Response struct {
+			Subtype   string `json:"subtype"`
+			RequestID string `json:"request_id"`
+			Error     string `json:"error"`
+		} `json:"response"`
+	}
+	if json.Unmarshal(line, &msg) != nil || msg.Type != "control_response" {
+		return false
+	}
+	r.controlMu.Lock()
+	done := r.control[msg.Response.RequestID]
+	r.controlMu.Unlock()
+	if done != nil {
+		var err error
+		if msg.Response.Subtype == "error" {
+			err = errors.New("claude: " + msg.Response.Error)
+		}
+		done <- err
+	}
+	return true
 }
 
 // Close terminates the process and closes Events.
@@ -267,6 +332,9 @@ func (r *Runtime) read(stdout io.Reader) {
 	scanner.Buffer(make([]byte, 0, 64*1024), 16*1024*1024)
 	for scanner.Scan() {
 		line := scanner.Bytes()
+		if r.resolveControl(line) {
+			continue
+		}
 		events, err := r.mapper.Map(line)
 		if err != nil {
 			continue
@@ -275,12 +343,24 @@ func (r *Runtime) read(stdout io.Reader) {
 			r.events <- ev
 		}
 	}
+	if err := scanner.Err(); err != nil {
+		// Nothing reads stdout any more, so the CLI would block on it.
+		_, _ = fmt.Fprintln(r.log, "claude: read stdout:", err)
+		r.kill()
+	}
 }
 
 func (r *Runtime) drainStderr(stderr io.Reader, dst io.Writer) {
-	scanner := bufio.NewScanner(stderr)
-	for scanner.Scan() {
-		_, _ = fmt.Fprintln(dst, "claude:", scanner.Text())
+	defer close(r.stderrDone)
+	reader := bufio.NewReader(stderr)
+	for {
+		line, err := reader.ReadString('\n')
+		if line != "" {
+			_, _ = fmt.Fprintln(dst, "claude:", strings.TrimRight(line, "\n"))
+		}
+		if err != nil {
+			return
+		}
 	}
 }
 
@@ -289,6 +369,12 @@ func (r *Runtime) drainStderr(stderr io.Reader, dst io.Writer) {
 // after they are closed.
 func (r *Runtime) wait() {
 	<-r.readDone
+	// Let stderr carry the crash message before Wait closes the pipe; a
+	// child that inherited stderr may keep it open, so the wait is bounded.
+	select {
+	case <-r.stderrDone:
+	case <-time.After(time.Second):
+	}
 	_ = r.cmd.Wait()
 	close(r.events)
 	close(r.exit)
@@ -299,3 +385,6 @@ func (r *Runtime) kill() {
 		_ = r.cmd.Process.Kill()
 	}
 }
+
+// controlTimeout bounds the wait for a control_response.
+var controlTimeout = 10 * time.Second
