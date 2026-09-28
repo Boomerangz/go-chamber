@@ -17,6 +17,7 @@ import AccountPanel from './components/account/AccountPanel'
 import FolderField from './components/folders/FolderField'
 import Markdown from './components/markdown/Markdown'
 import ModelPicker from './components/models/ModelPicker'
+import InterruptedBanner from './components/chat/InterruptedBanner'
 import RequestCard from './components/requests/RequestCard'
 import QuotaWidget from './components/quota/QuotaWidget'
 import RequestTray from './components/requests/RequestTray'
@@ -322,6 +323,9 @@ function Chat() {
   const interrupt = useSessionStore((s) => s.interrupt)
   const respond = useSessionStore((s) => s.respond)
   const stopTask = useSessionStore((s) => s.stopTask)
+  const continueSession = useSessionStore((s) => s.continueSession)
+  const setAutoContinue = useSessionStore((s) => s.setAutoContinue)
+  const forkSession = useSessionStore((s) => s.forkSession)
   const [text, setText] = useState('')
   const status = displayStatus(chat, session)
   const running = status === 'running'
@@ -356,6 +360,11 @@ function Chat() {
           <SessionUsage />
           {session && <ModelPicker session={session} />}
           {session && <ApprovalReviewerSelect session={session} />}
+          {session?.nativeId && (
+            <button type="button" className="btn btn-ghost" onClick={() => void forkSession(session.id)}>
+              Fork
+            </button>
+          )}
         </div>
       </header>
       <div className="scroll" ref={scrollRef}>
@@ -397,7 +406,13 @@ function Chat() {
           ))}
         </AnimatePresence>
       </div>
-      {status === 'interrupted' && session && <InterruptedBanner session={session} />}
+      {status === 'interrupted' && session && (
+        <InterruptedBanner
+          session={session}
+          onContinue={() => void continueSession()}
+          onAutoContinue={(on) => void setAutoContinue(session.id, on)}
+        />
+      )}
       <form
         className="composer"
         onSubmit={(e) => {
@@ -478,29 +493,6 @@ function useStickToBottom(dep: unknown) {
 // into view when it arrives or when the session opens.
 function scrollOnMount(el: HTMLDivElement | null) {
   el?.scrollIntoView({ block: 'nearest' })
-}
-
-const interruptionText: Record<string, string> = {
-  crashed: 'the agent process exited unexpectedly',
-  idle_timeout: 'the agent was stopped after being idle',
-  server_restart: 'go-chamber restarted mid-turn',
-  quota: 'the subscription limit was reached',
-}
-
-function InterruptedBanner({ session }: { session: Session }) {
-  const reason = session.interruption?.reason
-  const after = session.interruption?.resumeAfter
-  return (
-    <div className="banner banner-warn" role="status">
-      <strong>Turn interrupted</strong>
-      <span>
-        {reason ? interruptionText[reason] ?? reason : 'the turn ended abnormally'}.{' '}
-        {after && !after.startsWith('0001')
-          ? `Resume after ${new Date(after).toLocaleTimeString()}.`
-          : 'Send a message to resume the session.'}
-      </span>
-    </div>
-  )
 }
 
 function ItemView({

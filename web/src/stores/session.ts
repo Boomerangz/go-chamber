@@ -39,6 +39,9 @@ export interface SessionStore {
   send: (text: string) => Promise<void>
   steer: (text: string) => Promise<void>
   interrupt: () => Promise<void>
+  continueSession: () => Promise<void>
+  setAutoContinue: (sessionId: string, on: boolean) => Promise<void>
+  forkSession: (sessionId: string) => Promise<void>
   stopTask: (sessionId: string, taskId: string) => Promise<void>
   setApprovalReviewer: (sessionId: string, reviewer: api.ApprovalReviewer) => Promise<void>
   respond: (sessionId: string, requestId: string, answer: api.RequestAnswerInput) => Promise<void>
@@ -255,6 +258,36 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     if (!id) return
     try {
       await api.interrupt(id)
+    } catch (err) {
+      set({ error: errorMessage(err) })
+    }
+  },
+
+  async continueSession() {
+    const id = get().activeId
+    if (!id) return
+    try {
+      await api.continueSession(id)
+      set({ error: null })
+    } catch (err) {
+      set({ error: errorMessage(err) })
+    }
+  },
+
+  async setAutoContinue(sessionId, on) {
+    try {
+      const updated = await api.setAutoContinue(sessionId, on)
+      set({ sessions: replaceSession(get().sessions, updated), error: null })
+    } catch (err) {
+      set({ error: errorMessage(err) })
+    }
+  },
+
+  async forkSession(sessionId) {
+    try {
+      const fork = await api.forkSession(sessionId)
+      set({ sessions: replaceSession(get().sessions, fork), error: null })
+      await get().selectSession(fork.id)
     } catch (err) {
       set({ error: errorMessage(err) })
     }

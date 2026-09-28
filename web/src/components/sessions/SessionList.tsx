@@ -208,6 +208,11 @@ function SessionRow(props: {
             {(s.status === 'running' || s.status === 'interrupted') && (
               <span className={`session-status session-status-${s.status}`}>{s.status}</span>
             )}
+            {s.forkOf && (
+              <span className="session-fork" title="Forked from another session">
+                fork
+              </span>
+            )}
             <span className="session-time">{relativeTime(s.activeAt ?? s.createdAt)}</span>
           </span>
         </span>

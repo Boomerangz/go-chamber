@@ -59,6 +59,8 @@ type Manager struct {
 	restart map[domain.SessionID]bool
 	// idle holds the timers that retire idle Claude processes.
 	idle map[domain.SessionID]*idleTimer
+	// resume holds the timers that continue quota-interrupted sessions.
+	resume map[domain.SessionID]*time.Timer
 }
 
 func NewManager(cfg ManagerConfig) *Manager {
@@ -75,6 +77,7 @@ func NewManager(cfg ManagerConfig) *Manager {
 		pending:  map[domain.SessionID]map[domain.RequestID]*domain.Request{},
 		restart:  map[domain.SessionID]bool{},
 		idle:     map[domain.SessionID]*idleTimer{},
+		resume:   map[domain.SessionID]*time.Timer{},
 	}
 }
 
@@ -139,6 +142,9 @@ func (m *Manager) Restore(ctx context.Context) ([]domain.SessionSnapshot, error)
 		// Whatever the saved status, no process of the previous run can
 		// answer its requests any more.
 		m.closeLeftoverRequests(cur.ID)
+		if cur.AutoContinue {
+			m.armAutoContinue(cur.ID, true, cur.Interruption.ResumeAfter)
+		}
 		if cur != snap {
 			if err := m.cfg.Repo.Save(ctx, cur); err != nil {
 				return out, err
@@ -428,6 +434,9 @@ func (m *Manager) Close() {
 	for _, t := range m.idle {
 		t.Stop()
 	}
+	for _, t := range m.resume {
+		t.Stop()
+	}
 	m.mu.Unlock()
 	for _, rt := range runtimes {
 		_ = rt.Close()
@@ -462,10 +471,10 @@ func (m *Manager) session(ctx context.Context, id domain.SessionID) (*domain.Ses
 // ensureRuntime attaches a runtime to the session, resuming when the session
 // already has a native id.
 func (m *Manager) ensureRuntime(ctx context.Context, s *domain.Session) (AgentRuntime, error) {
-	return m.ensureRuntimeFor(ctx, s, s.NativeID(), false)
+	return m.ensureRuntimeFor(ctx, s, s.NativeID(), false, false)
 }
 
-func (m *Manager) ensureRuntimeFor(ctx context.Context, s *domain.Session, nativeID string, passive bool) (AgentRuntime, error) {
+func (m *Manager) ensureRuntimeFor(ctx context.Context, s *domain.Session, nativeID string, passive, fork bool) (AgentRuntime, error) {
 	m.mu.Lock()
 	if rt := m.runtimes[s.ID()]; rt != nil {
 		m.mu.Unlock()
@@ -476,6 +485,7 @@ func (m *Manager) ensureRuntimeFor(ctx context.Context, s *domain.Session, nativ
 		Agent:     s.Agent(),
 		Cwd:       s.Cwd(),
 		NativeID:  nativeID,
+		Fork:      fork,
 		Passive:   passive,
 
 		ApprovalReviewer: s.ApprovalReviewer(),
@@ -526,7 +536,7 @@ func (m *Manager) spawnSubagent(parent *domain.Session, sp *domain.SubagentSpawn
 
 	snap := child.Snapshot()
 	m.cfg.Bus.Publish(domain.Event{SessionID: id, Type: domain.EventSessionState, Session: &snap})
-	if _, err := m.ensureRuntimeFor(ctx, child, sp.ThreadID, true); err != nil {
+	if _, err := m.ensureRuntimeFor(ctx, child, sp.ThreadID, true, false); err != nil {
 		return
 	}
 	m.mu.Lock()

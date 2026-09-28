@@ -19,6 +19,9 @@ type Sessions interface {
 	SendMessage(ctx context.Context, id domain.SessionID, text string) error
 	Steer(ctx context.Context, id domain.SessionID, text string) error
 	Interrupt(ctx context.Context, id domain.SessionID) error
+	Continue(ctx context.Context, id domain.SessionID) error
+	SetAutoContinue(ctx context.Context, id domain.SessionID, on bool) (domain.SessionSnapshot, error)
+	Fork(ctx context.Context, id domain.SessionID) (domain.SessionSnapshot, error)
 	StopTask(ctx context.Context, id domain.SessionID, taskID string) error
 	SetApprovalReviewer(ctx context.Context, id domain.SessionID, r domain.ApprovalReviewer) (domain.SessionSnapshot, error)
 	RespondRequest(ctx context.Context, id domain.SessionID, requestID domain.RequestID, answer app.RequestAnswer) error
@@ -42,6 +45,9 @@ func (s *server) routes() {
 		mux.HandleFunc("POST /api/sessions/{id}/steer", s.steer)
 		mux.HandleFunc("POST /api/sessions/{id}/tasks/{taskId}/stop", s.stopTask)
 		mux.HandleFunc("POST /api/sessions/{id}/interrupt", s.interrupt)
+		mux.HandleFunc("POST /api/sessions/{id}/continue", s.continueSession)
+		mux.HandleFunc("POST /api/sessions/{id}/auto-continue", s.setAutoContinue)
+		mux.HandleFunc("POST /api/sessions/{id}/fork", s.fork)
 		mux.HandleFunc("POST /api/sessions/{id}/approval-reviewer", s.setApprovalReviewer)
 		mux.HandleFunc("POST /api/sessions/{id}/model", s.setModel)
 		mux.HandleFunc("GET /api/agents/{agent}/models", s.listModels)
@@ -211,6 +217,38 @@ func (s *server) interrupt(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.WriteHeader(http.StatusAccepted)
+}
+
+func (s *server) continueSession(w http.ResponseWriter, r *http.Request) {
+	if err := s.cfg.Sessions.Continue(r.Context(), sessionID(r)); err != nil {
+		s.fail(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusAccepted)
+}
+
+func (s *server) setAutoContinue(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		On bool `json:"on"`
+	}
+	if !decode(w, r, &body) {
+		return
+	}
+	snap, err := s.cfg.Sessions.SetAutoContinue(r.Context(), sessionID(r), body.On)
+	if err != nil {
+		s.fail(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, snap)
+}
+
+func (s *server) fork(w http.ResponseWriter, r *http.Request) {
+	snap, err := s.cfg.Sessions.Fork(r.Context(), sessionID(r))
+	if err != nil {
+		s.fail(w, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, snap)
 }
 
 func (s *server) sessionEvents(w http.ResponseWriter, r *http.Request) {

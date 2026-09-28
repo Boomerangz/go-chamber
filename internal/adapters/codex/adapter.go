@@ -577,15 +577,19 @@ func (s *Server) startThread(ctx context.Context, req app.StartRequest) (*Runtim
 		if req.Model != "" {
 			params["model"] = req.Model
 		}
-		res, err := s.client.Call(ctx, "thread/resume", params)
+		method := "thread/resume"
+		if req.Fork {
+			method = "thread/fork"
+		}
+		res, err := s.client.Call(ctx, method, params)
 		if err != nil {
-			return nil, fmt.Errorf("codex: thread/resume: %w", err)
+			return nil, fmt.Errorf("codex: %s: %w", method, err)
 		}
 		var out struct {
 			Thread rpcThread `json:"thread"`
 		}
 		if err := json.Unmarshal(res, &out); err != nil {
-			return nil, fmt.Errorf("codex: thread/resume response: %w", err)
+			return nil, fmt.Errorf("codex: %s response: %w", method, err)
 		}
 		thread = out.Thread
 	} else {

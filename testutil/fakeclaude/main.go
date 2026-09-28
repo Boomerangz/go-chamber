@@ -5,7 +5,7 @@
 //
 //	auto       (default) pick a scenario from the prompt text: "permission" ->
 //	           can_use_tool prompt, "ask" -> AskUserQuestion, "bash" -> tool
-//	           call, otherwise stream "echo: <prompt>" back
+//	           call, "crash" -> exit mid-turn, otherwise stream "echo: <prompt>" back
 //	echo       always stream "echo: <prompt>" back
 //	tool       always run a fake Bash tool call, then answer
 //	permission always prompt for Bash permission, then continue
@@ -219,6 +219,10 @@ func startTurn(mode string, enc *json.Encoder, out *bufio.Writer, sessionID, pro
 			emitTaskTurn(enc, out, sessionID, prompt)
 		case strings.Contains(low, "bash"):
 			emitToolTurn(enc, out, sessionID, prompt)
+		case strings.Contains(low, "crash"):
+			emitPartial(enc, out, sessionID, "echo: "+prompt)
+			_ = out.Flush()
+			os.Exit(3)
 		case strings.Contains(low, "hook"):
 			emitHookTurn(enc, out, sessionID)
 		case strings.Contains(low, "which model"):

@@ -16,6 +16,7 @@ methods=(
   initialized
   thread/start
   thread/resume
+  thread/fork
   thread/read
   thread/list
   turn/start

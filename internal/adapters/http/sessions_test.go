@@ -24,6 +24,7 @@ type fakeSessions struct {
 	steeredText string
 	stoppedTask string
 	interrupted bool
+	continued   domain.SessionID
 	err         error
 	requests    []domain.Request
 	answered    *app.RequestAnswer

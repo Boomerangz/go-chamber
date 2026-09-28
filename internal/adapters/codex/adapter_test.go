@@ -110,6 +110,17 @@ func TestCodexResumeKeepsThreadID(t *testing.T) {
 	}
 }
 
+func TestCodexForkStartsANewThread(t *testing.T) {
+	rt := startCodex(t, app.StartRequest{NativeID: "thread-42", Fork: true})
+	if rt.NativeID() == "thread-42" || !strings.HasPrefix(rt.NativeID(), "thread-") {
+		t.Fatalf("native = %q", rt.NativeID())
+	}
+	if err := rt.Send(context.Background(), "t1", "hi"); err != nil {
+		t.Fatal(err)
+	}
+	drainCodex(t, rt, func(ev domain.Event) bool { return ev.Type == domain.EventTurnEnded })
+}
+
 func TestCodexSharedServerAcrossThreads(t *testing.T) {
 	f := &Factory{Binary: fakeBin, Stderr: os.Stderr, InitTimeout: 10 * time.Second}
 	t.Cleanup(f.Close)

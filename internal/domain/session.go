@@ -89,9 +89,11 @@ type Session struct {
 	title        string
 	nativeID     string
 	parentID     SessionID
+	forkOf       SessionID
 	status       SessionStatus
 	attached     bool
 	interruption Interruption
+	autoContinue bool
 	reviewer     ApprovalReviewer
 	createdAt    time.Time
 	activeAt     time.Time
@@ -101,14 +103,18 @@ type Session struct {
 
 // SessionSnapshot is the persistable state of a Session.
 type SessionSnapshot struct {
-	ID           SessionID     `json:"id"`
-	Agent        AgentKind     `json:"agent"`
-	Cwd          string        `json:"cwd"`
-	NativeID     string        `json:"nativeId,omitempty"`
-	ParentID     SessionID     `json:"parentId,omitempty"`
+	ID       SessionID `json:"id"`
+	Agent    AgentKind `json:"agent"`
+	Cwd      string    `json:"cwd"`
+	NativeID string    `json:"nativeId,omitempty"`
+	ParentID SessionID `json:"parentId,omitempty"`
+	// ForkOf is the session this one branched off from.
+	ForkOf       SessionID     `json:"forkOf,omitempty"`
 	Status       SessionStatus `json:"status"`
 	Title        string        `json:"title,omitempty"`
 	Interruption Interruption  `json:"interruption,omitzero"`
+	// AutoContinue resumes a quota-interrupted turn once the limit resets.
+	AutoContinue bool `json:"autoContinue,omitempty"`
 	// ApprovalReviewer is empty when the agent's own configuration decides.
 	ApprovalReviewer ApprovalReviewer `json:"approvalReviewer,omitempty"`
 	CreatedAt        time.Time        `json:"createdAt,omitzero"`
@@ -139,6 +145,22 @@ func NewChildSession(id SessionID, agent AgentKind, cwd string, parent SessionID
 	return s, nil
 }
 
+// NewForkSession creates a session that continues the parent's
+// conversation on a branch of its own; the agent assigns the native id.
+func NewForkSession(id SessionID, parent *Session) (*Session, error) {
+	if parent.nativeID == "" {
+		return nil, fmt.Errorf("%w: fork before the first turn", ErrInvalidTransition)
+	}
+	s, err := NewSession(id, parent.agent, parent.cwd)
+	if err != nil {
+		return nil, err
+	}
+	s.forkOf = parent.id
+	s.title = strings.TrimSpace(parent.title + " (fork)")
+	s.model, s.effort, s.reviewer = parent.model, parent.effort, parent.reviewer
+	return s, nil
+}
+
 // RestoreSession rebuilds a session after a server restart. No process
 // survives a restart, so a running turn becomes interrupted and an idle
 // session becomes detached.
@@ -148,7 +170,7 @@ func RestoreSession(snap SessionSnapshot) (*Session, error) {
 	}
 	s := &Session{
 		id: snap.ID, agent: snap.Agent, cwd: snap.Cwd, title: snap.Title,
-		nativeID: snap.NativeID, parentID: snap.ParentID, status: StatusDetached,
+		nativeID: snap.NativeID, parentID: snap.ParentID, forkOf: snap.ForkOf, status: StatusDetached,
 		reviewer: snap.ApprovalReviewer, createdAt: snap.CreatedAt, activeAt: snap.ActiveAt,
 		model: snap.Model, effort: snap.Effort,
 	}
@@ -159,6 +181,7 @@ func RestoreSession(snap SessionSnapshot) (*Session, error) {
 	case StatusInterrupted:
 		s.status = StatusInterrupted
 		s.interruption = snap.Interruption
+		s.autoContinue = snap.AutoContinue
 	}
 	return s, nil
 }
@@ -181,6 +204,8 @@ func (s *Session) Cwd() string                { return s.cwd }
 func (s *Session) Title() string              { return s.title }
 func (s *Session) NativeID() string           { return s.nativeID }
 func (s *Session) ParentID() SessionID        { return s.parentID }
+func (s *Session) ForkOf() SessionID          { return s.forkOf }
+func (s *Session) AutoContinue() bool         { return s.autoContinue }
 func (s *Session) Status() SessionStatus      { return s.status }
 func (s *Session) Interruption() Interruption { return s.interruption }
 
@@ -203,6 +228,7 @@ func (s *Session) RuntimeAttached(nativeID string) error {
 	s.attached = true
 	s.status = StatusIdle
 	s.interruption = Interruption{}
+	s.autoContinue = false
 	return nil
 }
 
@@ -230,6 +256,7 @@ func (s *Session) TurnStarted() error {
 	}
 	s.status = StatusRunning
 	s.interruption = Interruption{}
+	s.autoContinue = false
 	return nil
 }
 
@@ -251,10 +278,26 @@ func (s *Session) QuotaExhausted(resetsAt time.Time) error {
 	return nil
 }
 
+// Continuable reports whether the conversation was cut off or put aside
+// and can be picked up where it stopped.
+func (s *Session) Continuable() bool {
+	return s.nativeID != "" && (s.status == StatusInterrupted || s.status == StatusDetached)
+}
+
+// SetAutoContinue asks to resume a quota-interrupted turn once the limit
+// resets. Turning it off is always allowed.
+func (s *Session) SetAutoContinue(on bool) error {
+	if on && (s.status != StatusInterrupted || s.interruption.Reason != ExitQuota || s.interruption.ResumeAfter.IsZero()) {
+		return fmt.Errorf("%w: auto-continue in %s (%s)", ErrInvalidTransition, s.status, s.interruption.Reason)
+	}
+	s.autoContinue = on
+	return nil
+}
+
 func (s *Session) Snapshot() SessionSnapshot {
 	return SessionSnapshot{
-		ID: s.id, Agent: s.agent, Cwd: s.cwd, NativeID: s.nativeID, ParentID: s.parentID,
-		Status: s.status, Title: s.title, Interruption: s.interruption,
+		ID: s.id, Agent: s.agent, Cwd: s.cwd, NativeID: s.nativeID, ParentID: s.parentID, ForkOf: s.forkOf,
+		Status: s.status, Title: s.title, Interruption: s.interruption, AutoContinue: s.autoContinue,
 		ApprovalReviewer: s.reviewer, CreatedAt: s.createdAt, ActiveAt: s.activeAt,
 		Model: s.model, Effort: s.effort,
 	}

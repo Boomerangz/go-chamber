@@ -18,9 +18,13 @@ export interface Session {
   cwd: string
   nativeId?: string
   parentId?: string
+  // forkOf is the session this one branched off from.
+  forkOf?: string
   status: SessionStatus
   title?: string
   interruption?: Interruption
+  // autoContinue resumes a quota-interrupted turn once the limit resets.
+  autoContinue?: boolean
   approvalReviewer?: ApprovalReviewer
   createdAt?: string
   activeAt?: string
@@ -197,6 +201,18 @@ export function sendMessage(id: string, text: string): Promise<void> {
 
 export function interrupt(id: string): Promise<void> {
   return request<void>(`/api/sessions/${encodeURIComponent(id)}/interrupt`, { method: 'POST' })
+}
+
+export function continueSession(id: string): Promise<void> {
+  return request<void>(`/api/sessions/${encodeURIComponent(id)}/continue`, { method: 'POST' })
+}
+
+export function setAutoContinue(id: string, on: boolean): Promise<Session> {
+  return request<Session>(`/api/sessions/${encodeURIComponent(id)}/auto-continue`, { method: 'POST', ...json({ on }) })
+}
+
+export function forkSession(id: string): Promise<Session> {
+  return request<Session>(`/api/sessions/${encodeURIComponent(id)}/fork`, { method: 'POST' })
 }
 
 export function fetchEvents(id: string, since = 0): Promise<SessionEvent[]> {

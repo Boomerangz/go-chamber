@@ -132,6 +132,13 @@ func main() {
 			respond(m.ID, map[string]any{"thread": map[string]any{
 				"id": p.ThreadID, "turns": []any{},
 			}})
+		case "thread/fork":
+			threadID := nextID("thread")
+			setReviewer(threadID, m.Params)
+			setModel(threadID, m.Params)
+			respond(m.ID, map[string]any{"thread": map[string]any{
+				"id": threadID, "turns": []any{},
+			}})
 		case "turn/start":
 			var p struct {
 				ThreadID string `json:"threadId"`
