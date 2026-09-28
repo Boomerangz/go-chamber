@@ -156,3 +156,33 @@ func TestRouterModels(t *testing.T) {
 		t.Fatalf("unknown agent err = %v", err)
 	}
 }
+
+type commandFactory struct {
+	stubFactory
+	insert string
+	cwd    string
+}
+
+func (c *commandFactory) Commands(_ context.Context, _ domain.AgentKind, cwd string) ([]app.Command, error) {
+	c.cwd = cwd
+	return []app.Command{{Name: "x", Insert: c.insert}}, nil
+}
+
+func TestRouterCommands(t *testing.T) {
+	claude := &commandFactory{insert: "/x"}
+	codex := &commandFactory{insert: "$x"}
+	r := &Router{Claude: claude, Codex: codex}
+	for agent, want := range map[domain.AgentKind]string{domain.AgentClaude: "/x", domain.AgentCodex: "$x"} {
+		cmds, err := r.Commands(context.Background(), agent, "/work")
+		if err != nil || len(cmds) != 1 || cmds[0].Insert != want {
+			t.Fatalf("%s commands = %+v, %v", agent, cmds, err)
+		}
+	}
+	if claude.cwd != "/work" {
+		t.Fatalf("cwd = %q", claude.cwd)
+	}
+	bare := &Router{Claude: &stubFactory{}}
+	if _, err := bare.Commands(context.Background(), domain.AgentClaude, "/"); !errors.Is(err, app.ErrCommandsUnsupported) {
+		t.Fatalf("no catalog err = %v", err)
+	}
+}

@@ -32,6 +32,8 @@ type Config struct {
 	Folders Folders
 	// Search finds sessions by message text when non-nil.
 	Search MessageSearch
+	// Complete suggests files and commands for the composer when non-nil.
+	Complete Completer
 }
 
 type server struct {
@@ -45,6 +47,7 @@ func NewServer(cfg Config) http.Handler {
 	}
 	s := &server{cfg: cfg, mux: http.NewServeMux()}
 	s.routes()
+	s.completeRoutes()
 	return &auth{token: []byte(cfg.Token), next: s.mux}
 }
 

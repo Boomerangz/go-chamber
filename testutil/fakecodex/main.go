@@ -159,6 +159,22 @@ func main() {
 			turnID := nextID("turn")
 			respond(m.ID, map[string]any{"turn": map[string]any{"id": turnID, "status": "inProgress", "items": []any{}}})
 			startTurn(mode, p.ThreadID, turnID, text, pending)
+		case "skills/list":
+			var p struct {
+				Cwds []string `json:"cwds"`
+			}
+			_ = json.Unmarshal(m.Params, &p)
+			cwd := ""
+			if len(p.Cwds) > 0 {
+				cwd = p.Cwds[0]
+			}
+			respond(m.ID, map[string]any{"data": []any{map[string]any{"cwd": cwd, "errors": []any{}, "skills": []any{
+				map[string]any{"name": "pdf", "description": "Long PDF description", "shortDescription": "Read and write PDFs",
+					"enabled": true, "path": "/skills/pdf/SKILL.md", "scope": "user"},
+				map[string]any{"name": "off", "description": "Disabled", "enabled": false, "path": "/skills/off/SKILL.md", "scope": "user"},
+				map[string]any{"name": "review", "description": "Review the working tree", "enabled": true,
+					"path": cwd + "/.codex/skills/review/SKILL.md", "scope": "repo"},
+			}}}})
 		case "model/list":
 			respond(m.ID, map[string]any{"data": []any{
 				effort("fake-large", "low", "medium", "high"),

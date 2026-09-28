@@ -50,17 +50,28 @@ func (r *Router) StartLogin(ctx context.Context, agent domain.AgentKind) (app.Lo
 
 // Models asks the agent's runtime factory for its model catalog.
 func (r *Router) Models(ctx context.Context, agent domain.AgentKind) ([]app.ModelInfo, error) {
-	var f app.RuntimeFactory
-	switch agent {
-	case domain.AgentClaude:
-		f = r.Claude
-	case domain.AgentCodex:
-		f = r.Codex
-	}
-	if catalog, ok := f.(app.ModelCatalog); ok {
+	if catalog, ok := r.factory(agent).(app.ModelCatalog); ok {
 		return catalog.Models(ctx, agent)
 	}
 	return nil, app.ErrModelsUnsupported
+}
+
+// Commands asks the agent's runtime factory for its composer commands.
+func (r *Router) Commands(ctx context.Context, agent domain.AgentKind, cwd string) ([]app.Command, error) {
+	if catalog, ok := r.factory(agent).(app.CommandCatalog); ok {
+		return catalog.Commands(ctx, agent, cwd)
+	}
+	return nil, app.ErrCommandsUnsupported
+}
+
+func (r *Router) factory(agent domain.AgentKind) app.RuntimeFactory {
+	switch agent {
+	case domain.AgentClaude:
+		return r.Claude
+	case domain.AgentCodex:
+		return r.Codex
+	}
+	return nil
 }
 
 func (r *Router) Start(ctx context.Context, req app.StartRequest) (app.AgentRuntime, error) {
@@ -83,3 +94,4 @@ func (r *Router) Start(ctx context.Context, req app.StartRequest) (app.AgentRunt
 var _ app.RuntimeFactory = (*Router)(nil)
 var _ app.AccountManager = (*Router)(nil)
 var _ app.QuotaProvider = (*Router)(nil)
+var _ app.CommandCatalog = (*Router)(nil)

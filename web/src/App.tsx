@@ -17,6 +17,7 @@ import AccountPanel from './components/account/AccountPanel'
 import FolderField from './components/folders/FolderField'
 import Markdown from './components/markdown/Markdown'
 import ModelPicker from './components/models/ModelPicker'
+import ComposerInput from './components/composer/ComposerInput'
 import InterruptedBanner from './components/chat/InterruptedBanner'
 import RequestCard from './components/requests/RequestCard'
 import QuotaWidget from './components/quota/QuotaWidget'
@@ -420,17 +421,12 @@ function Chat() {
           submit()
         }}
       >
-        <textarea
-          aria-label="message"
+        <ComposerInput
+          sessionId={session?.id}
+          agent={session?.agent}
           value={text}
-          rows={1}
-          onChange={(e) => setText(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
-              e.preventDefault()
-              submit()
-            }
-          }}
+          onChange={setText}
+          onSubmit={submit}
           placeholder={running ? 'Steer the running turn…' : 'Message the agent…  ⌘↵ to send'}
         />
         <div className="composer-actions">

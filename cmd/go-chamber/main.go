@@ -111,6 +111,11 @@ func run(ctx context.Context, args []string, out io.Writer) error {
 			Terminals: terminals,
 			Folders:   app.NewFolders(app.FoldersConfig{Reader: fsys.Reader{}, Home: home}),
 			Search:    eventLog,
+			Complete: app.NewCompleter(app.CompleterConfig{
+				Sessions: store.Sessions(),
+				Files:    &fsys.Files{},
+				Commands: runtimes,
+			}),
 		}),
 		ReadHeaderTimeout: 10 * time.Second,
 	}

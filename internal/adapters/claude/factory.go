@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"sync"
 
 	"github.com/igorzygin/go-chamber/internal/app"
 	"github.com/igorzygin/go-chamber/internal/domain"
@@ -21,6 +22,9 @@ type Factory struct {
 	Env []string
 	// Stderr receives the process stderr; defaults to os.Stderr.
 	Stderr io.Writer
+
+	commandsMu sync.Mutex
+	commands   map[string]cachedCommands
 }
 
 func defaultArgs() []string {

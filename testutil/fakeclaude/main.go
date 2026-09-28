@@ -125,6 +125,17 @@ func main() {
 				_ = out.Flush()
 			case "stop_task":
 				stopTask(enc, out, sessionID, env.RequestID, env.Request.TaskID)
+			case "initialize":
+				// Like the real CLI: the slash commands and skills on offer.
+				_ = enc.Encode(map[string]any{"type": "control_response", "response": map[string]any{
+					"subtype": "success", "request_id": env.RequestID, "response": map[string]any{
+						"commands": []map[string]any{
+							{"name": "compact", "description": "Clear history but keep a summary", "argumentHint": "<instructions>", "builtin": true},
+							{"name": "review-mr", "description": "Review a merge request (user)", "argumentHint": ""},
+						},
+					},
+				}})
+				_ = out.Flush()
 			case "set_model", "apply_flag_settings":
 				// Like the real CLI: set_model switches the live model (no
 				// model means the default); apply_flag_settings changes
