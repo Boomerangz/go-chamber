@@ -5,6 +5,7 @@ import (
 	"crypto/subtle"
 	"encoding/json"
 	"errors"
+	"html/template"
 	"io/fs"
 	"net/http"
 	"net/url"
@@ -70,12 +71,25 @@ func (a *auth) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		a.login(w, r, q.Get("token"))
 		return
 	}
-	if !a.authorized(r) {
-		http.Error(w, "unauthorized: open the URL with ?token= printed at startup", http.StatusUnauthorized)
-		return
-	}
 	if !safeMethod(r.Method) && !sameOrigin(r) {
 		http.Error(w, "forbidden: cross-origin request", http.StatusForbidden)
+		return
+	}
+	if r.Method == http.MethodPost && r.URL.Path == "/login" {
+		a.loginForm(w, r)
+		return
+	}
+	if !a.authorized(r) {
+		if strings.HasPrefix(r.URL.Path, "/api/") || !safeMethod(r.Method) {
+			http.Error(w, "unauthorized: open the URL with ?token= printed at startup", http.StatusUnauthorized)
+			return
+		}
+		loginPage(w, localPath(r.URL.RequestURI()), false)
+		return
+	}
+	if r.Method == http.MethodPost && r.URL.Path == "/logout" {
+		http.SetCookie(w, &http.Cookie{Name: CookieName, Path: "/", MaxAge: -1, HttpOnly: true, SameSite: http.SameSiteStrictMode})
+		http.Redirect(w, r, "/", http.StatusSeeOther)
 		return
 	}
 	a.next.ServeHTTP(w, r)
@@ -111,17 +125,76 @@ func (a *auth) login(w http.ResponseWriter, r *http.Request, token string) {
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
-	http.SetCookie(w, &http.Cookie{
-		Name: CookieName, Value: token, Path: "/",
-		HttpOnly: true, SameSite: http.SameSiteStrictMode,
-	})
+	setTokenCookie(w, r, token)
 	q := r.URL.Query()
 	q.Del("token")
 	target := r.URL.Path
 	if enc := q.Encode(); enc != "" {
 		target += "?" + enc
 	}
-	http.Redirect(w, r, target, http.StatusFound)
+	http.Redirect(w, r, localPath(target), http.StatusFound)
+}
+
+// loginForm handles the token typed into the login page.
+func (a *auth) loginForm(w http.ResponseWriter, r *http.Request) {
+	next := localPath(r.PostFormValue("next"))
+	if !a.valid(r.PostFormValue("token")) {
+		loginPage(w, next, true)
+		return
+	}
+	setTokenCookie(w, r, r.PostFormValue("token"))
+	http.Redirect(w, r, next, http.StatusSeeOther)
+}
+
+// cookieMaxAge keeps the login across browser restarts; the token itself
+// never expires, so the cookie is only as long-lived as the device is trusted.
+const cookieMaxAge = 365 * 24 * 3600
+
+func setTokenCookie(w http.ResponseWriter, r *http.Request, token string) {
+	http.SetCookie(w, &http.Cookie{
+		Name: CookieName, Value: token, Path: "/", MaxAge: cookieMaxAge,
+		HttpOnly: true, SameSite: http.SameSiteStrictMode,
+		Secure: r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https",
+	})
+}
+
+// localPath keeps redirects on this server: anything but an absolute path
+// (including //host and /\host, which browsers treat as other sites) becomes /.
+func localPath(p string) string {
+	if !strings.HasPrefix(p, "/") || strings.HasPrefix(p, "//") || strings.HasPrefix(p, "/\\") {
+		return "/"
+	}
+	return p
+}
+
+var loginTemplate = template.Must(template.New("login").Parse(`<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>go-chamber · sign in</title>
+<style>
+:root{color-scheme:light dark;font:15px/1.4 system-ui,sans-serif}
+body{display:grid;place-items:center;min-height:100vh;margin:0;padding:16px;box-sizing:border-box}
+form{display:grid;gap:10px;width:min(360px,100%)}
+input,button{font:inherit;padding:10px 12px;border-radius:8px;border:1px solid #8886}
+button{cursor:pointer}
+.err{color:#d33;margin:0}
+</style></head><body>
+<form method="post" action="/login">
+<h1>go-chamber</h1>
+<label for="token">Access token</label>
+<input id="token" name="token" type="password" autocomplete="current-password" autofocus required>
+<input type="hidden" name="next" value="{{.Next}}">
+{{if .Failed}}<p class="err" role="alert">Wrong token</p>{{end}}
+<button type="submit">Sign in</button>
+<p><small>The token is printed at startup and stored in the data folder.</small></p>
+</form></body></html>`))
+
+func loginPage(w http.ResponseWriter, next string, failed bool) {
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.WriteHeader(http.StatusUnauthorized)
+	_ = loginTemplate.Execute(w, struct {
+		Next   string
+		Failed bool
+	}{next, failed})
 }
 
 func (a *auth) authorized(r *http.Request) bool {

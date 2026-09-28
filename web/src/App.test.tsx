@@ -67,10 +67,20 @@ describe('App', () => {
     expect(await screen.findByText('online')).toBeInTheDocument()
   })
 
-  it('explains how to log in when unauthorized', async () => {
+  it('links to the sign-in page when the session expired', async () => {
     vi.mocked(api.fetchHealth).mockResolvedValue('unauthorized')
     render(<App />)
-    expect(await screen.findByRole('heading', { name: 'Token required' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Signed out' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Sign in' })).toHaveAttribute('href', '/')
+  })
+
+  it('signs out with a form post', async () => {
+    mockApi()
+    render(<App />)
+    const button = await screen.findByRole('button', { name: 'Sign out' })
+    const form = button.closest('form')!
+    expect(form).toHaveAttribute('method', 'post')
+    expect(form).toHaveAttribute('action', '/logout')
   })
 
   it('renders sessions and streamed items', async () => {

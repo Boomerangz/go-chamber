@@ -83,16 +83,23 @@ export default function App() {
           <h1>go-chamber</h1>
         </div>
         {health === 'online' && <ModeSwitch />}
-        <span className={`health health-${health ?? 'connecting'}`}>
-          <span className="dot" aria-hidden="true" />
-          {health ?? 'connecting'}
-        </span>
+        <div className="topbar-end">
+          <span className={`health health-${health ?? 'connecting'}`}>
+            <span className="dot" aria-hidden="true" />
+            {health ?? 'connecting'}
+          </span>
+          {health === 'online' && (
+            <form method="post" action="/logout">
+              <button type="submit" className="btn btn-ghost">Sign out</button>
+            </form>
+          )}
+        </div>
       </header>
       {health === 'unauthorized' && (
         <section className="notice panel">
-          <h2>Token required</h2>
+          <h2>Signed out</h2>
           <p>
-            Open the URL with <code>?token=…</code> printed by go-chamber at startup.
+            <a href="/">Sign in</a> with the access token go-chamber printed at startup.
           </p>
         </section>
       )}
