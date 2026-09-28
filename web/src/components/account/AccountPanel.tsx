@@ -18,6 +18,21 @@ export default function AccountPanel({ agent }: { agent: AgentKind }) {
     }
   }, [agent])
 
+  // Codex finishes the device-code login on its own; poll until it does.
+  const waiting = login !== null && !account?.loggedIn
+  useEffect(() => {
+    if (!waiting) return
+    const id = setInterval(() => {
+      getAccount(agent)
+        .then((a) => {
+          setAccount(a)
+          if (a.loggedIn) setLogin(null)
+        })
+        .catch(() => {})
+    }, 3000)
+    return () => clearInterval(id)
+  }, [agent, waiting])
+
   if (agent !== 'codex') return null
 
   return (
