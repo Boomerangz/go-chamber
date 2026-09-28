@@ -2,6 +2,7 @@ package codex
 
 import (
 	"context"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -103,4 +104,32 @@ func TestServerThatCannotRestartClosesThreads(t *testing.T) {
 	_ = os.Remove(bin)
 	killServer(t, f)
 	drainCodex(t, rt, func(domain.Event) bool { return false })
+}
+
+type failingWriter struct{}
+
+func (failingWriter) Write([]byte) (int, error) { return 0, os.ErrClosed }
+
+func TestRespondKeepsTheRequestWhenTheWriteFails(t *testing.T) {
+	r, _ := osPipe(t)
+	s := &Server{threads: map[string]*Runtime{}, pending: map[domain.RequestID]pendingServerRequest{}, orphans: map[string][]orphan{}}
+	s.client = NewClient(r, failingWriter{}, s.handleServerRequest, s.handleNotification)
+	rt := s.newRuntime("thread-1", NewMapper("s1"))
+	t.Cleanup(func() { _ = rt.Close() })
+	s.pending["req-1"] = pendingServerRequest{id: []byte(`1`), threadID: "thread-1", method: "item/commandExecution/requestApproval"}
+	if err := rt.Respond(context.Background(), "req-1", app.RequestAnswer{Allow: true}); err == nil {
+		t.Fatal("write error not reported")
+	}
+	if _, ok := s.takePending("req-1"); !ok {
+		t.Fatal("request forgotten after a failed answer")
+	}
+}
+
+func TestResolvedDropsTheBufferedRequest(t *testing.T) {
+	s, _ := newPipeServer(t)
+	s.handleServerRequest(json.RawMessage(`7`), "item/commandExecution/requestApproval", json.RawMessage(`{"threadId":"child","itemId":"c"}`))
+	s.handleNotification("serverRequest/resolved", json.RawMessage(`{"threadId":"child","requestId":7}`))
+	if n := len(s.orphans["child"]); n != 0 {
+		t.Fatalf("buffer holds %d messages for a request that is already resolved", n)
+	}
 }

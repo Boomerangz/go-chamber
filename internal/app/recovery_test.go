@@ -74,6 +74,8 @@ func TestRetiredRuntimeEventsAreIgnored(t *testing.T) {
 	m, _, _, factory, _ := newTestManager(t)
 	snap := createClaude(t, m)
 	first := newLingerRuntime("n1")
+	// Unbuffered, so a completed send means the previous event was handled.
+	first.events = make(chan domain.Event)
 	startWith(t, m, factory, snap.ID, first)
 	endTurn(t, m, first.fakeRuntime, snap.ID)
 	if _, err := m.SetModel(context.Background(), snap.ID, "opus", ""); err != nil {
@@ -83,8 +85,8 @@ func TestRetiredRuntimeEventsAreIgnored(t *testing.T) {
 	startWith(t, m, factory, snap.ID, newFakeRuntime("n1"))
 
 	first.events <- domain.Event{SessionID: snap.ID, Type: domain.EventTurnEnded}
+	first.events <- domain.Event{SessionID: snap.ID, Type: domain.EventTurnEnded}
 	close(first.events)
-	time.Sleep(20 * time.Millisecond)
 	if got := currentStatus(m, snap.ID); got != domain.StatusRunning {
 		t.Fatalf("new turn status = %s after a retired runtime ended its turn", got)
 	}
@@ -306,4 +308,59 @@ func TestReachedQuotaInterruptsTheTurn(t *testing.T) {
 	if err := m.SendMessage(context.Background(), snap.ID, "continue"); err != nil {
 		t.Fatal(err)
 	}
+}
+
+func TestRestoreClosesRequestsLeftOpenInAnyStatus(t *testing.T) {
+	repo, bus := newMemRepo(), newFakeBus()
+	opened := requestEvent("idle", "r1")
+	opened.Seq = 1
+	m := NewManager(ManagerConfig{Repo: repo, Runtimes: &fakeFactory{}, Bus: bus, History: fakeHistory{"idle": {opened}}})
+	ctx := context.Background()
+	_ = repo.Save(ctx, domain.SessionSnapshot{ID: "idle", Agent: domain.AgentClaude, Cwd: "/p", NativeID: "n", Status: domain.StatusIdle})
+	if _, err := m.Restore(ctx); err != nil {
+		t.Fatal(err)
+	}
+	for _, ev := range bus.snapshot() {
+		if ev.Type == domain.EventRequestResolved && ev.Request.ID == "r1" && ev.Request.State == domain.RequestStale {
+			return
+		}
+	}
+	t.Fatalf("request left open in an idle session was not closed: %+v", bus.snapshot())
+}
+
+// dyingRuntime crashes while an answer to it is in flight.
+type dyingRuntime struct {
+	*fakeRuntime
+	died func()
+}
+
+func (r *dyingRuntime) Respond(context.Context, domain.RequestID, RequestAnswer) error {
+	_ = r.Close()
+	r.died()
+	return errors.New("broken pipe")
+}
+
+func TestAnswerInFlightWhenTheRuntimeDiesGoesStale(t *testing.T) {
+	m, repo, bus, factory, _ := newTestManager(t)
+	ctx := context.Background()
+	snap := createClaude(t, m)
+	rt := &dyingRuntime{fakeRuntime: newFakeRuntime("n1")}
+	rt.died = func() {
+		eventually(t, "crash handled", func() bool {
+			s, _ := repo.Get(ctx, snap.ID)
+			return s.Status == domain.StatusInterrupted
+		})
+	}
+	startWith(t, m, factory, snap.ID, rt)
+	rt.events <- requestEvent(snap.ID, "r1")
+	eventually(t, "request pending", func() bool { return len(m.PendingRequests(ctx)) == 1 })
+	if err := m.RespondRequest(ctx, snap.ID, "r1", RequestAnswer{Allow: true}); err == nil {
+		t.Fatal("answer to a dead runtime succeeded")
+	}
+	for _, ev := range bus.snapshot() {
+		if ev.Type == domain.EventRequestResolved && ev.Request.ID == "r1" && ev.Request.State == domain.RequestStale {
+			return
+		}
+	}
+	t.Fatal("claimed request never went stale")
 }

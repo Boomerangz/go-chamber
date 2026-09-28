@@ -640,6 +640,9 @@ func (s *Server) handleNotification(method string, params json.RawMessage) {
 	}
 	if method == "serverRequest/resolved" {
 		s.takePending(domain.RequestID(idKey(meta.RequestID)))
+		if s.dropOrphanRequest(meta.ThreadID, idKey(meta.RequestID)) {
+			return
+		}
 	}
 	if meta.ThreadID == "" {
 		return
@@ -659,6 +662,21 @@ func (s *Server) handleServerRequest(id json.RawMessage, method string, params j
 		return
 	}
 	s.route(meta.ThreadID, orphan{id: id, method: method, params: params, isRequest: true})
+}
+
+// dropOrphanRequest forgets a buffered request that app-server resolved
+// before its thread was attached, so it is never replayed.
+func (s *Server) dropOrphanRequest(threadID, requestID string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	queue := s.orphans[threadID]
+	for i, o := range queue {
+		if o.isRequest && idKey(o.id) == requestID {
+			s.orphans[threadID] = append(queue[:i:i], queue[i+1:]...)
+			return true
+		}
+	}
+	return false
 }
 
 func (s *Server) takePending(id domain.RequestID) (pendingServerRequest, bool) {
@@ -914,7 +932,9 @@ func (r *Runtime) Interrupt(ctx context.Context) error {
 // Respond answers a pending approval or question.
 func (r *Runtime) Respond(_ context.Context, requestID domain.RequestID, answer app.RequestAnswer) error {
 	srv := r.current()
-	p, ok := srv.takePending(requestID)
+	srv.pmu.Lock()
+	p, ok := srv.pending[requestID]
+	srv.pmu.Unlock()
 	if !ok {
 		return fmt.Errorf("codex: no pending request %s", requestID)
 	}
@@ -922,7 +942,13 @@ func (r *Runtime) Respond(_ context.Context, requestID domain.RequestID, answer 
 	if err != nil {
 		return err
 	}
-	return srv.client.Respond(p.id, result)
+	// Forget the request only once the answer is out, so a failed write
+	// can be retried.
+	if err := srv.client.Respond(p.id, result); err != nil {
+		return err
+	}
+	srv.takePending(requestID)
+	return nil
 }
 
 func codexDecision(p pendingServerRequest, answer app.RequestAnswer) (any, error) {

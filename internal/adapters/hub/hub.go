@@ -7,6 +7,7 @@ import (
 	"context"
 	"slices"
 	"sync"
+	"time"
 
 	"github.com/igorzygin/go-chamber/internal/app"
 	"github.com/igorzygin/go-chamber/internal/domain"
@@ -78,12 +79,18 @@ func (h *Hub) Publish(ev domain.Event) domain.Event {
 	h.mu.Lock()
 	if h.log != nil && !h.loaded[ev.SessionID] {
 		last, err := h.log.LastSeq(context.Background(), ev.SessionID)
-		h.fail(err)
+		if err != nil {
+			h.fail(err)
+			// The stored numbering is unknown, and reusing a stored seq would
+			// lose the event. Continue above anything the log can hold.
+			// ponytail: assumes the log never averaged more than one event per
+			// millisecond; persist a high-water mark if that ever breaks.
+			last = domain.Seq(time.Now().UnixMilli())
+		}
 		if last > h.seq[ev.SessionID] {
 			h.seq[ev.SessionID] = last
 		}
-		// Retried on the next event, so numbering catches up with the log.
-		h.loaded[ev.SessionID] = err == nil
+		h.loaded[ev.SessionID] = true
 	}
 	h.seq[ev.SessionID]++
 	ev.Seq = h.seq[ev.SessionID]

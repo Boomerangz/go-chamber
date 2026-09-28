@@ -136,10 +136,9 @@ func (m *Manager) Restore(ctx context.Context) ([]domain.SessionSnapshot, error)
 		m.sessions[s.ID()] = s
 		m.mu.Unlock()
 		cur := s.Snapshot()
-		if snap.Status == domain.StatusRunning {
-			// Requests only open during a turn.
-			m.closeLeftoverRequests(cur.ID)
-		}
+		// Whatever the saved status, no process of the previous run can
+		// answer its requests any more.
+		m.closeLeftoverRequests(cur.ID)
 		if cur != snap {
 			if err := m.cfg.Repo.Save(ctx, cur); err != nil {
 				return out, err
@@ -709,10 +708,21 @@ func (m *Manager) RespondRequest(ctx context.Context, sessionID domain.SessionID
 	}
 	if err := rt.Respond(ctx, requestID, answer); err != nil {
 		m.mu.Lock()
-		if m.runtimes[sessionID] == rt && m.pending[sessionID] != nil {
+		current := m.runtimes[sessionID] == rt
+		if current {
+			if m.pending[sessionID] == nil {
+				m.pending[sessionID] = map[domain.RequestID]*domain.Request{}
+			}
 			m.pending[sessionID][requestID] = req
+		} else {
+			// The runtime died while we held the request, so detach never
+			// saw it; nobody can answer it now.
+			req.MarkStale()
 		}
 		m.mu.Unlock()
+		if !current {
+			m.cfg.Bus.Publish(domain.Event{SessionID: sessionID, Type: domain.EventRequestResolved, Request: req})
+		}
 		return err
 	}
 	data, _ := json.Marshal(answer)

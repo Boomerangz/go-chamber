@@ -22,6 +22,12 @@ func (l *memLog) Append(_ context.Context, ev domain.Event) error {
 	if l.appendErr != nil {
 		return l.appendErr
 	}
+	// Like SQLite's INSERT OR IGNORE: a seq already stored is dropped silently.
+	for _, old := range l.events {
+		if old.SessionID == ev.SessionID && old.Seq == ev.Seq {
+			return nil
+		}
+	}
 	l.events = append(l.events, ev)
 	return nil
 }
@@ -78,10 +84,8 @@ func TestLoggedHubReportsErrorsAndFallsBackToBuffer(t *testing.T) {
 	log := &memLog{appendErr: boom, readErr: boom}
 	var reported []error
 	h := NewLogged(log, func(err error) { reported = append(reported, err) })
-	if got := h.Publish(ev("a", domain.EventTurnStarted)); got.Seq != 1 {
-		t.Fatalf("seq = %d", got.Seq)
-	}
-	if got := h.History("a", 0); len(got) != 1 {
+	first := h.Publish(ev("a", domain.EventTurnStarted))
+	if got := h.History("a", 0); len(got) != 1 || got[0].Seq != first.Seq {
 		t.Fatalf("fallback history = %+v", got)
 	}
 	// LastSeq, Append and History failed.
@@ -143,18 +147,24 @@ func TestHistoryKeepsEventsTheLogLost(t *testing.T) {
 	}
 }
 
-func TestLastSeqFailureIsRetried(t *testing.T) {
+func TestLastSeqFailureNeverReusesStoredSeqs(t *testing.T) {
 	log := &memLog{}
-	NewLogged(log, nil).Publish(ev("a", domain.EventTurnStarted))
-	log.events = append(log.events, domain.Event{SessionID: "a", Seq: 2, Type: domain.EventTurnEnded})
+	prev := NewLogged(log, nil)
+	prev.Publish(ev("a", domain.EventTurnStarted))
+	prev.Publish(ev("a", domain.EventTurnEnded))
 
 	log.readErr = errors.New("locked")
 	h := NewLogged(log, nil)
-	h.Publish(ev("a", domain.EventSessionState))
+	first := h.Publish(ev("a", domain.EventSessionState))
 	log.mu.Lock()
 	log.readErr = nil
 	log.mu.Unlock()
-	if got := h.Publish(ev("a", domain.EventSessionState)); got.Seq != 3 {
-		t.Fatalf("seq after recovered LastSeq = %d", got.Seq)
+	second := h.Publish(ev("a", domain.EventItemUpdated))
+	if first.Seq <= 2 || second.Seq <= first.Seq {
+		t.Fatalf("seqs after a failed LastSeq = %d, %d", first.Seq, second.Seq)
+	}
+	got := h.History("a", 0)
+	if len(got) != 4 || got[2].Seq != first.Seq || got[3].Seq != second.Seq {
+		t.Fatalf("history = %+v", got)
 	}
 }

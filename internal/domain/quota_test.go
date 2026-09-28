@@ -107,3 +107,26 @@ func TestQuotaResetsAt(t *testing.T) {
 		t.Fatal("empty snapshot resets")
 	}
 }
+
+func TestQuotaMergeReachedFollowsAllWindows(t *testing.T) {
+	blocked := QuotaSnapshot{Agent: AgentClaude, Reached: true, Windows: []QuotaWindow{
+		{Name: "five_hour", UsedPct: 100, Status: "rejected"}, {Name: "seven_day", UsedPct: 40},
+	}}
+	if got := blocked.Merge(QuotaSnapshot{Agent: AgentClaude, Windows: []QuotaWindow{{Name: "seven_day", UsedPct: 41, Status: "allowed"}}}); !got.Reached {
+		t.Fatalf("a report on another window cleared the limit: %+v", got)
+	}
+	if got := blocked.Merge(QuotaSnapshot{Agent: AgentClaude, Windows: []QuotaWindow{{Name: "five_hour", UsedPct: 3, Status: "allowed"}}}); got.Reached {
+		t.Fatalf("limit stays reached after its window lifted: %+v", got)
+	}
+}
+
+func TestQuotaMergeIgnoresALimitThatHasReset(t *testing.T) {
+	now := time.Unix(1000, 0)
+	old := QuotaSnapshot{Agent: AgentClaude, Reached: true, Windows: []QuotaWindow{
+		{Name: "five_hour", UsedPct: 100, Status: "rejected", ResetsAt: now.Add(-time.Minute)},
+	}}
+	got := old.Merge(QuotaSnapshot{Agent: AgentClaude, UpdatedAt: now, Windows: []QuotaWindow{{Name: "seven_day", UsedPct: 10}}})
+	if got.Reached {
+		t.Fatalf("a limit that already reset still counts: %+v", got)
+	}
+}

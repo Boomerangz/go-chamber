@@ -61,8 +61,15 @@ func (q QuotaSnapshot) Merge(next QuotaSnapshot) QuotaSnapshot {
 	if merged.Plan == "" {
 		merged.Plan = q.Plan
 	}
+	// A kept window whose reset passed by the time of this report no longer
+	// holds the agent back.
+	merged.Reached = next.Reached || slices.ContainsFunc(merged.Windows, func(w QuotaWindow) bool {
+		return w.exhausted() && (w.ResetsAt.IsZero() || !w.ResetsAt.Before(next.UpdatedAt))
+	})
 	return merged
 }
+
+func (w QuotaWindow) exhausted() bool { return w.Status == "rejected" || w.UsedPct >= 100 }
 
 // ResetsAt is when a reached limit lifts: the latest reset among exhausted
 // windows, or among all windows when none is marked exhausted.
@@ -72,7 +79,7 @@ func (q QuotaSnapshot) ResetsAt() time.Time {
 		if w.ResetsAt.After(all) {
 			all = w.ResetsAt
 		}
-		if (w.Status == "rejected" || w.UsedPct >= 100) && w.ResetsAt.After(exhausted) {
+		if w.exhausted() && w.ResetsAt.After(exhausted) {
 			exhausted = w.ResetsAt
 		}
 	}
