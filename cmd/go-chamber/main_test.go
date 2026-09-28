@@ -96,3 +96,14 @@ func TestRunRejectsBadFlags(t *testing.T) {
 		t.Fatal("want flag error")
 	}
 }
+
+func TestClaudeProjectsFollowsTheCLIConfigDir(t *testing.T) {
+	t.Setenv("CLAUDE_CONFIG_DIR", "")
+	if got := claudeProjects("/home/u"); got != "/home/u/.claude/projects" {
+		t.Fatalf("default = %s", got)
+	}
+	t.Setenv("CLAUDE_CONFIG_DIR", "/cfg")
+	if got := claudeProjects("/home/u"); got != "/cfg/projects" {
+		t.Fatalf("override = %s", got)
+	}
+}

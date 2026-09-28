@@ -5,6 +5,7 @@ package codex
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -80,10 +81,20 @@ func (c *Client) Err() error {
 
 func (c *Client) read() {
 	defer close(c.done)
-	scanner := bufio.NewScanner(c.r)
-	scanner.Buffer(make([]byte, 0, 64*1024), 32*1024*1024)
-	for scanner.Scan() {
-		line := scanner.Bytes()
+	// No line limit: thread/read and thread/resume return whole histories,
+	// and a line too long for a fixed buffer would end the connection.
+	r := bufio.NewReaderSize(c.r, 64*1024)
+	var readErr error
+	for {
+		line, err := r.ReadBytes('\n')
+		if err != nil {
+			if err != io.EOF {
+				readErr = err
+			}
+			if len(bytes.TrimSpace(line)) == 0 {
+				break
+			}
+		}
 		var msg rpcMessage
 		if err := json.Unmarshal(line, &msg); err != nil {
 			continue
@@ -102,7 +113,7 @@ func (c *Client) read() {
 		}
 	}
 	c.mu.Lock()
-	c.err = scanner.Err()
+	c.err = readErr
 	for _, ch := range c.pending {
 		close(ch)
 	}

@@ -53,12 +53,24 @@ type rpcItem struct {
 type rpcFileChange struct {
 	Path string `json:"path"`
 	Diff string `json:"diff"`
-	Kind string `json:"kind"`
+	// Kind is PatchChangeKind, an object such as {"type":"update"}.
+	Kind json.RawMessage `json:"kind"`
 }
 
 type rpcTextPart struct {
 	Type string `json:"type"`
 	Text string `json:"text"`
+}
+
+// UnmarshalJSON also takes a bare string: reasoning summary and content are
+// arrays of strings, user message content an array of parts.
+func (p *rpcTextPart) UnmarshalJSON(b []byte) error {
+	if len(b) > 0 && b[0] == '"' {
+		*p = rpcTextPart{Type: "text"}
+		return json.Unmarshal(b, &p.Text)
+	}
+	type part rpcTextPart
+	return json.Unmarshal(b, (*part)(p))
 }
 
 type rpcPlanStep struct {

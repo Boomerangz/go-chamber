@@ -1,0 +1,3 @@
+{"sessionId":"aaaaaaaa-0000-4000-8000-000000000001","cwd":"/tmp","isSidechain":false,"type":"user","uuid":"u1","message":{"role":"user","content":"terminal chat desktop"}}
+{"sessionId":"aaaaaaaa-0000-4000-8000-000000000001","cwd":"/tmp","isSidechain":false,"type":"assistant","uuid":"a1","message":{"id":"m1","role":"assistant","content":[{"type":"text","text":"answered in the terminal desktop"}]}}
+{"type":"custom-title","customTitle":"Started in a terminal (desktop)","sessionId":"aaaaaaaa-0000-4000-8000-000000000001"}

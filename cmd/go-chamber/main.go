@@ -29,6 +29,7 @@ import (
 	"github.com/igorzygin/go-chamber/internal/adapters/router"
 	"github.com/igorzygin/go-chamber/internal/adapters/sqlite"
 	"github.com/igorzygin/go-chamber/internal/app"
+	"github.com/igorzygin/go-chamber/internal/domain"
 	"github.com/igorzygin/go-chamber/web"
 )
 
@@ -130,6 +131,14 @@ func run(ctx context.Context, args []string, out io.Writer) error {
 				Git:      git.Repo{},
 				Root:     filepath.Join(*dataDir, "worktrees"),
 			}),
+			History: app.NewHistory(app.HistoryConfig{
+				Repo: store.Sessions(),
+				Bus:  events,
+				Sources: map[domain.AgentKind]app.TranscriptSource{
+					domain.AgentClaude: claude.NewHistory(claudeProjects(home)),
+					domain.AgentCodex:  codexFactory,
+				},
+			}),
 		}),
 		ReadHeaderTimeout: 10 * time.Second,
 	}
@@ -172,4 +181,13 @@ func loadOrCreateToken(path string) (string, error) {
 	}
 	t := hex.EncodeToString(buf)
 	return t, os.WriteFile(path, []byte(t+"\n"), 0o600)
+}
+
+// claudeProjects is where the Claude CLI keeps transcripts; CLAUDE_CONFIG_DIR
+// moves its whole config directory.
+func claudeProjects(home string) string {
+	if dir := os.Getenv("CLAUDE_CONFIG_DIR"); dir != "" {
+		return filepath.Join(dir, "projects")
+	}
+	return filepath.Join(home, ".claude", "projects")
 }

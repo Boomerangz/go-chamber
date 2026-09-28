@@ -109,5 +109,8 @@ func (m *Manager) Fork(ctx context.Context, id domain.SessionID) (domain.Session
 		return domain.SessionSnapshot{}, err
 	}
 	m.cfg.Bus.Publish(domain.Event{SessionID: snap.ID, Type: domain.EventSessionState, Session: &snap})
+	if snap.Agent == domain.AgentClaude {
+		m.copyItems(id, snap.ID) // Codex replays the conversation in thread/fork itself
+	}
 	return snap, nil
 }

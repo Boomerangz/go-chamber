@@ -1,0 +1,12 @@
+.history { flex: none; padding: 4px 0; border-top: 1px solid var(--rule); }
+.history summary {
+  padding: 8px 14px; cursor: pointer; list-style: none;
+  color: var(--ink-2); font-size: 12px; letter-spacing: 0.04em; text-transform: uppercase;
+}
+.history summary::-webkit-details-marker { display: none; }
+.history summary::before { content: '▸'; display: inline-block; width: 1em; color: var(--ink-3); }
+.history[open] summary::before { content: '▾'; }
+.history[open] { max-height: 45vh; overflow-y: auto; }
+.history-note { margin: 4px 14px 8px; color: var(--ink-3); font-size: 12px; }
+.history-filter { width: calc(100% - 28px); margin: 0 14px 6px; }
+.history-cwd { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--font-mono); }

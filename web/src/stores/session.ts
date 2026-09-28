@@ -43,6 +43,7 @@ export interface SessionStore {
   continueSession: () => Promise<void>
   setAutoContinue: (sessionId: string, on: boolean) => Promise<void>
   forkSession: (sessionId: string) => Promise<void>
+  importHistory: (agent: api.AgentKind, nativeId: string) => Promise<void>
   stopTask: (sessionId: string, taskId: string) => Promise<void>
   setApprovalReviewer: (sessionId: string, reviewer: api.ApprovalReviewer) => Promise<void>
   setPermissionMode: (sessionId: string, mode: string) => Promise<void>
@@ -327,6 +328,16 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       const fork = await api.forkSession(sessionId)
       set({ sessions: replaceSession(get().sessions, fork), error: null })
       await get().selectSession(fork.id)
+    } catch (err) {
+      set({ error: errorMessage(err) })
+    }
+  },
+
+  async importHistory(agent, nativeId) {
+    try {
+      const imported = await api.importHistory(agent, nativeId)
+      set({ sessions: replaceSession(get().sessions, imported), error: null })
+      await get().selectSession(imported.id)
     } catch (err) {
       set({ error: errorMessage(err) })
     }

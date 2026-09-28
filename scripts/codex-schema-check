@@ -19,6 +19,7 @@ methods=(
   thread/fork
   thread/read
   thread/list
+  thread/turns/list
   turn/start
   turn/interrupt
   turn/steer

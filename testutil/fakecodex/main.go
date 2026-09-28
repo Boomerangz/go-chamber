@@ -192,6 +192,41 @@ func main() {
 			turnID := nextID("turn")
 			respond(m.ID, map[string]any{"turn": map[string]any{"id": turnID, "status": "inProgress", "items": []any{}}})
 			startTurn(mode, p.ThreadID, turnID, text, pending)
+		case "thread/list":
+			// Two pages: the second holds an untitled thread and a subagent's.
+			var p struct {
+				Cursor string `json:"cursor"`
+			}
+			_ = json.Unmarshal(m.Params, &p)
+			if p.Cursor == "" {
+				respond(m.ID, map[string]any{"nextCursor": "page-2", "data": []any{historyThread()}})
+			} else {
+				respond(m.ID, map[string]any{"data": []any{
+					map[string]any{"id": "thread-untitled", "cwd": "/work", "preview": "second page preview", "updatedAt": 1789000000},
+					map[string]any{"id": "thread-child", "cwd": "/work", "preview": "sub", "parentThreadId": "thread-history", "updatedAt": 1789000001},
+				}})
+			}
+		case "thread/turns/list":
+			var p struct {
+				ThreadID string `json:"threadId"`
+			}
+			_ = json.Unmarshal(m.Params, &p)
+			if p.ThreadID != "thread-history" {
+				_ = enc.Encode(map[string]any{"jsonrpc": "2.0", "id": m.ID, "error": map[string]any{"code": -32600, "message": "thread not found"}})
+				_ = out.Flush()
+				continue
+			}
+			// Newest first, like the real server.
+			respond(m.ID, map[string]any{"data": []any{
+				map[string]any{"id": "turn-h2", "status": "completed", "items": []any{
+					map[string]any{"type": "agentMessage", "id": "item-h4", "text": "Pushed."},
+				}},
+				map[string]any{"id": "turn-h1", "status": "completed", "items": []any{
+					map[string]any{"type": "userMessage", "id": "item-h1", "content": []any{map[string]any{"type": "text", "text": "tidy the readme"}}},
+					map[string]any{"type": "reasoning", "id": "item-h2", "summary": []any{"Look at the headings."}, "content": []any{}},
+					map[string]any{"type": "agentMessage", "id": "item-h3", "text": "Done."},
+				}},
+			}})
 		case "skills/list":
 			var p struct {
 				Cwds []string `json:"cwds"`
@@ -432,6 +467,11 @@ func serverRequest(id string, method string, params any) {
 func respond(id json.RawMessage, result any) {
 	_ = enc.Encode(map[string]any{"jsonrpc": "2.0", "id": id, "result": result})
 	_ = out.Flush()
+}
+
+// historyThread is the recorded thread thread/list and thread/read describe.
+func historyThread() map[string]any {
+	return map[string]any{"id": "thread-history", "cwd": "/work", "name": "Tidy the README", "preview": "tidy the readme", "updatedAt": 1790000000}
 }
 
 func nextID(prefix string) string {

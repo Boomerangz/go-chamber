@@ -28,6 +28,7 @@ import RequestCard from './components/requests/RequestCard'
 import QuotaWidget from './components/quota/QuotaWidget'
 import RequestTray from './components/requests/RequestTray'
 import SessionList from './components/sessions/SessionList'
+import HistoryPanel from './components/sessions/HistoryPanel'
 import TerminalPanel from './components/terminal/TerminalPanel'
 import TerminalWorkspace from './components/terminal/TerminalWorkspace'
 import { fetchHealth, imageUrl, type AgentKind, type ApprovalReviewer, type Health, type Item, type Session } from './lib/api'
@@ -294,6 +295,7 @@ function Sidebar(props: { onCreate: (agent: AgentKind, cwd: string, branch?: str
         </button>
       </form>
       <SessionList onCreateIn={(dir) => props.onCreate(agent, dir)} />
+      <HistoryPanel />
       <footer className="sidebar-footer">
         <AccountPanel key={agent} agent={agent} />
         <QuotaWidget />

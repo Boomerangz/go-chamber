@@ -414,3 +414,21 @@ export function getFileDiff(id: string, path: string): Promise<{ diff: string }>
 export function removeWorktree(id: string, force: boolean): Promise<Session> {
   return request<Session>(`/api/sessions/${encodeURIComponent(id)}/worktree${force ? '?force=1' : ''}`, { method: 'DELETE' })
 }
+
+// ExternalSession is a conversation the agent recorded on its own (started
+// in a terminal or another client) that can be opened here.
+export interface ExternalSession {
+  agent: AgentKind
+  nativeId: string
+  cwd: string
+  title?: string
+  updatedAt?: string
+}
+
+export function listHistory(): Promise<ExternalSession[]> {
+  return request<ExternalSession[]>('/api/history')
+}
+
+export function importHistory(agent: AgentKind, nativeId: string): Promise<Session> {
+  return request<Session>('/api/history/import', json({ agent, nativeId }))
+}

@@ -38,6 +38,8 @@ type Config struct {
 	ImagesDir string
 	// Worktrees creates worktree sessions and serves the diff panel when non-nil.
 	Worktrees Worktrees
+	// History lists and imports sessions recorded outside go-chamber when non-nil.
+	History HistoryService
 }
 
 type server struct {
@@ -54,6 +56,7 @@ func NewServer(cfg Config) http.Handler {
 	s.completeRoutes()
 	s.imageRoutes()
 	s.worktreeRoutes()
+	s.historyRoutes()
 	return &auth{token: []byte(cfg.Token), next: s.mux}
 }
 
