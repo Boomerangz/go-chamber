@@ -894,7 +894,6 @@ h1 { font-family: var(--font-mono); font-size: 14px; font-weight: 400; letter-sp
 
 .editable-title { display: inline-flex; align-items: baseline; gap: 6px; min-width: 0; }
 .editable-title > span, .editable-title > h2 { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.rename-btn { border: 0; background: none; padding: 0 2px; color: var(--ink-3); font-size: 0.85em; cursor: pointer; opacity: 0; }
-.editable-title:hover .rename-btn, .rename-btn:focus-visible { opacity: 1; }
-@media (hover: none) { .rename-btn { opacity: 0.6; } }
+.rename-btn { border: 0; background: none; padding: 0 2px; color: var(--ink-3); font-size: 0.85em; cursor: pointer; opacity: 0.55; }
+.editable-title:hover .rename-btn, .rename-btn:focus-visible { opacity: 1; color: var(--ink); }
 .title-input { font: inherit; color: inherit; background: var(--paper); border: 1px solid var(--rule-strong); border-radius: 4px; padding: 1px 6px; min-width: 12ch; width: 100%; max-width: 40ch; }
