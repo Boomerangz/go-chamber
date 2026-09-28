@@ -173,6 +173,16 @@ describe('RequestCard audit fixes', () => {
     })
   })
 
+  it('accepts a required boolean left unchecked as false', async () => {
+    const { onRespond } = setup({
+      id: 'e2', sessionId: 's1', kind: 'elicitation', state: 'pending',
+      payload: { requestedSchema: { required: ['agree'], properties: { agree: { type: 'boolean', title: 'Agree' } } } } as never,
+    })
+    expect(screen.getByLabelText('Agree')).not.toBeRequired()
+    await userEvent.click(screen.getByRole('button', { name: 'Accept' }))
+    expect(onRespond).toHaveBeenCalledWith('s1', 'e2', { behavior: 'allow', content: { agree: false } })
+  })
+
   it('declines an elicitation', async () => {
     const { onRespond } = setup({ id: 'e1', sessionId: 's1', kind: 'elicitation', state: 'pending' })
     await userEvent.click(screen.getByRole('button', { name: 'Decline' }))

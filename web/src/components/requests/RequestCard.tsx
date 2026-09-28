@@ -182,7 +182,7 @@ function ElicitationCard({ request, busy, answer }: CardProps) {
   const submit = () => {
     const content: Record<string, unknown> = {}
     for (const [name, f] of fields) {
-      const v = values[name]
+      const v = f.type === 'boolean' ? !!values[name] : values[name]
       if (v === undefined || v === '') continue
       content[name] = f.type === 'number' || f.type === 'integer' ? Number(v) : v
     }
@@ -209,7 +209,7 @@ function ElicitationCard({ request, busy, answer }: CardProps) {
           <label key={name} className="field-row">
             <span>{label}</span>
             {f.type === 'boolean' ? (
-              <input {...common} type="checkbox" checked={!!values[name]} onChange={(e) => set(name, e.target.checked)} />
+              <input {...common} required={false} type="checkbox" checked={!!values[name]} onChange={(e) => set(name, e.target.checked)} />
             ) : f.enum ? (
               <select {...common} className="field" value={String(values[name] ?? '')} onChange={(e) => set(name, e.target.value)}>
                 <option value="" />
