@@ -15,6 +15,7 @@ import {
 import { icon } from './components/icon'
 import AccountPanel from './components/account/AccountPanel'
 import FolderField from './components/folders/FolderField'
+import Markdown from './components/markdown/Markdown'
 import ModelPicker from './components/models/ModelPicker'
 import RequestCard from './components/requests/RequestCard'
 import QuotaWidget from './components/quota/QuotaWidget'
@@ -514,13 +515,23 @@ function ItemView({
     case 'user_message':
       return <div className="item user">{item.text}</div>
     case 'assistant_message':
-      return <div className="item assistant">{item.text}</div>
+      return (
+        <div className="item assistant">
+          <Markdown text={item.text ?? ''} />
+        </div>
+      )
     case 'reasoning':
       return (
         <details className="item reasoning">
           <summary>Thinking</summary>
-          <pre>{item.text}</pre>
+          <Markdown text={item.text ?? ''} />
         </details>
+      )
+    case 'plan':
+      return (
+        <div className="item plan">
+          <Markdown text={item.text ?? ''} />
+        </div>
       )
     case 'command':
       return (

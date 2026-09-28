@@ -426,6 +426,29 @@ h1 { font-family: var(--font-mono); font-size: 14px; font-weight: 400; letter-sp
 .item.reasoning summary::before { content: '+'; width: 1ch; }
 .item.reasoning[open] summary::before { content: '−'; }
 .item.reasoning pre { background: transparent; border-left-style: dashed; color: var(--ink-3); font-family: var(--font-ui); font-size: 13.5px; }
+.item.reasoning .md { margin-top: 6px; padding-left: 12px; border-left: 1px dashed var(--rule-strong); color: var(--ink-3); font-size: 13.5px; }
+
+/* markdown: agent prose; code blocks coloured for the current sheet */
+.md { white-space: normal; }
+.md > :first-child { margin-top: 0; }
+.md > :last-child { margin-bottom: 0; }
+.md p, .md ul, .md ol, .md blockquote, .md table, .md pre { margin: 0 0 10px; }
+.md ul, .md ol { padding-left: 22px; }
+.md li + li { margin-top: 2px; }
+.md h1, .md h2, .md h3, .md h4 { margin: 14px 0 6px; font-size: 1em; font-weight: 600; }
+.md h1 { font-size: 1.2em; }
+.md h2 { font-size: 1.1em; }
+.md a { color: var(--act); text-underline-offset: 3px; }
+.md blockquote { padding-left: 12px; border-left: 1px solid var(--rule-strong); color: var(--ink-2); }
+.md hr { border: 0; border-top: 1px solid var(--rule); margin: 12px 0; }
+.md table { border-collapse: collapse; display: block; overflow-x: auto; font-size: 13px; }
+.md th, .md td { padding: 4px 10px; border: 1px solid var(--rule); text-align: left; }
+.md :not(pre) > code { padding: 0 3px; background: var(--paper-2); font-size: 0.9em; }
+.item .md pre.md-code { max-height: 420px; white-space: pre; margin-top: 0; }
+.md-code span { color: var(--shiki-light); }
+@media (prefers-color-scheme: dark) {
+  .md-code span { color: var(--shiki-dark); }
+}
 
 /* hooks: one plaintext line; blocked and error are the only ones that speak up */
 .item.hook { font-size: 12.5px; }
