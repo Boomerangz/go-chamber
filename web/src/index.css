@@ -871,7 +871,7 @@ h1 { font-family: var(--font-mono); font-size: 14px; font-weight: 400; letter-sp
 
   .panebar {
     position: fixed; left: 0; right: 0; bottom: 0; z-index: 10;
-    display: grid; grid-template-columns: repeat(3, 1fr);
+    display: grid; grid-auto-flow: column; grid-auto-columns: 1fr;
     padding-bottom: env(safe-area-inset-bottom);
     border-top: 1px solid var(--rule-strong); background: var(--paper);
   }
