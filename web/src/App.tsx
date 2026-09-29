@@ -18,6 +18,7 @@ import AccountPanel from './components/account/AccountPanel'
 import DiffPanel from './components/changes/DiffPanel'
 import FolderField from './components/folders/FolderField'
 import Markdown from './components/markdown/Markdown'
+import { SessionFiles } from './lib/files'
 import ModelPicker from './components/models/ModelPicker'
 import PermissionModeSelect from './components/models/PermissionModeSelect'
 import ComposerInput from './components/composer/ComposerInput'
@@ -427,27 +428,29 @@ function Chat() {
         </div>
       </header>
       <div className="scroll" ref={scrollRef}>
-        <ol className="items">
-          <AnimatePresence initial={false}>
-            {nodes.map((node) => (
-              <Fragment key={node.item.id}>
-                {node.item.id === unseen && (
-                  <li className="unseen-mark" aria-label="New since your last visit">
-                    new since you left
-                  </li>
-                )}
-                <motion.li className={`row row-${node.item.kind}`} {...enter(reduced)}>
-                  {turns.has(node.item.id) && (
-                    <span className="turn-no" aria-label={`turn ${turns.get(node.item.id)}`}>
-                      {turns.get(node.item.id)}.
-                    </span>
+        <SessionFiles.Provider value={session?.id}>
+          <ol className="items">
+            <AnimatePresence initial={false}>
+              {nodes.map((node) => (
+                <Fragment key={node.item.id}>
+                  {node.item.id === unseen && (
+                    <li className="unseen-mark" aria-label="New since your last visit">
+                      new since you left
+                    </li>
                   )}
-                  <ItemView node={node} onStopTask={stopTask} />
-                </motion.li>
-              </Fragment>
-            ))}
-          </AnimatePresence>
-        </ol>
+                  <motion.li className={`row row-${node.item.kind}`} {...enter(reduced)}>
+                    {turns.has(node.item.id) && (
+                      <span className="turn-no" aria-label={`turn ${turns.get(node.item.id)}`}>
+                        {turns.get(node.item.id)}.
+                      </span>
+                    )}
+                    <ItemView node={node} onStopTask={stopTask} />
+                  </motion.li>
+                </Fragment>
+              ))}
+            </AnimatePresence>
+          </ol>
+        </SessionFiles.Provider>
         {chat.order.length === 0 && status !== 'interrupted' && (
           <p className="chat-hint">Send a message to start. The agent runs in {session?.cwd ?? 'the session folder'}.</p>
         )}

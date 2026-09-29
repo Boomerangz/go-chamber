@@ -140,7 +140,8 @@ func run(ctx context.Context, args []string, out io.Writer) error {
 				Git:      git.Repo{},
 				Root:     filepath.Join(*dataDir, "worktrees"),
 			}),
-			Push: push,
+			Push:  push,
+			Files: app.NewSessionFiles(store.Sessions(), fsys.Resolver{}),
 			History: app.NewHistory(app.HistoryConfig{
 				Repo: store.Sessions(),
 				Bus:  events,

@@ -20,3 +20,14 @@ if (typeof globalThis.localStorage?.clear !== 'function') {
   }
   Object.defineProperty(globalThis, 'localStorage', { value: storage, configurable: true })
 }
+
+// jsdom has <dialog> but no showModal/close.
+if (typeof HTMLDialogElement !== 'undefined' && !HTMLDialogElement.prototype.showModal) {
+  HTMLDialogElement.prototype.showModal = function (this: HTMLDialogElement) {
+    this.setAttribute('open', '')
+  }
+  HTMLDialogElement.prototype.close = function (this: HTMLDialogElement) {
+    this.removeAttribute('open')
+    this.dispatchEvent(new Event('close'))
+  }
+}

@@ -43,6 +43,8 @@ type Config struct {
 	History HistoryService
 	// Push registers browsers for notifications when non-nil.
 	Push PushSubscriptions
+	// Files serves files agents mention inside their session folder when non-nil.
+	Files SessionFiles
 }
 
 type server struct {
@@ -62,6 +64,7 @@ func NewServer(cfg Config) http.Handler {
 	s.historyRoutes()
 	s.pushRoutes()
 	s.renameRoutes()
+	s.fileRoutes()
 	return &auth{token: []byte(cfg.Token), next: s.mux}
 }
 

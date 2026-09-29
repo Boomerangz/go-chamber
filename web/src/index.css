@@ -902,3 +902,12 @@ h1 { font-family: var(--font-mono); font-size: 14px; font-weight: 400; letter-sp
 .item-output > summary { cursor: pointer; color: var(--ink-3); font-size: 12px; user-select: none; }
 .item-output > summary:hover { color: var(--ink); }
 .item-output[open] > summary { margin-bottom: 4px; }
+
+.file-viewer { width: min(960px, calc(100vw - 32px)); max-height: calc(100vh - 48px); padding: 0; border: 1px solid var(--rule-strong); background: var(--paper); color: var(--ink); }
+.file-viewer::backdrop { background: rgb(0 0 0 / 0.45); }
+.file-viewer-bar { position: sticky; top: 0; display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-bottom: 1px solid var(--rule); background: var(--paper); }
+.file-viewer-path { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--mono, ui-monospace, monospace); font-size: 13px; }
+.file-viewer-body { padding: 12px 16px; overflow: auto; }
+.file-viewer-body img { display: block; max-width: 100%; margin: 0 auto; }
+.file-viewer-body pre.md-code { white-space: pre; overflow-x: auto; }
+.file-viewer-note { color: var(--ink-3); }

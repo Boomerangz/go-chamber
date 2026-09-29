@@ -2,6 +2,7 @@ import { memo, useEffect, useState, type CSSProperties } from 'react'
 import ReactMarkdown, { type Components } from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import type { ThemedToken } from 'shiki/core'
+import { MdLink } from './FileLink'
 
 // CodeBlock shows the code at once and colours it when the grammar arrives.
 function CodeBlock({ code, lang }: { code: string; lang?: string }) {
@@ -45,11 +46,7 @@ const components: Components = {
     if (!lang && !text.includes('\n')) return <code>{children}</code>
     return <CodeBlock code={text.replace(/\n$/, '')} lang={lang} />
   },
-  a: ({ href, children }) => (
-    <a href={href} target="_blank" rel="noopener noreferrer">
-      {children}
-    </a>
-  ),
+  a: ({ href, children }) => <MdLink href={href}>{children}</MdLink>,
 }
 
 // Markdown renders agent text; raw HTML is dropped (skipHtml, no rehype-raw).
