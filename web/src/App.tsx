@@ -601,7 +601,7 @@ function ItemView({
             <Terminal {...icon(13)} />
           </span>
           <code>{commandText(item)}</code>
-          {item.text && <pre>{item.text}</pre>}
+          {item.text && <Folded label="Output" text={item.text} />}
         </div>
       )
     case 'file_change':
@@ -611,7 +611,7 @@ function ItemView({
             <FilePen {...icon(13)} />
           </span>
           <code>{item.path || item.name}</code>
-          {item.diff && <pre>{item.diff}</pre>}
+          {item.diff && <Folded label="Diff" text={item.diff} />}
         </div>
       )
     case 'hook':
@@ -638,7 +638,7 @@ function ItemView({
               </button>
             )}
           </div>
-          {item.text && <pre>{item.text}</pre>}
+          {item.text && <Folded label="Output" text={item.text} />}
           {node.children.length > 0 && (
             <ol className="subagent-items">
               {node.children.map((child) => (
@@ -657,10 +657,24 @@ function ItemView({
             <Wrench {...icon(13)} />
           </span>
           <code>{item.name}</code>
-          {item.text && <pre>{item.text}</pre>}
+          {item.text && <Folded label="Output" text={item.text} />}
         </div>
       )
   }
+}
+
+// Folded keeps tool output out of the way: long command output and diffs
+// used to fill the whole chat. The summary says how much is inside.
+function Folded({ label, text }: { label: string; text: string }) {
+  const lines = text.replace(/\n$/, '').split('\n').length
+  return (
+    <details className="item-output">
+      <summary>
+        {label} · {lines} {lines === 1 ? 'line' : 'lines'}
+      </summary>
+      <pre>{text}</pre>
+    </details>
+  )
 }
 
 const hookBadge: Record<string, string> = { success: 'ok', blocked: 'blocked', error: 'error' }

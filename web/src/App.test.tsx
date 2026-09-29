@@ -143,6 +143,28 @@ describe('App', () => {
     expect(location.pathname).toBe('/t/t1')
   })
 
+  it('keeps tool output folded until asked', async () => {
+    mockApi()
+    useSessionStore.setState({
+      activeId: 's1',
+      chat: {
+        ...initialChat('idle'),
+        order: ['c1', 'f1'],
+        items: {
+          c1: { id: 'c1', sessionId: 's1', kind: 'command', status: 'completed', name: 'Bash', input: { command: 'ls' }, text: 'a\nb\nc' },
+          f1: { id: 'f1', sessionId: 's1', kind: 'file_change', status: 'completed', name: 'Edit', path: '/tmp/x.go', diff: '-x\n+y' },
+        },
+      },
+    })
+    render(<App />)
+    const output = await screen.findByText('Output · 3 lines')
+    const details = output.closest('details')!
+    expect(details).not.toHaveAttribute('open')
+    expect(screen.getByText('Diff · 2 lines').closest('details')).not.toHaveAttribute('open')
+    await userEvent.click(output)
+    expect(details).toHaveAttribute('open')
+  })
+
   it('renders tool and reasoning items', async () => {
     mockApi()
     useSessionStore.setState({
