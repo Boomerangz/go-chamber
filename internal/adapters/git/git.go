@@ -56,7 +56,12 @@ func (Repo) RemoveWorktree(ctx context.Context, wt domain.Worktree, force bool) 
 	return err
 }
 
-func (Repo) Changes(ctx context.Context, dir, base string) ([]app.FileChange, error) {
+func (r Repo) Changes(ctx context.Context, dir, base string) ([]app.FileChange, error) {
+	root, err := r.Toplevel(ctx, dir)
+	if err != nil {
+		return nil, err
+	}
+	dir = root
 	base, err := resolve(ctx, dir, base)
 	if err != nil {
 		return nil, err
@@ -80,7 +85,12 @@ func (Repo) Changes(ctx context.Context, dir, base string) ([]app.FileChange, er
 	return files, nil
 }
 
-func (Repo) FileDiff(ctx context.Context, dir, base, path string) (string, error) {
+func (r Repo) FileDiff(ctx context.Context, dir, base, path string) (string, error) {
+	root, err := r.Toplevel(ctx, dir)
+	if err != nil {
+		return "", err
+	}
+	dir = root
 	base, err := resolve(ctx, dir, base)
 	if err != nil {
 		return "", err
