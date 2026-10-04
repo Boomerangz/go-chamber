@@ -311,8 +311,12 @@ func (s *server) respondRequest(w http.ResponseWriter, r *http.Request) {
 	if !decode(w, r, &body) {
 		return
 	}
+	if body.Behavior != "allow" && body.Behavior != "deny" {
+		writeJSON(w, http.StatusBadRequest, errorBody{"behavior must be allow or deny"})
+		return
+	}
 	answer := app.RequestAnswer{
-		Allow:           body.Behavior != "deny",
+		Allow:           body.Behavior == "allow",
 		Message:         body.Message,
 		AllowForSession: body.AllowForSession,
 		Answers:         body.Answers,
