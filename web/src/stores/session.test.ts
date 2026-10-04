@@ -236,6 +236,25 @@ describe('session store', () => {
     }
   })
 
+  it('retains the gap-triggering event when its history fetch fails', async () => {
+    vi.useFakeTimers()
+    try {
+      await store().selectSession('a')
+      ;(api.fetchEvents as Mock)
+        .mockRejectedValueOnce(new Error('offline'))
+        .mockResolvedValueOnce([event({ seq: 1, item: item({ id: 'old' }) })])
+      store().applyIncoming(event({ seq: 2, item: item({ id: 'final' }) }))
+      await vi.advanceTimersByTimeAsync(0)
+      expect(store().chat.lastSeq).toBe(0)
+      await vi.advanceTimersByTimeAsync(1000)
+      expect(api.fetchEvents).toHaveBeenCalledTimes(3)
+      expect(store().chat.order).toEqual(['old', 'final'])
+      expect(store().chat.lastSeq).toBe(2)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('ignores incoming events for other sessions and without an active session', () => {
     store().applyIncoming(event({ sessionId: 'b' }))
     expect(store().chat.order).toEqual([])

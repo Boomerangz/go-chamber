@@ -406,7 +406,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     if (ev.seq > last + 1) {
       // The hub drops events for slow consumers; refetch the gap from history.
       flush(get, set)
-      void resync(get, set, id)
+      void resync(get, set, id, ev)
       return
     }
     if (queued.length === 0) queuedAt = performance.now()
@@ -470,12 +470,14 @@ async function resync(
   get: () => SessionStore,
   set: (partial: Partial<SessionStore>) => void,
   id: string,
+  trigger?: api.SessionEvent,
 ): Promise<void> {
   if (resyncTimer) clearTimeout(resyncTimer)
   resyncTimer = null
   const mine = ++generation
   flush(get, set)
   const live: api.SessionEvent[] = buffered ?? []
+  if (trigger) live.push(trigger)
   buffered = live
   let retry = false
   try {
