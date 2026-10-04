@@ -106,3 +106,19 @@ func TestSubscribeRejectsIncompleteSubscriptions(t *testing.T) {
 		}
 	}
 }
+
+func TestTopicMeetsPushServiceConstraints(t *testing.T) {
+	for _, tc := range []struct{ tag, want string }{
+		{"", ""},
+		{"/09:az{AZ[-_@`", "09azAZ-_"},
+		{"session: hello/мир", "sessionhello"},
+		{"01234567890123456789012345678901", "01234567890123456789012345678901"},
+		{"012345678901234567890123456789012", "01234567890123456789012345678901"},
+	} {
+		t.Run(tc.tag, func(t *testing.T) {
+			if got := topic(tc.tag); got != tc.want {
+				t.Fatalf("topic(%q) = %q, want %q", tc.tag, got, tc.want)
+			}
+		})
+	}
+}
