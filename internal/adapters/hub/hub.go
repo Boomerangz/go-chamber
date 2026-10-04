@@ -107,15 +107,12 @@ func (h *Hub) Publish(ev domain.Event) domain.Event {
 			h.fail(err)
 		}
 	}
-	subs := make([]*Subscriber, 0, len(h.subs))
-	for s := range h.subs {
-		subs = append(subs, s)
+	// Delivery is nonblocking; keep it under the sequence lock so concurrent
+	// publishers cannot send a later event before this one.
+	for sub := range h.subs {
+		sub.deliver(ev)
 	}
 	h.mu.Unlock()
-
-	for _, s := range subs {
-		s.deliver(ev)
-	}
 	return ev
 }
 
