@@ -617,9 +617,11 @@ func (s *Server) startThread(ctx context.Context, req app.StartRequest) (*Runtim
 	rt := s.newRuntime(thread.ID, NewMapper(req.SessionID))
 	rt.reviewer, rt.effort, rt.mode = req.ApprovalReviewer, req.Effort, req.PermissionMode
 	rt.cwd = req.Cwd
+	rt.mapper.IncludeUserMessages = req.Fork
 	for _, ev := range rt.mapThread(thread) {
 		rt.emit(ev)
 	}
+	rt.mapper.IncludeUserMessages = false
 	s.register(rt)
 	if q, err := s.RateLimits(ctx); err == nil {
 		rt.emit(domain.Event{SessionID: req.SessionID, Type: domain.EventQuota, Quota: &q})

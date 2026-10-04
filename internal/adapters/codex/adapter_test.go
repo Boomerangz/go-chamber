@@ -547,3 +547,29 @@ func TestCodexShowsAStopHookThatBlocks(t *testing.T) {
 		t.Fatalf("answers = %v", answers)
 	}
 }
+
+func TestCodexForkReplaysUserMessages(t *testing.T) {
+	f := &Factory{Binary: fakeBin, InitTimeout: 10 * time.Second}
+	t.Cleanup(f.Close)
+	parent, err := f.Start(context.Background(), app.StartRequest{SessionID: "parent", Cwd: t.TempDir()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = parent.Close() })
+	if err := parent.Send(context.Background(), "t", "fork this prompt"); err != nil {
+		t.Fatal(err)
+	}
+	drainCodex(t, parent.(*Runtime), func(ev domain.Event) bool { return ev.Type == domain.EventTurnEnded })
+	child, err := f.Start(context.Background(), app.StartRequest{SessionID: "child", Cwd: t.TempDir(), NativeID: parent.NativeID(), Fork: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = child.Close() })
+	events := drainCodex(t, child.(*Runtime), func(ev domain.Event) bool { return ev.Item != nil && ev.Item.Kind == domain.ItemUserMessage })
+	if events[len(events)-1].Item.Text != "fork this prompt" {
+		t.Fatal(events)
+	}
+	if child.(*Runtime).mapper.IncludeUserMessages {
+		t.Fatal("live user echo must stay suppressed")
+	}
+}

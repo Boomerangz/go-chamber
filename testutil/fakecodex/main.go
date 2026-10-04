@@ -41,6 +41,7 @@ var reviewers = map[string]string{}
 // real server, turn/start overrides stick to the thread. Policy "never"
 // runs commands without asking.
 var policies = map[string][2]string{}
+var histories = map[string][]map[string]any{}
 
 func setPolicy(threadID string, params json.RawMessage) {
 	var p struct {
@@ -158,11 +159,16 @@ func main() {
 				"id": p.ThreadID, "turns": []any{},
 			}})
 		case "thread/fork":
+			var p struct {
+				ThreadID string `json:"threadId"`
+			}
+			_ = json.Unmarshal(m.Params, &p)
 			threadID := nextID("thread")
+			histories[threadID] = append([]map[string]any(nil), histories[p.ThreadID]...)
 			setReviewer(threadID, m.Params)
 			setModel(threadID, m.Params)
 			respond(m.ID, map[string]any{"thread": map[string]any{
-				"id": threadID, "turns": []any{},
+				"id": threadID, "turns": histories[threadID],
 			}})
 		case "turn/start":
 			var p struct {
@@ -190,6 +196,7 @@ func main() {
 				}
 			}
 			turnID := nextID("turn")
+			histories[p.ThreadID] = append(histories[p.ThreadID], map[string]any{"id": turnID, "items": []any{map[string]any{"id": nextID("user"), "type": "userMessage", "content": []any{map[string]any{"type": "text", "text": text}}}}})
 			respond(m.ID, map[string]any{"turn": map[string]any{"id": turnID, "status": "inProgress", "items": []any{}}})
 			startTurn(mode, p.ThreadID, turnID, text, pending)
 		case "thread/list":
@@ -448,6 +455,13 @@ func turnStarted(threadID, turnID string) {
 }
 
 func turnCompleted(threadID, turnID, status, itemID, text string) {
+	for _, turn := range histories[threadID] {
+		if turn["id"] == turnID {
+			turn["status"] = status
+			turn["items"] = append(turn["items"].([]any), map[string]any{"type": "agentMessage", "id": itemID, "text": text})
+		}
+	}
+
 	notify("turn/completed", map[string]any{"threadId": threadID,
 		"turn": map[string]any{"id": turnID, "status": status, "items": []any{
 			map[string]any{"type": "agentMessage", "id": itemID, "text": text},
