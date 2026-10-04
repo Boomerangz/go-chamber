@@ -148,6 +148,16 @@ func main() {
 			respond(m.ID, map[string]any{"approvalPolicy": "on-request", "sandbox": map[string]any{"type": "workspaceWrite"}, "thread": map[string]any{
 				"id": threadID, "cwd": p.Cwd, "model": p.Model, "turns": []any{},
 			}})
+		case "thread/unsubscribe":
+			var p struct {
+				ThreadID string `json:"threadId"`
+			}
+			_ = json.Unmarshal(m.Params, &p)
+			delete(histories, p.ThreadID)
+			delete(policies, p.ThreadID)
+			delete(models, p.ThreadID)
+			delete(reviewers, p.ThreadID)
+			respond(m.ID, map[string]any{"status": "unsubscribed"})
 		case "thread/resume":
 			var p struct {
 				ThreadID string `json:"threadId"`

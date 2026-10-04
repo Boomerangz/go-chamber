@@ -722,8 +722,10 @@ type Runtime struct {
 	closeOnce sync.Once
 
 	// mode is the permission preset applied to each turn; empty restores config.
-	cwd  string
-	mode string
+	cwd                string
+	mode               string
+	configuredApproval json.RawMessage
+	configuredSandbox  json.RawMessage
 }
 
 func (r *Runtime) mapThread(thread rpcThread) []domain.Event {

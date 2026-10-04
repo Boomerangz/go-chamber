@@ -15,6 +15,7 @@ methods=(
   initialize
   initialized
   thread/start
+  thread/unsubscribe
   thread/resume
   thread/fork
   thread/read
@@ -43,6 +44,9 @@ methods=(
   model/list
 )
 fields=(
+  ephemeral
+  sandbox
+  approvalPolicy
   threadId
   turnId
   itemId
