@@ -34,6 +34,7 @@ func (s *server) createWorktree(w http.ResponseWriter, r *http.Request) {
 		Branch string           `json:"branch"`
 		Model  string           `json:"model"`
 		Effort string           `json:"effort"`
+		Mode   string           `json:"permissionMode"`
 	}
 	if !decode(w, r, &body) {
 		return
@@ -45,6 +46,12 @@ func (s *server) createWorktree(w http.ResponseWriter, r *http.Request) {
 	}
 	if (body.Model != "" || body.Effort != "") && s.cfg.Sessions != nil {
 		if session, err = s.cfg.Sessions.SetModel(r.Context(), session.ID, body.Model, body.Effort); err != nil {
+			s.fail(w, err)
+			return
+		}
+	}
+	if body.Mode != "" && s.cfg.Sessions != nil {
+		if session, err = s.cfg.Sessions.SetPermissionMode(r.Context(), session.ID, body.Mode); err != nil {
 			s.fail(w, err)
 			return
 		}
