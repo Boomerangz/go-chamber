@@ -10,6 +10,10 @@ const statusLabel: Record<string, string> = { A: 'added', M: 'modified', D: 'del
 // DiffPanel shows what the session's folder changed: against the commit a
 // worktree branched from, otherwise against HEAD.
 export default function DiffPanel({ sessionId }: { sessionId: string | null }) {
+  return <SessionDiffPanel key={sessionId} sessionId={sessionId} />
+}
+
+function SessionDiffPanel({ sessionId }: { sessionId: string | null }) {
   const session = useSessionStore((s) => s.sessions.find((x) => x.id === sessionId))
   const [changes, setChanges] = useState<api.Changes | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -17,13 +21,9 @@ export default function DiffPanel({ sessionId }: { sessionId: string | null }) {
   const [diff, setDiff] = useState<string | null>(null)
   const diffRequest = useRef(0)
   useEffect(() => {
-    diffRequest.current++
-    setChanges(null)
-    setOpen(null)
-    setDiff(null)
-    setError(null)
-    return () => { diffRequest.current++ }
-  }, [sessionId])
+    const requests = diffRequest
+    return () => { requests.current++ }
+  }, [])
   const status = session?.status
   const [tick, setTick] = useState(0)
 
