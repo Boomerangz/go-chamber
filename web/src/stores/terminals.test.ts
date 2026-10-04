@@ -25,6 +25,34 @@ beforeEach(() => {
 })
 
 describe('terminal store', () => {
+  it('keeps the exit status received before a delayed rename response', async () => {
+    useTerminalStore.setState({ terminals: [term()] })
+    let release: (v: Terminal) => void = () => {}
+    ;(api.renameTerminal as Mock).mockReturnValueOnce(new Promise((r) => (release = r)))
+    const pending = store().rename('t1', 'logs')
+    store().markExited('t1', 7)
+    release(term({ title: 'logs' }))
+    await pending
+    expect(store().terminals[0]).toMatchObject({ title: 'logs', status: 'exited', exitCode: 7 })
+  })
+
+  it('does not restore a closed terminal through a late rename during a reload', async () => {
+    useTerminalStore.setState({ terminals: [term()] })
+    let rename: (v: Terminal) => void = () => {}
+    let list: (v: Terminal[]) => void = () => {}
+    ;(api.renameTerminal as Mock).mockReturnValueOnce(new Promise((r) => (rename = r)))
+    ;(api.listTerminals as Mock).mockReturnValueOnce(new Promise((r) => (list = r)))
+    ;(api.closeTerminal as Mock).mockResolvedValueOnce(undefined)
+    const pendingRename = store().rename('t1', 'logs')
+    const pendingList = store().load()
+    await store().close('t1')
+    rename(term({ title: 'logs' }))
+    await pendingRename
+    list([term()])
+    await pendingList
+    expect(store().terminals).toEqual([])
+  })
+
   it('does not duplicate an opened terminal already received in the terminal list', async () => {
     let release: (v: Terminal) => void = () => {}
     ;(api.openTerminal as Mock).mockReturnValueOnce(new Promise((r) => (release = r)))

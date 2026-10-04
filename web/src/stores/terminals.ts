@@ -108,8 +108,12 @@ export const useTerminalStore = create<TerminalState>((set, get) => ({
   rename: async (id, title) => {
     try {
       const renamed = await renameTerminal(id, title)
-      terminalLists.update(id, renamed)
-      set((s) => ({ terminals: s.terminals.map((t) => (t.id === id ? renamed : t)), error: null }))
+      const current = get().terminals.find((t) => t.id === id)
+      if (!current) return
+      // Rename changes the title; the process may have exited meanwhile.
+      const updated = { ...current, title: renamed.title }
+      terminalLists.update(id, updated)
+      set((s) => ({ terminals: s.terminals.map((t) => (t.id === id ? updated : t)), error: null }))
     } catch (err) {
       set({ error: message(err) })
     }
