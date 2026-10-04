@@ -325,7 +325,7 @@ func TestRespondRequestEndpoint(t *testing.T) {
 func TestRespondRequestWithAnswers(t *testing.T) {
 	f := &fakeSessions{}
 	h := newSessionsServer(f, nil)
-	rec := do(h, authed("POST", "/api/sessions/a/requests/q1", `{"answers":{"Which?":["Alpha"]}}`))
+	rec := do(h, authed("POST", "/api/sessions/a/requests/q1", `{"behavior":"allow","answers":{"Which?":["Alpha"]}}`))
 	if rec.Code != http.StatusAccepted || !f.answered.Allow || f.answered.Answers["Which?"][0] != "Alpha" {
 		t.Fatalf("code=%d answered=%+v", rec.Code, f.answered)
 	}
