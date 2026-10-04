@@ -1,10 +1,11 @@
 import { expect, test } from '@playwright/test'
 import { token } from '../playwright.config'
 
-async function newSession(page: import('@playwright/test').Page) {
+async function newSession(page: import('@playwright/test').Page, agent: 'Claude' | 'Codex' = 'Claude') {
   await page.goto(`/?token=${token}`)
   const bar = page.getByRole('navigation', { name: 'Views' })
   if (await bar.isVisible()) await bar.getByRole('button', { name: /^Sessions/ }).click()
+  await page.getByRole('radio', { name: agent }).click()
   await page.getByLabel('working directory').fill('/tmp')
   await page.getByRole('button', { name: 'New session', exact: true }).click()
   await expect(page.getByLabel('message')).toBeVisible()
@@ -56,4 +57,20 @@ test('keeps Claude answers after restarting its runtime', async ({ page }) => {
   await page.reload()
   await expect(page.getByText('echo: before runtime restart')).toBeVisible()
   await expect(page.getByText('echo: after runtime restart')).toBeVisible()
+})
+
+test('keeps user messages and answers in a Codex fork', async ({ page }, info) => {
+  const text = `Codex fork base ${info.project.name}`
+  await newSession(page, 'Codex')
+  await page.getByLabel('message').fill(text)
+  await page.getByRole('button', { name: 'Send' }).click()
+  await expect(page.getByText(`echo: ${text}`)).toBeVisible()
+  await expect(page.locator('.chat-meta .status', { hasText: 'idle' })).toBeVisible()
+  await page.getByRole('button', { name: 'Fork', exact: true }).click()
+  await expect(page.getByRole('heading', { name: `${text} (fork)` })).toBeVisible()
+  await expect(page.locator('.item.user', { hasText: text })).toBeVisible()
+  await expect(page.getByText(`echo: ${text}`)).toBeVisible()
+  await page.reload()
+  await expect(page.locator('.item.user', { hasText: text })).toBeVisible()
+  await expect(page.getByText(`echo: ${text}`)).toBeVisible()
 })
