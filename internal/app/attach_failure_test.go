@@ -2,8 +2,9 @@ package app
 
 import (
 	"context"
-	"github.com/igorzygin/go-chamber/internal/domain"
 	"testing"
+
+	"github.com/igorzygin/go-chamber/internal/domain"
 )
 
 func TestAttachFailureAllowsRetry(t *testing.T) {

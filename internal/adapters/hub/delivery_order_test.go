@@ -1,9 +1,10 @@
 package hub
 
 import (
-	"github.com/igorzygin/go-chamber/internal/domain"
 	"sync"
 	"testing"
+
+	"github.com/igorzygin/go-chamber/internal/domain"
 )
 
 func TestConcurrentDeliveryOrdered(t *testing.T) {
