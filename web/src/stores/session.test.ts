@@ -184,6 +184,58 @@ describe('session store', () => {
     expect(api.fetchEvents).toHaveBeenCalledTimes(1)
   })
 
+  it('keeps contiguous live events when history loading fails', async () => {
+    let reject: (e: Error) => void = () => {}
+    ;(api.fetchEvents as Mock).mockReturnValueOnce(new Promise((_, r) => (reject = r)))
+    const pending = store().selectSession('a')
+    store().applyIncoming(event({ seq: 1, item: item({ id: 'live' }) }))
+    reject(new Error('offline'))
+    await pending
+    expect(store().chat.order).toEqual(['live'])
+    expect(store().chat.lastSeq).toBe(1)
+    expect(store().error).toBe('offline')
+  })
+
+  it('retries failed history without skipping a gap before buffered live events', async () => {
+    vi.useFakeTimers()
+    try {
+      let reject: (e: Error) => void = () => {}
+      ;(api.fetchEvents as Mock)
+        .mockReturnValueOnce(new Promise((_, r) => (reject = r)))
+        .mockResolvedValueOnce([event({ seq: 1, item: item({ id: 'old' }) })])
+      const pending = store().selectSession('a')
+      store().applyIncoming(event({ seq: 2, item: item({ id: 'live' }) }))
+      reject(new Error('offline'))
+      await pending
+      expect(store().chat.lastSeq).toBe(0)
+      await vi.advanceTimersByTimeAsync(1000)
+      expect(api.fetchEvents).toHaveBeenLastCalledWith('a', 0)
+      expect(store().chat.order).toEqual(['old', 'live'])
+      expect(store().error).toBeNull()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('cancels a failed history retry when another session is selected', async () => {
+    vi.useFakeTimers()
+    try {
+      let reject: (e: Error) => void = () => {}
+      ;(api.fetchEvents as Mock).mockReturnValueOnce(new Promise((_, r) => (reject = r)))
+      const pending = store().selectSession('a')
+      store().applyIncoming(event({ seq: 2, item: item({ id: 'live' }) }))
+      reject(new Error('offline'))
+      await pending
+      await store().selectSession('b')
+      await vi.advanceTimersByTimeAsync(1000)
+      expect(api.fetchEvents).toHaveBeenCalledTimes(2)
+      expect(store().activeId).toBe('b')
+      expect(store().chat.order).toEqual([])
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('ignores incoming events for other sessions and without an active session', () => {
     store().applyIncoming(event({ sessionId: 'b' }))
     expect(store().chat.order).toEqual([])

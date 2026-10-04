@@ -118,6 +118,7 @@ let socket: WebSocket | null = null
 let searchGeneration = 0
 let buffered: api.SessionEvent[] | null = null
 let generation = 0
+let resyncTimer: ReturnType<typeof setTimeout> | null = null
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null
 let reconnectDelay = 1000
 // queued holds live events for the active chat not yet folded in: text
@@ -470,10 +471,13 @@ async function resync(
   set: (partial: Partial<SessionStore>) => void,
   id: string,
 ): Promise<void> {
+  if (resyncTimer) clearTimeout(resyncTimer)
+  resyncTimer = null
   const mine = ++generation
   flush(get, set)
-  const live: api.SessionEvent[] = []
+  const live: api.SessionEvent[] = buffered ?? []
   buffered = live
+  let retry = false
   try {
     const history = await api.fetchEvents(id, get().chat.lastSeq)
     if (mine !== generation) return
@@ -481,10 +485,21 @@ async function resync(
     for (const ev of [...history, ...live]) chat = applyEvent(chat, ev)
     set({ chat, error: null })
   } catch (err) {
-    if (mine === generation) set({ error: errorMessage(err) })
+    if (mine === generation) {
+      let chat = get().chat
+      for (const ev of live) {
+        if (ev.seq > chat.lastSeq + 1) break
+        chat = applyEvent(chat, ev)
+      }
+      // Keep events beyond a missing prefix for the next history fetch;
+      // advancing lastSeq over that gap would make replay discard it.
+      retry = live.some((ev) => ev.seq > chat.lastSeq)
+      set({ chat, error: errorMessage(err) })
+      if (retry) resyncTimer = setTimeout(() => void resync(get, set, id), 1000)
+    }
   } finally {
     // A newer resync owns the buffer now; leave it alone.
-    if (mine === generation) buffered = null
+    if (mine === generation && !retry) buffered = null
   }
 }
 
@@ -525,6 +540,8 @@ export function resetStore(): void {
   if (reconnectTimer) clearTimeout(reconnectTimer)
   reconnectTimer = null
   reconnectDelay = 1000
+  if (resyncTimer) clearTimeout(resyncTimer)
+  resyncTimer = null
   lastSeqs = {}
   dropQueued()
   buffered = null
