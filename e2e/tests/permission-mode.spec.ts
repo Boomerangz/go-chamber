@@ -48,3 +48,18 @@ test('runs Codex commands without asking in full access', async ({ page }) => {
   await say(page, 'current mode?')
   await expect(page.locator('.item.assistant', { hasText: 'mode: never dangerFullAccess' })).toBeVisible()
 })
+
+test('restores configured Codex approvals after full access', async ({ page }) => {
+  await page.goto(`/?token=${token}`)
+  await newSession(page, 'Codex')
+  await page.getByLabel('permission mode').selectOption('full-access')
+  await say(page, 'current mode?')
+  await expect(page.locator('.item.assistant', { hasText: 'mode: never dangerFullAccess' })).toBeVisible()
+  await expect(page.locator('.chat-meta .status', { hasText: 'idle' })).toBeVisible()
+  await page.getByLabel('permission mode').selectOption('')
+  await say(page, 'current mode?')
+  await expect(page.locator('.item.assistant', { hasText: 'mode: on-request workspaceWrite' })).toBeVisible()
+  await expect(page.locator('.chat-meta .status', { hasText: 'idle' })).toBeVisible()
+  await say(page, 'permission to run a command')
+  await expect(page.locator('.request')).toBeVisible()
+})
