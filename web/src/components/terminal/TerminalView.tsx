@@ -79,6 +79,7 @@ function liveFor(id: string, host: HTMLElement, callbacks: Callbacks): Live {
   // Input is held back while the scrollback replays: xterm answers terminal
   // queries found in it, and those answers must not reach the shell again.
   let ready = false
+  let replayGeneration = 0
   const live: Live = { el, xterm, fit, callbacks, conn: undefined as unknown as TerminalConnection, dispose: () => {} }
   live.conn = connectTerminal(id, {
     onOutput: (data) => {
@@ -86,11 +87,21 @@ function liveFor(id: string, host: HTMLElement, callbacks: Callbacks): Live {
       recordTerminalOutput(id, data.byteLength)
       xterm.write(data, () => completeTerminalOutput(id, data.byteLength, performance.now() - start))
     },
-    onReady: () => xterm.write('', () => (ready = true)),
+    onReady: () => {
+      const mine = replayGeneration
+      xterm.write('', () => {
+        if (mine === replayGeneration) ready = true
+      })
+    },
     onReset: (reason) => {
       if (reason !== 'upgrade') recordTerminalReconnect(id)
       ready = false
-      xterm.reset()
+      const mine = ++replayGeneration
+      // reset doesn't discard queued writes: clear the screen after old
+      // output is parsed, before the next connection's replay is parsed.
+      xterm.write('', () => {
+        if (mine === replayGeneration) xterm.reset()
+      })
     },
     onExit: (code) => {
       xterm.write(`\r\n[process exited with code ${code}]\r\n`)

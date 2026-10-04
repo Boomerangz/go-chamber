@@ -5,7 +5,13 @@ import { diagnostics, resetDiagnostics } from '../../lib/diagnostics'
 import { resetTerminals, useTerminalStore } from '../../stores/terminals'
 import TerminalView from './TerminalView'
 
-const xterms: { dispose: ReturnType<typeof vi.fn>; open: ReturnType<typeof vi.fn>; write: ReturnType<typeof vi.fn> }[] = []
+const xterms: {
+  dispose: ReturnType<typeof vi.fn>
+  open: ReturnType<typeof vi.fn>
+  write: ReturnType<typeof vi.fn>
+  reset: ReturnType<typeof vi.fn>
+  onData: ReturnType<typeof vi.fn>
+}[] = []
 vi.mock('@xterm/xterm', () => ({
   Terminal: vi.fn(function (this: Record<string, unknown>) {
     const t = {
@@ -78,5 +84,32 @@ describe('TerminalView', () => {
     expect(diagnostics().terminals[0]?.reconnects).toBe(1)
     useTerminalStore.setState({ terminals: [] })
     expect(diagnostics().terminals).toHaveLength(0)
+  })
+
+  it('queues reset after old output and ignores the old replay readiness callback', () => {
+    render(<TerminalView id="t1" {...props} />)
+    const callbacks = vi.mocked(connectTerminal).mock.calls[0][1]
+    const conn = vi.mocked(connectTerminal).mock.results[0].value as { send: ReturnType<typeof vi.fn> }
+    const xterm = xterms[0]
+    const input = xterm.onData.mock.calls[0][0] as (data: string) => void
+    callbacks.onOutput(new Uint8Array([1]))
+    callbacks.onReady?.()
+    const oldReady = xterm.write.mock.calls.at(-1)![1] as () => void
+    callbacks.onReset?.('upgrade')
+    expect(xterm.reset).not.toHaveBeenCalled()
+    const reset = xterm.write.mock.calls.at(-1)![1] as () => void
+    oldReady()
+    input('\x1b[1;11R')
+    expect(conn.send).not.toHaveBeenCalled()
+    reset()
+    expect(xterm.reset).toHaveBeenCalledTimes(1)
+    callbacks.onOutput(new Uint8Array([2]))
+    callbacks.onReady?.()
+    const newReady = xterm.write.mock.calls.at(-1)![1] as () => void
+    input('\x1b[1;1R')
+    expect(conn.send).not.toHaveBeenCalled()
+    newReady()
+    input('user input')
+    expect(conn.send).toHaveBeenCalledWith('user input')
   })
 })
