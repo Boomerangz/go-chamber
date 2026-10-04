@@ -50,11 +50,13 @@ type EventHistory interface {
 type Manager struct {
 	cfg ManagerConfig
 
-	mu       sync.Mutex
-	quotaMu  sync.Mutex
-	sessions map[domain.SessionID]*domain.Session
-	runtimes map[domain.SessionID]AgentRuntime
-	pending  map[domain.SessionID]map[domain.RequestID]*domain.Request
+	mu      sync.Mutex
+	quotaMu sync.Mutex
+	// quotaEventsMu keeps runtime quota publication in cache update order.
+	quotaEventsMu sync.Mutex
+	sessions      map[domain.SessionID]*domain.Session
+	runtimes      map[domain.SessionID]AgentRuntime
+	pending       map[domain.SessionID]map[domain.RequestID]*domain.Request
 	// restart marks sessions whose runtime must be replaced before the next
 	// turn (a model change it couldn't apply live).
 	restart map[domain.SessionID]bool
@@ -592,12 +594,19 @@ func (m *Manager) consume(s *domain.Session, rt AgentRuntime) {
 			continue
 		}
 		ev.SessionID = s.ID()
+		quotaEvent := ev.Type == domain.EventQuota
+		if quotaEvent {
+			m.quotaEventsMu.Lock()
+		}
 		// Record request/session state before publishing, so a client that
 		// reacts to the event immediately can answer without racing us.
 		m.mu.Lock()
 		if m.runtimes[s.ID()] != rt {
 			// A retired runtime still flushing output; its session moved on.
 			m.mu.Unlock()
+			if quotaEvent {
+				m.quotaEventsMu.Unlock()
+			}
 			continue
 		}
 		quotaStop := false
@@ -629,6 +638,9 @@ func (m *Manager) consume(s *domain.Session, rt AgentRuntime) {
 		m.mu.Unlock()
 
 		ev = m.cfg.Bus.Publish(ev)
+		if quotaEvent {
+			m.quotaEventsMu.Unlock()
+		}
 		if quotaStop {
 			_ = m.cfg.Repo.Save(context.Background(), snap)
 			m.cfg.Bus.Publish(domain.Event{SessionID: s.ID(), Type: domain.EventSessionState, Session: &snap})

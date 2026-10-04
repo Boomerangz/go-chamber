@@ -3,7 +3,9 @@ package app
 import (
 	"context"
 	"fmt"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/igorzygin/go-chamber/internal/domain"
 )
@@ -12,14 +14,21 @@ type pausedQuotaBus struct {
 	*fakeBus
 	entered chan struct{}
 	release chan struct{}
+	once    sync.Once
 }
+
+func (b *pausedQuotaBus) unblock() { b.once.Do(func() { close(b.release) }) }
 
 func (b *pausedQuotaBus) Publish(ev domain.Event) domain.Event {
 	if ev.Type == domain.EventQuota && ev.SessionID == "s1" {
 		close(b.entered)
 		<-b.release
 	}
-	return b.fakeBus.Publish(ev)
+	ev = b.fakeBus.Publish(ev)
+	if ev.Type == domain.EventQuota && ev.SessionID != "s1" {
+		b.unblock()
+	}
+	return ev
 }
 
 func TestConcurrentQuotaReportsKeepBothWindows(t *testing.T) {
@@ -58,20 +67,34 @@ func TestConcurrentQuotaReportsKeepBothWindows(t *testing.T) {
 		}
 	})
 	rt2.events <- quota("secondary")
-	eventually(t, "second quota published", func() bool {
-		for _, ev := range bus.snapshot() {
-			if ev.Type == domain.EventQuota && ev.SessionID != "s1" {
-				return true
-			}
-		}
-		return false
-	})
-	eventually(t, "quota saved while first publish paused", func() bool { return repo.count() >= 1 })
-	close(bus.release)
+	// An unsynchronized second publisher releases the first only after
+	// publishing its newer snapshot. With ordered publishers the timer lets
+	// the first finish before the second can enter.
+	timer := time.AfterFunc(100*time.Millisecond, bus.unblock)
+	defer timer.Stop()
+	defer bus.unblock()
 	eventually(t, "both reports saved", func() bool { return repo.count() == 2 })
 	q, _, err := repo.GetQuota(ctx, domain.AgentCodex)
 	if err != nil || len(q.Windows) != 2 {
 		t.Fatalf("concurrent quota reports lost a window: %+v, %v", q, err)
+	}
+	eventually(t, "both reports published", func() bool {
+		n := 0
+		for _, ev := range bus.snapshot() {
+			if ev.Type == domain.EventQuota {
+				n++
+			}
+		}
+		return n == 2
+	})
+	var last *domain.QuotaSnapshot
+	for _, ev := range bus.snapshot() {
+		if ev.Type == domain.EventQuota {
+			last = ev.Quota
+		}
+	}
+	if len(last.Windows) != 2 {
+		t.Fatalf("last published quota is stale: %+v", last)
 	}
 }
 
