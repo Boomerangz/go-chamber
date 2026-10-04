@@ -45,6 +45,72 @@ beforeEach(() => {
 })
 
 describe('session store', () => {
+  it('remembers the latest successful model choice when responses finish out of order', async () => {
+    const initial: Session = { id: 'a', agent: 'codex', cwd: '/p', status: 'idle' }
+    useSessionStore.setState({ sessions: [initial] })
+    let first: (v: Session) => void = () => {}
+    let latest: (v: Session) => void = () => {}
+    ;(api.setModel as Mock)
+      .mockReturnValueOnce(new Promise((r) => (first = r)))
+      .mockReturnValueOnce(new Promise((r) => (latest = r)))
+    const earlier = store().setModel('a', { model: 'first', effort: '' })
+    const newer = store().setModel('a', { model: 'latest', effort: 'high' })
+    latest({ ...initial, model: 'latest', effort: 'high' })
+    await newer
+    first({ ...initial, model: 'first' })
+    await earlier
+    ;(api.createSession as Mock).mockResolvedValueOnce({ ...initial, id: 'n' })
+    await store().createSession('codex', '/p')
+    expect(api.createSession).toHaveBeenLastCalledWith('codex', '/p', { model: 'latest', effort: 'high' })
+  })
+
+  it('remembers the latest successful permission choice when responses finish out of order', async () => {
+    const initial: Session = { id: 'a', agent: 'codex', cwd: '/p', status: 'idle' }
+    useSessionStore.setState({ sessions: [initial] })
+    let first: (v: Session) => void = () => {}
+    let latest: (v: Session) => void = () => {}
+    ;(api.setPermissionMode as Mock)
+      .mockReturnValueOnce(new Promise((r) => (first = r)))
+      .mockReturnValueOnce(new Promise((r) => (latest = r)))
+    const earlier = store().setPermissionMode('a', 'full-access')
+    const newer = store().setPermissionMode('a', 'auto')
+    latest({ ...initial, permissionMode: 'auto' })
+    await newer
+    first({ ...initial, permissionMode: 'full-access' })
+    await earlier
+    ;(api.createSession as Mock).mockResolvedValueOnce({ ...initial, id: 'n' })
+    await store().createSession('codex', '/p')
+    expect(api.createSession).toHaveBeenLastCalledWith('codex', '/p', { model: '', effort: '', permissionMode: 'auto' })
+  })
+
+  it('orders model preferences across different sessions of the same agent', async () => {
+    const initial: Session = { id: 'a', agent: 'codex', cwd: '/p', status: 'idle' }
+    useSessionStore.setState({ sessions: [initial, { ...initial, id: 'b' }] })
+    let release: (v: Session) => void = () => {}
+    ;(api.setModel as Mock)
+      .mockReturnValueOnce(new Promise((r) => (release = r)))
+      .mockResolvedValueOnce({ ...initial, id: 'b', model: 'latest' })
+    const pending = store().setModel('a', { model: 'first', effort: '' })
+    await store().setModel('b', { model: 'latest', effort: '' })
+    release({ ...initial, model: 'first' })
+    await pending
+    expect(JSON.parse(localStorage.getItem('gc.lastModel')!)).toEqual({ codex: { model: 'latest', effort: '' } })
+  })
+
+  it('remembers an earlier successful choice if the newer request failed', async () => {
+    const initial: Session = { id: 'a', agent: 'codex', cwd: '/p', status: 'idle' }
+    useSessionStore.setState({ sessions: [initial] })
+    let release: (v: Session) => void = () => {}
+    ;(api.setModel as Mock)
+      .mockReturnValueOnce(new Promise((r) => (release = r)))
+      .mockRejectedValueOnce(new Error('unsupported model'))
+    const pending = store().setModel('a', { model: 'first', effort: '' })
+    await store().setModel('a', { model: 'bad', effort: '' })
+    release({ ...initial, model: 'first' })
+    await pending
+    expect(JSON.parse(localStorage.getItem('gc.lastModel')!)).toEqual({ codex: { model: 'first', effort: '' } })
+  })
+
   it.each([
     { name: 'rename', response: api.renameSession, run: () => store().renameSession('a', 'logs'), change: { title: 'logs' } },
     { name: 'model', response: api.setModel, run: () => store().setModel('a', { model: 'new', effort: '' }), change: { model: 'new' } },

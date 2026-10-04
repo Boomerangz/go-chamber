@@ -137,6 +137,9 @@ const requestLists = new LiveList<api.SessionRequest>((r) => r.id)
 const quotaLists = new LiveList<api.QuotaSnapshot>((q) => q.agent)
 let sessionRevision = 0
 const sessionRevisions = new Map<string, Partial<Record<keyof api.Session, number>>>()
+let preferenceRequest = 0
+const modelPreferenceRequests = new Map<api.AgentKind, number>()
+const modePreferenceRequests = new Map<api.AgentKind, number>()
 
 function recordSessionChanges(before: api.Session | undefined, updated: api.Session): void {
   const revisions = sessionRevisions.get(updated.id) ?? {}
@@ -215,10 +218,14 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
 
   async setModel(sessionId, choice) {
     const before = sessionRevision
+    const preference = ++preferenceRequest
     try {
       const updated = await api.setModel(sessionId, choice)
       set({ sessions: applySessionMutation(get().sessions, before, updated), error: null })
-      rememberModel(updated.agent, choice)
+      if (preference > (modelPreferenceRequests.get(updated.agent) ?? 0)) {
+        modelPreferenceRequests.set(updated.agent, preference)
+        rememberModel(updated.agent, choice)
+      }
     } catch (err) {
       set({ error: errorMessage(err) })
     }
@@ -316,10 +323,14 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
 
   async setPermissionMode(sessionId, mode) {
     const before = sessionRevision
+    const preference = ++preferenceRequest
     try {
       const updated = await api.setPermissionMode(sessionId, mode)
       set({ sessions: applySessionMutation(get().sessions, before, updated), error: null })
-      rememberMode(updated.agent, mode)
+      if (preference > (modePreferenceRequests.get(updated.agent) ?? 0)) {
+        modePreferenceRequests.set(updated.agent, preference)
+        rememberMode(updated.agent, mode)
+      }
     } catch (err) {
       set({ error: errorMessage(err) })
     }
@@ -582,6 +593,9 @@ function errorMessage(err: unknown): string {
 
 // resetStore restores the initial state; used by tests.
 export function resetStore(): void {
+  preferenceRequest++
+  modelPreferenceRequests.clear()
+  modePreferenceRequests.clear()
   sessionRevision++
   sessionRevisions.clear()
   sessionLists.reset()
