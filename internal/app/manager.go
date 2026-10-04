@@ -367,14 +367,12 @@ func (m *Manager) SetModel(ctx context.Context, id domain.SessionID, model, effo
 		return domain.SessionSnapshot{}, err
 	}
 	m.mu.Lock()
+	oldModel, oldEffort := s.Model()
 	err = s.SetModel(model, effort)
 	snap := s.Snapshot()
 	rt := m.runtimes[id]
 	m.mu.Unlock()
 	if err != nil {
-		return domain.SessionSnapshot{}, err
-	}
-	if err := m.cfg.Repo.Save(ctx, snap); err != nil {
 		return domain.SessionSnapshot{}, err
 	}
 	if rt != nil {
@@ -393,8 +391,20 @@ func (m *Manager) SetModel(ctx context.Context, id domain.SessionID, model, effo
 			snap = s.Snapshot()
 			m.mu.Unlock()
 		case err != nil:
+			m.mu.Lock()
+			_ = s.SetModel(oldModel, oldEffort)
+			m.mu.Unlock()
 			return domain.SessionSnapshot{}, err
 		}
+	}
+	if err := m.cfg.Repo.Save(ctx, snap); err != nil {
+		m.mu.Lock()
+		_ = s.SetModel(oldModel, oldEffort)
+		m.mu.Unlock()
+		if setter, ok := rt.(ModelSetter); ok {
+			_ = setter.SetModel(context.Background(), oldModel, oldEffort)
+		}
+		return domain.SessionSnapshot{}, err
 	}
 	m.cfg.Bus.Publish(domain.Event{SessionID: id, Type: domain.EventSessionState, Session: &snap})
 	return snap, nil
