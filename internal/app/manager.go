@@ -222,6 +222,18 @@ func (m *Manager) SendInput(ctx context.Context, id domain.SessionID, text strin
 	if err != nil {
 		return err
 	}
+	sent := false
+	defer func() {
+		if sent {
+			return
+		}
+		m.mu.Lock()
+		_ = s.TurnCompleted()
+		failed := s.Snapshot()
+		m.mu.Unlock()
+		_ = m.cfg.Repo.Save(context.Background(), failed)
+		m.cfg.Bus.Publish(domain.Event{SessionID: id, Type: domain.EventSessionState, Session: &failed})
+	}()
 	m.cfg.Bus.Publish(domain.Event{SessionID: id, Type: domain.EventTurnStarted, Session: &snap})
 	if err := m.recordUserItem(ctx, s, turn, text, images...); err != nil {
 		return err
@@ -240,15 +252,9 @@ func (m *Manager) SendInput(ctx context.Context, id domain.SessionID, text strin
 		}
 	}
 	if err := send(); err != nil {
-		// The agent never got the turn; don't leave the session running.
-		m.mu.Lock()
-		_ = s.TurnCompleted()
-		snap = s.Snapshot()
-		m.mu.Unlock()
-		_ = m.cfg.Repo.Save(ctx, snap)
-		m.cfg.Bus.Publish(domain.Event{SessionID: id, Type: domain.EventSessionState, Session: &snap})
 		return err
 	}
+	sent = true
 	return nil
 }
 
