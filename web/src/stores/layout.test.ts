@@ -18,6 +18,8 @@ describe('layout store', () => {
     store().setMode('terminal')
     expect(store().mode).toBe('terminal')
     expect(loadLayout()).toEqual({ mode: 'terminal', dock: null })
+    store().setMode('diagnostics')
+    expect(loadLayout()).toEqual({ mode: 'diagnostics', dock: null })
   })
 
   it('toggles a dock tab open, over to another tab and closed', () => {

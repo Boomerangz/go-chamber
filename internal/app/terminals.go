@@ -287,10 +287,12 @@ func (s *subscriber) close() { s.once.Do(func() { close(s.ch) }) }
 type runningTerminal struct {
 	pty PTY
 
-	mu     sync.Mutex
-	term   domain.Terminal
-	scroll *scrollback
-	subs   map[*subscriber]struct{}
+	mu            sync.Mutex
+	term          domain.Terminal
+	scroll        *scrollback
+	subs          map[*subscriber]struct{}
+	outputBytes   uint64
+	laggedClients uint64
 }
 
 func (rt *runningTerminal) snapshot() domain.Terminal {
@@ -331,11 +333,13 @@ func (rt *runningTerminal) pump() {
 func (rt *runningTerminal) publish(chunk []byte) {
 	rt.mu.Lock()
 	defer rt.mu.Unlock()
+	rt.outputBytes += uint64(len(chunk))
 	rt.scroll.Write(chunk)
 	for s := range rt.subs {
 		select {
 		case s.ch <- chunk:
 		default:
+			rt.laggedClients++
 			s.lagged = true
 			s.close()
 			delete(rt.subs, s)
@@ -367,4 +371,30 @@ func (rt *runningTerminal) attach() *TerminalAttachment {
 			return s.lagged
 		},
 	}
+}
+
+// TerminalDiagnostic contains counters only, never shell input or output.
+type TerminalDiagnostic struct {
+	ID            domain.TerminalID `json:"id"`
+	Clients       int               `json:"clients"`
+	QueuedChunks  int               `json:"queuedChunks"`
+	OutputBytes   uint64            `json:"outputBytes"`
+	LaggedClients uint64            `json:"laggedClients"`
+}
+
+func (t *Terminals) Diagnostics() []TerminalDiagnostic {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	reports := make([]TerminalDiagnostic, 0, len(t.terms))
+	for id, rt := range t.terms {
+		rt.mu.Lock()
+		report := TerminalDiagnostic{ID: id, Clients: len(rt.subs), OutputBytes: rt.outputBytes, LaggedClients: rt.laggedClients}
+		for sub := range rt.subs {
+			report.QueuedChunks += len(sub.ch)
+		}
+		rt.mu.Unlock()
+		reports = append(reports, report)
+	}
+	slices.SortFunc(reports, func(a, b TerminalDiagnostic) int { return compareIDs(a.ID, b.ID) })
+	return reports
 }

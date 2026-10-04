@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { recordAgentEvent, recordAgentBatch, markAgentUpdate } from '../lib/diagnostics'
 import * as api from '../lib/api'
 import { applyEvent, initialChat, type ChatState } from '../lib/events'
 import type { GroupMode } from '../lib/sessions'
@@ -123,6 +124,7 @@ let reconnectDelay = 1000
 // deltas are applied at most every DELTA_FLUSH_MS so fast streams don't
 // re-render the whole chat per token.
 let queued: api.SessionEvent[] = []
+let queuedAt: number | null = null
 let flushTimer: ReturnType<typeof setTimeout> | null = null
 const DELTA_FLUSH_MS = 100
 // lastSeqs is the last live seq seen per session, to spot events the hub
@@ -367,6 +369,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
   },
 
   applyIncoming(ev) {
+    recordAgentEvent()
     const prev = lastSeqs[ev.sessionId]
     lastSeqs[ev.sessionId] = Math.max(prev ?? 0, ev.seq)
     if (prev !== undefined && ev.seq > prev + 1) {
@@ -405,6 +408,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       void resync(get, set, id)
       return
     }
+    if (queued.length === 0) queuedAt = performance.now()
     queued.push(ev)
     if (ev.type !== 'text.delta') flush(get, set)
     else flushTimer ??= setTimeout(() => flush(get, set), DELTA_FLUSH_MS)
@@ -492,8 +496,11 @@ function flush(get: () => SessionStore, set: (partial: Partial<SessionStore>) =>
   }
   if (queued.length === 0) return
   let chat = get().chat
+  recordAgentBatch(performance.now() - (queuedAt ?? performance.now()), queued.length)
   for (const ev of queued) chat = applyEvent(chat, ev)
   queued = []
+  queuedAt = null
+  if (get().activeId) markAgentUpdate(get().activeId!)
   set({ chat })
 }
 
@@ -501,6 +508,7 @@ function dropQueued(): void {
   if (flushTimer) clearTimeout(flushTimer)
   flushTimer = null
   queued = []
+  queuedAt = null
 }
 
 function errorMessage(err: unknown): string {

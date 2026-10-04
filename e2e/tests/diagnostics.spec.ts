@@ -1,0 +1,32 @@
+import { expect, test } from '@playwright/test'
+import { token } from '../playwright.config'
+
+test('measures connections and exports a diagnostics report', async ({ page }, info) => {
+  await page.goto(`/diagnostics?token=${token}`)
+  await expect(page.getByRole('heading', { name: 'Diagnostics', exact: true })).toBeVisible()
+  await expect(page.getByRole('radio', { name: 'Diagnostics' })).toHaveAttribute('aria-checked', 'true')
+  const http = page.locator('.diagnostic-metric', { has: page.getByRole('heading', { name: 'HTTP round trip' }) })
+  const socket = page.locator('.diagnostic-metric', { has: page.getByRole('heading', { name: 'WebSocket round trip' }) })
+  await expect(http.locator('.diagnostic-value')).not.toContainText('—')
+  await expect(socket.locator('.diagnostic-value')).not.toContainText('—')
+  await expect(page.getByRole('region', { name: 'Server diagnostics' })).toContainText('Published events')
+  const downloadEvent = page.waitForEvent('download')
+  await page.getByRole('button', { name: 'Download report' }).click()
+  const download = await downloadEvent
+  expect(download.suggestedFilename()).toBe('go-chamber-diagnostics.json')
+  await download.saveAs(info.outputPath('diagnostics.json'))
+  await page.getByRole('button', { name: 'Pause probes' }).click()
+  await expect(page.getByRole('button', { name: 'Resume probes' })).toBeVisible()
+  await page.reload()
+  await expect(page.getByRole('heading', { name: 'Diagnostics', exact: true })).toBeVisible()
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+  expect(await page.evaluate(() => innerWidth)).toBe(page.viewportSize()!.width)
+  await page.screenshot({ path: info.outputPath('diagnostics.png'), fullPage: true })
+  await page.getByRole('radio', { name: 'Agents', exact: true }).click()
+  await expect(page.getByRole('heading', { name: 'Diagnostics', exact: true })).toHaveCount(0)
+  await page.goBack()
+  await expect(page.getByRole('heading', { name: 'Diagnostics', exact: true })).toBeVisible()
+  await page.goForward()
+  await expect(page.getByRole('radio', { name: 'Agents', exact: true })).toHaveAttribute('aria-checked', 'true')
+  await expect(page.getByRole('heading', { name: 'Diagnostics', exact: true })).toHaveCount(0)
+})

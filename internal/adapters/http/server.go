@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"path"
 	"strings"
+	"time"
 
 	"github.com/igorzygin/go-chamber/internal/adapters/hub"
 )
@@ -48,16 +49,18 @@ type Config struct {
 }
 
 type server struct {
-	cfg Config
-	mux *http.ServeMux
+	cfg     Config
+	mux     *http.ServeMux
+	started time.Time
 }
 
 func NewServer(cfg Config) http.Handler {
 	if cfg.Token == "" {
 		panic("httpapi: empty token")
 	}
-	s := &server{cfg: cfg, mux: http.NewServeMux()}
+	s := &server{cfg: cfg, mux: http.NewServeMux(), started: time.Now()}
 	s.routes()
+	s.diagnosticsRoutes()
 	s.completeRoutes()
 	s.imageRoutes()
 	s.worktreeRoutes()

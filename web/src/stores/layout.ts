@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 
 // Mode is the workspace: agent sessions, or terminals on their own.
-export type Mode = 'agents' | 'terminal'
+export type Mode = 'agents' | 'terminal' | 'diagnostics'
 
 // Dock is the side panel next to the chat; null when collapsed to its rail.
 export type Dock = 'requests' | 'terminal' | 'changes' | null
@@ -23,7 +23,7 @@ export function loadLayout(): Layout {
   try {
     const raw = JSON.parse(localStorage.getItem(KEY) ?? '{}') as Partial<Layout>
     return {
-      mode: raw.mode === 'terminal' ? 'terminal' : 'agents',
+      mode: raw.mode === 'terminal' || raw.mode === 'diagnostics' ? raw.mode : 'agents',
       dock: raw.dock === 'requests' || raw.dock === 'terminal' || raw.dock === 'changes' ? raw.dock : null,
     }
   } catch {

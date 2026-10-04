@@ -13,6 +13,8 @@ import {
   Workflow,
   Wrench,
 } from 'lucide-react'
+import DiagnosticsPage from './components/diagnostics/DiagnosticsPage'
+import { monitorBrowser, beginAgentView, endAgentView, recordAgentCommit } from './lib/diagnostics'
 import { icon } from './components/icon'
 import AccountPanel from './components/account/AccountPanel'
 import DiffPanel from './components/changes/DiffPanel'
@@ -80,6 +82,8 @@ export default function App() {
     }
   }, [health, loadSessions, loadRequests, loadQuotas, loadTerminals, connect])
 
+  useEffect(() => monitorBrowser(), [])
+
   useRouteSync(health === 'online')
 
   return (
@@ -110,6 +114,7 @@ export default function App() {
           </p>
         </section>
       )}
+      {health === 'online' && mode === 'diagnostics' && <DiagnosticsPage />}
       {health === 'online' && mode === 'terminal' && (
         <div className="layout term-layout">
           <TerminalWorkspace sessions={sessions} />
@@ -157,6 +162,7 @@ export default function App() {
 const modes: { id: Mode; label: string }[] = [
   { id: 'agents', label: 'Agents' },
   { id: 'terminal', label: 'Terminal' },
+  { id: 'diagnostics', label: 'Diagnostics' },
 ]
 
 // ModeSwitch flips between agent sessions and the terminal workspace.
@@ -386,6 +392,12 @@ function Chat() {
   const turns = turnNumbers(nodes)
   const unseen = useUnseen(session?.id, chat.order)
   const scrollRef = useStickToBottom(chat)
+  useLayoutEffect(() => {
+    if (!session?.id) return
+    beginAgentView(session.id)
+    return () => endAgentView(session.id)
+  }, [session?.id])
+  useLayoutEffect(() => { recordAgentCommit(session?.id) }, [chat, session?.id])
 
   const sending = useRef(false)
   const [submitting, setSubmitting] = useState(false)
@@ -736,7 +748,9 @@ function useRouteSync(online: boolean) {
     if (!online) return
     const apply = () => {
       const route = parseRoute(location.pathname)
-      if (route.kind === 'session') {
+      if (route.kind === 'diagnostics') {
+        useLayoutStore.getState().setMode('diagnostics')
+      } else if (route.kind === 'session') {
         useLayoutStore.getState().setMode('agents')
         if (useSessionStore.getState().activeId !== route.id) void useSessionStore.getState().selectSession(route.id)
       } else if (route.kind === 'terminal') {
@@ -746,19 +760,28 @@ function useRouteSync(online: boolean) {
     }
     const current = () =>
       routePath(useLayoutStore.getState().mode, useSessionStore.getState().activeId, useTerminalStore.getState().activeId)
-    // ponytail: with nothing open the URL keeps the last session or terminal,
-    // so Back never lands on an empty step; a reload then reopens that one.
+    let navigating = false
+    // Preserve session/terminal URLs when closing their views, but allow an
+    // empty workspace to leave diagnostics and return with browser Back.
     const follow = () => {
+      if (navigating) return
       const path = current()
-      if (path !== '/' && path !== location.pathname) history.pushState(null, '', path + location.search)
+      if ((path !== '/' || parseRoute(location.pathname).kind === 'diagnostics') && path !== location.pathname) history.pushState(null, '', path + location.search)
     }
     apply()
     if (current() !== '/' && current() !== location.pathname) history.replaceState(null, '', current() + location.search)
     const unsubscribe = [useLayoutStore.subscribe(follow), useSessionStore.subscribe(follow), useTerminalStore.subscribe(follow)]
-    window.addEventListener('popstate', apply)
+    const onPop = () => {
+      navigating = true
+      try {
+        if (location.pathname === '/') useLayoutStore.getState().setMode('agents')
+        else apply()
+      } finally { navigating = false }
+    }
+    window.addEventListener('popstate', onPop)
     return () => {
       unsubscribe.forEach((u) => u())
-      window.removeEventListener('popstate', apply)
+      window.removeEventListener('popstate', onPop)
     }
   }, [online])
 }

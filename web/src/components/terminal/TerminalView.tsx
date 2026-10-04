@@ -3,6 +3,7 @@ import { Unicode11Addon } from '@xterm/addon-unicode11'
 import { Terminal as XTerm } from '@xterm/xterm'
 import '@xterm/xterm/css/xterm.css'
 import { useEffect, useRef } from 'react'
+import { recordTerminalOutput, completeTerminalOutput, recordTerminalReconnect, forgetTerminal } from '../../lib/diagnostics'
 import { answerVersionQuery } from '../../lib/xtversion'
 import { connectTerminal, type TerminalConnection } from '../../lib/terminal'
 import { terminalTheme } from '../../lib/theme'
@@ -80,9 +81,14 @@ function liveFor(id: string, host: HTMLElement, callbacks: Callbacks): Live {
   let ready = false
   const live: Live = { el, xterm, fit, callbacks, conn: undefined as unknown as TerminalConnection, dispose: () => {} }
   live.conn = connectTerminal(id, {
-    onOutput: (data) => xterm.write(data),
+    onOutput: (data) => {
+      const start = performance.now()
+      recordTerminalOutput(id, data.byteLength)
+      xterm.write(data, () => completeTerminalOutput(id, data.byteLength, performance.now() - start))
+    },
     onReady: () => xterm.write('', () => (ready = true)),
     onReset: () => {
+      recordTerminalReconnect(id)
       ready = false
       xterm.reset()
     },
@@ -100,6 +106,7 @@ function liveFor(id: string, host: HTMLElement, callbacks: Callbacks): Live {
   })
   const version = answerVersionQuery(xterm, () => ready, (data) => live.conn.send(data))
   live.dispose = () => {
+    forgetTerminal(id)
     scheme.removeEventListener?.('change', onScheme)
     input.dispose()
     version.dispose()

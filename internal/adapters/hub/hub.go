@@ -21,6 +21,7 @@ const DefaultBufferSize = 2048
 // session.
 type Hub struct {
 	mu      sync.Mutex
+	timings timings
 	bufSize int
 	seq     map[domain.SessionID]domain.Seq
 	buf     map[domain.SessionID][]domain.Event
@@ -76,7 +77,12 @@ func (h *Hub) Publish(ev domain.Event) domain.Event {
 		req := *ev.Request
 		ev.Request = &req
 	}
+	waitStart := time.Now()
 	h.mu.Lock()
+	waited := time.Since(waitStart)
+	h.timings.published++
+	h.timings.waitTotal += waited
+	h.timings.waitMax = max(h.timings.waitMax, waited)
 	if h.log != nil && !h.loaded[ev.SessionID] {
 		last, err := h.log.LastSeq(context.Background(), ev.SessionID)
 		if err != nil {
@@ -102,7 +108,14 @@ func (h *Hub) Publish(ev domain.Event) domain.Event {
 	h.buf[ev.SessionID] = buf
 	if h.log != nil {
 		// Under the lock so events are stored in seq order.
-		if err := h.log.Append(context.Background(), ev); err != nil {
+		persistStart := time.Now()
+		err := h.log.Append(context.Background(), ev)
+		duration := time.Since(persistStart)
+		h.timings.calls++
+		h.timings.persistTotal += duration
+		h.timings.persistMax = max(h.timings.persistMax, duration)
+		if err != nil {
+			h.timings.errors++
 			h.lost[ev.SessionID] = true
 			h.fail(err)
 		}

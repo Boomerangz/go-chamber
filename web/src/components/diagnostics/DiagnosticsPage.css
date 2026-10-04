@@ -1,0 +1,25 @@
+.diagnostics-page { width: 100%; max-width: 1280px; margin: 0 auto; padding: var(--gutter); overflow: auto; min-height: 0; }
+.diagnostics-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; flex-wrap: wrap; }
+.diagnostics-header h2 { margin: 0; font: 22px var(--font-mono); }
+.diagnostics-header p, .diagnostics-note, .diagnostic-metric p { color: var(--ink-3); font-size: 12px; }
+.diagnostics-header p { max-width: 70ch; }
+.diagnostics-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.diagnostics-status { display: flex; gap: 12px 24px; flex-wrap: wrap; padding: 12px 0; border-block: 1px solid var(--rule); font-family: var(--font-mono); font-size: 12px; }
+.diagnostics-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin: 18px 0; }
+.diagnostic-metric, .diagnostics-server, .diagnostics-terminals { padding: 18px; }
+.diagnostics-page h3 { margin: 0 0 12px; font: 13px var(--font-mono); }
+.diagnostic-value { font: 28px var(--font-mono); letter-spacing: -1px; }
+.diagnostic-value span { font-size: 12px; letter-spacing: 0; color: var(--ink-3); }
+.diagnostics-page dl { margin: 12px 0; font-size: 12px; }
+.diagnostic-metric dl > div { display: flex; justify-content: space-between; gap: 12px; }
+.diagnostics-page dt { color: var(--ink-3); }
+.diagnostics-page dd { margin: 0; font-family: var(--font-mono); }
+.diagnostics-server { margin-bottom: 12px; }
+.diagnostics-server-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+.diagnostics-error { color: var(--bad); }
+.diagnostics-table-wrap { overflow-x: auto; }
+.diagnostics-page table { border-collapse: collapse; width: 100%; font-size: 12px; text-align: left; }
+.diagnostics-page th, .diagnostics-page td { padding: 10px 12px; border-bottom: 1px solid var(--rule); white-space: nowrap; }
+.diagnostics-page td { font-family: var(--font-mono); }
+@media (max-width: 900px) { .diagnostics-grid, .diagnostics-server-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 600px) { .diagnostics-page { padding: 12px; } .diagnostics-grid, .diagnostics-server-grid { grid-template-columns: minmax(0, 1fr); } .diagnostics-actions .btn { font-size: 11px; } }

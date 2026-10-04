@@ -22,6 +22,7 @@ vi.mock('../lib/api', () => ({
 
 import * as api from '../lib/api'
 import { resetStore, useSessionStore } from './session'
+import { diagnostics, resetDiagnostics, beginAgentView, endAgentView, recordAgentCommit } from '../lib/diagnostics'
 
 const store = () => useSessionStore.getState()
 
@@ -569,18 +570,27 @@ describe('audit fixes', () => {
   it('coalesces text deltas and flushes them before other events', async () => {
     vi.useFakeTimers()
     try {
+      resetDiagnostics()
+      beginAgentView('a')
+      vi.advanceTimersByTime(50)
       useSessionStore.setState({ activeId: 'a' })
       store().applyIncoming(event({ seq: 1, item: item({ id: 'i1', text: '' }) }))
       store().applyIncoming(event({ seq: 2, type: 'text.delta', item: undefined, delta: { itemId: 'i1', text: 'he' } }))
+      vi.advanceTimersByTime(25)
       store().applyIncoming(event({ seq: 3, type: 'text.delta', item: undefined, delta: { itemId: 'i1', text: 'llo' } }))
       expect(store().chat.items.i1!.text).toBe('')
-      await vi.advanceTimersByTimeAsync(100)
+      await vi.advanceTimersByTimeAsync(75)
       expect(store().chat.items.i1!.text).toBe('hello')
+      expect(diagnostics().metrics.agentBatch.last).toBe(100)
+      expect(diagnostics().agent).toEqual({ events: 3, batches: 2, batchSize: 2 })
+      recordAgentCommit('a')
+      expect(diagnostics().metrics.agentCommit.count).toBe(1)
       store().applyIncoming(event({ seq: 4, type: 'text.delta', item: undefined, delta: { itemId: 'i1', text: '!' } }))
       store().applyIncoming(event({ seq: 5, type: 'turn.ended', item: undefined }))
       expect(store().chat.items.i1!.text).toBe('hello!')
       expect(store().chat.lastSeq).toBe(5)
     } finally {
+      endAgentView('a')
       vi.useRealTimers()
     }
   })

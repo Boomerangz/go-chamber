@@ -1,0 +1,100 @@
+import { useState } from 'react'
+import { diagnostics, resetDiagnostics, type MetricKey } from '../../lib/diagnostics'
+import { useSessionStore } from '../../stores/session'
+import { useTerminalStore } from '../../stores/terminals'
+import { useDiagnostics } from './useDiagnostics'
+import './DiagnosticsPage.css'
+
+const metrics: { key: MetricKey; label: string; description: string }[] = [
+  { key: 'http', label: 'HTTP round trip', description: 'Request, server snapshot and response. Sampled every 2 seconds on this page.' },
+  { key: 'ws', label: 'WebSocket round trip', description: 'Echo on a separate connection to the same server. Includes network and scheduling.' },
+  { key: 'agentBatch', label: 'Agent batch wait', description: 'Time from the first queued event to applying its batch to the chat store.' },
+  { key: 'agentCommit', label: 'Chat update', description: 'Time from a live store update to React committing the mounted chat.' },
+  { key: 'terminalParse', label: 'Terminal processing', description: 'Received output to xterm’s write callback. Includes its parser queue, before screen painting.' },
+  { key: 'eventLoop', label: 'Browser scheduling delay', description: 'Delay beyond a 500 ms timer interval while this tab is visible.' },
+]
+const ms = (value: number | null | undefined) => value == null ? '—' : `${value.toFixed(1)} ms`
+const bytes = (value: number) => value >= 1048576 ? `${(value / 1048576).toFixed(1)} MiB` : `${(value / 1024).toFixed(1)} KiB`
+
+export default function DiagnosticsPage() {
+  const [enabled, setEnabled] = useState(true)
+  const { client, server, error, socketStatus } = useDiagnostics(enabled)
+  const connection = useSessionStore((s) => s.connection)
+  const terminalNames = useTerminalStore((s) => s.terminals)
+  const ids = [...new Set([...client.terminals.map((t) => t.id), ...(server?.terminals.map((t) => t.id) ?? [])])]
+  const download = () => {
+    const report = { generatedAt: new Date().toISOString(), client: diagnostics(), server }
+    const url = URL.createObjectURL(new Blob([JSON.stringify(report, null, 2)], { type: 'application/json' }))
+    const link = document.createElement('a')
+    link.href = url
+    link.download = 'go-chamber-diagnostics.json'
+    link.click()
+    setTimeout(() => URL.revokeObjectURL(url), 0)
+  }
+
+  return (
+    <section className="diagnostics-page" aria-label="Diagnostics">
+      <header className="diagnostics-header">
+        <div>
+          <h2>Diagnostics</h2>
+          <p>Delivery, browser responsiveness and terminal backlog. Counters contain no prompts or shell contents.</p>
+        </div>
+        <div className="diagnostics-actions">
+          <button className="btn" onClick={() => setEnabled((value) => !value)}>{enabled ? 'Pause probes' : 'Resume probes'}</button>
+          <button className="btn" onClick={resetDiagnostics}>Reset browser samples</button>
+          <button className="btn btn-primary" onClick={download}>Download report</button>
+        </div>
+      </header>
+      <div className="diagnostics-status">
+        <span>Agent stream: <strong>{connection}</strong></span>
+        <span>Echo connection: <strong>{enabled ? socketStatus : 'paused'}</strong></span>
+        <span>Browser events: <strong>{client.agent.events}</strong></span>
+        <span>Long tasks: <strong>{client.browser.longTaskSupport ? client.browser.longTasks : 'unsupported'}</strong></span>
+      </div>
+      {error && <p role="alert" className="diagnostics-error">{error}. The last successful server snapshot is shown below.</p>}
+      <p className="diagnostics-note">Use the agent or terminal, then return here to inspect samples. Percentiles cover the latest 120 samples in this browser tab. CLI startup and model response time are not collected yet.</p>
+      <div className="diagnostics-grid">
+        {metrics.map(({ key, label, description }) => {
+          const metric = client.metrics[key]
+          return (
+            <article className="panel diagnostic-metric" key={key}>
+              <h3>{label}</h3>
+              <div className="diagnostic-value">{ms(metric.p95)} <span>p95</span></div>
+              <dl><div><dt>Latest</dt><dd>{ms(metric.last)}</dd></div><div><dt>Median</dt><dd>{ms(metric.p50)}</dd></div><div><dt>Maximum</dt><dd>{ms(metric.max)}</dd></div><div><dt>Samples</dt><dd>{metric.samples} / {metric.count}</dd></div></dl>
+              <p>{metric.count ? description : `Waiting for samples. ${description}`}</p>
+            </article>
+          )
+        })}
+      </div>
+      <section className="panel diagnostics-server" aria-label="Server diagnostics">
+        <h3>Server since startup</h3>
+        {server ? (
+          <dl className="diagnostics-server-grid">
+            <div><dt>Uptime</dt><dd>{Math.floor(server.uptimeSeconds / 60)} min</dd></div>
+            <div><dt>Go heap</dt><dd>{bytes(server.heapBytes)}</dd></div>
+            <div><dt>Goroutines</dt><dd>{server.goroutines}</dd></div>
+            <div><dt>Published events</dt><dd>{server.events.published}</dd></div>
+            <div><dt>Event persistence · mean / max</dt><dd>{ms(server.events.persistMeanMs)} / {ms(server.events.persistMaxMs)}</dd></div>
+            <div><dt>Hub lock wait · mean / max</dt><dd>{ms(server.events.lockWaitMeanMs)} / {ms(server.events.lockWaitMaxMs)}</dd></div>
+            <div><dt>Persistence calls / errors</dt><dd>{server.events.persistCalls} / {server.events.persistErrors}</dd></div>
+          </dl>
+        ) : <p>Waiting for the server snapshot.</p>}
+        <p className="diagnostics-note">Persistence measures event-log append calls. Server counters are cumulative; browser reset does not reset them.</p>
+      </section>
+      <section className="panel diagnostics-terminals" aria-label="Terminal diagnostics">
+        <h3>Terminal queues</h3>
+        {ids.length ? (
+          <div className="diagnostics-table-wrap"><table>
+            <thead><tr><th>Terminal</th><th>Browser pending</th><th>Browser peak</th><th>Reconnects</th><th>Server queued chunks</th><th>Lag disconnects</th><th>Clients</th></tr></thead>
+            <tbody>{ids.map((id) => {
+              const local = client.terminals.find((t) => t.id === id)
+              const remote = server?.terminals.find((t) => t.id === id)
+              return <tr key={id}><th>{terminalNames.find((t) => t.id === id)?.title ?? id}</th><td>{local ? bytes(local.pendingBytes) : '—'}</td><td>{local ? bytes(local.peakPendingBytes) : '—'}</td><td>{local?.reconnects ?? '—'}</td><td>{remote?.queuedChunks ?? '—'}</td><td>{remote?.laggedClients ?? '—'}</td><td>{remote?.clients ?? '—'}</td></tr>
+            })}</tbody>
+          </table></div>
+        ) : <p>Open a terminal to collect output and queue measurements.</p>}
+        <p className="diagnostics-note">Browser pending bytes await xterm processing. Server queued chunks await WebSocket delivery, summed across attached clients.</p>
+      </section>
+    </section>
+  )
+}

@@ -1,10 +1,11 @@
 import { render } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { connectTerminal } from '../../lib/terminal'
+import { diagnostics, resetDiagnostics } from '../../lib/diagnostics'
 import { resetTerminals, useTerminalStore } from '../../stores/terminals'
 import TerminalView from './TerminalView'
 
-const xterms: { dispose: ReturnType<typeof vi.fn>; open: ReturnType<typeof vi.fn> }[] = []
+const xterms: { dispose: ReturnType<typeof vi.fn>; open: ReturnType<typeof vi.fn>; write: ReturnType<typeof vi.fn> }[] = []
 vi.mock('@xterm/xterm', () => ({
   Terminal: vi.fn(function (this: Record<string, unknown>) {
     const t = {
@@ -39,6 +40,7 @@ describe('TerminalView', () => {
     xterms.length = 0
     vi.mocked(connectTerminal).mockClear()
     resetTerminals()
+    resetDiagnostics()
     useTerminalStore.setState({ terminals: [shell('t1')] })
   })
   afterEach(() => {
@@ -61,5 +63,20 @@ describe('TerminalView', () => {
     useTerminalStore.setState({ terminals: [] })
     expect(conn.close).toHaveBeenCalled()
     expect(xterms[0].dispose).toHaveBeenCalled()
+  })
+
+  it('accounts for output until xterm acknowledges processing', () => {
+    render(<TerminalView id="t1" {...props} />)
+    const callbacks = vi.mocked(connectTerminal).mock.calls[0][1]
+    callbacks.onOutput(new Uint8Array([1, 2, 3]))
+    expect(diagnostics().terminals[0]?.pendingBytes).toBe(3)
+    const acknowledge = xterms[0].write.mock.calls.at(-1)![1] as () => void
+    acknowledge()
+    expect(diagnostics().terminals[0]?.pendingBytes).toBe(0)
+    expect(diagnostics().metrics.terminalParse.count).toBe(1)
+    callbacks.onReset?.()
+    expect(diagnostics().terminals[0]?.reconnects).toBe(1)
+    useTerminalStore.setState({ terminals: [] })
+    expect(diagnostics().terminals).toHaveLength(0)
   })
 })
