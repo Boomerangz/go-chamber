@@ -3,6 +3,11 @@ import fs from 'node:fs'
 import os from 'node:os'
 import { token } from '../playwright.config'
 
+// Transport upgrades have their own scenarios in terminal-rtc.spec.ts.
+test.beforeEach(async ({ page }) => {
+  await page.addInitScript(() => Object.defineProperty(window, 'RTCPeerConnection', { value: undefined }))
+})
+
 // A real shell (SHELL=/bin/sh from the webServer command) in a pty.
 test('independent terminal: run a command, survive reload, exit, close', async ({ page }) => {
   const dir = fs.realpathSync(fs.mkdtempSync(`${os.tmpdir()}/gc-term-`))
@@ -24,8 +29,10 @@ test('independent terminal: run a command, survive reload, exit, close', async (
   // A device-attributes query in the scrollback. The live answer
   // (ESC[?1;2c) is consumed by read; replaying the query after reload must
   // not type a second answer into the shell.
-  await page.keyboard.type("printf '\\033[c'; read -rs -t 2 -d c; echo query-sent\n")
-  await expect(screen.locator('.xterm-rows')).toContainText('query-sent')
+  // Compute the marker so the echoed command cannot satisfy the wait while
+  // read is still consuming the terminal's device-attributes response.
+  await page.keyboard.type("printf '\\033[c'; read -rs -t 2 -d c; echo query-$((40+2))\n")
+  await expect(screen.locator('.xterm-rows')).toContainText('query-42')
   await page.keyboard.type('echo before-$((1+1))\n')
   await expect(screen.locator('.xterm-rows')).toContainText('before-2')
   await expect(screen.locator('.xterm-rows')).not.toContainText('1;2c')
