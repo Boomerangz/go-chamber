@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { RefreshCw } from 'lucide-react'
 import * as api from '../../lib/api'
 import { useSessionStore } from '../../stores/session'
@@ -15,6 +15,15 @@ export default function DiffPanel({ sessionId }: { sessionId: string | null }) {
   const [error, setError] = useState<string | null>(null)
   const [open, setOpen] = useState<string | null>(null)
   const [diff, setDiff] = useState<string | null>(null)
+  const diffRequest = useRef(0)
+  useEffect(() => {
+    diffRequest.current++
+    setChanges(null)
+    setOpen(null)
+    setDiff(null)
+    setError(null)
+    return () => { diffRequest.current++ }
+  }, [sessionId])
   const status = session?.status
   const [tick, setTick] = useState(0)
 
@@ -38,12 +47,15 @@ export default function DiffPanel({ sessionId }: { sessionId: string | null }) {
 
   const show = async (path: string) => {
     if (!sessionId) return
+    const request = ++diffRequest.current
     setOpen(path)
     setDiff(null)
+    setError(null)
     try {
-      setDiff((await api.getFileDiff(sessionId, path)).diff)
+      const result = await api.getFileDiff(sessionId, path)
+      if (request === diffRequest.current) setDiff(result.diff)
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err))
+      if (request === diffRequest.current) setError(err instanceof Error ? err.message : String(err))
     }
   }
 

@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import DiffPanel from './DiffPanel'
@@ -91,3 +91,18 @@ describe('DiffPanel', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('boom')
   })
 })
+
+it('late diff must not replace the selected file',async()=>{
+ vi.mocked(api.getChanges).mockResolvedValue({repository:true,files:[{path:'a.go',status:'M'},{path:'b.go',status:'M'}]})
+ let finishA!:(v:{diff:string})=>void
+ let finishB!:(v:{diff:string})=>void
+ vi.mocked(api.getFileDiff).mockImplementation((_s,p)=>new Promise(r=>{if(p==='a.go')finishA=r;else finishB=r}))
+ render(<DiffPanel sessionId="s1" />)
+ fireEvent.click(await screen.findByRole('button',{name:/a.go/}))
+ fireEvent.click(screen.getByRole('button',{name:/b.go/}))
+ await act(async()=>finishB({diff:'+B'}))
+ expect(screen.getByText('+B')).toBeInTheDocument()
+ await act(async()=>finishA({diff:'+A'}))
+ expect(screen.getByText('+B')).toBeInTheDocument()
+},20000)
+
