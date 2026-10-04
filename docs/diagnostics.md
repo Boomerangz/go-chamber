@@ -32,6 +32,16 @@ point to work in the browser. Lag disconnects indicate clients falling behind
 server output. Measurements are observational and do not execute extra agent
 requests or terminal commands.
 
+The WebRTC attempt column retains the last negotiation stage and failure category,
+including an HTTP status when signaling fails. Reports also include elapsed time,
+ICE/connection states, numeric ICE error codes and counts of local and remote
+`host`, `srflx` and `relay` candidates. No addresses or error text are exported.
+A `gathering` timeout means the browser never reached offer signaling; a
+`connecting` failure means an answer was obtained but the channel did not open.
+Only host candidates may work on a shared LAN but often cannot cross NAT.
+Reload the page to start a fresh attempt after changing the network or ICE config.
+Reset browser samples preserves the last attempt so the fallback reason is not lost.
+
 ## Direct terminal connections
 
 Terminals open immediately through WebSocket and attempt an encrypted, reliable,

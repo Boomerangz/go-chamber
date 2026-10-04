@@ -4,7 +4,19 @@ const keys: MetricKey[] = ['http', 'ws', 'rtc', 'agentBatch', 'agentCommit', 'te
 const limit = 120
 interface Samples { values: number[]; count: number }
 export interface MetricSummary { count: number; samples: number; last: number | null; p50: number | null; p95: number | null; max: number | null }
-interface TerminalMetrics { id: string; receivedBytes: number; pendingBytes: number; peakPendingBytes: number; reconnects: number; transport?: 'websocket' | 'webrtc'; route?: 'direct' | 'relay' | 'unknown'; protocol?: string; rtcRTTMs?: number }
+export interface RTCAttempt {
+ stage: 'config' | 'offer' | 'gathering' | 'signaling' | 'answer' | 'connecting' | 'open'
+ elapsedMs: number
+ error?: 'http' | 'setup' | 'timeout' | 'connection' | 'channel' | 'echo' | 'send' | 'backpressure'
+ httpStatus?: number
+ gatheringState?: RTCIceGatheringState
+ connectionState?: RTCPeerConnectionState
+ iceState?: RTCIceConnectionState
+ localCandidates: { host: number; srflx: number; relay: number }
+ remoteCandidates: { host: number; srflx: number; relay: number }
+ iceErrorCodes: number[]
+}
+interface TerminalMetrics { id: string; receivedBytes: number; pendingBytes: number; peakPendingBytes: number; reconnects: number; transport?: 'websocket' | 'webrtc'; route?: 'direct' | 'relay' | 'unknown'; protocol?: string; rtcRTTMs?: number; rtcAttempt?: RTCAttempt }
 let samples = freshSamples()
 let agent = { events: 0, batches: 0, batchSize: 0 }
 let terminals = new Map<string, TerminalMetrics>()
@@ -102,6 +114,7 @@ export function recordTerminalTransport(id: string, transport: 'websocket' | 'we
  const value = terminal(id)
  value.transport = transport; value.route = route; value.protocol = protocol
 }
+export function recordRTCAttempt(id: string, attempt: RTCAttempt) { terminal(id).rtcAttempt = attempt }
 export function recordTerminalRTT(id: string, ms: number) {
  const value = terminals.get(id)
  if (value) value.rtcRTTMs = ms

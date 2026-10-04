@@ -1,4 +1,4 @@
-import { recordTerminalRTT } from './diagnostics'
+import { recordTerminalRTT, recordRTCAttempt, type RTCAttempt } from './diagnostics'
 
 export type RTCRoute = 'direct' | 'relay' | 'unknown'
 interface RTCHandlers {
@@ -19,6 +19,23 @@ export function connectRTC(id: string, handlers: RTCHandlers): RTCConnection {
  let pending: { token: string; at: number } | null = null
  let sequence = 0
  const controller = new AbortController()
+ const startedAt = performance.now()
+ let stage: RTCAttempt['stage'] = 'config'
+ let httpStatus: number | undefined
+ let remoteSDP: string | undefined
+ const iceErrorCodes = new Set<number>()
+ const candidates = (sdp?: string) => {
+  const counts = { host: 0, srflx: 0, relay: 0 }
+  for (const match of (sdp ?? '').matchAll(/^a=candidate:.*? typ (host|srflx|relay)(?: |\r?$)/gm)) counts[match[1] as keyof typeof counts]++
+  return counts
+ }
+ const report = (error?: RTCAttempt['error']) => recordRTCAttempt(id, {
+  stage, error, httpStatus, elapsedMs: performance.now() - startedAt,
+  gatheringState: peer?.iceGatheringState, connectionState: peer?.connectionState, iceState: peer?.iceConnectionState,
+  localCandidates: candidates(peer?.localDescription?.sdp), remoteCandidates: candidates(remoteSDP), iceErrorCodes: [...iceErrorCodes],
+ })
+ const advance = (next: RTCAttempt['stage']) => { stage = next; report() }
+ report()
  const close = () => {
   if (stopped) return
   stopped = true
@@ -28,19 +45,19 @@ export function connectRTC(id: string, handlers: RTCHandlers): RTCConnection {
   channel?.close()
   peer?.close()
  }
- const fail = () => { if (!stopped) { close(); handlers.onClose() } }
- const deadline = setTimeout(fail, 12000)
+ const fail = (error: RTCAttempt['error'] = 'setup') => { if (!stopped) { report(error); close(); handlers.onClose() } }
+ const deadline = setTimeout(() => fail('timeout'), 12000)
  const request = async (path: string, init?: RequestInit) => {
   const response = await fetch(path, { credentials: 'same-origin', cache: 'no-store', ...init, signal: controller.signal })
-  if (!response.ok) throw new Error('RTC signaling failed')
+  if (!response.ok) { httpStatus = response.status; fail('http'); throw new Error('RTC signaling failed') }
   return response.json()
  }
  const probe = async () => {
   if (stopped || !peer || !channel || channel.readyState !== 'open') return
-  if (pending && performance.now() - pending.at > 6000) { fail(); return }
+  if (pending && performance.now() - pending.at > 6000) { fail('echo'); return }
   if (!pending) {
    pending = { token: String(++sequence), at: performance.now() }
-   try { channel.send(JSON.stringify({ type: 'ping', token: pending.token })) } catch { fail(); return }
+   try { channel.send(JSON.stringify({ type: 'ping', token: pending.token })) } catch { fail('send'); return }
   }
   try {
    const stats = await peer.getStats()
@@ -63,9 +80,12 @@ export function connectRTC(id: string, handlers: RTCHandlers): RTCConnection {
   peer = new RTCPeerConnection(config)
   channel = peer.createDataChannel('terminal', { ordered: true })
   channel.binaryType = 'arraybuffer'
+  peer.onicecandidateerror = (event) => { if (!stopped) { iceErrorCodes.add(event.errorCode); report() } }
+  peer.oniceconnectionstatechange = () => { if (!stopped) report() }
   channel.onopen = () => {
    if (stopped) return
    clearTimeout(deadline)
+   advance('open')
    handlers.onOpen()
    timer = setInterval(() => { void probe() }, 2000)
    void probe()
@@ -83,13 +103,15 @@ export function connectRTC(id: string, handlers: RTCHandlers): RTCConnection {
    }
    handlers.onMessage(event.data)
   }
-  channel.onclose = fail
-  channel.onerror = fail
-  peer.onconnectionstatechange = () => { if (peer?.connectionState === 'failed' || peer?.connectionState === 'disconnected') fail() }
+  channel.onclose = () => fail('channel')
+  channel.onerror = () => fail('channel')
+  peer.onconnectionstatechange = () => { if (stopped) return; if (peer?.connectionState === 'failed' || peer?.connectionState === 'disconnected') fail('connection'); else report() }
+  advance('offer')
   const offer = await peer.createOffer()
   if (stopped) return
   await peer.setLocalDescription(offer)
   if (stopped) return
+  advance('gathering')
   if (peer.iceGatheringState !== 'complete') await new Promise<void>((resolve, reject) => {
    const abort = () => reject(new Error('RTC canceled'))
    controller.signal.addEventListener('abort', abort, { once: true })
@@ -99,18 +121,23 @@ export function connectRTC(id: string, handlers: RTCHandlers): RTCConnection {
    if (controller.signal.aborted) abort()
   })
   if (stopped) return
+  advance('signaling')
   const answer = await request(`/api/terminals/${encodeURIComponent(id)}/rtc`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(peer.localDescription) }) as RTCSessionDescriptionInit
-  if (!stopped) await peer.setRemoteDescription(answer)
+  if (stopped) return
+  remoteSDP = answer.sdp
+  advance('answer')
+  await peer.setRemoteDescription(answer)
+  if (!stopped) advance('connecting')
  }
- void negotiate().catch(fail)
+ void negotiate().catch(() => fail('setup'))
  return {
   send(data) {
    if (stopped || channel?.readyState !== 'open') return
-   if (channel.bufferedAmount > 1 << 20) { fail(); return }
+   if (channel.bufferedAmount > 1 << 20) { fail('backpressure'); return }
    try {
     if (typeof data === 'string') channel.send(data)
     else for (let offset = 0; offset < data.byteLength; offset += 16 << 10) channel.send(data.subarray(offset, offset + (16 << 10)) as Uint8Array<ArrayBuffer>)
-   } catch { fail() }
+   } catch { fail('send') }
   },
   close,
  }
