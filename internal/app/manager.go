@@ -51,6 +51,7 @@ type Manager struct {
 	cfg ManagerConfig
 
 	mu       sync.Mutex
+	quotaMu  sync.Mutex
 	sessions map[domain.SessionID]*domain.Session
 	runtimes map[domain.SessionID]AgentRuntime
 	pending  map[domain.SessionID]map[domain.RequestID]*domain.Request
@@ -310,10 +311,7 @@ func (m *Manager) RefreshQuota(ctx context.Context, agent domain.AgentKind) (dom
 	if err != nil {
 		return domain.QuotaSnapshot{}, err
 	}
-	if m.cfg.Quotas != nil {
-		_ = m.cfg.Quotas.SaveQuota(ctx, q)
-	}
-	return q, nil
+	return *m.cacheQuota(ctx, q), nil
 }
 
 // StopTask stops a background subagent task on the session's runtime.
@@ -594,10 +592,6 @@ func (m *Manager) consume(s *domain.Session, rt AgentRuntime) {
 			continue
 		}
 		ev.SessionID = s.ID()
-		if ev.Type == domain.EventQuota {
-			ev.Quota = m.mergeQuota(*ev.Quota)
-		}
-
 		// Record request/session state before publishing, so a client that
 		// reacts to the event immediately can answer without racing us.
 		m.mu.Lock()
@@ -615,6 +609,7 @@ func (m *Manager) consume(s *domain.Session, rt AgentRuntime) {
 				open[ev.Item.ID] = *ev.Item
 			}
 		case domain.EventQuota:
+			ev.Quota = m.cacheQuota(context.Background(), *ev.Quota)
 			quotaStop = ev.Quota.Reached && s.QuotaExhausted(ev.Quota.ResetsAt()) == nil
 		case domain.EventTurnEnded:
 			if ev.Result != nil && ev.Result.InterruptionReason != "" {
@@ -645,10 +640,6 @@ func (m *Manager) consume(s *domain.Session, rt AgentRuntime) {
 			m.armIdle(s, rt)
 		case domain.EventSubagentSpawned:
 			m.spawnSubagent(s, ev.Subagent)
-		case domain.EventQuota:
-			if m.cfg.Quotas != nil {
-				_ = m.cfg.Quotas.SaveQuota(context.Background(), *ev.Quota)
-			}
 		}
 	}
 	m.detach(s, rt, open)
@@ -689,15 +680,16 @@ func (m *Manager) retireIdle(s *domain.Session, rt AgentRuntime, timer *idleTime
 	m.cfg.Bus.Publish(domain.Event{SessionID: s.ID(), Type: domain.EventSessionState, Session: &snap})
 }
 
-// mergeQuota folds a partial quota report into the cached snapshot, so a
-// report on one window doesn't erase the others.
-// ponytail: read-merge-write without a lock; concurrent reports for one
-// agent may drop a window until its next report.
-func (m *Manager) mergeQuota(q domain.QuotaSnapshot) *domain.QuotaSnapshot {
+// cacheQuota serializes read-merge-save across runtime reports and refreshes,
+// so a partial report cannot erase another window.
+func (m *Manager) cacheQuota(ctx context.Context, q domain.QuotaSnapshot) *domain.QuotaSnapshot {
+	m.quotaMu.Lock()
+	defer m.quotaMu.Unlock()
 	if m.cfg.Quotas != nil {
-		if prev, ok, err := m.cfg.Quotas.GetQuota(context.Background(), q.Agent); err == nil && ok {
+		if prev, ok, err := m.cfg.Quotas.GetQuota(ctx, q.Agent); err == nil && ok {
 			q = prev.Merge(q)
 		}
+		_ = m.cfg.Quotas.SaveQuota(ctx, q)
 	}
 	return &q
 }
