@@ -43,3 +43,16 @@ func TestCodexFullAccessRunsWithoutAsking(t *testing.T) {
 		t.Fatalf("request %+v, result %q", req, res)
 	}
 }
+
+func TestCodexPermissionModeReset(t *testing.T) {
+	rt := startCodex(t, app.StartRequest{PermissionMode: "full-access"})
+	if got := askMode(t, rt); got != "mode: never dangerFullAccess" {
+		t.Fatal(got)
+	}
+	if err := rt.SetPermissionMode(context.Background(), ""); err != nil {
+		t.Fatal(err)
+	}
+	if got := askMode(t, rt); got != "mode: on-request workspaceWrite" {
+		t.Fatal(got)
+	}
+}

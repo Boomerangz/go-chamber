@@ -144,7 +144,7 @@ func main() {
 			threadID := nextID("thread")
 			setReviewer(threadID, m.Params)
 			setModel(threadID, m.Params)
-			respond(m.ID, map[string]any{"thread": map[string]any{
+			respond(m.ID, map[string]any{"approvalPolicy": "on-request", "sandbox": map[string]any{"type": "workspaceWrite"}, "thread": map[string]any{
 				"id": threadID, "cwd": p.Cwd, "model": p.Model, "turns": []any{},
 			}})
 		case "thread/resume":

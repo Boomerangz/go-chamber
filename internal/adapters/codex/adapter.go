@@ -616,6 +616,7 @@ func (s *Server) startThread(ctx context.Context, req app.StartRequest) (*Runtim
 
 	rt := s.newRuntime(thread.ID, NewMapper(req.SessionID))
 	rt.reviewer, rt.effort, rt.mode = req.ApprovalReviewer, req.Effort, req.PermissionMode
+	rt.cwd = req.Cwd
 	for _, ev := range rt.mapThread(thread) {
 		rt.emit(ev)
 	}
@@ -718,8 +719,8 @@ type Runtime struct {
 	closed    bool
 	closeOnce sync.Once
 
-	// mode is the permission preset applied to each turn; empty keeps the
-	// thread's own policy.
+	// mode is the permission preset applied to each turn; empty restores config.
+	cwd  string
 	mode string
 }
 
@@ -860,8 +861,16 @@ func (r *Runtime) startTurn(ctx context.Context, input []map[string]any) error {
 	if r.effort != "" {
 		params["effort"] = r.effort
 	}
-	addPermissionMode(params, r.mode)
+	mode := r.mode
+	addPermissionMode(params, mode)
 	r.mu.Unlock()
+	if mode == "" {
+		approval, sandbox, err := r.configuredPermissions(ctx)
+		if err != nil {
+			return err
+		}
+		params["approvalPolicy"], params["sandboxPolicy"] = approval, sandbox
+	}
 	res, err := r.current().client.Call(ctx, "turn/start", params)
 	if err != nil {
 		return fmt.Errorf("codex: turn/start: %w", err)
