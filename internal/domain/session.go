@@ -278,6 +278,16 @@ func (s *Session) TurnCompleted() error {
 	return nil
 }
 
+// TurnInterrupted records an aborted turn while keeping its runtime attached.
+func (s *Session) TurnInterrupted(reason ExitReason) error {
+	if s.status != StatusRunning {
+		return fmt.Errorf("%w: interrupt turn in %s", ErrInvalidTransition, s.status)
+	}
+	s.status = StatusInterrupted
+	s.interruption = Interruption{Reason: reason}
+	return nil
+}
+
 // QuotaExhausted marks the running turn as stopped by a subscription limit.
 func (s *Session) QuotaExhausted(resetsAt time.Time) error {
 	if s.status != StatusRunning {

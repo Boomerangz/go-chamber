@@ -607,7 +607,11 @@ func (m *Manager) consume(s *domain.Session, rt AgentRuntime) {
 		case domain.EventQuota:
 			quotaStop = ev.Quota.Reached && s.QuotaExhausted(ev.Quota.ResetsAt()) == nil
 		case domain.EventTurnEnded:
-			_ = s.TurnCompleted()
+			if ev.Result != nil && ev.Result.InterruptionReason != "" {
+				_ = s.TurnInterrupted(ev.Result.InterruptionReason)
+			} else {
+				_ = s.TurnCompleted()
+			}
 		case domain.EventRequestOpened:
 			if m.pending[s.ID()] == nil {
 				m.pending[s.ID()] = map[domain.RequestID]*domain.Request{}

@@ -46,13 +46,14 @@ type SubagentSpawn struct {
 
 // TurnResult summarizes a finished turn.
 type TurnResult struct {
-	Text              string  `json:"text,omitempty"`
-	IsError           bool    `json:"isError,omitempty"`
-	Error             string  `json:"error,omitempty"`
-	CostUSD           float64 `json:"costUsd,omitempty"`
-	InputTokens       int64   `json:"inputTokens,omitempty"`
-	OutputTokens      int64   `json:"outputTokens,omitempty"`
-	PermissionDenials int     `json:"permissionDenials,omitempty"`
+	InterruptionReason ExitReason `json:"interruptionReason,omitempty"`
+	Text               string     `json:"text,omitempty"`
+	IsError            bool       `json:"isError,omitempty"`
+	Error              string     `json:"error,omitempty"`
+	CostUSD            float64    `json:"costUsd,omitempty"`
+	InputTokens        int64      `json:"inputTokens,omitempty"`
+	OutputTokens       int64      `json:"outputTokens,omitempty"`
+	PermissionDenials  int        `json:"permissionDenials,omitempty"`
 }
 
 // Valid checks the event envelope and its payload.
