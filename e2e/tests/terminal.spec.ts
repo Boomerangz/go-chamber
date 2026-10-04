@@ -8,6 +8,28 @@ test.beforeEach(async ({ page }) => {
   await page.addInitScript(() => Object.defineProperty(window, 'RTCPeerConnection', { value: undefined }))
 })
 
+test('WebSocket terminal renders large output and replays it after reload', async ({ page }) => {
+  const dir = fs.realpathSync(fs.mkdtempSync(`${os.tmpdir()}/gc-term-compression-`))
+  fs.writeFileSync(`${dir}/output.txt`, '\x1b[32mrepeated terminal output\x1b[0m\r\n'.repeat(2000) + 'COMPRESSED-HISTORY-END\r\n')
+  await page.goto(`/?token=${token}`)
+  await page.getByRole('radio', { name: /^Terminal/ }).click()
+  const panel = page.getByRole('region', { name: 'Terminals' })
+  await panel.getByLabel('terminal directory').fill(dir)
+  await panel.getByRole('button', { name: 'New terminal' }).click()
+  await panel.getByTestId('terminal-view').click()
+  await page.keyboard.insertText('cat output.txt')
+  await page.keyboard.press('Enter')
+  await expect(panel.getByTestId('terminal-view').locator('.xterm-rows')).toContainText('COMPRESSED-HISTORY-END')
+  await page.reload()
+  await panel.getByRole('tab', { name: new RegExp(dir.split('/').pop()!) }).click()
+  await expect(panel.getByTestId('terminal-view').locator('.xterm-rows')).toContainText('COMPRESSED-HISTORY-END')
+  await panel.getByTestId('terminal-view').click()
+  await page.keyboard.insertText('echo LIVE-$((20+22))')
+  await page.keyboard.press('Enter')
+  await expect(panel.getByTestId('terminal-view').locator('.xterm-rows')).toContainText('LIVE-42')
+  await panel.getByRole('button', { name: `Close terminal ${dir.split('/').pop()}` }).click()
+})
+
 // A real shell (SHELL=/bin/sh from the webServer command) in a pty.
 test('independent terminal: run a command, survive reload, exit, close', async ({ page }) => {
   const dir = fs.realpathSync(fs.mkdtempSync(`${os.tmpdir()}/gc-term-`))

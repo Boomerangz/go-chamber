@@ -81,7 +81,9 @@ func (s *server) terminalPTY(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer att.Detach()
-	c, err := acceptSameOrigin(w, r)
+	// Compress output of at least 512 bytes when supported by the client. Each
+	// message uses its own dictionary; small echoes and controls stay plain.
+	c, err := acceptSameOriginCompression(w, r, websocket.CompressionNoContextTakeover)
 	if err != nil {
 		return
 	}

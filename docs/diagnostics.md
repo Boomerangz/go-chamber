@@ -46,6 +46,15 @@ Reset browser samples preserves the last attempt so the fallback reason is not l
 
 ## Direct terminal connections
 
+The terminal WebSocket negotiates `permessage-deflate` without context takeover.
+Output messages of at least 512 bytes, including scrollback, are compressed when the
+browser supports it. Small server messages remain uncompressed; keyboard input
+is sent immediately and browser-side compression is controlled by the browser.
+Clients without compression support keep the same binary protocol. Browser
+received-byte counters measure decompressed terminal bytes, not network traffic.
+Compression reduces transfer volume during large output, but does not remove
+network round-trip latency for individual keystrokes.
+
 Terminals open immediately through WebSocket and attempt an encrypted, reliable,
 ordered WebRTC DataChannel. HTTPS carries authenticated offer/answer signaling;
 terminal bytes then use the selected ICE path. A direct connection bypasses

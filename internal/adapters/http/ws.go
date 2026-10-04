@@ -41,11 +41,18 @@ func (s *server) websocket(w http.ResponseWriter, r *http.Request) {
 // ours (see sameOrigin) rather than the library's so proxies that rewrite
 // Host keep working.
 func acceptSameOrigin(w http.ResponseWriter, r *http.Request) (*websocket.Conn, error) {
+	return acceptSameOriginCompression(w, r, websocket.CompressionDisabled)
+}
+
+func acceptSameOriginCompression(w http.ResponseWriter, r *http.Request, compression websocket.CompressionMode) (*websocket.Conn, error) {
 	if !sameOrigin(r) {
 		http.Error(w, "forbidden: cross-origin request", http.StatusForbidden)
 		return nil, errCrossOrigin
 	}
-	return websocket.Accept(w, r, &websocket.AcceptOptions{InsecureSkipVerify: true})
+	return websocket.Accept(w, r, &websocket.AcceptOptions{
+		InsecureSkipVerify: true,
+		CompressionMode:    compression,
+	})
 }
 
 var errCrossOrigin = errors.New("cross-origin websocket")
