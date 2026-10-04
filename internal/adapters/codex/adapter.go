@@ -796,7 +796,7 @@ func (r *Runtime) interrupted(stale []domain.RequestID) {
 	if turn != "" {
 		r.emit(domain.Event{SessionID: session, Type: domain.EventTurnEnded, Result: &domain.TurnResult{
 			IsError: true, Error: "codex app-server restarted; the turn was interrupted",
-			InterruptionReason: domain.ExitServerRestart,
+			InterruptionReason: domain.ExitCrashed,
 		}})
 	}
 }
