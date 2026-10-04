@@ -259,7 +259,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
 
   async steer(text) {
     const id = get().activeId
-    if (!id || !text.trim()) return false false
+    if (!id || !text.trim()) return false
     try {
       await api.steer(id, text)
       set({ error: null })
