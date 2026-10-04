@@ -128,6 +128,9 @@ it('waits for gathered candidates and cancels a peer disposed during gathering',
  conn.close()
  expect(peer.close).toHaveBeenCalledOnce()
  expect(onClose).not.toHaveBeenCalled()
+ expect(vi.getTimerCount()).toBe(0)
+ await vi.advanceTimersByTimeAsync(4000)
+ expect(fetch).toHaveBeenCalledTimes(1)
 })
 
 it('signals only after candidate gathering completes and encodes the terminal id', async () => {
@@ -135,11 +138,16 @@ it('signals only after candidate gathering completes and encodes the terminal id
  const conn = connectRTC('t/1', { onOpen: vi.fn(), onMessage: vi.fn(), onClose: vi.fn(), onRoute: vi.fn() })
  await vi.advanceTimersByTimeAsync(0)
  const peer = Peer.instances[0]
+ peer.onicegatheringstatechange?.()
+ await vi.advanceTimersByTimeAsync(0)
+ expect(fetch).toHaveBeenCalledTimes(1)
  peer.iceGatheringState = 'complete'; peer.onicegatheringstatechange?.()
  await vi.advanceTimersByTimeAsync(0)
  expect(fetch).toHaveBeenCalledWith('/api/terminals/t%2F1/rtc', expect.objectContaining({ method: 'POST', body: JSON.stringify(peer.localDescription) }))
  expect(peer.setRemoteDescription).toHaveBeenCalledOnce()
+ expect(vi.getTimerCount()).toBe(1)
  conn.close()
+ expect(vi.getTimerCount()).toBe(0)
 })
 
 it('expires an unanswered echo without depending on ICE statistics support', async () => {
@@ -217,17 +225,17 @@ it('retains the failing signaling stage and HTTP status without response secrets
  expect(JSON.stringify(diagnostics())).not.toContain('private credentials')
 })
 
-it('distinguishes gathering timeout from connectivity failure and exports candidate types only', async () => {
+it('retains connectivity timeout and exports candidate types only', async () => {
  Peer.gathering = true
  connectRTC('failure-gather', { onOpen: vi.fn(), onMessage: vi.fn(), onClose: vi.fn(), onRoute: vi.fn() })
  await vi.advanceTimersByTimeAsync(0)
  Peer.instances[0].localDescription.sdp = 'a=candidate:1 1 udp 123 192.0.2.1 4000 typ host\r\na=candidate:2 1 udp 123 198.51.100.1 5000 typ srflx raddr 192.0.2.1 rport 4000\r\n'
  await vi.advanceTimersByTimeAsync(12000)
  expect(diagnostics().terminals.find(t => t.id === 'failure-gather')).toMatchObject({
-  rtcAttempt: { stage: 'gathering', error: 'timeout', gatheringState: 'gathering', localCandidates: { host: 1, srflx: 1, relay: 0 }, remoteCandidates: { host: 0, srflx: 0, relay: 0 } },
+  rtcAttempt: { stage: 'connecting', error: 'timeout', gatheringState: 'gathering', localCandidates: { host: 1, srflx: 1, relay: 0 }, remoteCandidates: { host: 0, srflx: 0, relay: 0 } },
  })
  expect(JSON.stringify(diagnostics())).not.toContain('192.0.2.1')
- expect(fetch).toHaveBeenCalledTimes(1)
+ expect(fetch).toHaveBeenCalledTimes(2)
 })
 
 it('keeps remote candidate counts and ICE error codes after connectivity failure', async () => {
@@ -328,4 +336,23 @@ it('preserves an echo timeout as a transport failure', async () => {
  channel.readyState = 'open'; channel.onopen?.()
  await vi.advanceTimersByTimeAsync(8000)
  expect(diagnostics().terminals.find(t => t.id === 'echo')?.rtcAttempt).toMatchObject({ stage: 'open', error: 'echo' })
+})
+it('signals available candidates when browser gathering outlasts its budget', async () => {
+ Peer.gathering = true
+ const onOpen = vi.fn(), onClose = vi.fn()
+ const conn = connectRTC('slow-gather', { onOpen, onMessage: vi.fn(), onClose, onRoute: vi.fn() })
+ await vi.advanceTimersByTimeAsync(0)
+ const peer = Peer.instances[0]
+ peer.localDescription.sdp = 'a=candidate:1 1 udp 123 198.51.100.1 5000 typ srflx\r\n'
+ await vi.advanceTimersByTimeAsync(3999)
+ expect(fetch).toHaveBeenCalledTimes(1)
+ await vi.advanceTimersByTimeAsync(1)
+ expect(peer.iceGatheringState).toBe('gathering')
+ expect(fetch).toHaveBeenCalledWith('/api/terminals/slow-gather/rtc', expect.objectContaining({ method: 'POST', body: JSON.stringify(peer.localDescription) }))
+ expect(peer.setRemoteDescription).toHaveBeenCalledOnce()
+ expect(onClose).not.toHaveBeenCalled()
+ peer.channel.readyState = 'open'; peer.channel.onopen?.()
+ expect(onOpen).toHaveBeenCalledOnce()
+ conn.close()
+ expect(vi.getTimerCount()).toBe(0)
 })

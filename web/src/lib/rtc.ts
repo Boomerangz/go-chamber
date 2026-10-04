@@ -112,13 +112,19 @@ export function connectRTC(id: string, handlers: RTCHandlers): RTCConnection {
   await peer.setLocalDescription(offer)
   if (stopped) return
   advance('gathering')
-  if (peer.iceGatheringState !== 'complete') await new Promise<void>((resolve, reject) => {
-   const abort = () => reject(new Error('RTC canceled'))
-   controller.signal.addEventListener('abort', abort, { once: true })
-   peer!.onicegatheringstatechange = () => {
-    if (peer!.iceGatheringState === 'complete') { controller.signal.removeEventListener('abort', abort); resolve() }
+  if (peer.iceGatheringState !== 'complete') await new Promise<void>((resolve) => {
+   // Some interfaces/STUN requests keep gathering pending after usable
+   // candidates arrive. Reserve time for answer signaling and the handshake.
+   const finish = () => {
+    clearTimeout(gatherDeadline)
+    controller.signal.removeEventListener('abort', finish)
+    peer!.onicegatheringstatechange = null
+    resolve()
    }
-   if (controller.signal.aborted) abort()
+   const gatherDeadline = setTimeout(finish, 4000)
+   controller.signal.addEventListener('abort', finish)
+   peer!.onicegatheringstatechange = () => { if (peer!.iceGatheringState === 'complete') finish() }
+   if (controller.signal.aborted) finish()
   })
   if (stopped) return
   advance('signaling')

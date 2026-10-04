@@ -36,6 +36,8 @@ The WebRTC attempt column retains the last negotiation stage and failure categor
 including an HTTP status when signaling fails. Reports also include elapsed time,
 ICE/connection states, numeric ICE error codes and counts of local and remote
 `host`, `srflx` and `relay` candidates. No addresses or error text are exported.
+Browser gathering has a four-second budget: signaling then sends the candidates
+already available rather than waiting indefinitely for every interface/STUN request.
 A `gathering` timeout means the browser never reached offer signaling; a
 `connecting` failure means an answer was obtained but the channel did not open.
 Only host candidates may work on a shared LAN but often cannot cross NAT.
