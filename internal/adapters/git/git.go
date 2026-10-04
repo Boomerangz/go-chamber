@@ -62,7 +62,7 @@ func (r Repo) Changes(ctx context.Context, dir, base string) ([]app.FileChange, 
 		return nil, err
 	}
 	dir = root
-	base, err := resolve(ctx, dir, base)
+	base, err = resolve(ctx, dir, base)
 	if err != nil {
 		return nil, err
 	}
@@ -91,7 +91,7 @@ func (r Repo) FileDiff(ctx context.Context, dir, base, path string) (string, err
 		return "", err
 	}
 	dir = root
-	base, err := resolve(ctx, dir, base)
+	base, err = resolve(ctx, dir, base)
 	if err != nil {
 		return "", err
 	}
