@@ -387,18 +387,27 @@ function Chat() {
   const unseen = useUnseen(session?.id, chat.order)
   const scrollRef = useStickToBottom(chat)
 
-  const submit = () => {
+  const sending = useRef(false)
+  const [submitting, setSubmitting] = useState(false)
+  const submit = async () => {
+    if (sending.current) return
     const value = text.trim()
     const images = attachments.ids
-    // Steering takes text only; attached images wait for the next turn.
+    const id = session?.id
     if (!value && (running || images.length === 0)) return
-    if (running) {
-      void steer(value)
-    } else {
-      void send(value, images)
-      attachments.clear()
+    sending.current = true
+    setSubmitting(true)
+    try {
+      const accepted = running ? await steer(value) : await send(value, images)
+      if (!accepted) return
+      if (!running) images.forEach(attachments.remove)
+      if (useSessionStore.getState().activeId === id) {
+        setText((current) => current === text ? '' : current)
+      }
+    } finally {
+      sending.current = false
+      setSubmitting(false)
     }
-    setText('')
   }
 
   return (
@@ -480,7 +489,7 @@ function Chat() {
         {...attachments.dropProps}
         onSubmit={(e) => {
           e.preventDefault()
-          submit()
+          void submit()
         }}
       >
         <ComposerInput
@@ -498,7 +507,7 @@ function Chat() {
               Stop
             </button>
           )}
-          <button type="submit" className="btn btn-primary">
+          <button type="submit" className="btn btn-primary" disabled={submitting}>
             {running ? 'Steer' : 'Send'}
           </button>
         </div>
