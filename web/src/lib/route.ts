@@ -6,8 +6,12 @@ export function parseRoute(pathname: string): Route {
   if (/^\/diagnostics\/?$/.test(pathname)) return { kind: 'diagnostics' }
   const m = /^\/([st])\/([^/]+)\/?$/.exec(pathname)
   if (!m) return { kind: 'none' }
-  const id = decodeURIComponent(m[2])
-  return m[1] === 's' ? { kind: 'session', id } : { kind: 'terminal', id }
+  try {
+    const id = decodeURIComponent(m[2])
+    return m[1] === 's' ? { kind: 'session', id } : { kind: 'terminal', id }
+  } catch {
+    return { kind: 'none' }
+  }
 }
 
 export function routePath(mode: 'agents' | 'terminal' | 'diagnostics', sessionId: string | null, terminalId: string | null): string {

@@ -2,6 +2,10 @@ import { describe, expect, it } from 'vitest'
 import { parseRoute, routePath } from './route'
 
 describe('route', () => {
+  it.each(['/s/%', '/t/%E0%A4', '/s/%GG'])('ignores malformed encoded route %s', (path) => {
+    expect(parseRoute(path)).toEqual({ kind: 'none' })
+  })
+
   it('parses session and terminal paths', () => {
     expect(parseRoute('/s/abc')).toEqual({ kind: 'session', id: 'abc' })
     expect(parseRoute('/t/t%201/')).toEqual({ kind: 'terminal', id: 't 1' })
