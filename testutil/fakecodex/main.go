@@ -499,8 +499,16 @@ func historyThread() map[string]any {
 }
 
 func nextID(prefix string) string {
-	seq++
-	return prefix + "-" + strconv.Itoa(seq)
+	for {
+		seq++
+		id := prefix + "-" + strconv.Itoa(seq)
+		if prefix == "thread" {
+			if _, exists := models[id]; exists {
+				continue
+			}
+		}
+		return id
+	}
 }
 
 func idKey(id json.RawMessage) string {
