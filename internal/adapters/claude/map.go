@@ -28,7 +28,10 @@ type Mapper struct {
 	session domain.SessionID
 	turn    domain.TurnID
 
-	next int
+	// Each runtime gets its own namespace, so replaying a session after a
+	// restart never replaces items produced by its previous process.
+	itemPrefix string
+	next       int
 	// currentMessage is the streaming message id per parent_tool_use_id, so
 	// a subagent's stream does not take over the parent's.
 	currentMessage map[string]string
@@ -48,6 +51,7 @@ type Mapper struct {
 func NewMapper(session domain.SessionID) *Mapper {
 	return &Mapper{
 		session:         session,
+		itemPrefix:      newSessionID(),
 		currentMessage:  map[string]string{},
 		assistantBlocks: map[string]int{},
 		background:      map[domain.ItemID]bool{},
@@ -198,7 +202,7 @@ func (m *Mapper) create(kind domain.ItemKind, parentToolID string) *domain.Item 
 		parent = m.byTool[parentToolID]
 	}
 	m.next++
-	item, _ := domain.NewItem(domain.ItemID(fmt.Sprintf("it-%d", m.next)), m.session, m.turn, parent, kind)
+	item, _ := domain.NewItem(domain.ItemID(fmt.Sprintf("it-%s-%d", m.itemPrefix, m.next)), m.session, m.turn, parent, kind)
 	m.items[item.ID] = item
 	return item
 }

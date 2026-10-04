@@ -149,7 +149,7 @@ func (h *History) Transcript(ctx context.Context, nativeID string, session domai
 		turns int
 	)
 	keep := func(it domain.Item) {
-		// A later runtime's mapper numbers its items from it-1 again.
+		// Keep imported items in a separate namespace from live runtime output.
 		it.ID = "h-" + it.ID
 		if it.ParentItemID != "" {
 			it.ParentItemID = "h-" + it.ParentItemID

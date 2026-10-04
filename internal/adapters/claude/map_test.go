@@ -23,6 +23,27 @@ func feed(t *testing.T, m *Mapper, lines ...string) []domain.Event {
 	return out
 }
 
+func TestItemIDsSurviveRuntimeRestart(t *testing.T) {
+	seen := map[domain.ItemID]bool{}
+	for _, message := range []string{"before", "after"} {
+		mapper := NewMapper("same-session")
+		mapper.SetTurn(domain.TurnID(message))
+		events := feed(t, mapper, `{"type":"assistant","message":{"id":"`+message+`","content":[{"type":"text","text":"answer"},{"type":"tool_use","id":"tool","name":"Bash","input":{"command":"pwd"}}]}}`)
+		for _, ev := range events {
+			if ev.Item == nil {
+				continue
+			}
+			if seen[ev.Item.ID] {
+				t.Fatalf("restarted runtime reused item ID %q", ev.Item.ID)
+			}
+			seen[ev.Item.ID] = true
+		}
+	}
+	if len(seen) != 4 {
+		t.Fatalf("items = %d, want both answers and commands", len(seen))
+	}
+}
+
 func TestMapStreamedText(t *testing.T) {
 	m := NewMapper("s1")
 	m.SetTurn("t1")

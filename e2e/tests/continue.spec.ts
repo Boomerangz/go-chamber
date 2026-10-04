@@ -40,3 +40,20 @@ test('forks a session and keeps talking on the branch', async ({ page }, info) =
   if (await bar.isVisible()) await bar.getByRole('button', { name: /^Sessions/ }).click()
   await expect(page.locator('.session', { hasText: `${text} (fork)` }).locator('.session-fork')).toBeVisible()
 })
+
+test('keeps Claude answers after restarting its runtime', async ({ page }) => {
+  await newSession(page)
+  await page.getByLabel('message').fill('before runtime restart')
+  await page.getByRole('button', { name: 'Send' }).click()
+  await expect(page.getByText('echo: before runtime restart')).toBeVisible()
+  await expect(page.locator('.chat-meta .status', { hasText: 'idle' })).toBeVisible()
+
+  await page.getByLabel('permission mode').selectOption('bypassPermissions')
+  await page.getByLabel('message').fill('after runtime restart')
+  await page.getByRole('button', { name: 'Send' }).click()
+  await expect(page.getByText('echo: after runtime restart')).toBeVisible()
+  await expect(page.getByText('echo: before runtime restart')).toBeVisible()
+  await page.reload()
+  await expect(page.getByText('echo: before runtime restart')).toBeVisible()
+  await expect(page.getByText('echo: after runtime restart')).toBeVisible()
+})
