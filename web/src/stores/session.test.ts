@@ -18,6 +18,8 @@ vi.mock('../lib/api', () => ({
   searchMessages: vi.fn(),
   listModels: vi.fn(),
   setModel: vi.fn(),
+  setPermissionMode: vi.fn(),
+  setAutoContinue: vi.fn(),
 }))
 
 import * as api from '../lib/api'
@@ -43,6 +45,50 @@ beforeEach(() => {
 })
 
 describe('session store', () => {
+  it.each([
+    { name: 'rename', response: api.renameSession, run: () => store().renameSession('a', 'logs'), change: { title: 'logs' } },
+    { name: 'model', response: api.setModel, run: () => store().setModel('a', { model: 'new', effort: '' }), change: { model: 'new' } },
+    { name: 'permission mode', response: api.setPermissionMode, run: () => store().setPermissionMode('a', 'plan'), change: { permissionMode: 'plan' } },
+    { name: 'reviewer', response: api.setApprovalReviewer, run: () => store().setApprovalReviewer('a', 'auto_review'), change: { approvalReviewer: 'auto_review' } },
+    { name: 'auto continue', response: api.setAutoContinue, run: () => store().setAutoContinue('a', true), change: { autoContinue: true } },
+  ])('keeps live status updates before a delayed $name response', async ({ response, run, change }) => {
+    const initial: Session = { id: 'a', agent: 'codex', cwd: '/p', status: 'running' }
+    useSessionStore.setState({ sessions: [initial] })
+    let release: (v: Session) => void = () => {}
+    ;(response as Mock).mockReturnValueOnce(new Promise((r) => (release = r)))
+    const pending = run()
+    store().applyIncoming(event({ type: 'session.state', session: { ...initial, status: 'idle' } }))
+    release({ ...initial, ...change } as Session)
+    await pending
+    expect(store().sessions[0]).toMatchObject({ status: 'idle', ...change })
+  })
+
+  it('does not restore a model cleared by a live event before a rename response', async () => {
+    const initial: Session = { id: 'a', agent: 'codex', cwd: '/p', status: 'running', model: 'old' }
+    useSessionStore.setState({ sessions: [initial] })
+    let release: (v: Session) => void = () => {}
+    ;(api.renameSession as Mock).mockReturnValueOnce(new Promise((r) => (release = r)))
+    const pending = store().renameSession('a', 'logs')
+    store().applyIncoming(event({ type: 'session.state', session: { id: 'a', agent: 'codex', cwd: '/p', status: 'idle' } }))
+    release({ ...initial, title: 'logs' })
+    await pending
+    expect(store().sessions[0]).toMatchObject({ status: 'idle', title: 'logs' })
+    expect(store().sessions[0]).not.toHaveProperty('model')
+  })
+
+  it('keeps a newer model change back to the original value before an older response', async () => {
+    const initial: Session = { id: 'a', agent: 'codex', cwd: '/p', status: 'idle', model: 'original' }
+    useSessionStore.setState({ sessions: [initial] })
+    let release: (v: Session) => void = () => {}
+    ;(api.setModel as Mock).mockReturnValueOnce(new Promise((r) => (release = r)))
+    const pending = store().setModel('a', { model: 'first', effort: '' })
+    store().applyIncoming(event({ type: 'session.state', session: { ...initial, model: 'first' } }))
+    store().applyIncoming(event({ seq: 2, type: 'session.state', session: initial }))
+    release({ ...initial, model: 'first' })
+    await pending
+    expect(store().sessions[0]!.model).toBe('original')
+  })
+
   it('does not duplicate a created session already received in the session list', async () => {
     let release: (v: Session) => void = () => {}
     const created: Session = { id: 'n', agent: 'codex', cwd: '/p', status: 'detached' }

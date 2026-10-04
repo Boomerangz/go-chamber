@@ -135,14 +135,43 @@ let lastSeqs: Record<string, number> = {}
 const sessionLists = new LiveList<api.Session>((s) => s.id)
 const requestLists = new LiveList<api.SessionRequest>((r) => r.id)
 const quotaLists = new LiveList<api.QuotaSnapshot>((q) => q.agent)
+let sessionRevision = 0
+const sessionRevisions = new Map<string, Partial<Record<keyof api.Session, number>>>()
+
+function recordSessionChanges(before: api.Session | undefined, updated: api.Session): void {
+  const revisions = sessionRevisions.get(updated.id) ?? {}
+  const keys = Object.keys({ ...before, ...updated }) as (keyof api.Session)[]
+  for (const key of keys) {
+    if (before?.[key] !== updated[key]) revisions[key] = ++sessionRevision
+  }
+  sessionRevisions.set(updated.id, revisions)
+}
 
 // replaceSession swaps in the server's copy: Go omits empty fields, so
 // merging would keep values the server has cleared.
 function replaceSession(sessions: api.Session[], updated: api.Session): api.Session[] {
+  recordSessionChanges(sessions.find((s) => s.id === updated.id), updated)
   sessionLists.update(updated.id, updated)
   return sessions.some((s) => s.id === updated.id)
     ? sessions.map((s) => (s.id === updated.id ? updated : s))
     : [...sessions, updated]
+}
+
+// A mutation response changes its requested fields, but must retain fields
+// updated live since that request began (including fields cleared by Go).
+function applySessionMutation(sessions: api.Session[], before: number, updated: api.Session): api.Session[] {
+  const current = sessions.find((s) => s.id === updated.id)
+  const revisions = sessionRevisions.get(updated.id)
+  if (current && revisions) {
+    updated = { ...updated }
+    const keys = Object.keys(revisions) as (keyof api.Session)[]
+    for (const key of keys) {
+      if ((revisions[key] ?? 0) <= before) continue
+      if (key in current) Object.assign(updated, { [key]: current[key] })
+      else Reflect.deleteProperty(updated, key)
+    }
+  }
+  return replaceSession(sessions, updated)
 }
 
 export const useSessionStore = create<SessionStore>((set, get) => ({
@@ -185,9 +214,10 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
   },
 
   async setModel(sessionId, choice) {
+    const before = sessionRevision
     try {
       const updated = await api.setModel(sessionId, choice)
-      set({ sessions: replaceSession(get().sessions, updated), error: null })
+      set({ sessions: applySessionMutation(get().sessions, before, updated), error: null })
       rememberModel(updated.agent, choice)
     } catch (err) {
       set({ error: errorMessage(err) })
@@ -211,7 +241,10 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
   async loadSessions() {
     try {
       const sessions = await sessionLists.load(api.listSessions)
-      if (sessions) set({ sessions, error: null })
+      if (sessions) {
+        for (const session of sessions) recordSessionChanges(get().sessions.find((s) => s.id === session.id), session)
+        set({ sessions, error: null })
+      }
     } catch (err) {
       set({ error: errorMessage(err) })
     }
@@ -282,9 +315,10 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
   },
 
   async setPermissionMode(sessionId, mode) {
+    const before = sessionRevision
     try {
       const updated = await api.setPermissionMode(sessionId, mode)
-      set({ sessions: replaceSession(get().sessions, updated), error: null })
+      set({ sessions: applySessionMutation(get().sessions, before, updated), error: null })
       rememberMode(updated.agent, mode)
     } catch (err) {
       set({ error: errorMessage(err) })
@@ -292,18 +326,20 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
   },
 
   async renameSession(sessionId, title) {
+    const before = sessionRevision
     try {
       const updated = await api.renameSession(sessionId, title)
-      set({ sessions: replaceSession(get().sessions, updated), error: null })
+      set({ sessions: applySessionMutation(get().sessions, before, updated), error: null })
     } catch (err) {
       set({ error: errorMessage(err) })
     }
   },
 
   async setApprovalReviewer(sessionId, reviewer) {
+    const before = sessionRevision
     try {
       const updated = await api.setApprovalReviewer(sessionId, reviewer)
-      set({ sessions: replaceSession(get().sessions, updated), error: null })
+      set({ sessions: applySessionMutation(get().sessions, before, updated), error: null })
     } catch (err) {
       set({ error: errorMessage(err) })
     }
@@ -340,9 +376,10 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
   },
 
   async setAutoContinue(sessionId, on) {
+    const before = sessionRevision
     try {
       const updated = await api.setAutoContinue(sessionId, on)
-      set({ sessions: replaceSession(get().sessions, updated), error: null })
+      set({ sessions: applySessionMutation(get().sessions, before, updated), error: null })
     } catch (err) {
       set({ error: errorMessage(err) })
     }
@@ -545,6 +582,8 @@ function errorMessage(err: unknown): string {
 
 // resetStore restores the initial state; used by tests.
 export function resetStore(): void {
+  sessionRevision++
+  sessionRevisions.clear()
   sessionLists.reset()
   requestLists.reset()
   quotaLists.reset()
