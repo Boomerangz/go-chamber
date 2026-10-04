@@ -3,6 +3,7 @@ import { recordAgentEvent, recordAgentBatch, markAgentUpdate } from '../lib/diag
 import * as api from '../lib/api'
 import { applyEvent, initialChat, type ChatState } from '../lib/events'
 import type { GroupMode } from '../lib/sessions'
+import { LiveList } from '../lib/live-list'
 
 export type Connection = 'connecting' | 'online' | 'offline'
 
@@ -131,10 +132,14 @@ const DELTA_FLUSH_MS = 100
 // lastSeqs is the last live seq seen per session, to spot events the hub
 // dropped for sessions other than the open one.
 let lastSeqs: Record<string, number> = {}
+const sessionLists = new LiveList<api.Session>((s) => s.id)
+const requestLists = new LiveList<api.SessionRequest>((r) => r.id)
+const quotaLists = new LiveList<api.QuotaSnapshot>((q) => q.agent)
 
 // replaceSession swaps in the server's copy: Go omits empty fields, so
 // merging would keep values the server has cleared.
 function replaceSession(sessions: api.Session[], updated: api.Session): api.Session[] {
+  sessionLists.update(updated.id, updated)
   return sessions.some((s) => s.id === updated.id)
     ? sessions.map((s) => (s.id === updated.id ? updated : s))
     : [...sessions, updated]
@@ -205,7 +210,8 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
 
   async loadSessions() {
     try {
-      set({ sessions: await api.listSessions(), error: null })
+      const sessions = await sessionLists.load(api.listSessions)
+      if (sessions) set({ sessions, error: null })
     } catch (err) {
       set({ error: errorMessage(err) })
     }
@@ -213,7 +219,8 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
 
   async loadRequests() {
     try {
-      set({ pendingRequests: await api.listRequests(), error: null })
+      const pendingRequests = await requestLists.load(api.listRequests)
+      if (pendingRequests) set({ pendingRequests, error: null })
     } catch (err) {
       set({ error: errorMessage(err) })
     }
@@ -221,7 +228,8 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
 
   async loadQuotas() {
     try {
-      set({ quotas: await api.getQuotas(), error: null })
+      const quotas = await quotaLists.load(api.getQuotas)
+      if (quotas) set({ quotas, error: null })
     } catch (err) {
       set({ error: errorMessage(err) })
     }
@@ -232,6 +240,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       const created = branch
         ? await api.createWorktreeSession(agent, cwd, branch, startChoice(agent))
         : await api.createSession(agent, cwd, startChoice(agent))
+      sessionLists.update(created.id, created)
       set({ sessions: [...get().sessions, created], error: null })
       await get().selectSession(created.id)
     } catch (err) {
@@ -381,6 +390,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     }
     if (ev.session) set({ sessions: replaceSession(get().sessions, ev.session) })
     if (ev.type === 'quota' && ev.quota) {
+      quotaLists.update(ev.quota.agent, ev.quota)
       const quotas = get().quotas
       const known = quotas.some((q) => q.agent === ev.quota!.agent)
       set({
@@ -390,10 +400,12 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       })
     }
     if (ev.type === 'request.opened' && ev.request) {
+      requestLists.update(ev.request.id, ev.request)
       const rest = get().pendingRequests.filter((r) => r.id !== ev.request!.id)
       set({ pendingRequests: [...rest, ev.request] })
     }
     if (ev.type === 'request.resolved' && ev.request) {
+      requestLists.update(ev.request.id, null)
       set({ pendingRequests: get().pendingRequests.filter((r) => r.id !== ev.request!.id) })
     }
     const id = get().activeId
@@ -534,6 +546,9 @@ function errorMessage(err: unknown): string {
 
 // resetStore restores the initial state; used by tests.
 export function resetStore(): void {
+  sessionLists.reset()
+  requestLists.reset()
+  quotaLists.reset()
   if (socket) {
     socket.onclose = null
     socket.close()

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi, type Mock } from 'vitest'
-import type { Item, SessionEvent } from '../lib/api'
+import type { Item, SessionEvent, Session, SessionRequest, QuotaSnapshot } from '../lib/api'
 
 vi.mock('../lib/api', () => ({
   listSessions: vi.fn(),
@@ -43,6 +43,84 @@ beforeEach(() => {
 })
 
 describe('session store', () => {
+  it('overlays a live session update on an older list response and keeps unseen sessions', async () => {
+    let release: (v: Session[]) => void = () => {}
+    ;(api.listSessions as Mock).mockReturnValueOnce(new Promise((r) => (release = r)))
+    const pending = store().loadSessions()
+    const updated: Session = { id: 'a', agent: 'codex', cwd: '/p', status: 'idle' }
+    store().applyIncoming(event({ type: 'session.state', session: updated }))
+    release([{ ...updated, status: 'running' }, { ...updated, id: 'b' }])
+    await pending
+    expect(store().sessions).toEqual([updated, { ...updated, id: 'b' }])
+  })
+
+  it('does not resurrect a resolved request from an older list response', async () => {
+    let release: (v: SessionRequest[]) => void = () => {}
+    ;(api.listRequests as Mock).mockReturnValueOnce(new Promise((r) => (release = r)))
+    const pending = store().loadRequests()
+    const request: SessionRequest = { id: 'r1', sessionId: 'a', kind: 'permission', state: 'pending' }
+    store().applyIncoming(event({ type: 'request.resolved', request: { ...request, state: 'resolved' } }))
+    release([request, { ...request, id: 'r2' }])
+    await pending
+    expect(store().pendingRequests.map((r) => r.id)).toEqual(['r2'])
+  })
+
+  it('keeps a live quota when an older HTTP quota snapshot arrives', async () => {
+    let release: (v: QuotaSnapshot[]) => void = () => {}
+    ;(api.getQuotas as Mock).mockReturnValueOnce(new Promise((r) => (release = r)))
+    const pending = store().loadQuotas()
+    const quota: QuotaSnapshot = { agent: 'codex', windows: [{ name: 'primary', usedPct: 90 }] }
+    store().applyIncoming(event({ type: 'quota', quota }))
+    release([{ ...quota, windows: [{ name: 'primary', usedPct: 10 }] }])
+    await pending
+    expect(store().quotas).toEqual([quota])
+  })
+
+  it('ignores a list response superseded by a later reload', async () => {
+    let release: (v: Session[]) => void = () => {}
+    ;(api.listSessions as Mock)
+      .mockReturnValueOnce(new Promise((r) => (release = r)))
+      .mockResolvedValueOnce([{ id: 'new' }])
+    const pending = store().loadSessions()
+    await store().loadSessions()
+    release([])
+    await pending
+    expect(store().sessions.map((s) => s.id)).toEqual(['new'])
+  })
+
+  it('ignores an error from a superseded list reload', async () => {
+    let reject: (e: Error) => void = () => {}
+    ;(api.listSessions as Mock)
+      .mockReturnValueOnce(new Promise((_, r) => (reject = r)))
+      .mockResolvedValueOnce([])
+    const pending = store().loadSessions()
+    await store().loadSessions()
+    reject(new Error('stale'))
+    await pending
+    expect(store().error).toBeNull()
+  })
+
+  it('keeps requests opened during a list reload', async () => {
+    let release: (v: SessionRequest[]) => void = () => {}
+    ;(api.listRequests as Mock).mockReturnValueOnce(new Promise((r) => (release = r)))
+    const pending = store().loadRequests()
+    const request: SessionRequest = { id: 'r1', sessionId: 'a', kind: 'permission', state: 'pending' }
+    store().applyIncoming(event({ type: 'request.opened', request }))
+    release([])
+    await pending
+    expect(store().pendingRequests).toEqual([request])
+  })
+
+  it('ignores in-flight list responses after resetting the store', async () => {
+    let release: (v: Session[]) => void = () => {}
+    ;(api.listSessions as Mock).mockReturnValueOnce(new Promise((r) => (release = r)))
+    const pending = store().loadSessions()
+    resetStore()
+    release([{ id: 'old', agent: 'codex', cwd: '/p', status: 'idle' }])
+    await pending
+    expect(store().sessions).toEqual([])
+  })
+
   it('loads sessions', async () => {
     ;(api.listSessions as Mock).mockResolvedValue([{ id: 'a' }, { id: 'b' }])
     await store().loadSessions()
