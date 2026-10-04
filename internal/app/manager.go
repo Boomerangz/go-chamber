@@ -530,8 +530,10 @@ func (m *Manager) ensureRuntimeFor(ctx context.Context, s *domain.Session, nativ
 		_ = rt.Close()
 		return existing, nil
 	}
-	m.runtimes[s.ID()] = rt
 	err = s.RuntimeAttached(rt.NativeID())
+	if err == nil {
+		m.runtimes[s.ID()] = rt
+	}
 	m.mu.Unlock()
 	if err != nil {
 		_ = rt.Close()
