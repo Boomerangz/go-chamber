@@ -68,7 +68,7 @@ export interface TerminalHandlers {
   onReady: () => void
   // onReset runs when a reconnected socket opens, before the server replays
   // the scrollback, so the screen must be cleared first.
-  onReset: () => void
+  onReset: (reason?: 'reconnect' | 'upgrade') => void
   // onGiveUp runs when reconnecting failed maxAttempts times in a row.
   onGiveUp: () => void
 }
@@ -89,7 +89,80 @@ const NORMAL_CLOSURE = 1000
 export function connectTerminal(
   id: string,
   handlers: TerminalHandlers,
-  { reconnectDelayMs = 500, maxAttempts = 5, stableMs = 10_000 } = {},
+  options: { reconnectDelayMs?: number; maxAttempts?: number; stableMs?: number; rtc?: boolean } = {},
+): TerminalConnection {
+  let socket: TerminalConnection
+  let peer: RTCConnection | undefined
+  let active: 'websocket' | 'webrtc' = 'websocket'
+  let stopped = false
+  let tried = false
+  let generation = 0
+  let size: { cols: number; rows: number } | undefined
+  const encoder = new TextEncoder()
+  const close = () => { if (!stopped) { stopped = true; socket.close(); peer?.close() } }
+  const fallback = () => {
+    if (stopped) return
+    const wasActive = active === 'webrtc'
+    peer?.close(); peer = undefined
+    if (wasActive) { active = 'websocket'; openSocket(true) }
+  }
+  const tryRTC = () => {
+    if (tried || stopped || options.rtc === false || typeof RTCPeerConnection === 'undefined') return
+    tried = true
+    peer = connectRTC(id, {
+      onOpen() {
+        if (stopped) return
+        active = 'webrtc'
+        socket.close()
+        handlers.onReset('upgrade')
+        recordTerminalTransport(id, 'webrtc')
+        if (size) peer?.send(JSON.stringify({ type: 'resize', ...size }))
+      },
+      onMessage(data) {
+        if (stopped || active !== 'webrtc') return
+        if (typeof data !== 'string') {
+          if (data instanceof ArrayBuffer) handlers.onOutput(new Uint8Array(data))
+          return
+        }
+        let msg: { type?: string; code?: number }
+        try { msg = JSON.parse(data) } catch { return }
+        if (msg.type === 'ready') handlers.onReady()
+        else if (msg.type === 'exit') { handlers.onExit(msg.code ?? -1); close() }
+        else if (msg.type === 'closed') close()
+        else if (msg.type === 'fallback') fallback()
+      },
+      onClose: fallback,
+      onRoute(route, protocol) { if (!stopped && active === 'webrtc') recordTerminalTransport(id, 'webrtc', route, protocol) },
+    })
+  }
+  function openSocket(reset: boolean) {
+    const ownGeneration = ++generation
+    recordTerminalTransport(id, 'websocket')
+    const current = () => !stopped && active === 'websocket' && generation === ownGeneration
+    socket = connectWebSocketTerminal(id, {
+      onOutput(data) { if (current()) handlers.onOutput(data) },
+      onReady() { if (current()) { handlers.onReady(); tryRTC() } },
+      onReset() { if (current()) handlers.onReset() },
+      onExit(code) { if (current()) { handlers.onExit(code); close() } },
+      onGiveUp() { if (current()) { handlers.onGiveUp(); close() } },
+    }, { ...options, resetOnOpen: reset })
+    if (size) socket.resize(size.cols, size.rows)
+  }
+  openSocket(false)
+  return {
+    send(text) { if (!stopped) { if (active === 'webrtc') peer?.send(encoder.encode(text)); else socket.send(text) } },
+    resize(cols, rows) {
+      size = { cols, rows }
+      if (!stopped) { if (active === 'webrtc') peer?.send(JSON.stringify({ type: 'resize', ...size })); else socket.resize(cols, rows) }
+    },
+    close,
+  }
+}
+
+function connectWebSocketTerminal(
+  id: string,
+  handlers: TerminalHandlers,
+  { reconnectDelayMs = 500, maxAttempts = 5, stableMs = 10_000, resetOnOpen = false } = {},
 ): TerminalConnection {
   const encoder = new TextEncoder()
   let ws: WebSocket
@@ -143,7 +216,7 @@ export function connectTerminal(
       timer = setTimeout(() => connect(true), reconnectDelayMs)
     }
   }
-  connect(false)
+  connect(resetOnOpen)
 
   return {
     send: (text) => {
@@ -160,3 +233,5 @@ export function connectTerminal(
     },
   }
 }
+import { connectRTC, type RTCConnection } from './rtc'
+import { recordTerminalTransport } from './diagnostics'

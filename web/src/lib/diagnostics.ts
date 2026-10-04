@@ -1,10 +1,10 @@
 // Only timings and counters live here; prompts, shell input and output are never recorded.
-export type MetricKey = 'http' | 'ws' | 'agentBatch' | 'agentCommit' | 'terminalParse' | 'eventLoop'
-const keys: MetricKey[] = ['http', 'ws', 'agentBatch', 'agentCommit', 'terminalParse', 'eventLoop']
+export type MetricKey = 'http' | 'ws' | 'rtc' | 'agentBatch' | 'agentCommit' | 'terminalParse' | 'eventLoop'
+const keys: MetricKey[] = ['http', 'ws', 'rtc', 'agentBatch', 'agentCommit', 'terminalParse', 'eventLoop']
 const limit = 120
 interface Samples { values: number[]; count: number }
 export interface MetricSummary { count: number; samples: number; last: number | null; p50: number | null; p95: number | null; max: number | null }
-interface TerminalMetrics { id: string; receivedBytes: number; pendingBytes: number; peakPendingBytes: number; reconnects: number }
+interface TerminalMetrics { id: string; receivedBytes: number; pendingBytes: number; peakPendingBytes: number; reconnects: number; transport?: 'websocket' | 'webrtc'; route?: 'direct' | 'relay' | 'unknown'; protocol?: string; rtcRTTMs?: number }
 let samples = freshSamples()
 let agent = { events: 0, batches: 0, batchSize: 0 }
 let terminals = new Map<string, TerminalMetrics>()
@@ -50,6 +50,7 @@ export function resetDiagnostics() {
     terminal.receivedBytes = 0
     terminal.peakPendingBytes = terminal.pendingBytes
     terminal.reconnects = 0
+    delete terminal.rtcRTTMs
   }
   commits.clear()
   startedAt = Date.now()
@@ -97,6 +98,15 @@ export function completeTerminalOutput(id: string, bytes: number, ms: number) {
   recordSample('terminalParse', ms)
 }
 export function recordTerminalReconnect(id: string) { terminal(id).reconnects++ }
+export function recordTerminalTransport(id: string, transport: 'websocket' | 'webrtc', route: 'direct' | 'relay' | 'unknown' = 'unknown', protocol = 'unknown') {
+ const value = terminal(id)
+ value.transport = transport; value.route = route; value.protocol = protocol
+}
+export function recordTerminalRTT(id: string, ms: number) {
+ const value = terminals.get(id)
+ if (value) value.rtcRTTMs = ms
+ recordSample('rtc', ms)
+}
 export function forgetTerminal(id: string) { terminals.delete(id) }
 
 export function monitorBrowser(): () => void {

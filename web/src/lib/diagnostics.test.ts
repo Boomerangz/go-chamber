@@ -1,8 +1,18 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
-import { diagnostics, recordSample, recordAgentEvent, recordAgentBatch, beginAgentView, endAgentView, markAgentUpdate, recordAgentCommit, recordTerminalOutput, completeTerminalOutput, recordTerminalReconnect, resetDiagnostics, forgetTerminal, monitorBrowser } from './diagnostics'
+import { diagnostics, recordSample, recordAgentEvent, recordAgentBatch, beginAgentView, endAgentView, markAgentUpdate, recordAgentCommit, recordTerminalOutput, completeTerminalOutput, recordTerminalReconnect, resetDiagnostics, forgetTerminal, monitorBrowser, recordTerminalTransport, recordTerminalRTT } from './diagnostics'
 
 beforeEach(() => { resetDiagnostics(); for (const terminal of diagnostics().terminals) forgetTerminal(terminal.id) })
 afterEach(() => { endAgentView('s1'); vi.restoreAllMocks(); vi.unstubAllGlobals(); vi.useRealTimers() })
+
+it('records route classifications and resets RTC timings without losing the active connection', () => {
+ recordTerminalTransport('rtc', 'webrtc', 'direct', 'udp')
+ recordTerminalRTT('rtc', 42)
+ expect(diagnostics().terminals[0]).toMatchObject({ transport: 'webrtc', route: 'direct', protocol: 'udp', rtcRTTMs: 42 })
+ expect(diagnostics().metrics.rtc.last).toBe(42)
+ resetDiagnostics()
+ expect(diagnostics().terminals[0]).toMatchObject({ transport: 'webrtc', route: 'direct' })
+ expect(diagnostics().terminals[0].rtcRTTMs).toBeUndefined()
+})
 
 it('bounds samples and computes percentiles without recording message content', () => {
   for (let i = 1; i <= 200; i++) recordSample('http', i)

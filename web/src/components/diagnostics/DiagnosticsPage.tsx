@@ -8,6 +8,7 @@ import './DiagnosticsPage.css'
 const metrics: { key: MetricKey; label: string; description: string }[] = [
   { key: 'http', label: 'HTTP round trip', description: 'Request, server snapshot and response. Sampled every 2 seconds on this page.' },
   { key: 'ws', label: 'WebSocket round trip', description: 'Echo on a separate connection to the same server. Includes network and scheduling.' },
+  { key: 'rtc', label: 'WebRTC round trip', description: 'Echo on an active terminal DataChannel. Compare with WebSocket RTT; inspect its direct or TURN route below.' },
   { key: 'agentBatch', label: 'Agent batch wait', description: 'Time from the first queued event to applying its batch to the chat store.' },
   { key: 'agentCommit', label: 'Chat update', description: 'Time from a live store update to React committing the mounted chat.' },
   { key: 'terminalParse', label: 'Terminal processing', description: 'Received output to xterm’s write callback. Includes its parser queue, before screen painting.' },
@@ -85,11 +86,11 @@ export default function DiagnosticsPage() {
         <h3>Terminal queues</h3>
         {ids.length ? (
           <div className="diagnostics-table-wrap"><table>
-            <thead><tr><th>Terminal</th><th>Browser pending</th><th>Browser peak</th><th>Reconnects</th><th>Server queued chunks</th><th>Lag disconnects</th><th>Clients</th></tr></thead>
+            <thead><tr><th>Terminal</th><th>Connection</th><th>Route</th><th>WebRTC RTT</th><th>Browser pending</th><th>Browser peak</th><th>Reconnects</th><th>Server queued chunks</th><th>Lag disconnects</th><th>Clients</th></tr></thead>
             <tbody>{ids.map((id) => {
               const local = client.terminals.find((t) => t.id === id)
               const remote = server?.terminals.find((t) => t.id === id)
-              return <tr key={id}><th>{terminalNames.find((t) => t.id === id)?.title ?? id}</th><td>{local ? bytes(local.pendingBytes) : '—'}</td><td>{local ? bytes(local.peakPendingBytes) : '—'}</td><td>{local?.reconnects ?? '—'}</td><td>{remote?.queuedChunks ?? '—'}</td><td>{remote?.laggedClients ?? '—'}</td><td>{remote?.clients ?? '—'}</td></tr>
+              return <tr key={id}><th>{terminalNames.find((t) => t.id === id)?.title ?? id}</th><td>{local?.transport ?? '—'}</td><td>{local?.transport === 'webrtc' ? `${local.route ?? 'unknown'} · ${local.protocol ?? 'unknown'}` : local?.transport === 'websocket' ? 'HTTP server' : '—'}</td><td>{local?.transport === 'webrtc' ? ms(local.rtcRTTMs) : '—'}</td><td>{local ? bytes(local.pendingBytes) : '—'}</td><td>{local ? bytes(local.peakPendingBytes) : '—'}</td><td>{local?.reconnects ?? '—'}</td><td>{remote?.queuedChunks ?? '—'}</td><td>{remote?.laggedClients ?? '—'}</td><td>{remote?.clients ?? '—'}</td></tr>
             })}</tbody>
           </table></div>
         ) : <p>Open a terminal to collect output and queue measurements.</p>}

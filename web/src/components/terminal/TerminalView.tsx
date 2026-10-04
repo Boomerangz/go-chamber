@@ -87,8 +87,8 @@ function liveFor(id: string, host: HTMLElement, callbacks: Callbacks): Live {
       xterm.write(data, () => completeTerminalOutput(id, data.byteLength, performance.now() - start))
     },
     onReady: () => xterm.write('', () => (ready = true)),
-    onReset: () => {
-      recordTerminalReconnect(id)
+    onReset: (reason) => {
+      if (reason !== 'upgrade') recordTerminalReconnect(id)
       ready = false
       xterm.reset()
     },

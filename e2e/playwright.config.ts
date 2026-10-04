@@ -19,7 +19,7 @@ export default defineConfig({
     { name: 'mobile', use: { ...devices['Pixel 7'] } },
   ],
   webServer: {
-    command: `rm -rf .data && mkdir -p .data && echo ${token} > .data/token && mkdir -p .data/claude && cp -R fixtures/claude-projects .data/claude/projects && CLAUDE_CONFIG_DIR=.data/claude SHELL=/bin/sh PATH="${fakesPath}:$PATH" ../bin/go-chamber -addr 127.0.0.1:${port} -data .data`,
+    command: `rm -rf .data && mkdir -p .data && echo ${token} > .data/token && mkdir -p .data/claude && cp -R fixtures/claude-projects .data/claude/projects && CLAUDE_CONFIG_DIR=.data/claude SHELL=/bin/sh PATH="${fakesPath}:$PATH" ../bin/go-chamber -addr 127.0.0.1:${port} -data .data -rtc-ice '[]'`,
     url: `http://127.0.0.1:${port}/api/health`,
     // Answers 401 without a token, which Playwright counts as ready.
     reuseExistingServer: false,

@@ -13,6 +13,9 @@ Browser counters belong to this tab and are lost on reload.
 
 - HTTP round trip includes obtaining the server snapshot. WebSocket round trip
   measures an echo on a separate connection to the same server.
+- WebRTC round trip echoes over the active terminal DataChannel, including any
+  ordered output queued before the echo. The terminal table identifies the
+  selected connection as direct or TURN relay and shows its candidate protocol.
 - Agent batch wait measures the first queued event to application of its batch.
   Chat update measures a live store update to React's mounted-chat commit.
   Neither measures CLI startup or model response time.
@@ -28,3 +31,33 @@ to network or scheduling; fast echoes with slow chat updates or terminal process
 point to work in the browser. Lag disconnects indicate clients falling behind
 server output. Measurements are observational and do not execute extra agent
 requests or terminal commands.
+
+## Direct terminal connections
+
+Terminals open immediately through WebSocket and attempt an encrypted, reliable,
+ordered WebRTC DataChannel. HTTPS carries authenticated offer/answer signaling;
+terminal bytes then use the selected ICE path. A direct connection bypasses
+the HTTP proxy and reverse TCP tunnel. A failed attempt leaves WebSocket active;
+a lost peer restores WebSocket and replays scrollback. The switch replays the
+screen once, so input is briefly held while terminal queries in replay are
+processed. Inputs already sent are never retried, to avoid executing commands twice.
+
+WebRTC needs a secure browser context (HTTPS or localhost) and reachable UDP.
+The default discovery service is `stun:stun.cloudflare.com:3478`. STUN discovers
+addresses; it does not relay terminal data. The browser and go-chamber both
+contact it when negotiating a terminal connection. Symmetric NAT or blocked
+UDP may require TURN; without a reachable path the terminal uses WebSocket.
+
+Set `GO_CHAMBER_ICE_SERVERS` or `-rtc-ice` to a JSON array of ICE servers:
+
+```json
+[{"urls":["stun:stun.example.org:3478"]},
+ {"urls":["turn:turn.example.org:3478"],"username":"user","credential":"password"}]
+```
+
+Use an environment variable for credentials. The authenticated browser receives
+the ICE configuration; exports contain neither credentials, SDP nor candidate
+addresses. `-rtc-ice '[]'` uses only host candidates, useful for local tests.
+Only the terminal stream uses this transport; chat event delivery stays on its
+existing server connection. Actual latency improvement depends on the selected
+network route; compare WebRTC RTT with WebSocket RTT on Diagnostics.

@@ -2,6 +2,7 @@
 package httpapi
 
 import (
+	"context"
 	"crypto/subtle"
 	"encoding/json"
 	"errors"
@@ -20,6 +21,9 @@ import (
 const CookieName = "gc_token"
 
 type Config struct {
+	// Lifecycle closes direct peer connections when the application shuts down.
+	Lifecycle  context.Context
+	ICEServers []ICEServer
 	// Token is the single-user access token; required.
 	Token string
 	// Static is the built web UI (index.html at the root).
@@ -49,18 +53,20 @@ type Config struct {
 }
 
 type server struct {
-	cfg     Config
-	mux     *http.ServeMux
-	started time.Time
+	cfg      Config
+	mux      *http.ServeMux
+	started  time.Time
+	rtcSlots chan struct{}
 }
 
 func NewServer(cfg Config) http.Handler {
 	if cfg.Token == "" {
 		panic("httpapi: empty token")
 	}
-	s := &server{cfg: cfg, mux: http.NewServeMux(), started: time.Now()}
+	s := &server{cfg: cfg, mux: http.NewServeMux(), started: time.Now(), rtcSlots: make(chan struct{}, 64)}
 	s.routes()
 	s.diagnosticsRoutes()
+	s.rtcRoutes()
 	s.completeRoutes()
 	s.imageRoutes()
 	s.worktreeRoutes()

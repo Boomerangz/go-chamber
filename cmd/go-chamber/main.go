@@ -50,7 +50,16 @@ func run(ctx context.Context, args []string, out io.Writer) error {
 	home, _ := os.UserHomeDir()
 	dataDir := fl.String("data", filepath.Join(home, ".go-chamber"), "data directory")
 	idle := fl.Duration("idle-timeout", 15*time.Minute, "close idle Claude processes after this long (0 keeps them)")
+	iceDefault := os.Getenv("GO_CHAMBER_ICE_SERVERS")
+	if iceDefault == "" {
+		iceDefault = `[{"urls":["stun:stun.cloudflare.com:3478"]}]`
+	}
+	iceJSON := fl.String("rtc-ice", iceDefault, "WebRTC ICE servers JSON (STUN/TURN); [] uses host candidates only")
 	if err := fl.Parse(args); err != nil {
+		return err
+	}
+	iceServers, err := httpapi.ParseICEServers(*iceJSON)
+	if err != nil {
 		return err
 	}
 	// Worktrees are created from inside other repositories, so the data
@@ -122,14 +131,16 @@ func run(ctx context.Context, args []string, out io.Writer) error {
 	}
 	srv := &http.Server{
 		Handler: httpapi.NewServer(httpapi.Config{
-			Token:     token,
-			Static:    web.Dist(),
-			Sessions:  manager,
-			Events:    events,
-			Terminals: terminals,
-			Folders:   app.NewFolders(app.FoldersConfig{Reader: fsys.Reader{}, Home: home}),
-			Search:    eventLog,
-			ImagesDir: filepath.Join(*dataDir, "images"),
+			Lifecycle:  ctx,
+			ICEServers: iceServers,
+			Token:      token,
+			Static:     web.Dist(),
+			Sessions:   manager,
+			Events:     events,
+			Terminals:  terminals,
+			Folders:    app.NewFolders(app.FoldersConfig{Reader: fsys.Reader{}, Home: home}),
+			Search:     eventLog,
+			ImagesDir:  filepath.Join(*dataDir, "images"),
 			Complete: app.NewCompleter(app.CompleterConfig{
 				Sessions: store.Sessions(),
 				Files:    &fsys.Files{},
