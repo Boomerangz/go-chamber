@@ -81,7 +81,12 @@ export const useTerminalStore = create<TerminalState>((set, get) => ({
       const term = await openTerminal(opts)
       terminalLists.update(term.id, term)
       remember(term.id)
-      set((s) => ({ terminals: [...s.terminals, term], activeId: term.id, focusId: term.id, error: null }))
+      set((s) => ({
+        terminals: s.terminals.some((t) => t.id === term.id)
+          ? s.terminals.map((t) => t.id === term.id ? term : t)
+          : [...s.terminals, term],
+        activeId: term.id, focusId: term.id, error: null,
+      }))
     } catch (err) {
       set({ error: message(err) })
     }

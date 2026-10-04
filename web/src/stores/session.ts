@@ -240,8 +240,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       const created = branch
         ? await api.createWorktreeSession(agent, cwd, branch, startChoice(agent))
         : await api.createSession(agent, cwd, startChoice(agent))
-      sessionLists.update(created.id, created)
-      set({ sessions: [...get().sessions, created], error: null })
+      set({ sessions: replaceSession(get().sessions, created), error: null })
       await get().selectSession(created.id)
     } catch (err) {
       set({ error: errorMessage(err) })

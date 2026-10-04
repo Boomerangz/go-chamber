@@ -43,6 +43,18 @@ beforeEach(() => {
 })
 
 describe('session store', () => {
+  it('does not duplicate a created session already received in the session list', async () => {
+    let release: (v: Session) => void = () => {}
+    const created: Session = { id: 'n', agent: 'codex', cwd: '/p', status: 'detached' }
+    ;(api.createSession as Mock).mockReturnValueOnce(new Promise((r) => (release = r)))
+    ;(api.listSessions as Mock).mockResolvedValueOnce([created])
+    const pending = store().createSession('codex', '/p')
+    await store().loadSessions()
+    release(created)
+    await pending
+    expect(store().sessions.map((s) => s.id)).toEqual(['n'])
+  })
+
   it('overlays a live session update on an older list response and keeps unseen sessions', async () => {
     let release: (v: Session[]) => void = () => {}
     ;(api.listSessions as Mock).mockReturnValueOnce(new Promise((r) => (release = r)))

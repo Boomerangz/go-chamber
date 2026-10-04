@@ -25,6 +25,18 @@ beforeEach(() => {
 })
 
 describe('terminal store', () => {
+  it('does not duplicate an opened terminal already received in the terminal list', async () => {
+    let release: (v: Terminal) => void = () => {}
+    ;(api.openTerminal as Mock).mockReturnValueOnce(new Promise((r) => (release = r)))
+    ;(api.listTerminals as Mock).mockResolvedValueOnce([term()])
+    const pending = store().open({ cwd: '/h' })
+    await store().load()
+    release(term())
+    await pending
+    expect(store().terminals.map((t) => t.id)).toEqual(['t1'])
+    expect(store().activeId).toBe('t1')
+  })
+
   it('does not restore a terminal closed while its list was loading', async () => {
     useTerminalStore.setState({ terminals: [term()], activeId: 't1' })
     let release: (v: Terminal[]) => void = () => {}
