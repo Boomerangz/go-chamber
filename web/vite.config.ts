@@ -13,6 +13,9 @@ export default defineConfig({
     },
   },
   test: {
+    // Mutation runners leave copies under .stryker-tmp; only source tests
+    // belong in normal unit/coverage runs.
+    include: ['src/**/*.test.{ts,tsx}'],
     environment: 'jsdom',
     setupFiles: ['./src/test/setup.ts'],
     coverage: {
