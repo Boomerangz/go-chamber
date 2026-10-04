@@ -25,6 +25,42 @@ beforeEach(() => {
 })
 
 describe('terminal store', () => {
+  it('does not restore a terminal closed while its list was loading', async () => {
+    useTerminalStore.setState({ terminals: [term()], activeId: 't1' })
+    let release: (v: Terminal[]) => void = () => {}
+    ;(api.listTerminals as Mock).mockReturnValueOnce(new Promise((r) => (release = r)))
+    ;(api.closeTerminal as Mock).mockResolvedValueOnce(undefined)
+    const pending = store().load()
+    await store().close('t1')
+    release([term()])
+    await pending
+    expect(store().terminals).toEqual([])
+    expect(store().activeId).toBeNull()
+  })
+
+  it('keeps a rename made while the list was loading', async () => {
+    useTerminalStore.setState({ terminals: [term()] })
+    let release: (v: Terminal[]) => void = () => {}
+    ;(api.listTerminals as Mock).mockReturnValueOnce(new Promise((r) => (release = r)))
+    ;(api.renameTerminal as Mock).mockResolvedValueOnce(term({ title: 'logs' }))
+    const pending = store().load()
+    await store().rename('t1', 'logs')
+    release([term()])
+    await pending
+    expect(store().terminals[0]!.title).toBe('logs')
+  })
+
+  it('keeps an exit received while the list was loading', async () => {
+    useTerminalStore.setState({ terminals: [term()] })
+    let release: (v: Terminal[]) => void = () => {}
+    ;(api.listTerminals as Mock).mockReturnValueOnce(new Promise((r) => (release = r)))
+    const pending = store().load()
+    store().markExited('t1', 7)
+    release([term()])
+    await pending
+    expect(store().terminals[0]).toMatchObject({ status: 'exited', exitCode: 7 })
+  })
+
   it('renames a terminal', async () => {
     ;(api.listTerminals as Mock).mockResolvedValue([term(), term({ id: 't2' })])
     await store().load()

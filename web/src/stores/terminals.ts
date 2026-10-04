@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { LiveList } from '../lib/live-list'
 import {
   closeTerminal,
   renameTerminal,
@@ -55,6 +56,7 @@ function remember(id: string | null) {
 }
 
 const exists = (terminals: Terminal[], id: string | null) => id !== null && terminals.some((t) => t.id === id)
+const terminalLists = new LiveList<Terminal>((t) => t.id)
 
 // keepActive keeps the selection if it still exists, else picks the first.
 function keepActive(terminals: Terminal[], activeId: string | null): string | null {
@@ -66,12 +68,8 @@ export const useTerminalStore = create<TerminalState>((set, get) => ({
   ...initial,
   load: async () => {
     try {
-      const before = new Set(get().terminals.map((t) => t.id))
-      const listed = await listTerminals()
-      // Keep terminals opened while the list was in flight.
-      const known = new Set(listed.map((t) => t.id))
-      const opened = get().terminals.filter((t) => !before.has(t.id) && !known.has(t.id))
-      const terminals = [...listed, ...opened]
+      const terminals = await terminalLists.load(listTerminals)
+      if (!terminals) return
       const current = get().activeId ?? remembered()
       set({ terminals, activeId: exists(terminals, current) ? current : null, error: null })
     } catch (err) {
@@ -81,6 +79,7 @@ export const useTerminalStore = create<TerminalState>((set, get) => ({
   open: async (opts) => {
     try {
       const term = await openTerminal(opts)
+      terminalLists.update(term.id, term)
       remember(term.id)
       set((s) => ({ terminals: [...s.terminals, term], activeId: term.id, focusId: term.id, error: null }))
     } catch (err) {
@@ -90,6 +89,7 @@ export const useTerminalStore = create<TerminalState>((set, get) => ({
   close: async (id) => {
     try {
       await closeTerminal(id)
+      terminalLists.update(id, null)
       set((s) => {
         const terminals = s.terminals.filter((t) => t.id !== id)
         const activeId = keepActive(terminals, s.activeId)
@@ -103,6 +103,7 @@ export const useTerminalStore = create<TerminalState>((set, get) => ({
   rename: async (id, title) => {
     try {
       const renamed = await renameTerminal(id, title)
+      terminalLists.update(id, renamed)
       set((s) => ({ terminals: s.terminals.map((t) => (t.id === id ? renamed : t)), error: null }))
     } catch (err) {
       set({ error: message(err) })
@@ -114,10 +115,16 @@ export const useTerminalStore = create<TerminalState>((set, get) => ({
   },
   markExited: (id, code) =>
     set((s) => ({
-      terminals: s.terminals.map((t) => (t.id === id ? { ...t, status: 'exited', exitCode: code } : t)),
+      terminals: s.terminals.map((t) => {
+        if (t.id !== id) return t
+        const exited: Terminal = { ...t, status: 'exited', exitCode: code }
+        terminalLists.update(id, exited)
+        return exited
+      }),
     })),
 }))
 
 export function resetTerminals() {
+  terminalLists.reset()
   useTerminalStore.setState(initial)
 }
