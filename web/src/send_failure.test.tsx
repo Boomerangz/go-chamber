@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, expect, it, vi } from 'vitest'
 import App from './App'
 import * as api from './lib/api'
@@ -37,7 +37,7 @@ it('failed send must preserve the draft and attachments',async()=>{
  fireEvent.change(input,{target:{value:'do not lose this'}})
  fireEvent.change(screen.getByLabelText('attach images'),{target:{files:[new File(['x'],'test.png',{type:'image/png'})]}})
  await screen.findByAltText('test.png')
- fireEvent.click(screen.getByRole('button',{name:'Send',exact:true}))
+ fireEvent.click(screen.getByRole('button',{name:'Send'}))
  await screen.findByText('send failed')
  expect.soft(input).toHaveValue('do not lose this')
  expect.soft(screen.queryByAltText('test.png')).toBeInTheDocument()
