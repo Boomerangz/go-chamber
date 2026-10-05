@@ -50,6 +50,7 @@ export interface SessionStore {
   setApprovalReviewer: (sessionId: string, reviewer: api.ApprovalReviewer) => Promise<void>
   renameSession: (sessionId: string, title: string) => Promise<void>
   setPermissionMode: (sessionId: string, mode: string) => Promise<void>
+  removeWorktree: (sessionId: string, force: boolean) => Promise<void>
   respond: (sessionId: string, requestId: string, answer: api.RequestAnswerInput) => Promise<void>
   applyIncoming: (ev: api.SessionEvent) => void
   setConnection: (c: Connection) => void
@@ -229,6 +230,12 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     } catch (err) {
       set({ error: errorMessage(err) })
     }
+  },
+
+  async removeWorktree(sessionId, force) {
+    const before = sessionRevision
+    const updated = await api.removeWorktree(sessionId, force)
+    set({ sessions: applySessionMutation(get().sessions, before, updated) })
   },
 
   async searchMessages(query) {

@@ -124,8 +124,7 @@ function WorktreeBar({ session, worktree }: { session: api.Session; worktree: ap
   const remove = async (force: boolean) => {
     setBusy(true)
     try {
-      const updated = await api.removeWorktree(session.id, force)
-      useSessionStore.setState((s) => ({ sessions: s.sessions.map((x) => (x.id === updated.id ? updated : x)) }))
+      await useSessionStore.getState().removeWorktree(session.id, force)
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)
       if (!force && msg.includes('uncommitted')) setDirty(true)

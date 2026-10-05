@@ -72,6 +72,23 @@ describe('DiffPanel', () => {
     await waitFor(() => expect(useSessionStore.getState().sessions[0].worktree).toBeUndefined())
   })
 
+  it('preserves live session changes while worktree removal awaits its response', async () => {
+    vi.mocked(api.getChanges).mockResolvedValue({ repository: true, files: [] })
+    const initial: api.Session = { id: 's1', agent: 'claude', cwd: worktree.path, status: 'idle', worktree }
+    let finish!: (session: api.Session) => void
+    vi.mocked(api.removeWorktree).mockReturnValue(new Promise((resolve) => { finish = resolve }))
+    useSessionStore.setState({ sessions: [initial] })
+    render(<DiffPanel sessionId="s1" />)
+    await userEvent.click(await screen.findByRole('button', { name: 'Remove worktree' }))
+    act(() => useSessionStore.getState().applyIncoming({
+      seq: 1, sessionId: 's1', type: 'session.state',
+      session: { ...initial, status: 'running', title: 'Live title' },
+    }))
+    await act(async () => finish({ id: 's1', agent: 'claude', cwd: worktree.repo, status: 'idle' }))
+    expect(useSessionStore.getState().sessions[0]).toMatchObject({ status: 'running', title: 'Live title', cwd: worktree.repo })
+    expect(useSessionStore.getState().sessions[0].worktree).toBeUndefined()
+  })
+
   it('offers a forced removal when the worktree has changes', async () => {
     vi.mocked(api.getChanges).mockResolvedValue({ repository: true, base: 'abc', files: [{ path: 'a', status: 'M' }] })
     vi.mocked(api.removeWorktree)
