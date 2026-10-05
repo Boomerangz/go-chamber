@@ -12,6 +12,9 @@ import (
 
 type eventLog struct{ db *sql.DB }
 
+const messageDeleteSQL = `DELETE FROM messages_fts WHERE rowid =
+	(SELECT id FROM message_keys WHERE session_id = ? AND item_id = ?)`
+
 // Events returns the persistent event log with full-text message search.
 func (s *Store) Events() interface {
 	app.EventLog
@@ -79,11 +82,17 @@ func index(ctx context.Context, tx *sql.Tx, session domain.SessionID, item *doma
 		text = b.String()
 	}
 	if _, err := tx.ExecContext(ctx,
-		`DELETE FROM messages_fts WHERE session_id = ? AND item_id = ?`, session, item.ID); err != nil {
+		`INSERT INTO message_keys (session_id, item_id) VALUES (?,?)
+		 ON CONFLICT(session_id, item_id) DO NOTHING`, session, item.ID); err != nil {
+		return err
+	}
+	if _, err := tx.ExecContext(ctx, messageDeleteSQL, session, item.ID); err != nil {
 		return err
 	}
 	_, err := tx.ExecContext(ctx,
-		`INSERT INTO messages_fts (text, session_id, item_id) VALUES (?,?,?)`, text, session, item.ID)
+		`INSERT INTO messages_fts (rowid, text, session_id, item_id)
+		 VALUES ((SELECT id FROM message_keys WHERE session_id = ? AND item_id = ?),?,?,?)`,
+		session, item.ID, text, session, item.ID)
 	return err
 }
 
