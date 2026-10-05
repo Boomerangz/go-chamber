@@ -15,6 +15,11 @@ type eventLog struct{ db *sql.DB }
 const messageDeleteSQL = `DELETE FROM messages_fts WHERE rowid =
 	(SELECT id FROM message_keys WHERE session_id = ? AND item_id = ?)`
 
+// The partial delta index requires the nonempty predicate. Select it
+// explicitly: the primary key would scan every event in a long session.
+const messageTextSQL = `SELECT text FROM events INDEXED BY events_deltas
+	WHERE session_id = ? AND item_id = ? AND item_id != '' ORDER BY seq`
+
 // Events returns the persistent event log with full-text message search.
 func (s *Store) Events() interface {
 	app.EventLog
@@ -62,8 +67,7 @@ func searchable(ev domain.Event) bool {
 func index(ctx context.Context, tx *sql.Tx, session domain.SessionID, item *domain.Item) error {
 	text := item.Text
 	if text == "" {
-		rows, err := tx.QueryContext(ctx,
-			`SELECT text FROM events WHERE session_id = ? AND item_id = ? ORDER BY seq`, session, item.ID)
+		rows, err := tx.QueryContext(ctx, messageTextSQL, session, item.ID)
 		if err != nil {
 			return err
 		}
