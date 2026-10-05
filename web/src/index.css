@@ -156,6 +156,12 @@ select.field option { background: var(--paper); color: var(--ink); }
 .status-interrupted::before { background: linear-gradient(to top right, transparent 45%, currentColor 45% 60%, transparent 60%); }
 .status-detached { color: var(--ink-3); }
 .status-detached::before { border-style: dashed; }
+/* a running mark breathes; a finished turn lands once: the solid mark drops in and goes hollow */
+@keyframes mark-breathe { 50% { opacity: 0.4; } }
+@keyframes mark-land { 0% { transform: scale(1.7); background: currentColor; } 55% { transform: scale(0.85); } 100% { transform: scale(1); } }
+.status-running::before, .session-status-running::before { animation: mark-breathe 2.4s ease-in-out infinite; }
+.status-done, .session-status-done { color: var(--ink); }
+.status-done::before, .session-status-done::before { animation: mark-land 450ms var(--ease-out); }
 
 /* agents are peers: a letter in a box, same weight for both */
 .avatar {

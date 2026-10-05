@@ -42,6 +42,7 @@ import { recentFolders } from './lib/folders'
 import { sessionTitle } from './lib/sessions'
 import { displayStatus } from './lib/format'
 import { enter } from './lib/motion'
+import { useJustFinished } from './lib/finished'
 import { firstUnseen, loadSeen, saveSeen } from './lib/seen'
 import { itemTree, sameNode, type ItemNode } from './lib/tree'
 import { parseRoute, routePath } from './lib/route'
@@ -387,6 +388,7 @@ function Chat() {
   const [text, setText] = useState('')
   const attachments = useAttachments(session?.id)
   const status = displayStatus(chat, session)
+  const finished = useJustFinished(status)
   const running = status === 'running'
   const reduced = useReducedMotion() ?? false
   const nodes = useMemo(() => itemTree(chat.order, chat.items).filter((node) => !isBlank(node.item)), [chat.order, chat.items])
@@ -442,7 +444,7 @@ function Chat() {
           {session && <span className="chat-path">{session.cwd}</span>}
         </div>
         <div className="chat-meta">
-          <span className={`status status-${status}`}>{status}</span>
+          <span className={`status status-${finished ? 'done' : status}`}>{finished ? 'done' : status}</span>
           {connection !== 'online' && <span className={`health health-${connection}`}>{connection}</span>}
           <SessionUsage />
           {session && <ModelPicker session={session} />}

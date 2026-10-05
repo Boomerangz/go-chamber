@@ -16,6 +16,7 @@ import {
 } from '../../lib/sessions'
 import type { SessionNode } from '../../lib/tree'
 import { settle } from '../../lib/motion'
+import { useJustFinished } from '../../lib/finished'
 import { useSessionStore } from '../../stores/session'
 
 // RECENT is how many sessions an expanded project shows before "older".
@@ -195,6 +196,7 @@ function SessionRow(props: {
   const s = props.node.session
   const waiting = props.pendingBySession.get(s.id) ?? 0
   const reduced = useReducedMotion() ?? false
+  const finished = useJustFinished(s.status)
   return (
     <motion.li layout="position" transition={settle(reduced)} className={props.depth > 0 ? 'session-child' : undefined}>
       <button
@@ -208,8 +210,8 @@ function SessionRow(props: {
         <span className="session-text">
           <span className="session-title">{sessionTitle(s)}</span>
           <span className="session-meta">
-            {(s.status === 'running' || s.status === 'interrupted') && (
-              <span className={`session-status session-status-${s.status}`}>{s.status}</span>
+            {(s.status === 'running' || s.status === 'interrupted' || finished) && (
+              <span className={`session-status session-status-${finished ? 'done' : s.status}`}>{finished ? 'done' : s.status}</span>
             )}
             {s.forkOf && (
               <span className="session-fork" title="Forked from another session">

@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { act, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Session } from '../../lib/api'
 import { resetStore, useSessionStore } from '../../stores/session'
@@ -38,5 +38,15 @@ describe('session search', () => {
     expect(screen.getByText('needle child')).toBeInTheDocument()
     expect(screen.queryByText('Grandparent')).toBeNull()
     expect(screen.queryByText('Other')).toBeNull()
+  })
+})
+
+describe('session status', () => {
+  it('marks a session done for a moment when its turn finishes', () => {
+    useSessionStore.setState({ sessions: [{ ...session('s1', 'Work'), status: 'running' }] })
+    render(<SessionList onCreateIn={() => {}} />)
+    expect(screen.getByText('running')).toBeInTheDocument()
+    act(() => useSessionStore.setState({ sessions: [session('s1', 'Work')] }))
+    expect(screen.getByText('done')).toHaveClass('session-status-done')
   })
 })
