@@ -97,6 +97,38 @@ func EventLogContract(t *testing.T, newLog func(t *testing.T) interface {
 		}
 	})
 
+	t.Run("history skips deltas a later item update replaces", func(t *testing.T) {
+		log := newLog(t)
+		upd := func(seq domain.Seq, id domain.ItemID) domain.Event {
+			return msg(seq, "a", id, domain.ItemAssistantMessage, domain.ItemStreaming, "")
+		}
+		delta := func(seq domain.Seq, id domain.ItemID) domain.Event {
+			return domain.Event{Seq: seq, SessionID: "a", Type: domain.EventTextDelta, Delta: &domain.Delta{ItemID: id, Text: "x"}}
+		}
+		for _, ev := range []domain.Event{upd(1, "i"), delta(2, "i"), delta(3, "j"), delta(4, "i"), upd(5, "i"), delta(6, "i")} {
+			if err := log.Append(ctx, ev); err != nil {
+				t.Fatal(err)
+			}
+		}
+		seqs := func(since domain.Seq) []domain.Seq {
+			got, err := log.History(ctx, "a", since)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var out []domain.Seq
+			for _, ev := range got {
+				out = append(out, ev.Seq)
+			}
+			return out
+		}
+		if got := seqs(0); len(got) != 4 || got[0] != 1 || got[1] != 3 || got[2] != 5 || got[3] != 6 {
+			t.Fatalf("history = %v", got)
+		}
+		if got := seqs(3); len(got) != 2 || got[0] != 5 || got[1] != 6 {
+			t.Fatalf("history since 3 = %v", got)
+		}
+	})
+
 	t.Run("requests returns only request events in order", func(t *testing.T) {
 		log := newLog(t)
 		req := &domain.Request{ID: "r1", SessionID: "a", Kind: domain.RequestPermission, State: domain.RequestPending}

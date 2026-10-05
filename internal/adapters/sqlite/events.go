@@ -20,6 +20,13 @@ const messageDeleteSQL = `DELETE FROM messages_fts WHERE rowid =
 const messageTextSQL = `SELECT text FROM events INDEXED BY events_deltas
 	WHERE session_id = ? AND item_id = ? AND item_id != '' ORDER BY seq`
 
+// historySQL skips text deltas that a later item.updated replaces whole, as
+// the client fold does: most of a long session's rows are such fragments.
+const historySQL = `SELECT body FROM events e WHERE session_id = ? AND seq > ?
+	AND NOT (type = 'text.delta' AND seq < COALESCE((SELECT MAX(u.seq) FROM events u INDEXED BY events_updates
+		WHERE u.session_id = e.session_id AND u.item_id = e.item_id AND u.type = 'item.updated'), 0))
+	ORDER BY seq`
+
 // Events returns the persistent event log with full-text message search.
 func (s *Store) Events() interface {
 	app.EventLog
@@ -35,8 +42,11 @@ func (l eventLog) Append(ctx context.Context, ev domain.Event) error {
 	}
 	var itemID domain.ItemID
 	var text string
-	if ev.Type == domain.EventTextDelta && ev.Delta != nil {
+	switch {
+	case ev.Type == domain.EventTextDelta && ev.Delta != nil:
 		itemID, text = ev.Delta.ItemID, ev.Delta.Text
+	case ev.Type == domain.EventItemUpdated && ev.Item != nil:
+		itemID = ev.Item.ID
 	}
 	tx, err := l.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -101,7 +111,7 @@ func index(ctx context.Context, tx *sql.Tx, session domain.SessionID, item *doma
 }
 
 func (l eventLog) History(ctx context.Context, session domain.SessionID, since domain.Seq) ([]domain.Event, error) {
-	return l.query(ctx, `SELECT body FROM events WHERE session_id = ? AND seq > ? ORDER BY seq`, session, since)
+	return l.query(ctx, historySQL, session, since)
 }
 
 // Requests reads through the partial request index, so restoring a session
