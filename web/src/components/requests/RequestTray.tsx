@@ -1,4 +1,6 @@
 import type { KeyboardEvent } from 'react'
+import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
+import { enter } from '../../lib/motion'
 import { basename } from '../../lib/format'
 import type { SessionRequest } from '../../lib/api'
 import { useSessionStore } from '../../stores/session'
@@ -12,6 +14,7 @@ export default function RequestTray() {
   const sessions = useSessionStore((s) => s.sessions)
   const selectSession = useSessionStore((s) => s.selectSession)
   const respond = useSessionStore((s) => s.respond)
+  const arrive = enter(useReducedMotion() ?? false, 'margin')
   if (requests.length === 0) return <p className="tray-empty">No pending requests</p>
   return (
     <aside className="request-tray panel" aria-label="Pending requests">
@@ -19,28 +22,30 @@ export default function RequestTray() {
         Waiting for you <span className="badge">{requests.length}</span>
       </h2>
       <ul>
-        {requests.map((r) => {
-          const session = sessions.find((s) => s.id === r.sessionId)
-          return (
-            <li key={`${r.sessionId}/${r.id}`}>
-              <button
-                className="tray-row"
-                onClick={() => void selectSession(r.sessionId)}
-                onKeyDown={(e) => {
-                  const perSession = r.payload?.suggestions != null || session?.agent === 'codex'
-                  if (onTrayKey(e, r, perSession, respond)) e.preventDefault()
-                }}
-              >
-                <span className={`request-kind kind-${r.kind}`}>{kindLabel[r.kind] ?? r.kind}</span>
-                <span className="request-label">{r.title || r.prompt || r.payload?.toolName}</span>
-                {session && <span className="request-session">{session.title || basename(session.cwd)}</span>}
-              </button>
-              {r.kind === 'permission' && (
-                <TrayActions request={r} perSession={r.payload?.suggestions != null || session?.agent === 'codex'} onRespond={respond} />
-              )}
-            </li>
-          )
-        })}
+        <AnimatePresence initial={false}>
+          {requests.map((r) => {
+            const session = sessions.find((s) => s.id === r.sessionId)
+            return (
+              <motion.li key={`${r.sessionId}/${r.id}`} {...arrive}>
+                <button
+                  className="tray-row"
+                  onClick={() => void selectSession(r.sessionId)}
+                  onKeyDown={(e) => {
+                    const perSession = r.payload?.suggestions != null || session?.agent === 'codex'
+                    if (onTrayKey(e, r, perSession, respond)) e.preventDefault()
+                  }}
+                >
+                  <span className={`request-kind kind-${r.kind}`}>{kindLabel[r.kind] ?? r.kind}</span>
+                  <span className="request-label">{r.title || r.prompt || r.payload?.toolName}</span>
+                  {session && <span className="request-session">{session.title || basename(session.cwd)}</span>}
+                </button>
+                {r.kind === 'permission' && (
+                  <TrayActions request={r} perSession={r.payload?.suggestions != null || session?.agent === 'codex'} onRespond={respond} />
+                )}
+              </motion.li>
+            )
+          })}
+        </AnimatePresence>
       </ul>
     </aside>
   )

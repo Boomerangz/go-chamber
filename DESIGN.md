@@ -179,7 +179,7 @@ Every session reads like an RFC that is still being written. The page is one she
 
 Colour is reserved for meaning, not mood. Ink-blue marks what you can press, amber marks what needs you, and red marks what broke or destroys. Everything else, including session state, is carried by the form of a small square mark. The world replaces an earlier dark glass and gradient look; that look is rejected, not softened.
 
-Density is high but calm: long streamed sessions in Russian and English, several agents at once, a terminal alongside. Motion is short and typographic: items settle, requests slide in from the margin, and an answered request is struck through and folds into a one-line record.
+Density is high but calm: long streamed sessions in Russian and English, several agents at once, a terminal alongside. Motion is short and typographic, with a little life where the owner is needed: items settle, requests spring in from the margin, a running mark breathes and a finished one lands, and an answered request is struck through and folds into a one-line record.
 
 **Key Characteristics:**
 - One sheet, one ink, hairline rules; light and dark follow the system setting.
@@ -316,7 +316,7 @@ Tool, command and file items are one mono line with a 13px lucide icon; pending 
 Quota meters are 4px bars: a `paper-3` track with an inset hairline and a solid ink fill, amber when nearing the limit and red at the limit.
 
 ### Motion
-Short and typographic. Hover and colour changes take 120ms; entries take 200ms on `cubic-bezier(0.16, 1, 0.3, 1)`. A transcript item settles 2px up while fading in; a request slides 12px in from the left margin; an answered request is struck through, then fades and collapses in 450ms; meters fill in 400ms. Nothing bounces. Under reduced motion, entries are a 120ms linear fade and nothing travels, and a global guard in the stylesheet removes all CSS transitions and animations.
+Short and typographic. Hover and colour changes take 120ms; transcript entries take 200ms on `cubic-bezier(0.16, 1, 0.3, 1)` and settle 2px up while fading in. What needs the owner and what reorders springs: a request (its block and its tray line) springs 16px in from the left margin and the sessions list settles on a spring of 320ms visual duration with a 0.22 bounce, a slight overshoot and never a wobble. A running state mark breathes (opacity to 40% and back over 2.4s); a turn that ends on its own shows `done` for 1.5s while its mark lands (scales down from 1.7x through 0.85x to rest, then turns hollow). An answered request is struck through, then fades and collapses in 450ms; meters fill in 400ms. Under reduced motion, entries are a 120ms linear fade and nothing travels or breathes, and a global guard in the stylesheet removes all CSS transitions and animations.
 
 ## Do's and Don'ts
 

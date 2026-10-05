@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { DURATION, EASE_OUT, enter, settle } from './motion'
+import { DURATION, EASE_OUT, SPRING, enter, settle } from './motion'
 
 describe('enter', () => {
   it('settles an item a couple of pixels into place', () => {
@@ -17,16 +17,19 @@ describe('enter', () => {
     expect(m.transition).toEqual({ duration: DURATION.fast, ease: 'linear' })
   })
 
-  it('can enter from the margin', () => {
-    expect(enter(false, 'margin').initial).toEqual({ opacity: 0, x: -12 })
-    expect(enter(false, 'margin').animate).toEqual({ opacity: 1, x: 0 })
+  it('springs a request in from the margin with a slight overshoot', () => {
+    const m = enter(false, 'margin')
+    expect(m.initial).toEqual({ opacity: 0, x: -16 })
+    expect(m.animate).toEqual({ opacity: 1, x: 0 })
+    expect(m.transition).toEqual(SPRING)
     expect(enter(true, 'margin').initial).toEqual({ opacity: 0 })
+    expect(enter(true, 'margin').transition).toEqual({ duration: DURATION.fast, ease: 'linear' })
   })
 })
 
 describe('settle', () => {
-  it('animates layout changes briefly', () => {
-    expect(settle(false)).toEqual({ duration: DURATION.base, ease: EASE_OUT })
+  it('springs layout changes into place', () => {
+    expect(settle(false)).toEqual(SPRING)
   })
 
   it('snaps layout changes under reduced motion', () => {
@@ -39,5 +42,12 @@ describe('tokens', () => {
     expect(DURATION.fast).toBeGreaterThanOrEqual(0.12)
     expect(DURATION.base).toBeLessThanOrEqual(0.24)
     expect(DURATION.fast).toBeLessThan(DURATION.base)
+  })
+
+  it('keeps the spring short and its overshoot slight', () => {
+    expect(SPRING.type).toBe('spring')
+    expect(SPRING.visualDuration).toBeLessThanOrEqual(0.35)
+    expect(SPRING.bounce).toBeGreaterThan(0)
+    expect(SPRING.bounce).toBeLessThanOrEqual(0.3)
   })
 })
