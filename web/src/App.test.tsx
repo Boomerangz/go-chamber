@@ -215,6 +215,7 @@ describe('App', () => {
       },
     })
     render(<App />)
+    await userEvent.click(await screen.findByText('Thinking'))
     expect(await screen.findByText('hmm')).toBeInTheDocument()
     expect(screen.getByText('ls')).toBeInTheDocument()
     expect(screen.getByText('/tmp/x.go')).toBeInTheDocument()

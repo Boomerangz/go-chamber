@@ -27,6 +27,7 @@ import ComposerInput from './components/composer/ComposerInput'
 import Attachments from './components/composer/Attachments'
 import { useAttachments } from './components/composer/useAttachments'
 import InterruptedBanner from './components/chat/InterruptedBanner'
+import ReasoningView from './components/chat/ReasoningView'
 import EditableTitle from './components/title/EditableTitle'
 import NotifyToggle from './components/notify/NotifyToggle'
 import RequestCard from './components/requests/RequestCard'
@@ -606,12 +607,7 @@ function ItemView({
         </div>
       )
     case 'reasoning':
-      return (
-        <details className="item reasoning">
-          <summary>Thinking</summary>
-          <Markdown text={item.text ?? ''} />
-        </details>
-      )
+      return <ReasoningView text={item.text ?? ''} />
     case 'plan':
       return (
         <div className="item plan">
