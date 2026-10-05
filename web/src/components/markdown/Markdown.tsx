@@ -10,19 +10,29 @@ const urlTransform: UrlTransform = (url, key, node) => {
   return defaultUrlTransform(url)
 }
 
-// CodeBlock shows the code at once and colours it when the grammar arrives.
+// HIGHLIGHT_DELAY_MS lets a block streaming in settle before it is coloured:
+// tokenizing the whole block on every flush is quadratic in its length.
+const HIGHLIGHT_DELAY_MS = 250
+
+// CodeBlock shows the code at once and colours it when the grammar arrives
+// and the code stops changing.
 function CodeBlock({ code, lang }: { code: string; lang?: string }) {
-  const [tokens, setTokens] = useState<ThemedToken[][]>()
+  const [highlighted, setHighlighted] = useState<{ code: string; tokens?: ThemedToken[][] }>()
+  const tokens = highlighted?.code === code ? highlighted.tokens : undefined
   useEffect(() => {
     if (!lang) return
     let live = true
-    import('../../lib/highlight')
-      .then(({ tokenize }) => tokenize(code, lang))
-      .then((t) => live && setTokens(t))
-      .catch(() => {})
+    const timer = setTimeout(() => {
+      import('../../lib/highlight')
+        .then(({ tokenize }) => tokenize(code, lang))
+        .then((t) => live && setHighlighted({ code, tokens: t }))
+        .catch(() => {})
+    }, highlighted ? HIGHLIGHT_DELAY_MS : 0)
     return () => {
       live = false
+      clearTimeout(timer)
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only the first colouring is immediate
   }, [code, lang])
   return (
     <pre className="md-code" data-lang={lang}>

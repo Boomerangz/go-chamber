@@ -22,6 +22,13 @@ describe('Markdown', () => {
     await waitFor(() => expect(container.querySelector('pre [style*="--shiki-light"]')).not.toBeNull(), { timeout: 5000 })
   })
 
+  it('shows streamed code at once instead of stale highlighting', async () => {
+    const { container, rerender } = render(<Markdown text={'```go\nfunc a() {}\n```'} />)
+    await waitFor(() => expect(container.querySelector('pre [style*="--shiki-light"]')).not.toBeNull(), { timeout: 5000 })
+    rerender(<Markdown text={'```go\nfunc a() {}\nfunc b() {}\n```'} />)
+    expect(container.querySelector('pre')).toHaveTextContent('func a() {} func b() {}')
+  })
+
   it('shows an unknown language as plain code', () => {
     const { container } = render(<Markdown text={'```nosuchlang\nx = 1\n```'} />)
     expect(container.querySelector('pre')).toHaveTextContent('x = 1')
