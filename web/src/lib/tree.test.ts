@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { itemTree } from './tree'
+import { itemTree, sameNode } from './tree'
 import type { Item } from './api'
 
 const item = (id: string, parentItemId?: string): Item => ({
@@ -54,5 +54,16 @@ describe('sessionTree', () => {
   it('treats unknown parents as roots', () => {
     const tree = sessionTree([session('a', 'ghost')])
     expect(tree.map((n) => n.session.id)).toEqual(['a'])
+  })
+})
+
+describe('sameNode', () => {
+  it('matches rebuilt trees over the same items and spots any changed item', () => {
+    const items = { a: item('a'), b: item('b', 'a') }
+    const [before] = itemTree(['a', 'b'], items)
+    expect(sameNode(before!, itemTree(['a', 'b'], { ...items })[0]!)).toBe(true)
+    expect(sameNode(before!, itemTree(['a', 'b'], { ...items, b: item('b', 'a') })[0]!)).toBe(false)
+    expect(sameNode(before!, itemTree(['a', 'b'], { ...items, a: item('a') })[0]!)).toBe(false)
+    expect(sameNode(before!, itemTree(['a', 'b', 'c'], { ...items, c: item('c', 'a') })[0]!)).toBe(false)
   })
 })

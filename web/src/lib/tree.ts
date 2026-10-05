@@ -45,3 +45,10 @@ export function sessionTree(sessions: Session[]): SessionNode[] {
   }
   return roots
 }
+
+// sameNode reports whether two trees hold the same item objects, so a row
+// rebuilt by itemTree can skip rendering when nothing in it changed.
+export function sameNode(a: ItemNode, b: ItemNode): boolean {
+  return a.item === b.item && a.children.length === b.children.length &&
+    a.children.every((child, i) => sameNode(child, b.children[i]!))
+}

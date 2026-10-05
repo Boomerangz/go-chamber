@@ -1,4 +1,4 @@
-import { Fragment, memo, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
+import { Fragment, memo, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { AnimatePresence, motion, useReducedMotion, type TargetAndTransition } from 'motion/react'
 import {
   ChevronsRight,
@@ -43,7 +43,7 @@ import { sessionTitle } from './lib/sessions'
 import { displayStatus } from './lib/format'
 import { enter } from './lib/motion'
 import { firstUnseen, loadSeen, saveSeen } from './lib/seen'
-import { itemTree, type ItemNode } from './lib/tree'
+import { itemTree, sameNode, type ItemNode } from './lib/tree'
 import { parseRoute, routePath } from './lib/route'
 import { turnNumbers } from './lib/turns'
 import { useLayoutStore, type Mode } from './stores/layout'
@@ -389,8 +389,8 @@ function Chat() {
   const status = displayStatus(chat, session)
   const running = status === 'running'
   const reduced = useReducedMotion() ?? false
-  const nodes = itemTree(chat.order, chat.items).filter((node) => !isBlank(node.item))
-  const turns = turnNumbers(nodes)
+  const nodes = useMemo(() => itemTree(chat.order, chat.items).filter((node) => !isBlank(node.item)), [chat.order, chat.items])
+  const turns = useMemo(() => turnNumbers(nodes), [nodes])
   const unseen = useUnseen(session?.id, chat.order)
   const scrollRef = useStickToBottom(chat)
   useLayoutEffect(() => {
@@ -454,21 +454,14 @@ function Chat() {
           <ol className="items">
             <AnimatePresence initial={false}>
               {nodes.map((node) => (
-                <Fragment key={node.item.id}>
-                  {node.item.id === unseen && (
-                    <li className="unseen-mark" aria-label="New since your last visit">
-                      new since you left
-                    </li>
-                  )}
-                  <motion.li className={`row row-${node.item.kind}`} {...enter(reduced)}>
-                    {turns.has(node.item.id) && (
-                      <span className="turn-no" aria-label={`turn ${turns.get(node.item.id)}`}>
-                        {turns.get(node.item.id)}.
-                      </span>
-                    )}
-                    <ItemView node={node} onStopTask={stopTask} />
-                  </motion.li>
-                </Fragment>
+                <Row
+                  key={node.item.id}
+                  node={node}
+                  turn={turns.get(node.item.id)}
+                  unseen={node.item.id === unseen}
+                  reduced={reduced}
+                  onStopTask={stopTask}
+                />
               ))}
             </AnimatePresence>
           </ol>
@@ -575,6 +568,37 @@ function useStickToBottom(dep: unknown) {
 function scrollOnMount(el: HTMLDivElement | null) {
   el?.scrollIntoView({ block: 'nearest' })
 }
+
+interface RowProps {
+  node: ItemNode
+  turn: number | undefined
+  unseen: boolean
+  reduced: boolean
+  onStopTask: (sessionId: string, taskId: string) => void
+}
+
+// Row skips rendering unless its items changed: typing in the composer or
+// streaming into the last item must not re-render a long transcript.
+const Row = memo(function Row({ node, turn, unseen, reduced, onStopTask }: RowProps) {
+  return (
+    <Fragment>
+      {unseen && (
+        <li className="unseen-mark" aria-label="New since your last visit">
+          new since you left
+        </li>
+      )}
+      <motion.li className={`row row-${node.item.kind}`} {...enter(reduced)}>
+        {turn !== undefined && (
+          <span className="turn-no" aria-label={`turn ${turn}`}>
+            {turn}.
+          </span>
+        )}
+        <ItemView node={node} onStopTask={onStopTask} />
+      </motion.li>
+    </Fragment>
+  )
+}, (a, b) => a.turn === b.turn && a.unseen === b.unseen && a.reduced === b.reduced &&
+  a.onStopTask === b.onStopTask && sameNode(a.node, b.node))
 
 function ItemView({
   node,
