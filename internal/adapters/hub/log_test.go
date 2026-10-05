@@ -188,21 +188,31 @@ func TestRequestsReadOnlyRequestEventsFromTheLog(t *testing.T) {
 	if len(got) != 1 || got[0].Type != domain.EventRequestOpened || log.requestReads != 1 {
 		t.Fatalf("requests = %+v, reads = %d", got, log.requestReads)
 	}
-	// Without a readable log the buffer answers.
+	// Without a readable log the buffer answers with what the log lost.
+	log.appendErr = errors.New("x")
+	h.Publish(domain.Event{SessionID: "a", Type: domain.EventRequestResolved, Request: req})
 	log.readErr = errors.New("x")
-	if got := h.Requests("a"); len(got) != 1 {
+	if got := h.Requests("a"); len(got) != 1 || got[0].Type != domain.EventRequestResolved {
 		t.Fatalf("fallback requests = %+v", got)
 	}
 }
 
-func TestLoggedHubKeepsASmallBuffer(t *testing.T) {
-	h := NewLogged(&memLog{}, nil)
+func TestLoggedHubBuffersOnlyEventsTheLogLost(t *testing.T) {
+	log := &memLog{}
+	h := NewLogged(log, nil)
+	h.Publish(ev("a", domain.EventTurnStarted))
+	log.appendErr = errors.New("busy")
 	for range LoggedBufferSize + 10 {
 		h.Publish(ev("a", domain.EventTurnStarted))
 	}
+	log.appendErr = nil
+	h.Publish(ev("b", domain.EventTurnStarted))
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	if n := len(h.buf["a"]); n != LoggedBufferSize {
-		t.Fatalf("buffered = %d, want %d", n, LoggedBufferSize)
+		t.Fatalf("lost buffered = %d, want %d", n, LoggedBufferSize)
+	}
+	if n := len(h.buf["b"]); n != 0 {
+		t.Fatalf("stored events buffered = %d", n)
 	}
 }

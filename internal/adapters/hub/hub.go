@@ -17,8 +17,8 @@ import (
 // replay.
 const DefaultBufferSize = 2048
 
-// LoggedBufferSize bounds the buffer when a log keeps history; it only
-// covers events the log failed to store.
+// LoggedBufferSize bounds the buffer when a log keeps history; it then
+// holds only events the log failed to store.
 // ponytail: a log outage longer than this loses events from replay.
 const LoggedBufferSize = 256
 
@@ -105,13 +105,9 @@ func (h *Hub) Publish(ev domain.Event) domain.Event {
 	}
 	h.seq[ev.SessionID]++
 	ev.Seq = h.seq[ev.SessionID]
-	buf := h.buf[ev.SessionID]
-	buf = append(buf, ev)
-	if len(buf) > h.bufSize {
-		buf = buf[len(buf)-h.bufSize:]
-	}
-	h.buf[ev.SessionID] = buf
-	if h.log != nil {
+	if h.log == nil {
+		h.buffer(ev)
+	} else {
 		// Under the lock so events are stored in seq order.
 		persistStart := time.Now()
 		err := h.log.Append(context.Background(), ev)
@@ -122,6 +118,8 @@ func (h *Hub) Publish(ev domain.Event) domain.Event {
 		if err != nil {
 			h.timings.errors++
 			h.lost[ev.SessionID] = true
+			// The log serves everything else; keep only what it lost.
+			h.buffer(ev)
 			h.fail(err)
 		}
 	}
@@ -132,6 +130,16 @@ func (h *Hub) Publish(ev domain.Event) domain.Event {
 	}
 	h.mu.Unlock()
 	return ev
+}
+
+// buffer keeps ev for replay, dropping the oldest beyond bufSize.
+// Callers hold h.mu.
+func (h *Hub) buffer(ev domain.Event) {
+	buf := append(h.buf[ev.SessionID], ev)
+	if len(buf) > h.bufSize {
+		buf = buf[len(buf)-h.bufSize:]
+	}
+	h.buf[ev.SessionID] = buf
 }
 
 // History returns buffered events for a session with Seq greater than since.
