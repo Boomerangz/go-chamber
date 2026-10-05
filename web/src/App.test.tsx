@@ -180,7 +180,7 @@ describe('App', () => {
     let scans = 0
     const split = String.prototype.split
     const spy = vi.spyOn(String.prototype, 'split').mockImplementation(function (this: string, ...args: Parameters<typeof split>) {
-      if (String(this) === output && args[0] === '\n') scans++
+      if (String(this) === output && String(args[0]) === '\n') scans++
       return split.apply(this, args)
     })
     try {
