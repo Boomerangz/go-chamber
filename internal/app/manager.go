@@ -354,6 +354,9 @@ func (m *Manager) SetApprovalReviewer(ctx context.Context, id domain.SessionID, 
 			return domain.SessionSnapshot{}, err
 		}
 	}
+	m.mu.Lock()
+	snap = s.Snapshot()
+	m.mu.Unlock()
 	m.cfg.Bus.Publish(domain.Event{SessionID: id, Type: domain.EventSessionState, Session: &snap})
 	return snap, nil
 }
