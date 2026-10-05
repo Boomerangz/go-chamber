@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 )
 
 var (
@@ -109,6 +110,9 @@ type Item struct {
 
 	// Text holds assistant/reasoning text or command output.
 	Text string `json:"text,omitempty"`
+	// Streaming text grows without copying every prefix. Text remains the
+	// public snapshot; detached items do not share this mutable builder.
+	textBuilder *strings.Builder
 	// Name is the tool name for tool calls.
 	Name string `json:"name,omitempty"`
 	// Input is the raw tool input.
@@ -144,7 +148,19 @@ func NewItem(id ItemID, session SessionID, turn TurnID, parent ItemID, kind Item
 }
 
 // AppendText appends streamed text to the item.
-func (i *Item) AppendText(s string) { i.Text += s }
+func (i *Item) AppendText(s string) {
+	if s == "" {
+		return
+	}
+	// Adapters can replace Text with the CLI's complete message. Value
+	// copies can also have advanced independently of the shared builder.
+	if i.textBuilder == nil || i.textBuilder.String() != i.Text {
+		i.textBuilder = &strings.Builder{}
+		i.textBuilder.WriteString(i.Text)
+	}
+	i.textBuilder.WriteString(s)
+	i.Text = i.textBuilder.String()
+}
 
 // SetStatus moves the item through its lifecycle. Terminal states are final.
 func (i *Item) SetStatus(next ItemStatus) error {
@@ -154,6 +170,9 @@ func (i *Item) SetStatus(next ItemStatus) error {
 	switch next {
 	case ItemStreaming, ItemCompleted, ItemFailed:
 		i.Status = next
+		if next.Terminal() {
+			i.textBuilder = nil
+		}
 		return nil
 	}
 	return fmt.Errorf("%w: unknown status %q", ErrInvalidItemTransition, next)
