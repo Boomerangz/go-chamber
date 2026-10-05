@@ -166,3 +166,16 @@ func TestEventLogContract(t *testing.T) {
 		return openTest(t).Events()
 	})
 }
+
+// With WAL, synchronous=NORMAL skips an fsync per commit; every streamed
+// fragment is its own commit, so FULL made streaming disk-bound.
+func TestOpenUsesNormalSynchronous(t *testing.T) {
+	s := openTest(t)
+	var mode int
+	if err := s.db.QueryRow("PRAGMA synchronous").Scan(&mode); err != nil {
+		t.Fatal(err)
+	}
+	if mode != 1 {
+		t.Fatalf("synchronous = %d, want 1 (NORMAL)", mode)
+	}
+}
