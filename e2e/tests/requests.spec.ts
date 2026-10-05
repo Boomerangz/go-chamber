@@ -62,3 +62,22 @@ test('approves a permission from the requests tray without opening the session c
   await expect(page.locator('.item.assistant', { hasText: /approved: run/ })).toBeVisible()
   await expect(page.locator('.request')).toHaveCount(0)
 })
+
+test('approves a permission from the requests tray with the keyboard', async ({ page }, info) => {
+  const text = `tray key ${info.project.name} ${info.repeatEachIndex} ${Date.now()}: please permission`
+  await newSession(page)
+  await page.getByLabel('message').fill(text)
+  await page.getByRole('button', { name: 'Send' }).click()
+  await expect(page.locator('.request-title', { hasText: 'Run command' })).toBeVisible()
+
+  const bar = page.getByRole('navigation', { name: 'Views' })
+  if (await bar.isVisible()) await bar.getByRole('button', { name: /^Requests/ }).click()
+  else await page.getByRole('toolbar', { name: 'Dock' }).getByRole('button', { name: /^Requests/ }).click()
+  const line = page.getByRole('complementary', { name: 'Pending requests' }).getByRole('listitem').filter({ hasText: text })
+  await line.locator('.tray-row').focus()
+  await page.keyboard.press('a')
+  await expect(line).toHaveCount(0)
+
+  await showPane(page, 'Chat')
+  await expect(page.locator('.item.assistant', { hasText: /approved: run/ })).toBeVisible()
+})

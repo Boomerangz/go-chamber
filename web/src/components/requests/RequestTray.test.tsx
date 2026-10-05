@@ -77,6 +77,48 @@ describe('RequestTray', () => {
     expect(respond).toHaveBeenCalledWith('s1', 'r1', { behavior: 'allow', allowForSession: true })
   })
 
+  it('answers from the keyboard and moves between requests with the arrows', async () => {
+    const respond = vi.fn().mockResolvedValue(undefined)
+    useSessionStore.setState({
+      respond,
+      sessions: [
+        { id: 's1', agent: 'codex', cwd: '/tmp/one', status: 'running' },
+        { id: 's2', agent: 'claude', cwd: '/tmp/two', status: 'running' },
+      ],
+      pendingRequests: [
+        { id: 'r1', sessionId: 's1', kind: 'permission', state: 'pending', title: 'First' },
+        { id: 'r1', sessionId: 's2', kind: 'permission', state: 'pending', title: 'Second' },
+      ],
+    })
+    render(<RequestTray />)
+    screen.getByRole('button', { name: /First/ }).focus()
+    await userEvent.keyboard('{ArrowDown}')
+    expect(screen.getByRole('button', { name: /Second/ })).toHaveFocus()
+    await userEvent.keyboard('d')
+    expect(respond).toHaveBeenLastCalledWith('s2', 'r1', { behavior: 'deny' })
+    // the last line answered: focus steps back to the one above
+    expect(screen.getByRole('button', { name: /First/ })).toHaveFocus()
+    await userEvent.keyboard('s')
+    expect(respond).toHaveBeenLastCalledWith('s1', 'r1', { behavior: 'allow', allowForSession: true })
+    // answered: focus moves on to the next line, ready for the next key
+    expect(screen.getByRole('button', { name: /Second/ })).toHaveFocus()
+    await userEvent.keyboard('a')
+    expect(respond).toHaveBeenLastCalledWith('s2', 'r1', { behavior: 'allow' })
+    expect(respond).toHaveBeenCalledTimes(3)
+  })
+
+  it('does not answer with keys that only add modifiers', async () => {
+    const respond = vi.fn().mockResolvedValue(undefined)
+    useSessionStore.setState({
+      respond,
+      pendingRequests: [{ id: 'r1', sessionId: 's1', kind: 'permission', state: 'pending', title: 'First' }],
+    })
+    render(<RequestTray />)
+    screen.getByRole('button', { name: /First/ }).focus()
+    await userEvent.keyboard('{Meta>}a{/Meta}s')
+    expect(respond).not.toHaveBeenCalled()
+  })
+
   it('leaves questions to the session, where their options are', () => {
     useSessionStore.setState({
       pendingRequests: [{ id: 'r1', sessionId: 's1', kind: 'question', state: 'pending', title: 'Pick one' }],

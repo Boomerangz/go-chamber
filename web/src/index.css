@@ -651,6 +651,7 @@ h1 { font-family: var(--font-mono); font-size: 14px; font-weight: 400; letter-sp
 }
 .request-tray li > button:hover { background: var(--req-wash); }
 /* a permission is answered right in the tray, under its line */
+.tray-actions kbd { margin-left: 4px; opacity: 0.6; }
 .tray-actions { display: flex; gap: 6px; padding: 0 10px 9px; border: 1px solid var(--rule); border-top: 0; background: var(--paper); }
 .request-kind {
   grid-row: span 2; font-family: var(--font-mono); font-size: 11.5px; letter-spacing: 0.04em;

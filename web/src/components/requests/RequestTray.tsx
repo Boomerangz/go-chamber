@@ -1,3 +1,4 @@
+import type { KeyboardEvent } from 'react'
 import { basename } from '../../lib/format'
 import type { SessionRequest } from '../../lib/api'
 import { useSessionStore } from '../../stores/session'
@@ -22,7 +23,14 @@ export default function RequestTray() {
           const session = sessions.find((s) => s.id === r.sessionId)
           return (
             <li key={`${r.sessionId}/${r.id}`}>
-              <button onClick={() => void selectSession(r.sessionId)}>
+              <button
+                className="tray-row"
+                onClick={() => void selectSession(r.sessionId)}
+                onKeyDown={(e) => {
+                  const perSession = r.payload?.suggestions != null || session?.agent === 'codex'
+                  if (onTrayKey(e, r, perSession, respond)) e.preventDefault()
+                }}
+              >
                 <span className={`request-kind kind-${r.kind}`}>{kindLabel[r.kind] ?? r.kind}</span>
                 <span className="request-label">{r.title || r.prompt || r.payload?.toolName}</span>
                 {session && <span className="request-session">{session.title || basename(session.cwd)}</span>}
@@ -38,27 +46,58 @@ export default function RequestTray() {
   )
 }
 
+// onTrayKey answers the focused permission (A allow, S allow for session,
+// D deny), then focuses the next one, and moves between requests with the
+// arrows. It reports whether it
+// handled the key.
+function onTrayKey(
+  e: KeyboardEvent<HTMLButtonElement>,
+  r: SessionRequest,
+  perSession: boolean,
+  respond: Respond,
+): boolean {
+  if (e.altKey || e.ctrlKey || e.metaKey) return false
+  const rows = [...(e.currentTarget.closest('ul')?.querySelectorAll<HTMLButtonElement>('.tray-row') ?? [])]
+  const at = rows.indexOf(e.currentTarget)
+  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+    rows[at + (e.key === 'ArrowDown' ? 1 : -1)]?.focus()
+    return true
+  }
+  if (r.kind !== 'permission') return false
+  const key = e.key.toLowerCase()
+  if (key === 'a') void respond(r.sessionId, r.id, { behavior: 'allow' })
+  else if (key === 's' && perSession) void respond(r.sessionId, r.id, { behavior: 'allow', allowForSession: true })
+  else if (key === 'd') void respond(r.sessionId, r.id, { behavior: 'deny' })
+  else return false
+  // the answered line is about to leave: keep the keyboard on the queue
+  ;(rows[at + 1] ?? rows[at - 1])?.focus()
+  return true
+}
+
+type Respond = ReturnType<typeof useSessionStore.getState>['respond']
+
 function TrayActions(props: {
   request: SessionRequest
   perSession: boolean
-  onRespond: ReturnType<typeof useSessionStore.getState>['respond']
+  onRespond: Respond
 }) {
   const { sessionId, id } = props.request
   return (
     <div className="tray-actions">
-      <button className="btn btn-xs btn-primary" onClick={() => void props.onRespond(sessionId, id, { behavior: 'allow' })}>
-        Allow
+      <button className="btn btn-xs btn-primary" aria-keyshortcuts="A" onClick={() => void props.onRespond(sessionId, id, { behavior: 'allow' })}>
+        Allow <kbd aria-hidden="true">A</kbd>
       </button>
       {props.perSession && (
         <button
           className="btn btn-xs"
+          aria-keyshortcuts="S"
           onClick={() => void props.onRespond(sessionId, id, { behavior: 'allow', allowForSession: true })}
         >
-          Allow for session
+          Allow for session <kbd aria-hidden="true">S</kbd>
         </button>
       )}
-      <button className="btn btn-xs btn-danger" onClick={() => void props.onRespond(sessionId, id, { behavior: 'deny' })}>
-        Deny
+      <button className="btn btn-xs btn-danger" aria-keyshortcuts="D" onClick={() => void props.onRespond(sessionId, id, { behavior: 'deny' })}>
+        Deny <kbd aria-hidden="true">D</kbd>
       </button>
     </div>
   )
