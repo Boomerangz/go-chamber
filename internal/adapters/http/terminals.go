@@ -132,22 +132,35 @@ const maxTerminalFrame = 256 << 10
 // Chunks are shared with other clients, so it copies before appending. open
 // is false once the queue is closed.
 func coalesce(first []byte, out <-chan []byte, maxFrame int) (frame []byte, open bool) {
-	frame = first
-	for len(frame) < maxFrame {
+	var chunks [][]byte
+	size := len(first)
+	open = true
+drain:
+	for size < maxFrame {
 		select {
 		case chunk, ok := <-out:
 			if !ok {
-				return frame, false
+				open = false
+				break drain
 			}
-			if len(frame) == len(first) {
-				frame = append(make([]byte, 0, maxFrame), first...)
-			}
-			frame = append(frame, chunk...)
+			chunks = append(chunks, chunk)
+			size += len(chunk)
 		default:
-			return frame, true
+			break drain
 		}
 	}
-	return frame, true
+	if len(chunks) == 0 {
+		return first, open
+	}
+	// Allocate only the queued payload, once. Growing from a small capacity
+	// would repeatedly copy large repaints; reserving maxFrame wastes memory
+	// on the much more frequent small updates.
+	frame = make([]byte, len(first), size)
+	copy(frame, first)
+	for _, chunk := range chunks {
+		frame = append(frame, chunk...)
+	}
+	return frame, open
 }
 
 // terminalEnded tells the client why output stopped: the shell exited, the
