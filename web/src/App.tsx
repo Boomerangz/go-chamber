@@ -30,6 +30,7 @@ import InterruptedBanner from './components/chat/InterruptedBanner'
 import ReasoningView from './components/chat/ReasoningView'
 import EditableTitle from './components/title/EditableTitle'
 import NotifyToggle from './components/notify/NotifyToggle'
+import SoundToggle from './components/notify/SoundToggle'
 import RequestCard from './components/requests/RequestCard'
 import QuotaWidget from './components/quota/QuotaWidget'
 import RequestTray from './components/requests/RequestTray'
@@ -116,6 +117,7 @@ export default function App() {
             </button>
           )}
           {health === 'online' && <NotifyToggle />}
+          {health === 'online' && <SoundToggle />}
           {health === 'online' && (
             <form method="post" action="/logout" className="signout">
               <button type="submit" className="btn btn-ghost">Sign out</button>

@@ -4,6 +4,7 @@ import * as api from '../lib/api'
 import { applyEvents, initialChat, type ChatState } from '../lib/events'
 import type { GroupMode } from '../lib/sessions'
 import { LiveList } from '../lib/live-list'
+import { chimeOnEvent } from '../lib/chime'
 
 export type Connection = 'connecting' | 'online' | 'offline'
 
@@ -437,6 +438,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
 
   applyIncoming(ev) {
     recordAgentEvent()
+    chimeOnEvent(ev)
     const prev = lastSeqs[ev.sessionId]
     lastSeqs[ev.sessionId] = Math.max(prev ?? 0, ev.seq)
     if (prev !== undefined && ev.seq > prev + 1) {

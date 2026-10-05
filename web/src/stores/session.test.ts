@@ -22,7 +22,10 @@ vi.mock('../lib/api', () => ({
   setAutoContinue: vi.fn(),
 }))
 
+vi.mock('../lib/chime', () => ({ chimeOnEvent: vi.fn() }))
+
 import * as api from '../lib/api'
+import { chimeOnEvent } from '../lib/chime'
 import { resetStore, useSessionStore } from './session'
 import { diagnostics, resetDiagnostics, beginAgentView, endAgentView, recordAgentCommit } from '../lib/diagnostics'
 
@@ -641,6 +644,12 @@ describe('request handling', () => {
       request: { id: 'r2', sessionId: 'a', kind: 'question', state: 'pending' },
     })
     expect(Object.keys(store().chat.requests)).toEqual(['r2'])
+  })
+
+  it('hands every live event to the chimes', () => {
+    const opened = { seq: 1, sessionId: 'b', type: 'request.opened' as const, request: { id: 'r9', sessionId: 'b', kind: 'permission' as const, state: 'pending' as const } }
+    store().applyIncoming(opened)
+    expect(chimeOnEvent).toHaveBeenCalledWith(opened)
   })
 
   // Agents number requests per session: perm_3 in one session is not perm_3 in another.
