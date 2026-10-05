@@ -43,6 +43,13 @@ describe('file links', () => {
     expect(new URL(href, 'http://localhost').searchParams.get('path')).toBe(path)
   })
 
+  it('opens file scheme links through the session file endpoint', () => {
+    inSession('[report](file:///work/report%20final.pdf)')
+    const href = screen.getByRole('link', { name: 'report' }).getAttribute('href')!
+    expect(new URL(href, 'http://localhost').pathname).toBe('/api/sessions/s1/file')
+    expect(new URL(href, 'http://localhost').searchParams.get('path')).toBe('/work/report final.pdf')
+  })
+
   it('open images in a viewer', () => {
     inSession('[shot](/work/shot.png)')
     fireEvent.click(screen.getByRole('link', { name: 'shot' }))
