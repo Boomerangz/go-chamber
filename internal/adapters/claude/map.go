@@ -42,7 +42,7 @@ type Mapper struct {
 	byKey           map[string]domain.ItemID
 	byTool          map[string]domain.ItemID
 	items           map[domain.ItemID]*domain.Item
-	inputBuf        map[string]string
+	inputBuf        map[string]*strings.Builder
 	pending         map[domain.RequestID]pendingRequest
 	tasks           map[string]domain.ItemID
 	hooks           map[string]domain.ItemID
@@ -58,7 +58,7 @@ func NewMapper(session domain.SessionID) *Mapper {
 		byKey:           map[string]domain.ItemID{},
 		byTool:          map[string]domain.ItemID{},
 		items:           map[domain.ItemID]*domain.Item{},
-		inputBuf:        map[string]string{},
+		inputBuf:        map[string]*strings.Builder{},
 		pending:         map[domain.RequestID]pendingRequest{},
 		tasks:           map[string]domain.ItemID{},
 		hooks:           map[string]domain.ItemID{},
@@ -277,7 +277,12 @@ func (m *Mapper) blockDelta(env rawStreamEnvelope, parent string) []domain.Event
 		item.AppendText(delta.Thinking)
 		return m.delta(item, delta.Thinking)
 	case "input_json_delta":
-		m.inputBuf[key] += delta.PartialJSON
+		buf := m.inputBuf[key]
+		if buf == nil {
+			buf = &strings.Builder{}
+			m.inputBuf[key] = buf
+		}
+		buf.WriteString(delta.PartialJSON)
 	}
 	return nil
 }
@@ -295,6 +300,8 @@ func (m *Mapper) delta(item *domain.Item, text string) []domain.Event {
 
 func (m *Mapper) stopBlock(env rawStreamEnvelope, parent string) []domain.Event {
 	key := blockKey(m.currentMessage[parent], parent, env.Index)
+	buf := m.inputBuf[key]
+	delete(m.inputBuf, key)
 	item := m.items[m.byKey[key]]
 	if item == nil {
 		return nil
@@ -306,8 +313,8 @@ func (m *Mapper) stopBlock(env rawStreamEnvelope, parent string) []domain.Event 
 			return m.updated(item)
 		}
 	case domain.ItemToolCall, domain.ItemCommand, domain.ItemFileChange, domain.ItemSubagent:
-		if buf := m.inputBuf[key]; buf != "" && len(item.Input) == 0 {
-			item.Input = json.RawMessage(buf)
+		if buf != nil && buf.Len() > 0 && len(item.Input) == 0 {
+			item.Input = json.RawMessage(buf.String())
 			m.applyToolFields(item)
 			return m.updated(item)
 		}
@@ -347,6 +354,7 @@ func (m *Mapper) mapAssistant(raw *rawMessage) []domain.Event {
 			}
 			items = append(items, item)
 		case "tool_use":
+			delete(m.inputBuf, key)
 			item := m.ensureTool(key, parent, block)
 			items = append(items, item)
 		}
