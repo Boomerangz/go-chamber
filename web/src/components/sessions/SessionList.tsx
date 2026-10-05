@@ -47,12 +47,15 @@ export default function SessionList({ onCreateIn }: SessionListProps) {
     return () => clearTimeout(timer)
   }, [query, searchMessages])
   const groups = useMemo(() => {
-    const matching = searching ? sessions.filter((s) => matchesQuery(s, query)) : sessions
+    if (!searching) return groupSessions(sessions)
     // Keep parents of matching children so the tree stays intact.
-    const ids = new Set(matching.map((s) => s.id))
-    const withParents = searching
-      ? sessions.filter((s) => ids.has(s.id) || sessions.some((c) => c.parentId === s.id && ids.has(c.id)))
-      : sessions
+    const ids = new Set<string>()
+    for (const session of sessions) {
+      if (!matchesQuery(session, query)) continue
+      ids.add(session.id)
+      if (session.parentId) ids.add(session.parentId)
+    }
+    const withParents = sessions.filter((s) => ids.has(s.id))
     return groupSessions(withParents)
   }, [sessions, query, searching])
 
