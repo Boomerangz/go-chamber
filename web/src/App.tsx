@@ -393,9 +393,10 @@ function Chat() {
   const turns = useMemo(() => turnNumbers(nodes), [nodes])
   const unseen = useUnseen(session?.id, chat.order)
   const scrollRef = useStickToBottom(chat)
-  // Rows already there when a session opens appear at once; later ones animate in.
+  // Rows of the loaded history appear at once; later ones animate in. The
+  // chat starts empty and fills from history, so wait for its first events.
   const listedFor = useRef<string | undefined>(undefined)
-  useEffect(() => { listedFor.current = session?.id }, [session?.id])
+  useEffect(() => { if (chat.lastSeq > 0) listedFor.current = session?.id }, [session?.id, chat.lastSeq])
   useLayoutEffect(() => {
     if (!session?.id) return
     beginAgentView(session.id)
