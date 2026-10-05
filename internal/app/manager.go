@@ -369,7 +369,6 @@ func (m *Manager) SetModel(ctx context.Context, id domain.SessionID, model, effo
 	m.mu.Lock()
 	oldModel, oldEffort := s.Model()
 	err = s.SetModel(model, effort)
-	snap := s.Snapshot()
 	rt := m.runtimes[id]
 	m.mu.Unlock()
 	if err != nil {
@@ -388,7 +387,6 @@ func (m *Manager) SetModel(ctx context.Context, id domain.SessionID, model, effo
 			} else {
 				m.retire(s)
 			}
-			snap = s.Snapshot()
 			m.mu.Unlock()
 		case err != nil:
 			m.mu.Lock()
@@ -397,6 +395,11 @@ func (m *Manager) SetModel(ctx context.Context, id domain.SessionID, model, effo
 			return domain.SessionSnapshot{}, err
 		}
 	}
+	// Runtime RPCs can complete after the turn ends or the runtime exits.
+	// Persist the current session, rather than the state before the RPC.
+	m.mu.Lock()
+	snap := s.Snapshot()
+	m.mu.Unlock()
 	if err := m.cfg.Repo.Save(ctx, snap); err != nil {
 		m.mu.Lock()
 		_ = s.SetModel(oldModel, oldEffort)
