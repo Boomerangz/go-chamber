@@ -393,6 +393,9 @@ function Chat() {
   const turns = useMemo(() => turnNumbers(nodes), [nodes])
   const unseen = useUnseen(session?.id, chat.order)
   const scrollRef = useStickToBottom(chat)
+  // Rows already there when a session opens appear at once; later ones animate in.
+  const listedFor = useRef<string | undefined>(undefined)
+  useEffect(() => { listedFor.current = session?.id }, [session?.id])
   useLayoutEffect(() => {
     if (!session?.id) return
     beginAgentView(session.id)
@@ -452,18 +455,17 @@ function Chat() {
       <div className="scroll" ref={scrollRef}>
         <SessionFiles.Provider value={session?.id}>
           <ol className="items">
-            <AnimatePresence initial={false}>
-              {nodes.map((node) => (
-                <Row
-                  key={node.item.id}
-                  node={node}
-                  turn={turns.get(node.item.id)}
-                  unseen={node.item.id === unseen}
-                  reduced={reduced}
-                  onStopTask={stopTask}
-                />
-              ))}
-            </AnimatePresence>
+            {nodes.map((node) => (
+              <Row
+                key={node.item.id}
+                node={node}
+                turn={turns.get(node.item.id)}
+                unseen={node.item.id === unseen}
+                reduced={reduced}
+                animateIn={listedFor.current === session?.id}
+                onStopTask={stopTask}
+              />
+            ))}
           </ol>
         </SessionFiles.Provider>
         {chat.order.length === 0 && status !== 'interrupted' && (
@@ -574,12 +576,17 @@ interface RowProps {
   turn: number | undefined
   unseen: boolean
   reduced: boolean
+  // animateIn only matters when the row mounts.
+  animateIn: boolean
   onStopTask: (sessionId: string, taskId: string) => void
 }
 
 // Row skips rendering unless its items changed: typing in the composer or
-// streaming into the last item must not re-render a long transcript.
-const Row = memo(function Row({ node, turn, unseen, reduced, onStopTask }: RowProps) {
+// streaming into the last item must not re-render a long transcript. The list
+// has no AnimatePresence: its per-render key diffing is quadratic and its
+// fresh context re-rendered every memoized row.
+const Row = memo(function Row({ node, turn, unseen, reduced, animateIn, onStopTask }: RowProps) {
+  const motionProps = enter(reduced)
   return (
     <Fragment>
       {unseen && (
@@ -587,7 +594,12 @@ const Row = memo(function Row({ node, turn, unseen, reduced, onStopTask }: RowPr
           new since you left
         </li>
       )}
-      <motion.li className={`row row-${node.item.kind}`} {...enter(reduced)}>
+      <motion.li
+        className={`row row-${node.item.kind}`}
+        initial={animateIn ? motionProps.initial : false}
+        animate={motionProps.animate}
+        transition={motionProps.transition}
+      >
         {turn !== undefined && (
           <span className="turn-no" aria-label={`turn ${turn}`}>
             {turn}.
