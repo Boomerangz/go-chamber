@@ -47,7 +47,7 @@ import { firstUnseen, loadSeen, saveSeen } from './lib/seen'
 import { itemTree, sameNode, type ItemNode } from './lib/tree'
 import { parseRoute, routePath } from './lib/route'
 import { turnNumbers } from './lib/turns'
-import { useLayoutStore, type Mode } from './stores/layout'
+import { useLayoutStore, visibleDock, type Mode } from './stores/layout'
 import { useSessionStore, type Pane } from './stores/session'
 import { useTerminalStore } from './stores/terminals'
 
@@ -63,7 +63,11 @@ export default function App() {
   const connect = useSessionStore((s) => s.connect)
   const createSession = useSessionStore((s) => s.createSession)
   const mode = useLayoutStore((s) => s.mode)
-  const dock = useLayoutStore((s) => s.dock)
+  const focus = useLayoutStore((s) => s.focus)
+  const toggleFocus = useLayoutStore((s) => s.toggleFocus)
+  const pending = useSessionStore((s) => s.pendingRequests.length)
+  const chosenDock = useLayoutStore((s) => s.dock)
+  const dock = visibleDock({ dock: chosenDock, focus }, pending)
   const loadTerminals = useTerminalStore((s) => s.load)
 
   useEffect(() => {
@@ -100,6 +104,17 @@ export default function App() {
             <span className="dot" aria-hidden="true" />
             {health ?? 'connecting'}
           </span>
+          {health === 'online' && mode === 'agents' && (
+            <button
+              type="button"
+              className="btn btn-ghost focus-toggle"
+              aria-pressed={focus}
+              title={focus ? 'Show sessions and dock' : 'Only the chat, until an agent needs you'}
+              onClick={toggleFocus}
+            >
+              Focus
+            </button>
+          )}
           {health === 'online' && <NotifyToggle />}
           {health === 'online' && (
             <form method="post" action="/logout" className="signout">
@@ -124,7 +139,7 @@ export default function App() {
       )}
       {health === 'online' && mode === 'agents' && (
         <>
-          <div className="layout" data-pane={pane} data-dock={dock ?? 'closed'}>
+          <div className="layout" data-pane={pane} data-dock={dock ?? 'closed'} data-focus={focus ? 'on' : undefined}>
             <Sidebar sessions={sessions} onCreate={(agent, cwd, branch) => void createSession(agent, cwd, branch)} />
             {activeId ? <Chat key={activeId} /> : <EmptyChat />}
             <div className="dock">

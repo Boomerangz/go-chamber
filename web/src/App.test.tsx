@@ -63,6 +63,28 @@ describe('App', () => {
     expect(screen.queryByText('boom')).toBeNull()
   })
 
+  it('in focus hides the side columns until a request waits', async () => {
+    mockApi()
+    const { container } = render(<App />)
+    await screen.findByText('online')
+    const layout = () => container.querySelector('.layout')!
+    await userEvent.click(screen.getByRole('button', { name: 'Focus' }))
+    expect(screen.getByRole('button', { name: 'Focus' })).toHaveAttribute('aria-pressed', 'true')
+    expect(layout()).toHaveAttribute('data-focus', 'on')
+    expect(layout()).toHaveAttribute('data-dock', 'closed')
+
+    act(() => useSessionStore.setState({
+      pendingRequests: [{ id: 'r1', sessionId: 's1', kind: 'permission', state: 'pending', title: 'Run it' }],
+    }))
+    expect(layout()).toHaveAttribute('data-dock', 'requests')
+    expect(container.querySelector('.dock-body .request-tray')).toBeInTheDocument()
+
+    act(() => useSessionStore.setState({ pendingRequests: [] }))
+    expect(layout()).toHaveAttribute('data-dock', 'closed')
+    await userEvent.click(screen.getByRole('button', { name: 'Focus' }))
+    expect(layout()).not.toHaveAttribute('data-focus')
+  })
+
   it('shows connection state from health check', async () => {
     mockApi()
     render(<App />)
