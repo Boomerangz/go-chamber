@@ -135,7 +135,8 @@ func (h *Hub) Publish(ev domain.Event) domain.Event {
 // buffer keeps ev for replay, dropping the oldest beyond bufSize.
 // Callers hold h.mu.
 func (h *Hub) buffer(ev domain.Event) {
-	buf := append(h.buf[ev.SessionID], ev)
+	buf := h.buf[ev.SessionID]
+	buf = append(buf, ev)
 	if len(buf) > h.bufSize {
 		buf = buf[len(buf)-h.bufSize:]
 	}
