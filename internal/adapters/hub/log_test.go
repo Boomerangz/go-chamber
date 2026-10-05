@@ -14,6 +14,7 @@ type memLog struct {
 	events    []domain.Event
 	appendErr error
 	readErr   error
+	requestReads int
 }
 
 func (l *memLog) Append(_ context.Context, ev domain.Event) error {
@@ -45,6 +46,14 @@ func (l *memLog) History(_ context.Context, s domain.SessionID, since domain.Seq
 		}
 	}
 	return out, nil
+}
+
+func (l *memLog) Requests(ctx context.Context, s domain.SessionID) ([]domain.Event, error) {
+	all, err := l.History(ctx, s, 0)
+	l.mu.Lock()
+	l.requestReads++
+	l.mu.Unlock()
+	return requestsOnly(all), err
 }
 
 func (l *memLog) LastSeq(_ context.Context, s domain.SessionID) (domain.Seq, error) {
@@ -166,5 +175,22 @@ func TestLastSeqFailureNeverReusesStoredSeqs(t *testing.T) {
 	got := h.History("a", 0)
 	if len(got) != 4 || got[2].Seq != first.Seq || got[3].Seq != second.Seq {
 		t.Fatalf("history = %+v", got)
+	}
+}
+
+func TestRequestsReadOnlyRequestEventsFromTheLog(t *testing.T) {
+	log := &memLog{}
+	h := NewLogged(log, nil)
+	req := &domain.Request{ID: "r", SessionID: "a", Kind: domain.RequestPermission, State: domain.RequestPending}
+	h.Publish(domain.Event{SessionID: "a", Type: domain.EventRequestOpened, Request: req})
+	h.Publish(ev("a", domain.EventTurnStarted))
+	got := h.Requests("a")
+	if len(got) != 1 || got[0].Type != domain.EventRequestOpened || log.requestReads != 1 {
+		t.Fatalf("requests = %+v, reads = %d", got, log.requestReads)
+	}
+	// Without a readable log the buffer answers.
+	log.readErr = errors.New("x")
+	if got := h.Requests("a"); len(got) != 1 {
+		t.Fatalf("fallback requests = %+v", got)
 	}
 }

@@ -97,6 +97,25 @@ func EventLogContract(t *testing.T, newLog func(t *testing.T) interface {
 		}
 	})
 
+	t.Run("requests returns only request events in order", func(t *testing.T) {
+		log := newLog(t)
+		req := &domain.Request{ID: "r1", SessionID: "a", Kind: domain.RequestPermission, State: domain.RequestPending}
+		for _, ev := range []domain.Event{
+			{Seq: 1, SessionID: "a", Type: domain.EventRequestOpened, Request: req},
+			{Seq: 2, SessionID: "a", Type: domain.EventTextDelta, Delta: &domain.Delta{ItemID: "i", Text: "x"}},
+			{Seq: 3, SessionID: "a", Type: domain.EventRequestResolved, Request: req},
+			{Seq: 1, SessionID: "b", Type: domain.EventRequestOpened, Request: req},
+		} {
+			if err := log.Append(ctx, ev); err != nil {
+				t.Fatal(err)
+			}
+		}
+		got, err := log.Requests(ctx, "a")
+		if err != nil || len(got) != 2 || got[0].Seq != 1 || got[1].Seq != 3 || got[1].Request.ID != "r1" {
+			t.Fatalf("requests = %+v, %v", got, err)
+		}
+	})
+
 	t.Run("a re-completed message is indexed once", func(t *testing.T) {
 		log := newLog(t)
 		for seq, text := range []string{"draft words", "final words"} {

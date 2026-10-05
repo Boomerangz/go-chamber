@@ -42,6 +42,8 @@ type ManagerConfig struct {
 // EventHistory replays a session's published events.
 type EventHistory interface {
 	History(session domain.SessionID, since domain.Seq) []domain.Event
+	// Requests returns only the request opened/resolved events.
+	Requests(session domain.SessionID) []domain.Event
 }
 
 // Manager is the session use-case boundary: it owns the in-memory registry
@@ -168,7 +170,7 @@ func (m *Manager) closeLeftoverRequests(id domain.SessionID) {
 	}
 	open := map[domain.RequestID]*domain.Request{}
 	var order []domain.RequestID
-	for _, ev := range m.cfg.History.History(id, 0) {
+	for _, ev := range m.cfg.History.Requests(id) {
 		switch {
 		case ev.Request == nil:
 		case ev.Type == domain.EventRequestOpened:

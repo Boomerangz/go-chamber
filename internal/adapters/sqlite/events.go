@@ -101,8 +101,18 @@ func index(ctx context.Context, tx *sql.Tx, session domain.SessionID, item *doma
 }
 
 func (l eventLog) History(ctx context.Context, session domain.SessionID, since domain.Seq) ([]domain.Event, error) {
-	rows, err := l.db.QueryContext(ctx,
-		`SELECT body FROM events WHERE session_id = ? AND seq > ? ORDER BY seq`, session, since)
+	return l.query(ctx, `SELECT body FROM events WHERE session_id = ? AND seq > ? ORDER BY seq`, session, since)
+}
+
+// Requests reads through the partial request index, so restoring a session
+// never decodes its streamed text.
+func (l eventLog) Requests(ctx context.Context, session domain.SessionID) ([]domain.Event, error) {
+	return l.query(ctx, `SELECT body FROM events INDEXED BY events_requests
+		WHERE session_id = ? AND type IN ('request.opened', 'request.resolved') ORDER BY seq`, session)
+}
+
+func (l eventLog) query(ctx context.Context, q string, args ...any) ([]domain.Event, error) {
+	rows, err := l.db.QueryContext(ctx, q, args...)
 	if err != nil {
 		return nil, err
 	}

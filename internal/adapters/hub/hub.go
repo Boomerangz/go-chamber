@@ -143,6 +143,30 @@ func (h *Hub) History(session domain.SessionID, since domain.Seq) []domain.Event
 	return h.buffered(session, since, nil)
 }
 
+// Requests returns the session's request opened/resolved events.
+func (h *Hub) Requests(session domain.SessionID) []domain.Event {
+	if h.log != nil {
+		events, err := h.log.Requests(context.Background(), session)
+		if err == nil {
+			return requestsOnly(h.fillLost(session, 0, events))
+		}
+		h.fail(err)
+	}
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return requestsOnly(h.buffered(session, 0, nil))
+}
+
+func requestsOnly(events []domain.Event) []domain.Event {
+	out := events[:0:0]
+	for _, ev := range events {
+		if ev.Type == domain.EventRequestOpened || ev.Type == domain.EventRequestResolved {
+			out = append(out, ev)
+		}
+	}
+	return out
+}
+
 // fillLost adds buffered events the log failed to store to its history.
 func (h *Hub) fillLost(session domain.SessionID, since domain.Seq, events []domain.Event) []domain.Event {
 	h.mu.Lock()

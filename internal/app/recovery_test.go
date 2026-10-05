@@ -22,6 +22,16 @@ func (h fakeHistory) History(id domain.SessionID, since domain.Seq) []domain.Eve
 	return out
 }
 
+func (h fakeHistory) Requests(id domain.SessionID) []domain.Event {
+	var out []domain.Event
+	for _, ev := range h[id] {
+		if ev.Type == domain.EventRequestOpened || ev.Type == domain.EventRequestResolved {
+			out = append(out, ev)
+		}
+	}
+	return out
+}
+
 func TestRestoreClosesRequestsLeftOpen(t *testing.T) {
 	repo, bus := newMemRepo(), newFakeBus()
 	opened := requestEvent("run", "r1")

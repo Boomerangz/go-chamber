@@ -142,6 +142,8 @@ type EventLog interface {
 	Append(ctx context.Context, ev domain.Event) error
 	// History returns events with Seq > since, in order.
 	History(ctx context.Context, session domain.SessionID, since domain.Seq) ([]domain.Event, error)
+	// Requests returns the session's request.opened/resolved events, in order.
+	Requests(ctx context.Context, session domain.SessionID) ([]domain.Event, error)
 	// LastSeq is the highest stored Seq for a session, 0 when none.
 	LastSeq(ctx context.Context, session domain.SessionID) (domain.Seq, error)
 }
