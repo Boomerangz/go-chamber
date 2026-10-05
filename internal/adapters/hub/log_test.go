@@ -194,3 +194,15 @@ func TestRequestsReadOnlyRequestEventsFromTheLog(t *testing.T) {
 		t.Fatalf("fallback requests = %+v", got)
 	}
 }
+
+func TestLoggedHubKeepsASmallBuffer(t *testing.T) {
+	h := NewLogged(&memLog{}, nil)
+	for range LoggedBufferSize + 10 {
+		h.Publish(ev("a", domain.EventTurnStarted))
+	}
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if n := len(h.buf["a"]); n != LoggedBufferSize {
+		t.Fatalf("buffered = %d, want %d", n, LoggedBufferSize)
+	}
+}

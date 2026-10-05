@@ -17,6 +17,11 @@ import (
 // replay.
 const DefaultBufferSize = 2048
 
+// LoggedBufferSize bounds the buffer when a log keeps history; it only
+// covers events the log failed to store.
+// ponytail: a log outage longer than this loses events from replay.
+const LoggedBufferSize = 256
+
 // Hub fans out events to subscribers and keeps a bounded replay buffer per
 // session.
 type Hub struct {
@@ -56,7 +61,7 @@ func NewWithBuffer(bufSize int) *Hub {
 // history from it, so replay survives restarts. onError receives log
 // failures; the in-memory buffer keeps working without the log.
 func NewLogged(log app.EventLog, onError func(error)) *Hub {
-	h := New()
+	h := NewWithBuffer(LoggedBufferSize)
 	h.log = log
 	h.onError = onError
 	h.loaded = map[domain.SessionID]bool{}
