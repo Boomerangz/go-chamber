@@ -367,6 +367,18 @@ func TestMapRateLimitsSkipsRepeatedSnapshots(t *testing.T) {
 	}
 }
 
+// A reached limit must keep arriving: only a running session can stop on it,
+// and an idle one may have seen the same snapshot first.
+func TestMapRateLimitsRepeatsReachedSnapshots(t *testing.T) {
+	m := NewMapper("s1")
+	reached := json.RawMessage(`{"rateLimits":{"primary":{"usedPercent":100},"rateLimitReachedType":"primary"}}`)
+	for i := range 2 {
+		if got := len(m.MapGlobalNotification("account/rateLimits/updated", reached)); got != 1 {
+			t.Fatalf("reached snapshot %d: events = %d", i, got)
+		}
+	}
+}
+
 func TestMapTokenUsage(t *testing.T) {
 	m := NewMapper("s1")
 	events := feedCodex(t, m, "thread/tokenUsage/updated", `{"threadId":"th","turnId":"t1","tokenUsage":{"total":{"inputTokens":10,"outputTokens":5,"totalTokens":15}}}`)
