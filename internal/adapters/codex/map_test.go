@@ -61,6 +61,20 @@ func TestMapCommandExecution(t *testing.T) {
 	}
 }
 
+func TestMapCommandOutputStopsStreamingAtTheCap(t *testing.T) {
+	m := NewMapper("s1")
+	m.SetTurn("t1")
+	feedCodex(t, m, "item/started", `{"threadId":"th","turnId":"t1","item":{"type":"commandExecution","id":"c1","command":"yes","status":"inProgress"}}`)
+	chunk := strings.Repeat("y\n", commandOutputCap/2)
+	params := `{"threadId":"th","turnId":"t1","itemId":"c1","delta":"` + strings.ReplaceAll(chunk, "\n", `\n`) + `"}`
+	if events := feedCodex(t, m, "item/commandExecution/outputDelta", params); len(events) != 1 {
+		t.Fatalf("first chunk events = %d", len(events))
+	}
+	if events := feedCodex(t, m, "item/commandExecution/outputDelta", params); len(events) != 0 {
+		t.Fatalf("output past the cap streamed: %d events", len(events))
+	}
+}
+
 func TestMapFailedCommand(t *testing.T) {
 	m := NewMapper("s1")
 	events := feedCodex(t, m, "item/completed", `{"threadId":"th","turnId":"t1","item":{"type":"commandExecution","id":"c2","command":"false","status":"failed","exitCode":1}}`)

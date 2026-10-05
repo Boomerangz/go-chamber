@@ -312,13 +312,18 @@ func (m *Mapper) spawns(it rpcItem) []domain.Event {
 	return out
 }
 
+// commandOutputCap matches the ~1 MiB Codex keeps of a command's aggregated
+// output. Output streamed past it is dropped by the final item anyway, and
+// every client flush re-copied the whole growing text.
+const commandOutputCap = 1 << 20
+
 func (m *Mapper) delta(n deltaNotification, kind domain.ItemKind) []domain.Event {
 	item, _, refreshed := m.ensure(n.ItemID, kind)
 	if item == nil {
 		return nil
 	}
 	events := refreshed
-	if n.Delta != "" {
+	if n.Delta != "" && (kind != domain.ItemCommand || len(item.Text) < commandOutputCap) {
 		item.AppendText(n.Delta)
 		events = append(events, domain.Event{
 			SessionID: m.session, Type: domain.EventTextDelta,
