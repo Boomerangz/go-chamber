@@ -10,10 +10,10 @@ import (
 )
 
 type memLog struct {
-	mu        sync.Mutex
-	events    []domain.Event
-	appendErr error
-	readErr   error
+	mu           sync.Mutex
+	events       []domain.Event
+	appendErr    error
+	readErr      error
 	requestReads int
 }
 
