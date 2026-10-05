@@ -12,7 +12,7 @@ export function filePath(href: string | undefined): string | null {
   let p = href
   if (p.startsWith('file://')) {
     try {
-      p = decodeURIComponent(new URL(p).pathname)
+      p = new URL(p).pathname
     } catch {
       return null
     }
@@ -20,7 +20,11 @@ export function filePath(href: string | undefined): string | null {
     return null
   }
   p = p.replace(/#.*$/, '').replace(/(:\d+){1,2}$/, '')
-  return p || null
+  try {
+    return decodeURIComponent(p) || null
+  } catch {
+    return null
+  }
 }
 
 const images = new Set(['png', 'jpg', 'jpeg', 'gif', 'webp'])

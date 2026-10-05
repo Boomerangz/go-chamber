@@ -14,6 +14,10 @@ describe('files', () => {
     }
   })
 
+  it('rejects malformed encoded paths without throwing', () => {
+    expect(filePath('docs/%E0%A4.pdf')).toBeNull()
+  })
+
   it('picks how to show a file', () => {
     expect(fileKind('a/B.PNG')).toBe('image')
     expect(fileKind('x.webp')).toBe('image')

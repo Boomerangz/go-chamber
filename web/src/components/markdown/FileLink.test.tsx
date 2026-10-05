@@ -32,6 +32,17 @@ describe('file links', () => {
     expect(a).toHaveAttribute('download')
   })
 
+  it.each([
+    ['[report](<docs/report final.pdf>)', 'docs/report final.pdf'],
+    ['[report](docs/отчёт.pdf)', 'docs/отчёт.pdf'],
+    ['[report](docs/report%23final.pdf#L12)', 'docs/report#final.pdf'],
+    ['[report](docs/report%2520final.pdf)', 'docs/report%20final.pdf'],
+  ])('opens encoded local paths: %s', (text, path) => {
+    inSession(text)
+    const href = screen.getByRole('link', { name: 'report' }).getAttribute('href')!
+    expect(new URL(href, 'http://localhost').searchParams.get('path')).toBe(path)
+  })
+
   it('open images in a viewer', () => {
     inSession('[shot](/work/shot.png)')
     fireEvent.click(screen.getByRole('link', { name: 'shot' }))
