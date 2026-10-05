@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
+import { Fragment, memo, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { AnimatePresence, motion, useReducedMotion, type TargetAndTransition } from 'motion/react'
 import {
   ChevronsRight,
@@ -689,7 +689,7 @@ function ItemView({
 
 // Folded keeps tool output out of the way: long command output and diffs
 // used to fill the whole chat. The summary says how much is inside.
-function Folded({ label, text }: { label: string; text: string }) {
+const Folded = memo(function Folded({ label, text }: { label: string; text: string }) {
   const lines = text.replace(/\n$/, '').split('\n').length
   return (
     <details className="item-output">
@@ -699,7 +699,7 @@ function Folded({ label, text }: { label: string; text: string }) {
       <pre>{text}</pre>
     </details>
   )
-}
+})
 
 const hookBadge: Record<string, string> = { success: 'ok', blocked: 'blocked', error: 'error' }
 

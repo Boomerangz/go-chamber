@@ -165,6 +165,39 @@ describe('App', () => {
     expect(details).toHaveAttribute('open')
   })
 
+  it('does not rescan completed tool output during streaming or composer typing', async () => {
+    mockApi()
+    render(<App />)
+    await screen.findByText('online')
+    const output = Array.from({ length: 2000 }, () => 'unchanged completed output').join('\n')
+    act(() => useSessionStore.setState({
+      activeId: 's1', sessions: [{ id: 's1', agent: 'claude', cwd: '/p', status: 'running' }],
+      chat: { ...initialChat('running'), order: ['c1', 'a1'], items: {
+        c1: { id: 'c1', sessionId: 's1', kind: 'command', status: 'completed', input: { command: 'ls' }, text: output },
+        a1: { id: 'a1', sessionId: 's1', kind: 'assistant_message', status: 'streaming', text: 'start' },
+      } },
+    }))
+    let scans = 0
+    const split = String.prototype.split
+    const spy = vi.spyOn(String.prototype, 'split').mockImplementation(function (this: string, ...args: Parameters<typeof split>) {
+      if (String(this) === output && args[0] === '\n') scans++
+      return split.apply(this, args)
+    })
+    try {
+      for (let i = 0; i < 20; i++) act(() => useSessionStore.setState((state) => ({
+        chat: { ...state.chat, items: { ...state.chat.items, a1: { ...state.chat.items.a1, text: `delta ${i}` } } },
+      })))
+      await userEvent.type(screen.getByRole('combobox', { name: 'message' }), 'hello')
+      expect(scans).toBe(0)
+      act(() => useSessionStore.setState((state) => ({
+        chat: { ...state.chat, items: { ...state.chat.items, c1: { ...state.chat.items.c1, text: 'changed\noutput' } } },
+      })))
+      expect(screen.getByText('Output · 2 lines')).toBeInTheDocument()
+    } finally {
+      spy.mockRestore()
+    }
+  })
+
   it('renders tool and reasoning items', async () => {
     mockApi()
     useSessionStore.setState({
