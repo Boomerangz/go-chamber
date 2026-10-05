@@ -256,7 +256,8 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     try {
       const sessions = await sessionLists.load(api.listSessions)
       if (sessions) {
-        for (const session of sessions) recordSessionChanges(get().sessions.find((s) => s.id === session.id), session)
+        const current = new Map(get().sessions.map((session) => [session.id, session]))
+        for (const session of sessions) recordSessionChanges(current.get(session.id), session)
         set({ sessions, error: null })
       }
     } catch (err) {

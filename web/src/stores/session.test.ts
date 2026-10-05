@@ -45,6 +45,22 @@ beforeEach(() => {
 })
 
 describe('session store', () => {
+  it('matches a reloaded session list to existing sessions in linear work', async () => {
+    let idReads = 0
+    const sessions: Session[] = Array.from({ length: 1000 }, (_, i) => ({
+      get id() { idReads++; return `s${i}` },
+      agent: 'claude', cwd: '/p', status: 'idle', title: 'Old title',
+    }))
+    const refreshed = sessions.map((session) => ({ ...session, title: 'Fresh title' }))
+    useSessionStore.setState({ sessions })
+    ;(api.listSessions as Mock).mockResolvedValue(refreshed)
+    idReads = 0
+    await store().loadSessions()
+    expect(idReads).toBeLessThanOrEqual(sessions.length * 10)
+    expect(store().sessions).toHaveLength(1000)
+    expect(store().sessions[999].title).toBe('Fresh title')
+  })
+
   it('remembers the latest successful model choice when responses finish out of order', async () => {
     const initial: Session = { id: 'a', agent: 'codex', cwd: '/p', status: 'idle' }
     useSessionStore.setState({ sessions: [initial] })
