@@ -395,8 +395,10 @@ function Chat() {
   const scrollRef = useStickToBottom(chat)
   // Rows of the loaded history appear at once; later ones animate in. The
   // chat starts empty and fills from history, so wait for its first events.
-  const listedFor = useRef<string | undefined>(undefined)
-  useEffect(() => { if (chat.lastSeq > 0) listedFor.current = session?.id }, [session?.id, chat.lastSeq])
+  const [listedFor, setListedFor] = useState<string>()
+  // After the commit on purpose: rows mounted with the history must not animate.
+  // eslint-disable-next-line react/set-state-in-effect
+  useEffect(() => { if (chat.lastSeq > 0) setListedFor(session?.id) }, [session?.id, chat.lastSeq])
   useLayoutEffect(() => {
     if (!session?.id) return
     beginAgentView(session.id)
@@ -463,7 +465,7 @@ function Chat() {
                 turn={turns.get(node.item.id)}
                 unseen={node.item.id === unseen}
                 reduced={reduced}
-                animateIn={listedFor.current === session?.id}
+                animateIn={listedFor === session?.id}
                 onStopTask={stopTask}
               />
             ))}
