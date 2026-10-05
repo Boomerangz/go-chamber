@@ -21,7 +21,7 @@ export default function RequestTray() {
         {requests.map((r) => {
           const session = sessions.find((s) => s.id === r.sessionId)
           return (
-            <li key={r.id}>
+            <li key={`${r.sessionId}/${r.id}`}>
               <button onClick={() => void selectSession(r.sessionId)}>
                 <span className={`request-kind kind-${r.kind}`}>{kindLabel[r.kind] ?? r.kind}</span>
                 <span className="request-label">{r.title || r.prompt || r.payload?.toolName}</span>

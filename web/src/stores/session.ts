@@ -134,7 +134,9 @@ const DELTA_FLUSH_MS = 100
 // dropped for sessions other than the open one.
 let lastSeqs: Record<string, number> = {}
 const sessionLists = new LiveList<api.Session>((s) => s.id)
-const requestLists = new LiveList<api.SessionRequest>((r) => r.id)
+// A request id is unique only within its session.
+const requestKey = (r: api.SessionRequest) => `${r.sessionId}/${r.id}`
+const requestLists = new LiveList<api.SessionRequest>(requestKey)
 const quotaLists = new LiveList<api.QuotaSnapshot>((q) => q.agent)
 let sessionRevision = 0
 const sessionRevisions = new Map<string, Partial<Record<keyof api.Session, number>>>()
@@ -455,13 +457,15 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       })
     }
     if (ev.type === 'request.opened' && ev.request) {
-      requestLists.update(ev.request.id, ev.request)
-      const rest = get().pendingRequests.filter((r) => r.id !== ev.request!.id)
+      const key = requestKey(ev.request)
+      requestLists.update(key, ev.request)
+      const rest = get().pendingRequests.filter((r) => requestKey(r) !== key)
       set({ pendingRequests: [...rest, ev.request] })
     }
     if (ev.type === 'request.resolved' && ev.request) {
-      requestLists.update(ev.request.id, null)
-      set({ pendingRequests: get().pendingRequests.filter((r) => r.id !== ev.request!.id) })
+      const key = requestKey(ev.request)
+      requestLists.update(key, null)
+      set({ pendingRequests: get().pendingRequests.filter((r) => requestKey(r) !== key) })
     }
     const id = get().activeId
     if (!id || ev.sessionId !== id) return

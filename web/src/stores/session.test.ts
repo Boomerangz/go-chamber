@@ -642,6 +642,21 @@ describe('request handling', () => {
     })
     expect(Object.keys(store().chat.requests)).toEqual(['r2'])
   })
+
+  // Agents number requests per session: perm_3 in one session is not perm_3 in another.
+  it('keeps same-id requests of different sessions apart', async () => {
+    const req = (sessionId: string) => ({ id: 'perm_3', sessionId, kind: 'permission' as const, state: 'pending' as const })
+    store().applyIncoming({ seq: 1, sessionId: 'a', type: 'request.opened', request: req('a') })
+    store().applyIncoming({ seq: 1, sessionId: 'b', type: 'request.opened', request: req('b') })
+    expect(store().pendingRequests.map((r) => r.sessionId)).toEqual(['a', 'b'])
+
+    store().applyIncoming({ seq: 2, sessionId: 'b', type: 'request.resolved', request: { ...req('b'), state: 'resolved' } })
+    expect(store().pendingRequests.map((r) => r.sessionId)).toEqual(['a'])
+
+    ;(api.listRequests as Mock).mockResolvedValue([req('a'), req('c')])
+    await store().loadRequests()
+    expect(store().pendingRequests.map((r) => r.sessionId)).toEqual(['a', 'c'])
+  })
 })
 
 // fakeServer models the backend hub: an append-only per-session log served by
