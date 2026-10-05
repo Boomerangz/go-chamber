@@ -285,11 +285,30 @@ func (s *server) sessionEvents(w http.ResponseWriter, r *http.Request) {
 		}
 		since = domain.Seq(n)
 	}
-	events := s.cfg.Events.History(sessionID(r), since)
+	events := replay(s.cfg.Events.History(sessionID(r), since))
 	if events == nil {
 		events = []domain.Event{}
 	}
 	writeJSON(w, http.StatusOK, events)
+}
+
+// replay drops text deltas for items a later item.updated replaces whole,
+// as the client fold does: a long session's history is mostly fragments.
+func replay(events []domain.Event) []domain.Event {
+	last := map[domain.ItemID]domain.Seq{}
+	for _, ev := range events {
+		if ev.Type == domain.EventItemUpdated && ev.Item != nil {
+			last[ev.Item.ID] = ev.Seq
+		}
+	}
+	out := events[:0]
+	for _, ev := range events {
+		if ev.Type == domain.EventTextDelta && ev.Delta != nil && ev.Seq < last[ev.Delta.ItemID] {
+			continue
+		}
+		out = append(out, ev)
+	}
+	return out
 }
 
 func (s *server) listRequests(w http.ResponseWriter, r *http.Request) {
