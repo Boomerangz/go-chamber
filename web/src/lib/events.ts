@@ -47,6 +47,46 @@ export function applyEvent(state: ChatState, ev: SessionEvent): ChatState {
   }
 }
 
+// A replay or live flush owns its copies until the entire batch is folded.
+// Avoid copying the whole transcript for each streamed text fragment.
+export function applyEvents(state: ChatState, events: readonly SessionEvent[]): ChatState {
+  let next = state
+  let itemsCopied = false
+  let orderCopied = false
+  let ids: Set<string> | undefined
+  for (const ev of events) {
+    if (ev.seq <= next.lastSeq) continue
+    if (ev.type !== 'item.updated' && ev.type !== 'text.delta') {
+      next = applyEvent(next, ev)
+      continue
+    }
+    next = { ...next, lastSeq: ev.seq }
+    const item = ev.type === 'item.updated' ? ev.item : undefined
+    const delta = ev.type === 'text.delta' ? ev.delta : undefined
+    const previous = delta ? next.items[delta.itemId] : undefined
+    if (!item && (!delta?.text || !previous)) continue
+    if (!itemsCopied) {
+      next.items = { ...next.items }
+      itemsCopied = true
+    }
+    if (item) {
+      ids ??= new Set(next.order)
+      if (!ids.has(item.id)) {
+        if (!orderCopied) {
+          next.order = [...next.order]
+          orderCopied = true
+        }
+        next.order.push(item.id)
+        ids.add(item.id)
+      }
+      next.items[item.id] = item
+    } else if (delta && previous) {
+      next.items[delta.itemId] = { ...previous, text: (previous.text ?? '') + delta.text }
+    }
+  }
+  return next
+}
+
 function withRequest(state: ChatState, request: SessionRequest | undefined): ChatState {
   if (!request) return state
   return { ...state, requests: { ...state.requests, [request.id]: request } }

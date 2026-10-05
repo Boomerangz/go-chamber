@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { recordAgentEvent, recordAgentBatch, markAgentUpdate } from '../lib/diagnostics'
 import * as api from '../lib/api'
-import { applyEvent, initialChat, type ChatState } from '../lib/events'
+import { applyEvents, initialChat, type ChatState } from '../lib/events'
 import type { GroupMode } from '../lib/sessions'
 import { LiveList } from '../lib/live-list'
 
@@ -549,16 +549,19 @@ async function resync(
   try {
     const history = await api.fetchEvents(id, get().chat.lastSeq)
     if (mine !== generation) return
-    let chat = get().chat
-    for (const ev of [...history, ...live]) chat = applyEvent(chat, ev)
+    const chat = applyEvents(get().chat, [...history, ...live])
     set({ chat, error: null })
   } catch (err) {
     if (mine === generation) {
-      let chat = get().chat
+      const initial = get().chat
+      let lastSeq = initial.lastSeq
+      const contiguous: api.SessionEvent[] = []
       for (const ev of live) {
-        if (ev.seq > chat.lastSeq + 1) break
-        chat = applyEvent(chat, ev)
+        if (ev.seq > lastSeq + 1) break
+        lastSeq = Math.max(lastSeq, ev.seq)
+        contiguous.push(ev)
       }
+      const chat = applyEvents(initial, contiguous)
       // Keep events beyond a missing prefix for the next history fetch;
       // advancing lastSeq over that gap would make replay discard it.
       retry = live.some((ev) => ev.seq > chat.lastSeq)
@@ -578,9 +581,8 @@ function flush(get: () => SessionStore, set: (partial: Partial<SessionStore>) =>
     flushTimer = null
   }
   if (queued.length === 0) return
-  let chat = get().chat
   recordAgentBatch(performance.now() - (queuedAt ?? performance.now()), queued.length)
-  for (const ev of queued) chat = applyEvent(chat, ev)
+  const chat = applyEvents(get().chat, queued)
   queued = []
   queuedAt = null
   if (get().activeId) markAgentUpdate(get().activeId!)
