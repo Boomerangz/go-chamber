@@ -23,6 +23,9 @@ type Mapper struct {
 	hooks   map[string]domain.ItemID
 	hookSeq int
 	errSeq  int
+	// rateLimits is the last rate-limit notification; Codex repeats it
+	// unchanged many times per turn.
+	rateLimits string
 }
 
 func NewMapper(session domain.SessionID) *Mapper {
@@ -158,7 +161,7 @@ func (m *Mapper) mapNotification(method string, params json.RawMessage) []domain
 // MapGlobalNotification maps account-wide notifications that carry no
 // threadId and must be broadcast to every session.
 func (m *Mapper) MapGlobalNotification(method string, params json.RawMessage) []domain.Event {
-	if method != "account/rateLimits/updated" {
+	if method != "account/rateLimits/updated" || string(params) == m.rateLimits {
 		return nil
 	}
 	var n struct {
@@ -167,6 +170,7 @@ func (m *Mapper) MapGlobalNotification(method string, params json.RawMessage) []
 	if err := json.Unmarshal(params, &n); err != nil {
 		return nil
 	}
+	m.rateLimits = string(params)
 	q := quotaFromSnapshot(n.RateLimits)
 	return []domain.Event{{SessionID: m.session, Type: domain.EventQuota, Quota: &q}}
 }

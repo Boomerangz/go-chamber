@@ -353,6 +353,20 @@ func TestMapRateLimitsGlobal(t *testing.T) {
 	}
 }
 
+func TestMapRateLimitsSkipsRepeatedSnapshots(t *testing.T) {
+	m := NewMapper("s1")
+	a := json.RawMessage(`{"rateLimits":{"primary":{"usedPercent":40}}}`)
+	b := json.RawMessage(`{"rateLimits":{"primary":{"usedPercent":41}}}`)
+	for i, step := range []struct {
+		params json.RawMessage
+		want   int
+	}{{a, 1}, {a, 0}, {b, 1}, {a, 1}} {
+		if got := len(m.MapGlobalNotification("account/rateLimits/updated", step.params)); got != step.want {
+			t.Fatalf("step %d: events = %d, want %d", i, got, step.want)
+		}
+	}
+}
+
 func TestMapTokenUsage(t *testing.T) {
 	m := NewMapper("s1")
 	events := feedCodex(t, m, "thread/tokenUsage/updated", `{"threadId":"th","turnId":"t1","tokenUsage":{"total":{"inputTokens":10,"outputTokens":5,"totalTokens":15}}}`)
