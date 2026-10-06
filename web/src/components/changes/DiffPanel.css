@@ -50,16 +50,23 @@
   .diff-panel .diff-status { width: auto; }
   .diff-status-word { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 }
-/* a long path gives way folder first, then the name; the full path is the row's title */
-.diff-path { flex: 1; min-width: 0; display: flex; overflow: hidden; font-family: var(--font-mono); font-size: 12.5px; white-space: nowrap; }
+/* a long path gives way folder first, then the name; the full path is the row's title.
+   It is one line: a rename's old path wraps onto a hidden second line (dropped)
+   unless it fits beside the whole new path; the new path is laid out first */
+.diff-path {
+  flex: 1; min-width: 0; height: 1lh; display: flex; flex-flow: row-reverse wrap; justify-content: flex-end;
+  overflow: hidden; font-family: var(--font-mono); font-size: 12.5px; white-space: nowrap;
+}
+.diff-new { order: -1; flex: 0 1 auto; min-width: 0; display: flex; overflow: hidden; }
 .diff-dir { flex: 0 1000 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; color: var(--ink-3); }
 /* the name gives way last, in its middle: its end and extension stay */
 .diff-base { flex: 0 1 auto; color: var(--ink); }
-/* a rename: the old path, quietest, gives way before anything else: its
-   folder first, then its name from the middle, then the rest of it */
-.diff-from { flex: 0 1000 auto; min-width: 0; display: inline-flex; overflow: hidden; color: var(--ink-3); }
+/* the old path, quietest, takes at most half the line: its folder gives way
+   first, then its name from the middle, with an ellipsis */
+.diff-from-part { flex: 0 1 auto; min-width: 0; max-width: 50%; display: flex; }
+.diff-from { flex: 0 1 auto; min-width: 0; display: inline-flex; overflow: hidden; color: var(--ink-3); }
 .diff-from-dir { flex: 0 1000 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-.diff-from .midcut { flex: 0 1 auto; min-width: 0; }
+.diff-from .midcut { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .diff-from .midcut-head { min-width: 0; }
 .diff-from .midcut-tail { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .diff-arrow { flex: none; white-space: pre; color: var(--ink-3); }

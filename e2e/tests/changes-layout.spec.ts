@@ -112,6 +112,42 @@ test('similar long renames stay apart: each name keeps its end and extension', a
   expect(shown.size).toBe(4)
 })
 
+test.describe('renames in a narrow Changes panel', () => {
+  test.use({ viewport: { width: 900, height: 800 } })
+  test('the new name stays whole while it fits; the old one shows on the line or not at all', async ({ page }) => {
+    const dir = repo()
+    fs.writeFileSync(path.join(dir, 'file2.txt'), 'two\n'.repeat(20))
+    fs.mkdirSync(path.join(dir, 'src/components'), { recursive: true })
+    fs.writeFileSync(path.join(dir, 'src/components/the_old_component_name.tsx'), 'export const y = 2\n'.repeat(20))
+    execFileSync('git', ['add', '.'], { cwd: dir, env })
+    execFileSync('git', ['commit', '-q', '-m', 'files'], { cwd: dir, env })
+    execFileSync('git', ['mv', 'file2.txt', 'renamed_file5.txt'], { cwd: dir, env })
+    fs.mkdirSync(path.join(dir, 'src/widgets'))
+    execFileSync('git', ['mv', 'src/components/the_old_component_name.tsx', 'src/widgets/new_widget.tsx'], { cwd: dir, env })
+    const panel = await openChanges(page, dir)
+    const rows = panel.locator('.diff-file-head').filter({ hasText: '→' })
+    await expect(rows).toHaveCount(2)
+    for (const row of await rows.all()) {
+      const pathBox = (await row.locator('.diff-path').boundingBox())!
+      const base = row.locator('.diff-base')
+      // the new name is whole: the panel is wide enough for it alone
+      expect(await base.evaluate((el) => [el, ...el.querySelectorAll<HTMLElement>('.midcut-head')].every((e) => e.scrollWidth <= e.clientWidth))).toBe(true)
+      expect(await row.locator('.diff-new').evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true)
+      const b = (await base.boundingBox())!
+      expect(b.x + b.width).toBeLessThanOrEqual(pathBox.x + pathBox.width + 0.5)
+      // the old name is on the path's line, before the new one, or not shown at all
+      const from = (await row.locator('.diff-from-part').boundingBox())!
+      const shown = from.y < pathBox.y + pathBox.height - 1
+      if (shown) {
+        expect(from.x + from.width).toBeLessThanOrEqual(b.x + 0.5)
+        expect(from.width).toBeGreaterThan(40)
+      } else expect(from.y).toBeGreaterThanOrEqual(pathBox.y + pathBox.height - 0.5)
+      // the row still names both, for the tooltip and screen readers
+      await expect(row.getByRole('button').first()).toHaveAttribute('title', /→/)
+    }
+  })
+})
+
 test('the panel’s controls stay in view and git’s header lines are gone', async ({ page }) => {
   const panel = await openChanges(page, repo())
   await panel.getByRole('button', { name: 'Expand all' }).click()
