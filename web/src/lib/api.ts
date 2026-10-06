@@ -165,30 +165,85 @@ export interface SessionEvent {
 }
 
 export async function fetchHealth(): Promise<Health> {
-  try {
-    const res = await fetch('/api/health', { credentials: 'same-origin' })
-    if (res.status === 401) return 'unauthorized'
-    if (!res.ok) return 'offline'
-    const body = (await res.json()) as { status?: string }
-    return body.status === 'ok' ? 'online' : 'offline'
-  } catch {
-    return 'offline'
-  }
+  return withDeadline(undefined, TIMEOUT_MS, async (signal) => {
+    try {
+      const res = await fetch('/api/health', { credentials: 'same-origin', signal })
+      if (res.status === 401) return 'unauthorized'
+      if (!res.ok) return 'offline'
+      const body = (await res.json()) as { status?: string }
+      return body.status === 'ok' ? 'online' : 'offline'
+    } catch {
+      return 'offline'
+    }
+  })
 }
 
 // UNAUTHORIZED_EVENT fires on window when the API rejects the login (the
 // cookie expired or the token changed), so the page can show "Signed out".
 export const UNAUTHORIZED_EVENT = 'gc:unauthorized'
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(path, { credentials: 'same-origin', ...init })
-  const text = await res.text().catch(() => '')
-  if (res.status === 401) {
-    if (typeof window !== 'undefined') window.dispatchEvent(new Event(UNAUTHORIZED_EVENT))
-    throw new Error('Signed out')
+// TIMEOUT_MS is how long a request may take before it counts as unanswered,
+// so a hung server never leaves a control reading "Sending…" for good.
+export const TIMEOUT_MS = 30_000
+// SLOW_MS is for calls that start an agent CLI or wait on one.
+const SLOW_MS = 90_000
+// LONG_MS is for calls that move a lot: a git worktree, an uploaded picture.
+const LONG_MS = 5 * 60_000
+
+// ApiError is a request the server answered with a failure status.
+export class ApiError extends Error {
+  readonly status: number
+
+  constructor(status: number, message: string) {
+    super(message)
+    this.status = status
+    this.name = 'ApiError'
   }
-  if (!res.ok) {
-    throw new Error(text || `${res.status} ${res.statusText}`)
+}
+
+// withDeadline runs fn with a signal that aborts after ms (reason: a
+// TimeoutError) or when the caller's own signal does, whichever is first.
+async function withDeadline<T>(outer: AbortSignal | null | undefined, ms: number, fn: (signal: AbortSignal) => Promise<T>): Promise<T> {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(new DOMException('go-chamber did not answer in time', 'TimeoutError')), ms)
+  const follow = () => controller.abort(outer?.reason)
+  if (outer?.aborted) follow()
+  else outer?.addEventListener('abort', follow, { once: true })
+  try {
+    return await fn(controller.signal)
+  } finally {
+    clearTimeout(timer)
+    outer?.removeEventListener('abort', follow)
+  }
+}
+
+function signedOut(): never {
+  if (typeof window !== 'undefined') window.dispatchEvent(new Event(UNAUTHORIZED_EVENT))
+  throw new Error('Signed out')
+}
+
+// requestRaw fetches path and hands back the response for the caller to
+// read (a file, a status of its own), with the same login handling and
+// deadline as the JSON calls. The deadline covers the headers only.
+export async function requestRaw(path: string, init?: RequestInit, timeoutMs = TIMEOUT_MS): Promise<Response> {
+  const res = await withDeadline(init?.signal, timeoutMs, (signal) => fetch(path, { credentials: 'same-origin', ...init, signal }))
+  if (res.status === 401) signedOut()
+  return res
+}
+
+async function request<T>(path: string, init?: RequestInit, timeoutMs = TIMEOUT_MS): Promise<T> {
+  const [status, statusText, text] = await withDeadline(init?.signal, timeoutMs, async (signal) => {
+    const res = await fetch(path, { credentials: 'same-origin', ...init, signal })
+    const text = await res.text().catch((err: unknown) => {
+      // A body cut off by the deadline is a timeout, not an empty answer.
+      if (signal.aborted) throw err
+      return ''
+    })
+    return [res.status, res.statusText, text] as const
+  })
+  if (status === 401) signedOut()
+  if (status < 200 || status > 299) {
+    throw new ApiError(status, text || `${status} ${statusText}`)
   }
   return (text ? JSON.parse(text) : undefined) as T
 }
@@ -209,7 +264,7 @@ export interface ModelChoice {
 }
 
 export function createSession(agent: AgentKind, cwd: string, choice?: ModelChoice): Promise<Session> {
-  return request<Session>('/api/sessions', json({ agent, cwd, ...choice }))
+  return request<Session>('/api/sessions', json({ agent, cwd, ...choice }), SLOW_MS)
 }
 
 export function getSession(id: string): Promise<Session> {
@@ -230,7 +285,7 @@ export function uploadImage(sessionId: string, file: Blob): Promise<UploadedImag
     method: 'POST',
     headers: { 'Content-Type': file.type || 'application/octet-stream' },
     body: file,
-  })
+  }, LONG_MS)
 }
 
 export function imageUrl(sessionId: string, imageId: string): string {
@@ -250,7 +305,7 @@ export function setAutoContinue(id: string, on: boolean): Promise<Session> {
 }
 
 export function forkSession(id: string): Promise<Session> {
-  return request<Session>(`/api/sessions/${encodeURIComponent(id)}/fork`, { method: 'POST' })
+  return request<Session>(`/api/sessions/${encodeURIComponent(id)}/fork`, { method: 'POST' }, SLOW_MS)
 }
 
 export function fetchEvents(id: string, since = 0): Promise<SessionEvent[]> {
@@ -287,11 +342,11 @@ export interface LoginChallenge {
 }
 
 export function getAccount(agent: AgentKind): Promise<AccountInfo> {
-  return request<AccountInfo>(`/api/account?agent=${agent}`)
+  return request<AccountInfo>(`/api/account?agent=${agent}`, undefined, SLOW_MS)
 }
 
 export function startLogin(agent: AgentKind): Promise<LoginChallenge> {
-  return request<LoginChallenge>(`/api/agents/${agent}/login`, { method: 'POST' })
+  return request<LoginChallenge>(`/api/agents/${agent}/login`, { method: 'POST' }, SLOW_MS)
 }
 
 export function steer(id: string, text: string): Promise<void> {
@@ -344,7 +399,7 @@ export function getQuotas(): Promise<QuotaSnapshot[]> {
 }
 
 export function refreshQuota(agent: AgentKind): Promise<QuotaSnapshot> {
-  return request<QuotaSnapshot>(`/api/quotas/${agent}/refresh`, { method: 'POST' })
+  return request<QuotaSnapshot>(`/api/quotas/${agent}/refresh`, { method: 'POST' }, SLOW_MS)
 }
 
 export interface Folder {
@@ -392,7 +447,7 @@ export interface ModelInfo {
 }
 
 export function listModels(agent: AgentKind): Promise<ModelInfo[]> {
-  return request<ModelInfo[]>(`/api/agents/${agent}/models`)
+  return request<ModelInfo[]>(`/api/agents/${agent}/models`, undefined, SLOW_MS)
 }
 
 export function setModel(id: string, choice: ModelChoice): Promise<Session> {
@@ -412,7 +467,7 @@ export interface Changes {
 }
 
 export function createWorktreeSession(agent: AgentKind, cwd: string, branch: string, choice?: ModelChoice): Promise<Session> {
-  return request<Session>('/api/worktrees', json({ agent, cwd, branch, ...choice }))
+  return request<Session>('/api/worktrees', json({ agent, cwd, branch, ...choice }), LONG_MS)
 }
 
 export function getChanges(id: string): Promise<Changes> {
@@ -424,7 +479,7 @@ export function getFileDiff(id: string, path: string): Promise<{ diff: string }>
 }
 
 export function removeWorktree(id: string, force: boolean): Promise<Session> {
-  return request<Session>(`/api/sessions/${encodeURIComponent(id)}/worktree${force ? '?force=1' : ''}`, { method: 'DELETE' })
+  return request<Session>(`/api/sessions/${encodeURIComponent(id)}/worktree${force ? '?force=1' : ''}`, { method: 'DELETE' }, LONG_MS)
 }
 
 // ExternalSession is a conversation the agent recorded on its own (started
@@ -442,5 +497,5 @@ export function listHistory(): Promise<ExternalSession[]> {
 }
 
 export function importHistory(agent: AgentKind, nativeId: string): Promise<Session> {
-  return request<Session>('/api/history/import', json({ agent, nativeId }))
+  return request<Session>('/api/history/import', json({ agent, nativeId }), SLOW_MS)
 }

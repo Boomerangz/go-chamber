@@ -56,6 +56,10 @@ describe('describeError', () => {
     expect(describeError(new TypeError('Failed to fetch'))).toBe('go-chamber is not reachable')
   })
 
+  it('names a request go-chamber never answered', () => {
+    expect(describeError(new DOMException('signal timed out', 'TimeoutError'))).toBe("go-chamber didn't answer")
+  })
+
   it('trims long messages', () => {
     expect(describeError('x'.repeat(400))).toHaveLength(241)
   })

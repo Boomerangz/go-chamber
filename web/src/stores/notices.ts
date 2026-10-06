@@ -52,6 +52,8 @@ const MAX_TEXT = 240
 // describeError turns a thrown value into one readable line: server bodies
 // can be whole HTML pages, and a dropped connection reads "Failed to fetch".
 export function describeError(err: unknown): string {
+  // A DOMException is not always an Error (jsdom), so go by its name.
+  if ((err as { name?: unknown } | null)?.name === 'TimeoutError') return "go-chamber didn't answer"
   let text = err instanceof Error ? err.message : String(err)
   if (err instanceof TypeError && /fetch|network/i.test(text)) return 'go-chamber is not reachable'
   const title = /<title>([^<]*)<\/title>/i.exec(text)
