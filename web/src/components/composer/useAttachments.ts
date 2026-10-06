@@ -6,10 +6,13 @@ import { useDrafts, type DraftImage, type Upload, type UploadError } from '../..
 const none: never[] = []
 let nextKey = 0
 
+const lockedMessage = 'images go with the next message'
+
 // useAttachments uploads images picked, pasted or dropped into the composer;
 // the message is sent with their ids. What is attached to each session lives
-// in the drafts store, so switching sessions keeps it.
-export function useAttachments(sessionId: string | undefined) {
+// in the drafts store, so switching sessions keeps it. locked (a running turn
+// only takes text) refuses pasted and dropped images as the Attach button does.
+export function useAttachments(sessionId: string | undefined, locked = false) {
   const items: DraftImage[] = useDrafts((s) => (sessionId && s.images[sessionId]) || none)
   const uploads: Upload[] = useDrafts((s) => (sessionId && s.uploads[sessionId]) || none)
   const errors: UploadError[] = useDrafts((s) => (sessionId && s.errors[sessionId]) || none)
@@ -28,7 +31,7 @@ export function useAttachments(sessionId: string | undefined) {
         const key = `u${++nextKey}`
         if (file.type.startsWith('image/')) {
           queue.push({ key, file })
-          drafts.startUpload(sessionId, key, file.name)
+          drafts.startUpload(sessionId, key, file.name, file)
         } else {
           drafts.reject(sessionId, key, file.name, `only images can be attached: ${file.name}`)
         }
@@ -46,12 +49,22 @@ export function useAttachments(sessionId: string | undefined) {
     [sessionId],
   )
 
+  // refuse says why pasted or dropped images were not taken.
+  const refuse = () => {
+    if (!sessionId) return
+    useDrafts.getState().clearErrors(sessionId)
+    useDrafts.getState().reject(sessionId, `u${++nextKey}`, 'images', lockedMessage)
+  }
+
   const dropProps = {
     onPaste: (e: ClipboardEvent) => {
-      if (e.clipboardData?.files?.length) void add(e.clipboardData.files)
+      if (!e.clipboardData?.files?.length) return
+      // Text pasted alongside still goes into the box.
+      if (locked) refuse()
+      else void add(e.clipboardData.files)
     },
     onDragEnter: (e: DragEvent) => {
-      if (!sessionId || !hasFiles(e)) return
+      if (!sessionId || locked || !hasFiles(e)) return
       depth.current++
       setDragging(true)
     },
@@ -64,8 +77,10 @@ export function useAttachments(sessionId: string | undefined) {
       depth.current = 0
       setDragging(false)
       if (!e.dataTransfer?.files?.length) return
+      // Taken or not, a dropped file must not open in place of the app.
       e.preventDefault()
-      void add(e.dataTransfer.files)
+      if (locked) refuse()
+      else void add(e.dataTransfer.files)
     },
   }
 
@@ -80,6 +95,13 @@ export function useAttachments(sessionId: string | undefined) {
     add,
     remove: (id: string) => sessionId && useDrafts.getState().removeImage(sessionId, id),
     dismiss: (key: string) => sessionId && useDrafts.getState().dismissError(sessionId, key),
+    // retry uploads a failed file again.
+    retry: (key: string) => {
+      const failed = errors.find((e) => e.key === key)
+      if (!sessionId || !failed?.file) return
+      useDrafts.getState().dismissError(sessionId, key)
+      void add([failed.file])
+    },
     clear: () => {
       if (!sessionId) return
       useDrafts.getState().clearImages(sessionId)

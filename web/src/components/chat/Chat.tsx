@@ -91,7 +91,6 @@ export default function Chat() {
   useEffect(() => {
     textRef.current = text
   }, [text])
-  const attachments = useAttachments(sessionId)
   const status = displayStatus(chat, session)
   const finished = useJustFinished(status)
   // The transcript owner marks a failed turn; a failure doesn't flash "done".
@@ -145,6 +144,8 @@ export default function Chat() {
     return () => clearTimeout(timer)
   }, [starting])
   const busy = running || starting !== null
+  // A running turn takes text only; images wait for the next message.
+  const attachments = useAttachments(sessionId, busy)
   // When this turn started, for the working clock; unknown before this view.
   const [turnStart, setTurnStart] = useState<number | null>(null)
   // eslint-disable-next-line react/set-state-in-effect
