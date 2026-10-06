@@ -1,6 +1,6 @@
 import { Folder } from 'lucide-react'
 import { icon } from '../icon'
-import { useLayoutEffect, useRef, useState, type Ref } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, type Ref } from 'react'
 import FolderPicker from './FolderPicker'
 import './FolderField.css'
 
@@ -28,6 +28,15 @@ export default function FolderField({ label, placeholder, value, onChange, recen
     if (el && document.activeElement !== el) el.scrollLeft = el.scrollWidth
   }
   useLayoutEffect(() => showEnd(box.current?.querySelector('input') ?? null), [value])
+  // A field set while hidden (a phone's folded form) or resized (the phone's
+  // larger font) shows the end again once it has its width.
+  useEffect(() => {
+    const input = box.current?.querySelector('input')
+    if (!input || typeof ResizeObserver === 'undefined') return
+    const observer = new ResizeObserver(() => showEnd(input))
+    observer.observe(input)
+    return () => observer.disconnect()
+  }, [])
   // Focus goes back where the picker was opened from.
   const close = () => {
     setOpen(false)

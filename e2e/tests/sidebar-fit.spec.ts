@@ -26,6 +26,24 @@ async function box(l: Locator) {
   return b
 }
 
+test('the folder field shows the end of a long path, also when the form unfolds on a phone', async ({ page }) => {
+  const dir = path.join(realpathSync(mkdtempSync(path.join(tmpdir(), 'gc-field-'))), 'a-rather-long-folder-name', 'the-project-at-the-end')
+  execFileSync('mkdir', ['-p', dir])
+  const headers = { Authorization: `Bearer ${token}` }
+  const created = await page.request.post('/api/sessions', { headers, data: { agent: 'claude', cwd: dir } })
+  const { id } = (await created.json()) as { id: string }
+  await page.goto(`/?token=${token}`)
+  await page.goto(`/s/${id}`)
+  await showPane(page, 'Sessions')
+  await openNewSession(page)
+  const input = page.getByLabel('Working directory')
+  await expect(input).toHaveValue(dir)
+  await expect
+    .poll(() => input.evaluate((e: HTMLInputElement) => e.scrollWidth - e.clientWidth - e.scrollLeft))
+    .toBeLessThanOrEqual(1)
+  expect(await input.evaluate((e: HTMLInputElement) => e.scrollLeft)).toBeGreaterThan(0)
+})
+
 test('a quota window that reset says when, and the footer still fits', async ({ page }) => {
   const past = new Date(Date.now() - 16 * 86_400_000).toISOString()
   await page.route('**/api/quotas', (route) =>
