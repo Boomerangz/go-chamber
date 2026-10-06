@@ -1,9 +1,10 @@
 import { Ellipsis } from 'lucide-react'
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react'
 import { createPortal } from 'react-dom'
-import type { Session } from '../../lib/api'
+import { interrupt, type Session } from '../../lib/api'
 import { usePending } from '../../lib/pending'
 import { sessionTitle } from '../../lib/sessions'
+import { fail, notify } from '../../stores/notices'
 import { useSessionStore } from '../../stores/session'
 import { icon } from '../icon'
 import './SessionMenu.css'
@@ -18,7 +19,8 @@ interface Anchor {
 
 type Step = 'menu' | 'rename' | 'delete'
 
-const EDGE = 8
+// the sheet keeps this far from the window's edges (a phone's gutter there)
+const edge = () => (window.innerWidth <= 720 ? 14 : 8)
 
 // neighbourOf finds where focus goes once a row leaves the list (archived,
 // unarchived or deleted): the next row, else the previous one. Rows nested
@@ -134,9 +136,31 @@ function MenuSheet(props: {
       if (ok) {
         onClose()
         refocus()
+        // The row leaves the list: say where it went, and offer it back.
+        if (!archived) {
+          notify({
+            kind: 'info',
+            text: `Archived ${title.length > 60 ? `${title.slice(0, 59)}…` : title}`,
+            key: `archive-${session.id}`,
+            action: { label: 'Undo', run: () => void unarchiveSession(session.id) },
+          })
+        }
       }
       return ok
-    }, [archived, archiveSession, unarchiveSession, onClose, session.id, trigger]),
+    }, [archived, archiveSession, unarchiveSession, onClose, session.id, title, trigger]),
+  )
+  // Any session's turn stops from here, the archived ones included.
+  const [stop, stopping] = usePending(
+    useCallback(async () => {
+      try {
+        await interrupt(session.id)
+      } catch (err) {
+        fail("Couldn't stop the turn", err)
+        return false
+      }
+      onClose(true)
+      return true
+    }, [onClose, session.id]),
   )
   // A deleted session's row leaves with its menu: stay busy until then.
   const [remove, deleting] = usePending(
@@ -159,8 +183,9 @@ function MenuSheet(props: {
     const { width, height } = el.getBoundingClientRect()
     let left = anchor.alignRight ? anchor.x - width : anchor.x
     let top = anchor.y
-    left = Math.max(EDGE, Math.min(left, window.innerWidth - width - EDGE))
-    if (top + height > window.innerHeight - EDGE) top = Math.max(EDGE, anchor.y - height - (anchor.alignRight ? 30 : 0))
+    const inset = edge()
+    left = Math.max(inset, Math.min(left, window.innerWidth - width - inset))
+    if (top + height > window.innerHeight - inset) top = Math.max(inset, anchor.y - height - (anchor.alignRight ? 30 : 0))
     setPos({ left, top })
   }, [anchor, step])
 
@@ -245,6 +270,11 @@ function MenuSheet(props: {
           <button type="button" role="menuitem" tabIndex={-1} onClick={() => setStep('rename')}>
             Rename
           </button>
+          {running && (
+            <button type="button" role="menuitem" tabIndex={-1} aria-busy={stopping || undefined} onClick={() => void stop()}>
+              {stopping ? 'Stopping…' : 'Stop turn'}
+            </button>
+          )}
           <button type="button" role="menuitem" tabIndex={-1} aria-busy={archiving || undefined} onClick={() => void archive()}>
             {archiving ? (archived ? 'Unarchiving…' : 'Archiving…') : archived ? 'Unarchive' : 'Archive'}
           </button>
@@ -257,7 +287,7 @@ function MenuSheet(props: {
             onClick={() => !running && setStep('delete')}
           >
             Delete…
-            {running && <span className="session-menu-hint"> stop the turn first</span>}
+            {running && <span className="session-menu-hint">stop first</span>}
           </button>
         </>
       )}

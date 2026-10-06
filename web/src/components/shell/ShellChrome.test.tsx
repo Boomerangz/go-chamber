@@ -1,11 +1,11 @@
-import { act, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { notify, resetNotices, useNotices } from '../../stores/notices'
 import { resetStore, useSessionStore } from '../../stores/session'
 import Notices from './Notices'
 import { useLayoutStore } from '../../stores/layout'
-import { DockRail, HealthStatus, ShowSessions, SignOut } from './Shell'
+import { DockRail, HealthStatus, ModeSwitch, ShowSessions, SignOut } from './Shell'
 
 beforeEach(() => {
   resetStore()
@@ -68,9 +68,63 @@ describe('ShowSessions', () => {
 })
 
 describe('DockRail', () => {
+  beforeEach(() => useLayoutStore.setState({ dock: null, focus: false, mode: 'agents' }))
+
   it('names the terminal key on its tooltip', () => {
     render(<DockRail />)
     expect(screen.getByRole('button', { name: 'Terminal' })).toHaveAttribute('title', 'Terminal (t)')
+  })
+
+  it('is one tab stop: the arrows move between its buttons', () => {
+    render(<DockRail />)
+    const [requests, terminal] = [screen.getByRole('button', { name: 'Requests' }), screen.getByRole('button', { name: 'Terminal' })]
+    expect(requests).toHaveAttribute('tabindex', '0')
+    expect(terminal).toHaveAttribute('tabindex', '-1')
+    requests.focus()
+    fireEvent.keyDown(requests, { key: 'ArrowDown' })
+    expect(terminal).toHaveFocus()
+    expect(terminal).toHaveAttribute('tabindex', '0')
+    // Changes is off without a session: skipped, so Down wraps to the top
+    fireEvent.keyDown(terminal, { key: 'ArrowDown' })
+    expect(requests).toHaveFocus()
+    fireEvent.keyDown(requests, { key: 'End' })
+    expect(terminal).toHaveFocus()
+  })
+
+  it('takes the focus into a dock opened from the keyboard, not from a click', async () => {
+    render(
+      <>
+        <div className="dock-body">
+          <button type="button">inside</button>
+        </div>
+        <DockRail />
+      </>,
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Terminal' }), { detail: 1 })
+    await new Promise((r) => requestAnimationFrame(r))
+    expect(screen.getByRole('button', { name: 'inside' })).not.toHaveFocus()
+    act(() => useLayoutStore.setState({ dock: null }))
+    fireEvent.click(screen.getByRole('button', { name: 'Terminal' }), { detail: 0 })
+    await waitFor(() => expect(screen.getByRole('button', { name: 'inside' })).toHaveFocus())
+  })
+})
+
+describe('ModeSwitch', () => {
+  it('is one tab stop whose arrows choose the mode', () => {
+    useLayoutStore.setState({ mode: 'agents' })
+    render(<ModeSwitch />)
+    const agents = screen.getByRole('radio', { name: 'Agents' })
+    expect(agents).toHaveAttribute('tabindex', '0')
+    expect(screen.getByRole('radio', { name: 'Terminal' })).toHaveAttribute('tabindex', '-1')
+    agents.focus()
+    fireEvent.keyDown(agents, { key: 'ArrowRight' })
+    expect(useLayoutStore.getState().mode).toBe('terminal')
+    expect(screen.getByRole('radio', { name: 'Terminal' })).toHaveFocus()
+    fireEvent.keyDown(document.activeElement!, { key: 'ArrowLeft' })
+    fireEvent.keyDown(document.activeElement!, { key: 'ArrowLeft' })
+    expect(useLayoutStore.getState().mode).toBe('diagnostics')
+    fireEvent.keyDown(document.activeElement!, { key: 'Home' })
+    expect(useLayoutStore.getState().mode).toBe('agents')
   })
 })
 

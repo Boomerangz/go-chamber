@@ -1,4 +1,4 @@
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest'
 import type { Terminal } from '../../lib/terminal'
@@ -243,6 +243,8 @@ describe('TerminalScreen', () => {
 })
 
 describe('TerminalWorkspace on a phone', () => {
+  const phone = () =>
+    vi.stubGlobal('matchMedia', (query: string) => ({ matches: query.includes('max-width'), addEventListener: () => {}, removeEventListener: () => {} }))
   it('folds the list to a one-line switcher while a shell is attached', async () => {
     useTerminalStore.setState({ terminals: [term(), term({ id: 't2', title: 'logs' })], activeId: 't1', loaded: true })
     const { container } = render(<TerminalWorkspace sessions={[]} />)
@@ -255,6 +257,39 @@ describe('TerminalWorkspace on a phone', () => {
     await userEvent.click(screen.getByRole('tab', { name: /logs/ }))
     expect(useTerminalStore.getState().activeId).toBe('t2')
     expect(aside).toHaveAttribute('data-collapsed', 'true')
+  })
+
+  it('unfolds to the shells first, with a new shell folded after them', async () => {
+    phone()
+    useTerminalStore.setState({ terminals: [term(), term({ id: 't2', title: 'logs' })], activeId: 't1', loaded: true })
+    const { container } = render(<TerminalWorkspace sessions={[{ id: 's', agent: 'claude', cwd: '/w/one', status: 'idle' }]} />)
+    await userEvent.click(screen.getByRole('button', { name: /Shells/ }))
+    const area = container.querySelector('.term-new-area')!
+    expect(area).toContainElement(screen.getByRole('button', { name: 'New terminal' }))
+    expect(area).toContainElement(screen.getByRole('button', { name: 'Open terminal in one' }))
+    expect(area).toHaveAttribute('data-folded', 'true')
+    const more = screen.getByRole('button', { name: 'New shell' })
+    expect(more).toHaveAttribute('aria-expanded', 'false')
+    // the list comes before the fold in the reading order
+    expect(screen.getByRole('tablist').compareDocumentPosition(more) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    await userEvent.click(more)
+    expect(more).toHaveAttribute('aria-expanded', 'true')
+    expect(area).not.toHaveAttribute('data-folded')
+  })
+
+  it('keeps a failed open in view rather than folded away', () => {
+    phone()
+    useTerminalStore.setState({ terminals: [term()], activeId: 't1', loaded: true, openError: 'no such folder' })
+    const { container } = render(<TerminalWorkspace sessions={[]} />)
+    expect(container.querySelector('.term-new-area')).not.toHaveAttribute('data-folded')
+  })
+
+  it('shows the new-shell form unfolded while nothing is attached', () => {
+    phone()
+    useTerminalStore.setState({ terminals: [term()], loaded: true })
+    const { container } = render(<TerminalWorkspace sessions={[]} />)
+    expect(container.querySelector('.term-new-area')).not.toHaveAttribute('data-folded')
+    expect(screen.queryByRole('button', { name: 'New shell' })).toBeNull()
   })
 
   it('marks only the project chip being opened as busy', async () => {
@@ -348,11 +383,11 @@ describe('TerminalPanel', () => {
     expect(screen.queryByLabelText('Terminal directory')).toBeNull()
     await userEvent.click(screen.getByRole('button', { name: 'New terminal in session dir' }))
     expect(api.openTerminal).toHaveBeenCalledWith({ sessionId: 's1' })
-    await userEvent.click(screen.getByRole('button', { name: 'Open a terminal elsewhere' }))
+    await userEvent.click(screen.getByRole('button', { name: 'More terminals' }))
     await userEvent.click(screen.getByRole('button', { name: 'Home folder' }))
     expect(api.openTerminal).toHaveBeenLastCalledWith({})
     expect(screen.queryByRole('button', { name: 'Home folder' })).toBeNull()
-    await userEvent.click(screen.getByRole('button', { name: 'Open a terminal elsewhere' }))
+    await userEvent.click(screen.getByRole('button', { name: 'More terminals' }))
     await userEvent.type(screen.getByLabelText('Terminal directory'), '/srv{Enter}')
     expect(api.openTerminal).toHaveBeenLastCalledWith({ cwd: '/srv' })
   })
@@ -407,7 +442,7 @@ describe('TerminalPanel', () => {
     render(<TerminalPanel sessionId="s1" />)
     await userEvent.click(screen.getByRole('button', { name: 'New terminal in session dir' }))
     expect(screen.getByRole('button', { name: 'New terminal in session dir' })).toHaveAttribute('aria-busy', 'true')
-    await userEvent.click(screen.getByRole('button', { name: 'Open a terminal elsewhere' }))
+    await userEvent.click(screen.getByRole('button', { name: 'More terminals' }))
     expect(screen.getByRole('button', { name: 'Home folder' })).not.toHaveAttribute('aria-busy')
     await userEvent.click(screen.getByRole('button', { name: 'Home folder' }))
     expect(screen.getByRole('button', { name: 'Opening…' })).toHaveAttribute('aria-busy', 'true')
@@ -421,6 +456,34 @@ describe('TerminalPanel', () => {
     expect(screen.getByRole('alert')).toHaveTextContent("Couldn't refresh shells: offline")
     await userEvent.click(screen.getByRole('button', { name: 'Retry' }))
     expect(screen.queryByRole('alert')).toBeNull()
+  })
+
+  it("doesn't repeat a folder the title already names", () => {
+    useTerminalStore.setState({ loaded: true, terminals: [term({ id: 'a', title: 'repo60 2', cwd: '/w/repo60' }), term({ id: 'b', title: 'API logs', cwd: '/w/api' })] })
+    render(<TerminalPanel sessionId={null} />)
+    expect(screen.getByRole('tab', { name: /repo60 2/ }).querySelector('.term-tab-cwd')).toBeNull()
+    expect(screen.getByRole('tab', { name: /API logs/ }).querySelector('.term-tab-cwd')).toBeNull()
+  })
+
+  it('lists every shell in the ▾ menu, the attached one marked, and attaches the one picked', async () => {
+    const many = Array.from({ length: 10 }, (_, i) => term({ id: `t${i}`, title: `shell ${i}` }))
+    useTerminalStore.setState({ loaded: true, terminals: many, activeId: 't0' })
+    render(<TerminalPanel sessionId={null} />)
+    await userEvent.click(screen.getByRole('button', { name: 'More terminals' }))
+    const all = screen.getByRole('group', { name: 'All terminals' })
+    const items = within(all).getAllByRole('button')
+    expect(items).toHaveLength(10)
+    expect(items[0]).toHaveAttribute('aria-current', 'true')
+    await userEvent.click(within(all).getByRole('button', { name: /shell 7/ }))
+    expect(useTerminalStore.getState().activeId).toBe('t7')
+    expect(screen.queryByRole('group', { name: 'All terminals' })).toBeNull()
+  })
+
+  it('offers the first shell in one click when none is attached', async () => {
+    useTerminalStore.setState({ loaded: true, terminals: [term({ id: 'a', title: 'other' }), term({ id: 'b', title: 'mine', sessionId: 's1' })] })
+    render(<TerminalPanel sessionId="s1" />)
+    await userEvent.click(screen.getByRole('button', { name: 'Attach mine' }))
+    expect(useTerminalStore.getState().activeId).toBe('b')
   })
 
   it('says shells are loading before the list arrives', () => {

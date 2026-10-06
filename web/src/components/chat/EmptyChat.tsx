@@ -1,6 +1,6 @@
+import { useLayoutStore } from '../../stores/layout'
 import { useSessionStore } from '../../stores/session'
 import { sessionTitle } from '../../lib/sessions'
-import type { Session } from '../../lib/api'
 import { isMac, useMedia } from './useMedia'
 import { Skeleton } from '../ui/Loading'
 import './EmptyChat.css'
@@ -16,13 +16,21 @@ export default function EmptyChat() {
   const status = useSessionStore((s) => s.sessionsStatus)
   // On a phone the sessions are a pane of their own, not a column on the left.
   const narrow = useMedia('(max-width: 720px)')
-  const waitingIds = [...new Set(pending.map((r) => r.sessionId))]
-  const waiting = waitingIds.map((id) => sessions.find((x) => x.id === id)).filter((x): x is Session => !!x)
+  const waitingIds = new Set(pending.map((r) => r.sessionId))
+  // A steady order whatever order the requests came in: the longest waiting first.
+  const waiting = sessions
+    .filter((x) => waitingIds.has(x.id))
+    .sort((a, b) => (a.activeAt ?? a.createdAt ?? '').localeCompare(b.activeAt ?? b.createdAt ?? '') || a.id.localeCompare(b.id))
   const recent = [...sessions]
     .filter((x) => !x.parentId && !x.archivedAt)
     .sort((a, b) => (b.activeAt ?? b.createdAt ?? '').localeCompare(a.activeAt ?? a.createdAt ?? ''))
   const [title, list] = waiting.length ? ['Waiting for you', waiting] : ['Recent', recent]
   const mod = isMac() ? '⌘' : 'Ctrl'
+  // the rest wait in the Requests inbox
+  const showRequests = () => {
+    if (narrow) useSessionStore.getState().setPane('requests')
+    else if (useLayoutStore.getState().dock !== 'requests') useLayoutStore.getState().toggleDock('requests')
+  }
   return (
     <section className="chat empty panel">
       <div className="hero">
@@ -48,6 +56,13 @@ export default function EmptyChat() {
                   </button>
                 </li>
               ))}
+              {waiting.length > MAX && list === waiting && (
+                <li>
+                  <button type="button" className="act-link empty-more" onClick={showRequests}>
+                    +{waiting.length - MAX} more
+                  </button>
+                </li>
+              )}
             </ul>
           </div>
         )}

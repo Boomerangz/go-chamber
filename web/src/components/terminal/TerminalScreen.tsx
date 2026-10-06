@@ -35,7 +35,7 @@ export default function TerminalScreen({ id }: { id: string }) {
         <ZoomLevel />
         {unseen && (
           <button type="button" className="btn btn-xs term-new-output" onClick={() => scrollToBottom(id)}>
-            <ArrowDown {...icon(13)} /> new output
+            <ArrowDown {...icon(14)} /> new output
           </button>
         )}
       </div>

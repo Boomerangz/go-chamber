@@ -4,7 +4,7 @@ import { icon } from '../icon'
 import QuickSwitcher from './QuickSwitcher'
 import { replacingHistory } from './routeSync'
 import { useOverlay, type Overlay } from './overlay'
-import { formatCombo, isMac, isTypingTarget, matches, nextIndex, type Combo } from '../../lib/hotkeys'
+import { formatCombo, isMac, isStrayFocus, isTypingTarget, matches, nextIndex, notePointer, type Combo } from '../../lib/hotkeys'
 import { terminalShortcuts } from '../../lib/terminal-keys'
 import { useLayoutStore, type Mode } from '../../stores/layout'
 import { useSessionStore } from '../../stores/session'
@@ -104,21 +104,50 @@ export default function Hotkeys() {
 
   useEffect(() => () => useOverlay.setState({ overlay: null }), [])
 
+  // Closing an overlay gives the focus back to what had it before it
+  // opened, unless something else (a chat the switcher opened) took it.
+  useEffect(() => {
+    let opener: HTMLElement | null = null
+    return useOverlay.subscribe((now, before) => {
+      if (now.overlay && !before.overlay) {
+        opener = document.activeElement instanceof HTMLElement && document.activeElement !== document.body ? document.activeElement : null
+        return
+      }
+      if (now.overlay || !before.overlay) return
+      const back = opener
+      opener = null
+      if (!back) return
+      requestAnimationFrame(() => {
+        const at = document.activeElement
+        if ((!at || at === document.body) && back.isConnected) back.focus()
+      })
+    })
+  }, [])
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      // Tab moves focus by the keyboard: whatever it lands on is no stray.
+      if (e.key === 'Tab') notePointer(null)
       if (e.defaultPrevented || e.isComposing) return
       const typing = isTypingTarget(e.target)
       if (document.querySelector('dialog[open]') && !e.metaKey && !e.ctrlKey) return
       for (const s of shortcuts) {
         if (!matches(e, s.combo)) continue
         if (typing && (!s.anywhere || (e.target as HTMLElement).closest('.xterm'))) return
+        // A word typed at a button a click left focused is not a command.
+        if (!s.combo.mod && isStrayFocus(e.target)) return
         e.preventDefault()
         s.run()
         return
       }
     }
+    const onPointer = (e: PointerEvent) => notePointer(e.target)
     window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
+    window.addEventListener('pointerdown', onPointer, true)
+    return () => {
+      window.removeEventListener('keydown', onKey)
+      window.removeEventListener('pointerdown', onPointer, true)
+    }
   }, [shortcuts])
 
   const close = () => useOverlay.setState({ overlay: null })
@@ -167,7 +196,7 @@ function ShortcutHelp({ shortcuts, onClose }: { shortcuts: Shortcut[]; onClose: 
           </section>
         ))}
       </div>
-      <p className="shortcut-note">Single keys work when you are not typing.</p>
+      <p className="shortcut-note">Single keys work when you are not typing, and not on a button you just clicked.</p>
     </dialog>
   )
 }

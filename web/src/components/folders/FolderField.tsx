@@ -1,6 +1,6 @@
 import { Folder } from 'lucide-react'
 import { icon } from '../icon'
-import { useRef, useState, type Ref } from 'react'
+import { useLayoutEffect, useRef, useState, type Ref } from 'react'
 import FolderPicker from './FolderPicker'
 import './FolderField.css'
 
@@ -20,13 +20,19 @@ export interface FolderFieldProps {
 export default function FolderField({ label, placeholder, value, onChange, recent, invalid, inputRef }: FolderFieldProps) {
   const [open, setOpen] = useState(false)
   const browse = useRef<HTMLButtonElement>(null)
+  const box = useRef<HTMLDivElement>(null)
+  // A long path shows its end, the project name, unless the owner is typing in it.
+  const showEnd = (el: HTMLInputElement | null) => {
+    if (el && document.activeElement !== el) el.scrollLeft = el.scrollWidth
+  }
+  useLayoutEffect(() => showEnd(box.current?.querySelector('input') ?? null), [value])
   // Focus goes back where the picker was opened from.
   const close = () => {
     setOpen(false)
     browse.current?.focus()
   }
   return (
-    <div className="folder-field" data-invalid={invalid || undefined}>
+    <div ref={box} className="folder-field" data-invalid={invalid || undefined}>
       <Folder {...icon(14)} className="icon folder-icon" />
       <input
         ref={inputRef}
@@ -35,6 +41,7 @@ export default function FolderField({ label, placeholder, value, onChange, recen
         placeholder={placeholder}
         value={value}
         onChange={(e) => onChange(e.target.value)}
+        onBlur={(e) => showEnd(e.currentTarget)}
       />
       <button ref={browse} type="button" className="btn btn-ghost btn-xs browse" onClick={() => setOpen(true)}>
         Browse

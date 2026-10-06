@@ -49,7 +49,7 @@ export function OpenError() {
     <p className="term-error" role="alert">
       <span>Couldn't open a terminal: {error}</span>
       <button type="button" className="btn btn-ghost btn-icon" aria-label="Dismiss" title="Dismiss" onClick={dismiss}>
-        <X {...icon(13)} />
+        <X {...icon(14)} />
       </button>
     </p>
   )

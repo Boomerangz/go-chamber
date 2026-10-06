@@ -61,6 +61,32 @@ test('a long file name gives way before the counts, which line up', async ({ pag
   }
 })
 
+test('a rename is one row from the old path, and an open file is framed as wide as its diff', async ({ page }) => {
+  const dir = repo()
+  fs.mkdirSync(path.join(dir, 'cmd'))
+  // a rename with a small edit: git still finds it
+  execFileSync('git', ['checkout', '--', 'main.go'], { cwd: dir, env })
+  execFileSync('git', ['mv', 'main.go', 'cmd/entry.go'], { cwd: dir, env })
+  fs.appendFileSync(path.join(dir, 'cmd/entry.go'), '\nfunc helper() {}\n')
+  const panel = await openChanges(page, dir)
+  const row = panel.getByRole('button', { name: /main\.go ?→ ?cmd\/ ?entry\.go/ })
+  await expect(row).toBeVisible()
+  await expect(panel.locator('.diff-file-head')).toHaveCount(4)
+  // the name is whole, extension included
+  const base = row.locator('.diff-base')
+  expect(await base.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true)
+  await row.click()
+  const file = panel.locator('.diff-file', { hasText: 'entry.go' })
+  const view = file.locator('.diff-view')
+  await expect(view).toBeVisible()
+  // only the edits show, not the whole file as new
+  await expect(view).toContainText('helper')
+  await expect(view.locator('.diff-add', { hasText: 'package main' })).toHaveCount(0)
+  const head = (await file.locator('.diff-file-head').boundingBox())!
+  const body = (await view.boundingBox())!
+  expect(Math.abs(head.width - body.width)).toBeLessThan(1)
+})
+
 test('the panel’s controls stay in view and git’s header lines are gone', async ({ page }) => {
   const panel = await openChanges(page, repo())
   await panel.getByRole('button', { name: 'Expand all' }).click()

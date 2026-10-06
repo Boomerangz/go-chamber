@@ -63,7 +63,7 @@ export default function HistoryPanel() {
   return (
     <details className="history" onToggle={(e) => e.currentTarget.open && load()}>
       <summary className="section-title">
-        <ChevronRight {...icon(13)} className="icon chevron" />
+        <ChevronRight {...icon(14)} className="icon chevron" />
         History
       </summary>
       {error && (

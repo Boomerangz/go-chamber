@@ -1,0 +1,6 @@
+/* a path on one line: the folders above shorten from their start, the last stays */
+.path-text { display: inline-flex; min-width: 0; max-width: 100%; white-space: nowrap; }
+/* rtl only moves the cut (and its "…") to the start; <bdi> keeps the path reading left to right */
+.path-head { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; direction: rtl; text-align: left; }
+.path-head > bdi { direction: ltr; unicode-bidi: isolate; }
+.path-tail { flex: none; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }

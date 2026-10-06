@@ -4,6 +4,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import AccountPanel, { Accounts } from './AccountPanel'
 import { lastError, resetNotices } from '../../stores/notices'
 import * as api from '../../lib/api'
+import { resetStore, useSessionStore } from '../../stores/session'
+import { useAccountChecks } from './checks'
 
 vi.mock('../../lib/api', () => ({ getAccount: vi.fn(), startLogin: vi.fn() }))
 
@@ -11,6 +13,8 @@ afterEach(() => {
   vi.useRealTimers()
   vi.resetAllMocks()
   resetNotices()
+  resetStore()
+  useAccountChecks.setState({ failed: {} })
 })
 
 const out = { agent: 'codex', loggedIn: false } as api.AccountInfo
@@ -139,6 +143,32 @@ describe('AccountPanel', () => {
 })
 
 describe('Accounts', () => {
+  it('says once, with one Retry, that the accounts and quotas could not be reached', async () => {
+    const loadQuotas = vi.fn(async () => {})
+    useSessionStore.setState({ quotasStatus: 'error', quotas: [], loadQuotas })
+    vi.mocked(api.getAccount).mockRejectedValue(new TypeError('Failed to fetch'))
+    render(<Accounts />)
+    const line = await screen.findByRole('alert')
+    await waitFor(() => expect(line).toHaveTextContent("Couldn't reach the accounts or quotas"))
+    expect(screen.getAllByRole('alert')).toHaveLength(1)
+    expect(screen.getAllByRole('button', { name: 'Retry' })).toHaveLength(1)
+    vi.mocked(api.getAccount).mockResolvedValue({ agent: 'claude', loggedIn: true, authMode: 'cli' })
+    await userEvent.click(screen.getByRole('button', { name: 'Retry' }))
+    expect(loadQuotas).toHaveBeenCalled()
+    expect(await screen.findAllByText(/Signed in with the CLI login/)).toHaveLength(2)
+    expect(screen.queryByRole('alert')).toBeNull()
+  })
+
+  it('names the one account it could not check', async () => {
+    vi.mocked(api.getAccount).mockImplementation(async (agent) => {
+      if (agent === 'codex') throw new Error('codex stopped')
+      return { agent, loggedIn: true, authMode: 'cli' }
+    })
+    render(<Accounts />)
+    expect(await screen.findByRole('alert')).toHaveTextContent("Couldn't check the Codex account: codex stopped")
+  })
+
+
   it('shows one line per agent, each on its own', async () => {
     vi.mocked(api.getAccount).mockImplementation(async (agent) =>
       agent === 'claude' ? { agent, loggedIn: true, authMode: 'cli' } : { ...out, loggedIn: true, email: 'dev@example.com' },

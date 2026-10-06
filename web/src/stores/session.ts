@@ -357,8 +357,10 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       const quotas = await quotaLists.load(api.getQuotas)
       if (quotas) set({ quotas, quotasStatus: 'ready' })
     } catch (err) {
-      if (get().quotasStatus !== 'ready') set({ quotasStatus: 'error' })
-      fail("Couldn't load quotas", err, 'load-quotas')
+      // A first failure is said in place by the sidebar footer.
+      const shown = get().quotasStatus === 'ready'
+      if (!shown) set({ quotasStatus: 'error' })
+      fail("Couldn't load quotas", err, 'load-quotas', { quiet: !shown })
     }
   },
 

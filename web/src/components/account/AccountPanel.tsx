@@ -3,8 +3,10 @@ import { useCallback, useEffect, useState } from 'react'
 import { getAccount, startLogin, type AccountInfo, type AgentKind, type LoginChallenge } from '../../lib/api'
 import { usePending } from '../../lib/pending'
 import { describeError, fail } from '../../stores/notices'
+import { useSessionStore } from '../../stores/session'
 import { icon } from '../icon'
 import { LoadFailed, LoadingLine } from '../ui/Loading'
+import { useAccountChecks } from './checks'
 import './AccountPanel.css'
 
 const POLL_MS = 3000
@@ -14,19 +16,44 @@ const COPIED_MS = 1500
 
 const agentName: Record<AgentKind, string> = { claude: 'Claude', codex: 'Codex' }
 
+const agents: AgentKind[] = ['claude', 'codex']
+
 // Accounts shows each agent's login on its own line, whichever agent the
-// new-session switch has chosen.
+// new-session switch has chosen. Checks that failed are said once, with
+// the quotas when they failed too, and one Retry asks again for all.
 export function Accounts() {
+  const failed = useAccountChecks((s) => s.failed)
+  const retryAll = useAccountChecks((s) => s.retryAll)
+  const quotasDown = useSessionStore((s) => s.quotasStatus === 'error' && s.quotas.length === 0)
+  const loadQuotas = useSessionStore((s) => s.loadQuotas)
+  const down = agents.filter((a) => failed[a] !== undefined)
+  let line: string | null = null
+  if (down.length === agents.length) line = quotasDown ? "Couldn't reach the accounts or quotas" : "Couldn't reach the accounts"
+  else if (down.length === 1) line = `Couldn't check the ${agentName[down[0]!]} account: ${failed[down[0]!]}${quotasDown ? ' (and the quotas)' : ''}`
   return (
     <div className="accounts">
-      <AccountPanel agent="claude" />
-      <AccountPanel agent="codex" />
+      {line && (
+        <LoadFailed
+          onRetry={() => {
+            retryAll()
+            if (quotasDown) void loadQuotas()
+          }}
+        >
+          {line}
+        </LoadFailed>
+      )}
+      <AccountPanel agent="claude" quietFailure />
+      <AccountPanel agent="codex" quietFailure />
     </div>
   )
 }
 
-// AccountPanel shows an agent's login state and, for Codex, the device-code flow.
-export default function AccountPanel({ agent }: { agent: AgentKind }) {
+// AccountPanel shows an agent's login state and, for Codex, the device-code
+// flow. A failed check is its own line with a Retry, unless quietFailure
+// leaves it to Accounts.
+export default function AccountPanel({ agent, quietFailure = false }: { agent: AgentKind; quietFailure?: boolean }) {
+  const setFailed = useAccountChecks((s) => s.setFailed)
+  const retry = useAccountChecks((s) => s.retry)
   const [account, setAccount] = useState<AccountInfo | null>(null)
   const [checked, setChecked] = useState(false)
   // checkFailed is why the first look at the account failed.
@@ -44,13 +71,18 @@ export default function AccountPanel({ agent }: { agent: AgentKind }) {
         if (!alive) return
         setAccount(a)
         setCheckFailed(null)
+        setFailed(agent, null)
       })
-      .catch((e) => alive && setCheckFailed(describeError(e)))
+      .catch((e) => {
+        if (!alive) return
+        setCheckFailed(describeError(e))
+        setFailed(agent, describeError(e))
+      })
       .finally(() => alive && setChecked(true))
     return () => {
       alive = false
     }
-  }, [agent, attempt])
+  }, [agent, attempt, retry, setFailed])
 
   // Codex finishes the device-code login on its own; poll until it does or
   // the code runs out.
@@ -94,6 +126,7 @@ export default function AccountPanel({ agent }: { agent: AgentKind }) {
   const [signIn, requesting] = usePending(request)
 
   const name = agentName[agent]
+  if (checked && checkFailed && !account && quietFailure) return null
   if (!checked || (checkFailed && !account)) {
     return (
       <div className="account">
@@ -158,7 +191,7 @@ export default function AccountPanel({ agent }: { agent: AgentKind }) {
               title="Copy code"
               onClick={copy}
             >
-              {copied ? <Check {...icon(13)} /> : <Copy {...icon(13)} />}
+              {copied ? <Check {...icon(14)} /> : <Copy {...icon(14)} />}
             </button>
             {copied && (
               <span className="copied" role="status">

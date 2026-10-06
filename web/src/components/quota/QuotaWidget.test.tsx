@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import * as api from '../../lib/api'
 import { resetStore, useSessionStore } from '../../stores/session'
 import QuotaWidget from './QuotaWidget'
+import { useAccountChecks } from '../account/checks'
 
 vi.mock('../../lib/api', async (orig) => ({
   ...(await orig<typeof import('../../lib/api')>()),
@@ -63,6 +64,21 @@ describe('QuotaWidget', () => {
     expect(loadQuotas).toHaveBeenCalled()
   })
 
+  it('leaves a failed load to the accounts line when the accounts failed too', () => {
+    useSessionStore.setState({ quotasStatus: 'error' })
+    useAccountChecks.setState({ failed: { claude: 'go-chamber is not reachable' } })
+    const { container } = render(<QuotaWidget />)
+    expect(container).toBeEmptyDOMElement()
+    act(() => useAccountChecks.setState({ failed: {} }))
+    expect(screen.getByRole('alert')).toHaveTextContent("Couldn't load quotas")
+  })
+
+  it('names refresh buttons in sentence case', async () => {
+    useSessionStore.setState({ quotasStatus: 'ready', quotas: [snapshot()] })
+    render(<QuotaWidget />)
+    expect(screen.getByRole('button', { name: 'Refresh Codex quotas', hidden: true })).toBeInTheDocument()
+  })
+
   it('asks the agents for numbers when none were reported', async () => {
     vi.mocked(api.refreshQuota).mockImplementation(async (agent) => {
       if (agent === 'claude') throw new Error('unsupported')
@@ -120,7 +136,7 @@ describe('QuotaWidget', () => {
     vi.mocked(api.getQuotas).mockResolvedValue([snapshot()])
     useSessionStore.setState({ quotas: [snapshot()] })
     render(<QuotaWidget />)
-    const button = screen.getByRole('button', { name: 'refresh codex quotas' })
+    const button = screen.getByRole('button', { name: 'Refresh Codex quotas' })
     await userEvent.click(button)
     await userEvent.click(button)
     expect(api.refreshQuota).toHaveBeenCalledTimes(1)
@@ -134,7 +150,7 @@ describe('QuotaWidget', () => {
     vi.mocked(api.getQuotas).mockResolvedValue([snapshot()])
     useSessionStore.setState({ quotas: [snapshot()] })
     render(<QuotaWidget />)
-    const button = screen.getByRole('button', { name: 'refresh codex quotas' })
+    const button = screen.getByRole('button', { name: 'Refresh Codex quotas' })
     await userEvent.click(button)
     expect(await screen.findByText('codex is offline')).toBeInTheDocument()
     vi.mocked(api.refreshQuota).mockResolvedValueOnce(snapshot())

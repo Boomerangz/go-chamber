@@ -16,6 +16,24 @@ beforeEach(() => {
 })
 
 describe('ArchivedSessions', () => {
+  it('keeps waiting work in sight: the count on the fold and the mark on the row', async () => {
+    useSessionStore.setState({
+      sessions: [s('old', { archivedAt: '2026-10-01T09:00:00Z' }), s('quiet', { archivedAt: '2026-10-02T09:00:00Z' })],
+      pendingRequests: [
+        { sessionId: 'old', id: 'r1', kind: 'permission' },
+        { sessionId: 'old', id: 'r2', kind: 'permission' },
+      ] as never,
+    })
+    render(<ArchivedSessions />)
+    const summary = document.querySelector('summary')!
+    expect(summary.querySelector('.badge')).toHaveTextContent('2')
+    await userEvent.click(summary)
+    const row = screen.getByRole('button', { name: /^old/ })
+    expect(row).toHaveTextContent('waiting for you')
+    expect(row.querySelector('.badge')).toHaveTextContent('2')
+    expect(screen.getByRole('button', { name: /^quiet/ })).not.toHaveTextContent('waiting for you')
+  })
+
   it('is not there while nothing is archived', () => {
     useSessionStore.setState({ sessions: [s('a')] })
     const { container } = render(<ArchivedSessions />)

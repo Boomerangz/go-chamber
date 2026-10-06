@@ -14,21 +14,59 @@ const modes: { id: Mode; label: string }[] = [
   { id: 'diagnostics', label: 'Diagnostics' },
 ]
 
-// ModeSwitch flips between agent sessions and the terminal workspace.
+// step finds where an arrow, Home or End moves among n items from at, or
+// null for any other key. Both arrow pairs work whatever the orientation.
+function step(key: string, at: number, n: number): number | null {
+  if (key === 'ArrowRight' || key === 'ArrowDown') return (at + 1) % n
+  if (key === 'ArrowLeft' || key === 'ArrowUp') return (at - 1 + n) % n
+  if (key === 'Home') return 0
+  if (key === 'End') return n - 1
+  return null
+}
+
+// ModeSwitch flips between agent sessions and the terminal workspace. As a
+// radio group it is one tab stop; the arrows choose the mode.
 export function ModeSwitch() {
   const mode = useLayoutStore((s) => s.mode)
   const setMode = useLayoutStore((s) => s.setMode)
   const running = useTerminalStore((s) => s.terminals.filter((t) => t.status === 'running').length)
+  const group = useRef<HTMLDivElement>(null)
   return (
-    <div className="segmented mode-switch" role="radiogroup" aria-label="Mode">
+    <div
+      ref={group}
+      className="segmented mode-switch"
+      role="radiogroup"
+      aria-label="Mode"
+      onKeyDown={(e) => {
+        const at = step(e.key, modes.findIndex((m) => m.id === mode), modes.length)
+        if (at === null) return
+        e.preventDefault()
+        setMode(modes[at]!.id)
+        group.current?.querySelectorAll<HTMLElement>('[role="radio"]')[at]?.focus()
+      }}
+    >
       {modes.map((m, i) => (
-        <button key={m.id} type="button" role="radio" aria-checked={mode === m.id} title={`${m.label} (${i + 1})`} onClick={() => setMode(m.id)}>
+        <button
+          key={m.id}
+          type="button"
+          role="radio"
+          aria-checked={mode === m.id}
+          tabIndex={mode === m.id ? 0 : -1}
+          title={`${m.label} (${i + 1})`}
+          onClick={() => setMode(m.id)}
+        >
           {m.label}
           {m.id === 'terminal' && running > 0 && <span className="count">{running}</span>}
         </button>
       ))}
     </div>
   )
+}
+
+// focusDock moves the focus into the open dock's panel, to its first control.
+function focusDock() {
+  const body = document.querySelector('.dock-body')
+  body?.querySelector<HTMLElement>('button:not([disabled]), input, select, textarea, a[href], [tabindex="0"]')?.focus()
 }
 
 // DockRail is the collapsed dock: one button per tab, with counts.
@@ -41,23 +79,49 @@ export function DockRail() {
   const running = useTerminalStore((s) => s.terminals.filter((t) => t.status === 'running').length)
   // Pressed is what is on screen, not what was last chosen.
   const dock = visibleDock({ dock: chosen, focus }, pending, hasSession)
+  // A toolbar is one tab stop; the arrows move between its buttons.
+  const [current, setCurrent] = useState<string | null>(null)
   const tabs = [
     { id: 'requests' as const, label: 'Requests', icon: <Inbox {...icon(16)} />, count: pending, key: '', off: '' },
     { id: 'terminal' as const, label: 'Terminal', icon: <SquareTerminal {...icon(16)} />, count: running, key: 't', off: '' },
     { id: 'changes' as const, label: 'Changes', icon: <FileDiff {...icon(16)} />, count: 0, key: 'd', off: hasSession ? '' : 'Open a session to see its changes' },
   ]
+  const ids = [...tabs.filter((t) => !t.off).map((t) => t.id as string), ...(dock && !focus ? ['collapse'] : [])]
+  const stop = current !== null && ids.includes(current) ? current : (ids[0] ?? null)
+  const rail = useRef<HTMLDivElement>(null)
   return (
-    <div className="dock-rail" role="toolbar" aria-label="Dock" aria-orientation="vertical">
+    <div
+      ref={rail}
+      className="dock-rail"
+      role="toolbar"
+      aria-label="Dock"
+      aria-orientation="vertical"
+      onKeyDown={(e) => {
+        const at = step(e.key, ids.indexOf(stop ?? ''), ids.length)
+        if (at === null) return
+        e.preventDefault()
+        setCurrent(ids[at]!)
+        rail.current?.querySelector<HTMLElement>(`[data-rail="${ids[at]}"]`)?.focus()
+      }}
+    >
       {tabs.map((t) => (
         <button
           key={t.id}
           type="button"
+          data-rail={t.id}
           className={`rail-btn rail-${t.id}`}
           aria-pressed={dock === t.id}
           aria-label={t.count > 0 ? `${t.label} ${t.count}` : t.label}
           title={t.off || (t.key ? `${t.label} (${t.key})` : t.label)}
           disabled={Boolean(t.off)}
-          onClick={() => toggleDock(t.id)}
+          tabIndex={stop === t.id ? 0 : -1}
+          onFocus={() => setCurrent(t.id)}
+          onClick={(e) => {
+            const opening = dock !== t.id
+            toggleDock(t.id)
+            // Opened from the keyboard (a click without a pointer): the panel takes the focus.
+            if (opening && e.detail === 0) requestAnimationFrame(focusDock)
+          }}
         >
           {t.icon}
           {t.count > 0 && (
@@ -68,7 +132,16 @@ export function DockRail() {
         </button>
       ))}
       {dock && !focus && (
-        <button type="button" className="rail-btn rail-collapse" aria-label="Collapse dock" title="Collapse" onClick={() => toggleDock(dock)}>
+        <button
+          type="button"
+          data-rail="collapse"
+          className="rail-btn rail-collapse"
+          aria-label="Collapse dock"
+          title="Collapse"
+          tabIndex={stop === 'collapse' ? 0 : -1}
+          onFocus={() => setCurrent('collapse')}
+          onClick={() => toggleDock(dock)}
+        >
           <ChevronsRight {...icon(16)} />
         </button>
       )}

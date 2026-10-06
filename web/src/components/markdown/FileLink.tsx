@@ -123,7 +123,7 @@ export function FileViewer({
             </a>
           )}
           <button type="button" className="btn btn-ghost btn-icon" aria-label="Close" title="Close (Esc)" onClick={onClose}>
-            <X {...icon(15)} />
+            <X {...icon(16)} />
           </button>
         </span>
       </header>

@@ -10,6 +10,8 @@ export interface Notice {
   text: string
   // key collapses repeats: a new notice with the same key replaces the old.
   key?: string
+  // action is one thing to do about it, e.g. Undo; it dismisses the notice.
+  action?: { label: string; run: () => void }
 }
 
 export interface NoticeStore {
@@ -20,6 +22,8 @@ export interface NoticeStore {
 
 const MAX = 3
 const INFO_MS = 4000
+// a notice with an action stays long enough to reach it
+const ACTION_MS = 8000
 let nextId = 1
 // quiet holds failures a caller shows in place instead of as a notice; only
 // their reason is kept, for lastError.
@@ -41,7 +45,7 @@ export function notify(notice: Omit<Notice, 'id'>): number {
   const id = nextId++
   const rest = useNotices.getState().notices.filter((n) => !notice.key || n.key !== notice.key)
   useNotices.setState({ notices: [...rest, { ...notice, id }].slice(-MAX) })
-  if (notice.kind === 'info') setTimeout(() => useNotices.getState().dismiss(id), INFO_MS)
+  if (notice.kind === 'info') setTimeout(() => useNotices.getState().dismiss(id), notice.action ? ACTION_MS : INFO_MS)
   return id
 }
 

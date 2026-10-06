@@ -3,7 +3,11 @@ import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi, type Mock } from 'vitest'
 import { resetStore, useSessionStore } from '../../stores/session'
 import type { Session } from '../../lib/api'
+import { useNotices } from '../../stores/notices'
+import * as api from '../../lib/api'
 import SessionMenu from './SessionMenu'
+
+vi.mock('../../lib/api', async (importOriginal) => ({ ...(await importOriginal<typeof import('../../lib/api')>()), interrupt: vi.fn() }))
 
 const base: Session = { id: 's1', title: 'Release notes', agent: 'claude', cwd: '/src/app', status: 'idle' }
 
@@ -17,6 +21,7 @@ let actions: {
 
 beforeEach(() => {
   resetStore()
+  useNotices.setState({ notices: [] })
   actions = {
     renameSession: vi.fn(async (_id: string, _title: string) => true),
     archiveSession: vi.fn(async (_id: string) => true),
@@ -140,6 +145,20 @@ describe('SessionMenu', () => {
     expect(screen.queryByRole('menu')).toBeNull()
   })
 
+  it('keeps a phone gutter between the sheet and the screen edge', async () => {
+    const width = window.innerWidth
+    Object.defineProperty(window, 'innerWidth', { value: 390, configurable: true })
+    try {
+      render(<Row />)
+      trigger().getBoundingClientRect = () => ({ top: 100, bottom: 128, right: 390 }) as DOMRect
+      await userEvent.click(trigger())
+      // jsdom lays the sheet out 0 wide: its right edge is its left
+      expect(parseFloat(screen.getByRole('menu').style.left)).toBe(390 - 14)
+    } finally {
+      Object.defineProperty(window, 'innerWidth', { value: width, configurable: true })
+    }
+  })
+
   it('follows a row that moves on screen, and closes once the row scrolls out of view', async () => {
     render(<Row />)
     trigger().getBoundingClientRect = () => ({ top: 100, bottom: 128, right: 300 }) as DOMRect
@@ -232,12 +251,38 @@ describe('SessionMenu', () => {
     await waitFor(() => expect(screen.getByRole('button', { name: 'Delete' })).toBeInTheDocument())
   })
 
+  it('says an archive happened and undoes it from the notice', async () => {
+    render(<Row />)
+    await userEvent.click(trigger())
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Archive' }))
+    await waitFor(() => expect(useNotices.getState().notices).toHaveLength(1))
+    const notice = useNotices.getState().notices[0]!
+    expect(notice).toMatchObject({ kind: 'info', text: 'Archived Release notes' })
+    notice.action!.run()
+    expect(actions.unarchiveSession).toHaveBeenCalledWith('s1')
+  })
+
+  it('stops a running turn from the menu, archived or not', async () => {
+    ;(api.interrupt as Mock).mockResolvedValue(undefined)
+    render(<Row session={{ ...base, status: 'running', archivedAt: '2026-10-06T09:00:00Z' }} />)
+    await userEvent.click(trigger())
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Stop turn' }))
+    expect(api.interrupt).toHaveBeenCalledWith('s1')
+    await waitFor(() => expect(screen.queryByRole('menu')).toBeNull())
+  })
+
+  it('offers no Stop turn while nothing runs', async () => {
+    render(<Row />)
+    await userEvent.click(trigger())
+    expect(screen.queryByRole('menuitem', { name: 'Stop turn' })).toBeNull()
+  })
+
   it('does not offer to delete a running session', async () => {
     render(<Row session={{ ...base, status: 'running' }} />)
     await userEvent.click(trigger())
     const item = screen.getByRole('menuitem', { name: /Delete/ })
     expect(item).toHaveAttribute('aria-disabled', 'true')
-    expect(item).toHaveTextContent('stop the turn first')
+    expect(item).toHaveTextContent('stop first')
     await userEvent.click(item)
     expect(screen.queryByRole('group', { name: /Delete/ })).toBeNull()
   })

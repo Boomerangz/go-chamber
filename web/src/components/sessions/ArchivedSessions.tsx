@@ -17,8 +17,16 @@ export default function ArchivedSessions() {
   const sessions = useSessionStore((s) => s.sessions)
   const activeId = useSessionStore((s) => s.activeId)
   const selectSession = useSessionStore((s) => s.selectSession)
+  const pending = useSessionStore((s) => s.pendingRequests)
   const now = useNow(60_000)
   const nodes = useMemo(() => archivedSessions(sessions), [sessions])
+  // Archiving puts a session away, not its requests: they still wait here.
+  const waitingBy = useMemo(() => {
+    const m = new Map<string, number>()
+    for (const r of pending) m.set(r.sessionId, (m.get(r.sessionId) ?? 0) + 1)
+    return m
+  }, [pending])
+  const waitingInside = nodes.reduce((sum, n) => sum + waitingIn(n, waitingBy), 0)
   const activeInside = useMemo(() => activeId !== null && nodes.some((n) => contains(n, activeId)), [nodes, activeId])
   const [open, setOpen] = useState(activeInside)
   // Opening an archived session unfolds the section (adjusted during render).
@@ -32,24 +40,41 @@ export default function ArchivedSessions() {
   return (
     <details className="history archived" open={open} onToggle={(e) => setOpen(e.currentTarget.open)}>
       <summary className="section-title">
-        <ChevronRight {...icon(13)} className="icon chevron" />
+        <ChevronRight {...icon(14)} className="icon chevron" />
         Archived <span className="group-count">{nodes.length}</span>
+        {waitingInside > 0 && (
+          <span className="badge" title="Requests waiting for you">
+            {waitingInside}
+          </span>
+        )}
       </summary>
       <ul className="sessions archived-list">
         {nodes.map((node) => (
-          <ArchivedRow key={node.session.id} node={node} depth={0} activeId={activeId} now={now} onSelect={(id) => void selectSession(id)} />
+          <ArchivedRow key={node.session.id} node={node} depth={0} activeId={activeId} now={now} waitingBy={waitingBy} onSelect={(id) => void selectSession(id)} />
         ))}
       </ul>
     </details>
   )
 }
 
+function waitingIn(node: SessionNode, by: Map<string, number>): number {
+  return (by.get(node.session.id) ?? 0) + node.children.reduce((sum, c) => sum + waitingIn(c, by), 0)
+}
+
 function contains(node: SessionNode, id: string): boolean {
   return node.session.id === id || node.children.some((c) => contains(c, id))
 }
 
-function ArchivedRow(props: { node: SessionNode; depth: number; activeId: string | null; now: number; onSelect: (id: string) => void }) {
+function ArchivedRow(props: {
+  node: SessionNode
+  depth: number
+  activeId: string | null
+  now: number
+  waitingBy: Map<string, number>
+  onSelect: (id: string) => void
+}) {
   const s = props.node.session
+  const waiting = props.waitingBy.get(s.id) ?? 0
   const active = s.id === props.activeId
   const title = sessionTitle(s)
   return (
@@ -63,6 +88,16 @@ function ArchivedRow(props: { node: SessionNode; depth: number; activeId: string
             {title}
           </span>
           <span className="session-meta">
+            {waiting > 0 ? (
+              <>
+                <span className="session-status session-status-waiting">waiting for you</span>
+                <span className="badge" title="Requests waiting for you">
+                  {waiting}
+                </span>
+              </>
+            ) : (
+              s.status === 'running' && <span className="session-status session-status-running">running</span>
+            )}
             <span className="session-time">
               {s.archivedAt ? `archived ${relativeTime(s.archivedAt, new Date(props.now))}` : relativeTime(s.activeAt ?? s.createdAt, new Date(props.now))}
             </span>

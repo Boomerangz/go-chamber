@@ -1,24 +1,25 @@
 /* overlays opened from the keyboard: a sheet with an ink edge over a paper scrim */
 .switcher, .shortcut-help {
-  width: min(560px, calc(100vw - 32px)); padding: 0;
+  padding: 0;
   border: 1px solid var(--ink); border-radius: var(--r);
   background: var(--paper); color: var(--ink);
 }
-.switcher { margin-top: 12vh; max-height: min(520px, 76vh); }
+.switcher { width: min(560px, calc(100vw - 32px)); margin-top: 12vh; max-height: min(520px, 76vh); }
 .switcher[open], .shortcut-help[open] { display: flex; flex-direction: column; }
 .switcher::backdrop, .shortcut-help::backdrop { background: color-mix(in srgb, var(--paper) 55%, transparent); }
 .switcher-input { margin: 12px; height: 36px; font-size: 15px; }
 .switcher-list { list-style: none; margin: 0; padding: 0 6px 6px; overflow: auto; min-height: 0; }
 .switcher-row {
-  display: grid; grid-template-columns: 16px minmax(0, 1fr) auto auto; align-items: center; gap: 10px;
+  /* the folder takes at most 40% of the row, so a long one never squeezes the title away */
+  display: grid; grid-template-columns: 16px minmax(0, 1fr) fit-content(40%) auto; align-items: center; gap: 10px;
   padding: 7px 8px; border-radius: var(--r); cursor: pointer; color: var(--ink-2);
 }
 .switcher-row[aria-selected='true'] { background: var(--paper-2); color: var(--ink); }
 .switcher-mark { gap: 0; justify-self: center; }
 .switcher-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
 .switcher-path { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-.switcher-detail { display: inline-flex; gap: 8px; font-family: var(--font-mono); font-size: 12px; color: var(--ink-3); white-space: nowrap; }
-.switcher-time { color: var(--ink-3); }
+.switcher-detail { display: inline-flex; gap: 8px; min-width: 0; overflow: hidden; font-family: var(--font-mono); font-size: 12px; color: var(--ink-3); white-space: nowrap; }
+.switcher-time { flex: none; color: var(--ink-3); }
 .switcher-title mark, .switcher-detail mark { background: none; color: var(--ink); box-shadow: inset 0 -1px 0 var(--ink); }
 .switcher-current { margin-left: 8px; font-family: var(--font-mono); font-size: 11px; color: var(--ink-3); }
 .switcher-current::before { content: '['; }

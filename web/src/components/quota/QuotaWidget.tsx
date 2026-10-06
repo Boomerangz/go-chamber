@@ -9,6 +9,7 @@ import { relativeTime } from '../../lib/sessions'
 import { describeError } from '../../stores/notices'
 import { useSessionStore } from '../../stores/session'
 import { LoadFailed, LoadingLine } from '../ui/Loading'
+import { useAccountChecks } from '../account/checks'
 import './QuotaWidget.css'
 
 const agentName: Record<string, string> = { claude: 'Claude', codex: 'Codex' }
@@ -20,12 +21,14 @@ export default function QuotaWidget() {
   const loadQuotas = useSessionStore((s) => s.loadQuotas)
   const now = useNow(60_000)
   const [error, setError] = useState<string | null>(null)
+  // With an account check failed too, the accounts line says both.
+  const accountsDown = useAccountChecks((s) => Object.keys(s.failed).length > 0)
 
   // The line stays when nothing is known yet, so the footer doesn't jump
   // once the first numbers arrive.
   if (quotas.length === 0) {
     if (status === 'loading') return <LoadingLine>loading quotas…</LoadingLine>
-    if (status === 'error') return <LoadFailed onRetry={() => void loadQuotas()}>Couldn't load quotas</LoadFailed>
+    if (status === 'error') return accountsDown ? null : <LoadFailed onRetry={() => void loadQuotas()}>Couldn't load quotas</LoadFailed>
     return (
       <div className="quotas-none">
         <span>no quotas reported yet</span>
@@ -59,7 +62,7 @@ export default function QuotaWidget() {
             </span>
           )
         })}
-        <ChevronDown {...icon(13)} className="icon chevron" />
+        <ChevronDown {...icon(14)} className="icon chevron" />
       </summary>
       <div className="quotas" aria-label="Quotas">
         {quotas.map((q) => {
@@ -72,7 +75,7 @@ export default function QuotaWidget() {
                   {q.plan && <span className="plan">{q.plan}</span>}
                 </span>
                 {age && <span className="quota-age">updated {age}</span>}
-                <RefreshButton agents={[q.agent]} label={`refresh ${q.agent} quotas`} onError={setError} />
+                <RefreshButton agents={[q.agent]} label={`Refresh ${agentName[q.agent] ?? q.agent} quotas`} onError={setError} />
               </header>
               {q.windows.map((w) => {
                 const pct = Math.min(100, Math.max(0, w.usedPct))
@@ -132,7 +135,7 @@ function RefreshButton({ agents, label, onError }: { agents: AgentKind[]; label:
       title={pending ? 'Refreshing…' : 'Refresh'}
       onClick={() => void run()}
     >
-      {pending ? <span className="busy-mark" aria-hidden="true" /> : <RotateCw {...icon(13)} />}
+      {pending ? <span className="busy-mark" aria-hidden="true" /> : <RotateCw {...icon(14)} />}
     </button>
   )
 }
