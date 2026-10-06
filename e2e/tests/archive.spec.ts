@@ -100,3 +100,37 @@ test('archiving a session that waits for you keeps the request in sight, with an
   await showPane(page, 'Chat')
   await page.getByRole('button', { name: 'Allow', exact: true }).click()
 })
+
+test('a failed archive closes the menu and says why', async ({ page }) => {
+  const headers = { Authorization: `Bearer ${token}` }
+  const created = await page.request.post('/api/sessions', { headers, data: { agent: 'claude', cwd: ownDir() } })
+  const { id } = (await created.json()) as { id: string }
+  await page.route(`**/api/sessions/${id}/archive`, (route) => route.fulfill({ status: 500, body: 'disk full' }))
+  await page.goto(`/s/${id}?token=${token}`)
+  await showPane(page, 'Sessions')
+  await page.locator('li:has(> button.session[aria-current="true"]) > .session-menu-trigger').click()
+  await page.getByRole('menu').getByRole('menuitem', { name: 'Archive' }).click()
+  await expect(page.getByRole('menu')).toHaveCount(0)
+  await expect(page.locator('.notices')).toContainText("Couldn't archive the session")
+})
+
+test('a search looks in Archived too, and says when only archived sessions match', async ({ page }) => {
+  const headers = { Authorization: `Bearer ${token}` }
+  const dir = `${ownDir()}/shelved-search-${Date.now()}`
+  fs.mkdirSync(dir)
+  const created = await page.request.post('/api/sessions', { headers, data: { agent: 'claude', cwd: dir } })
+  const { id } = (await created.json()) as { id: string }
+  await page.request.post(`/api/sessions/${id}/archive`, { headers })
+  await page.goto(`/?token=${token}`)
+  await showPane(page, 'Sessions')
+  const archived = page.locator('details.archived')
+  await expect(archived).toBeVisible()
+  await page.getByLabel('Search sessions').fill(dir.split('/').pop()!)
+  await expect(page.getByText('Only archived sessions match')).toBeVisible()
+  await expect(archived).toHaveAttribute('open', '')
+  await expect(archived.locator('summary .group-count')).toHaveText('1')
+  await expect(page.locator('.sidebar-body')).toHaveJSProperty('scrollTop', 0)
+  await page.getByLabel('Search sessions').fill('zz-nothing-matches-this')
+  await expect(page.getByText('No matching sessions')).toBeVisible()
+  await expect(archived).toHaveCount(0)
+})

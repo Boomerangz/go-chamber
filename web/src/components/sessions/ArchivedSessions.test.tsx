@@ -68,4 +68,22 @@ describe('ArchivedSessions', () => {
     expect(screen.getByRole('group')).toHaveAttribute('open')
     expect(screen.getByRole('button', { name: /^away/ })).toHaveAttribute('aria-current', 'true')
   })
+
+  it('while searching, lists only the archived sessions that match, unfolded', () => {
+    useSessionStore.setState({
+      query: 'deploy',
+      sessions: [s('deploy notes', { archivedAt: '2026-10-01T09:00:00Z' }), s('other', { archivedAt: '2026-10-02T09:00:00Z' })],
+    })
+    render(<ArchivedSessions />)
+    expect(screen.getByRole('group')).toHaveAttribute('open')
+    expect(document.querySelector('summary .group-count')).toHaveTextContent('1')
+    expect(screen.getByRole('button', { name: /^deploy notes/ })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /^other/ })).toBeNull()
+  })
+
+  it('is not there while a search matches nothing archived', () => {
+    useSessionStore.setState({ query: 'zzz', sessions: [s('old', { archivedAt: '2026-10-01T09:00:00Z' })] })
+    const { container } = render(<ArchivedSessions />)
+    expect(container).toBeEmptyDOMElement()
+  })
 })

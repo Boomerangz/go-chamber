@@ -87,6 +87,31 @@ test('a rename is one row from the old path, and an open file is framed as wide 
   expect(Math.abs(head.width - body.width)).toBeLessThan(1)
 })
 
+test('similar long renames stay apart: each name keeps its end and extension', async ({ page }) => {
+  const dir = repo()
+  const names = ['header', 'footer', 'sidebar', 'toolbar'].map((n) => `renamed_component_with_a_long_name_${n}.tsx`)
+  fs.mkdirSync(path.join(dir, 'src/components'), { recursive: true })
+  for (const n of names) fs.writeFileSync(path.join(dir, 'src/components', n), 'export const x = 1\n'.repeat(20))
+  execFileSync('git', ['add', '.'], { cwd: dir, env })
+  execFileSync('git', ['commit', '-q', '-m', 'components'], { cwd: dir, env })
+  fs.mkdirSync(path.join(dir, 'src/widgets'))
+  for (const n of names) execFileSync('git', ['mv', `src/components/${n}`, `src/widgets/${n.replace('.tsx', '_v2.tsx')}`], { cwd: dir, env })
+  const panel = await openChanges(page, dir)
+  const rows = panel.locator('.diff-file-head').filter({ hasText: 'renamed_component' })
+  await expect(rows).toHaveCount(4)
+  const shown = new Set<string>()
+  for (const row of await rows.all()) {
+    const tail = row.locator('.diff-base .midcut-tail')
+    // the end of the new name is whole and inside the row's path
+    expect(await tail.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true)
+    const [t, p] = [(await tail.boundingBox())!, (await row.locator('.diff-path').boundingBox())!]
+    expect(t.x + t.width).toBeLessThanOrEqual(p.x + p.width + 0.5)
+    expect(await tail.textContent()).toMatch(/_v2\.tsx$/)
+    shown.add((await tail.textContent())!)
+  }
+  expect(shown.size).toBe(4)
+})
+
 test('the panel’s controls stay in view and git’s header lines are gone', async ({ page }) => {
   const panel = await openChanges(page, repo())
   await panel.getByRole('button', { name: 'Expand all' }).click()

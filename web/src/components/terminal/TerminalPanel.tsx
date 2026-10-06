@@ -4,6 +4,7 @@ import { icon } from '../icon'
 import { basename } from '../../lib/format'
 import type { Terminal } from '../../lib/terminal'
 import { useLayoutStore } from '../../stores/layout'
+import { useSessionStore } from '../../stores/session'
 import { openKey, useTerminalStore } from '../../stores/terminals'
 import FolderField from '../folders/FolderField'
 import { LoadFailed, LoadingLine } from '../ui/Loading'
@@ -12,6 +13,7 @@ import { OpenError } from './NewTerminalForm'
 import TerminalScreen from './TerminalScreen'
 import { markOf, sortForSession } from './marks'
 import { stepOf, stepTerminal, useTerminalSteps } from './steps'
+import TermTitle from './TermTitle'
 import './terminal.css'
 
 // TerminalPanel is the ad-hoc terminal docked next to the chat: one row of
@@ -24,10 +26,27 @@ export default function TerminalPanel({ sessionId }: { sessionId: string | null 
   const activeId = useTerminalStore((s) => s.activeId)
   const setMode = useLayoutStore((s) => s.setMode)
   const select = useTerminalStore((s) => s.select)
+  const open = useTerminalStore((s) => s.open)
   const sorted = sortForSession(terminals, sessionId)
   useTerminalSteps(sorted.map((t) => t.id))
+  // The dock is the open session's: its shells are those opened for it or
+  // in its folder. A shell of another project that was attached when the
+  // session opened (or restored with the page) stays in its tab until it
+  // is picked here; one opened or picked here attaches.
+  const cwd = useSessionStore((s) => s.sessions.find((x) => x.id === sessionId)?.cwd)
+  const belongs = (t: Terminal) => !sessionId || t.sessionId === sessionId || (cwd !== undefined && t.cwd === cwd)
+  const [scope, setScope] = useState<{ session: string | null; loaded: boolean; carried: string | null }>({ session: sessionId, loaded, carried: activeId })
+  // Adjusted during render: a new session, or the list arriving with a restored shell.
+  if (scope.session !== sessionId || scope.loaded !== loaded) setScope({ session: sessionId, loaded, carried: activeId })
+  const pick = (id: string) => {
+    select(id)
+    setScope((s) => ({ ...s, carried: null }))
+  }
+  const active = terminals.find((t) => t.id === activeId)
   // A remembered or linked terminal attaches only once the list has it.
-  const attached = activeId && terminals.some((t) => t.id === activeId) ? activeId : null
+  const attached = active && (belongs(active) || active.id !== scope.carried) ? active.id : null
+  const own = sorted.filter(belongs)
+  const folder = cwd ? basename(cwd) || cwd : null
   const hasTabs = sorted.length > 0
   const activeTitle = terminals.find((t) => t.id === activeId)?.title
   const strip = useRef<HTMLUListElement>(null)
@@ -70,11 +89,11 @@ export default function TerminalPanel({ sessionId }: { sessionId: string | null 
             }}
           >
             {sorted.map((t) => (
-              <TerminalTab key={t.id} terminal={t} selected={t.id === activeId} />
+              <TerminalTab key={t.id} terminal={t} selected={t.id === attached} onPick={pick} />
             ))}
           </ul>
         )}
-        <NewTerminalButton sessionId={sessionId} terminals={sorted} />
+        <NewTerminalButton sessionId={sessionId} terminals={sorted} onPick={pick} />
       </div>
       <OpenError />
       {loadError && (
@@ -86,11 +105,18 @@ export default function TerminalPanel({ sessionId }: { sessionId: string | null 
       {/* Nothing attaches unasked (each viewer answers the shell's queries), but the first is one click away. */}
       {loaded && !attached && (
         <p className="terminal-hint">
-          {sorted[0] ? (
+          {own[0] ? (
             <>
               No shell attached.{' '}
-              <button type="button" className="act-link" onClick={() => select(sorted[0]!.id)}>
-                Attach {sorted[0].title}
+              <button type="button" className="act-link" onClick={() => pick(own[0]!.id)}>
+                Attach {own[0].title}
+              </button>
+            </>
+          ) : sessionId && folder && sorted.length > 0 ? (
+            <>
+              No shell in {folder}.{' '}
+              <button type="button" className="act-link" onClick={() => void open({ sessionId })}>
+                Open shell in {folder}
               </button>
             </>
           ) : sessionId ? (
@@ -121,8 +147,7 @@ function namesFolder(t: Terminal): boolean {
   return t.title.toLowerCase().includes(folder.toLowerCase())
 }
 
-function TerminalTab({ terminal: t, selected }: { terminal: Terminal; selected: boolean }) {
-  const select = useTerminalStore((s) => s.select)
+function TerminalTab({ terminal: t, selected, onPick }: { terminal: Terminal; selected: boolean; onPick: (id: string) => void }) {
   const rename = useTerminalStore((s) => s.rename)
   const conn = useTerminalStore((s) => s.conn[t.id])
   const closing = useTerminalStore((s) => Boolean(s.closing[t.id]))
@@ -165,12 +190,12 @@ function TerminalTab({ terminal: t, selected }: { terminal: Terminal; selected: 
           aria-selected={selected}
           title={`${t.title} — ${t.cwd}`}
           disabled={closing}
-          onClick={() => select(t.id)}
+          onClick={() => onPick(t.id)}
           onDoubleClick={() => setDraft(t.title)}
         >
           <span className="term-dot" data-mark={mark.form} aria-hidden="true" />
           <span className="term-tab-text">
-            <span className="term-tab-title">{t.title}</span>
+            <TermTitle title={t.title} className="term-tab-title" />
             {!namesFolder(t) && <span className="term-tab-cwd">{folder}</span>}
           </span>
           {t.status === 'exited' && <span className={t.exitCode === 0 ? 'term-exit' : 'term-exit term-bad'}>exited {t.exitCode}</span>}
@@ -189,9 +214,8 @@ function TerminalTab({ terminal: t, selected }: { terminal: Terminal; selected: 
 // NewTerminalButton opens a shell in the session folder (or home without a
 // session); its menu lists every shell (more than the strip shows) and
 // offers home and any other folder.
-function NewTerminalButton({ sessionId, terminals }: { sessionId: string | null; terminals: Terminal[] }) {
+function NewTerminalButton({ sessionId, terminals, onPick }: { sessionId: string | null; terminals: Terminal[]; onPick: (id: string) => void }) {
   const open = useTerminalStore((s) => s.open)
-  const select = useTerminalStore((s) => s.select)
   const activeId = useTerminalStore((s) => s.activeId)
   const opening = useTerminalStore((s) => s.opening)
   const [menu, setMenu] = useState(false)
@@ -260,11 +284,11 @@ function NewTerminalButton({ sessionId, terminals }: { sessionId: string | null;
                     aria-current={t.id === activeId || undefined}
                     title={t.cwd}
                     onClick={() => {
-                      select(t.id)
+                      onPick(t.id)
                       setMenu(false)
                     }}
                   >
-                    <span className="term-tab-title">{t.title}</span>
+                    <TermTitle title={t.title} className="term-tab-title" />
                     {!namesFolder(t) && <span className="term-tab-cwd">{basename(t.cwd) || t.cwd}</span>}
                   </button>
                 </li>

@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vite
 import type { Terminal } from '../../lib/terminal'
 import { useNotices } from '../../stores/notices'
 import { resetTerminals, useTerminalStore } from '../../stores/terminals'
+import { resetStore, useSessionStore } from '../../stores/session'
 import TerminalPanel from './TerminalPanel'
 import TerminalWorkspace from './TerminalWorkspace'
 import TerminalScreen, { ConnectionLine } from './TerminalScreen'
@@ -38,6 +39,7 @@ beforeEach(() => {
   vi.clearAllMocks()
   sessionStorage.clear()
   resetTerminals()
+  resetStore()
   useNotices.setState({ notices: [] })
 })
 afterEach(() => {
@@ -484,6 +486,29 @@ describe('TerminalPanel', () => {
     render(<TerminalPanel sessionId="s1" />)
     await userEvent.click(screen.getByRole('button', { name: 'Attach mine' }))
     expect(useTerminalStore.getState().activeId).toBe('b')
+  })
+
+  it('doesn’t carry another project’s shell into a session: it offers one in the session’s folder', async () => {
+    useSessionStore.setState({ sessions: [{ id: 's1', agent: 'claude', cwd: '/w/proj', status: 'idle' }, { id: 's2', agent: 'claude', cwd: '/w/new', status: 'idle' }] })
+    useTerminalStore.setState({ loaded: true, activeId: 'a', terminals: [term({ id: 'a', title: 'proj', cwd: '/w/proj', sessionId: 's1' })] })
+    ;(api.openTerminal as Mock).mockResolvedValue(term({ id: 'n', title: 'new', cwd: '/w/new', sessionId: 's2' }))
+    const { rerender } = render(<TerminalPanel sessionId="s1" />)
+    expect(screen.getByTestId('terminal-view')).toBeInTheDocument()
+    rerender(<TerminalPanel sessionId="s2" />)
+    expect(screen.queryByTestId('terminal-view')).toBeNull()
+    expect(screen.getByText(/No shell in new\./)).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /^Attach/ })).toBeNull()
+    await userEvent.click(screen.getByRole('button', { name: 'Open shell in new' }))
+    expect(api.openTerminal).toHaveBeenCalledWith({ sessionId: 's2' })
+  })
+
+  it('attaches another folder’s shell when it is picked', async () => {
+    useSessionStore.setState({ sessions: [{ id: 's2', agent: 'claude', cwd: '/w/new', status: 'idle' }] })
+    useTerminalStore.setState({ loaded: true, activeId: 'a', terminals: [term({ id: 'a', title: 'proj', cwd: '/w/proj' })] })
+    render(<TerminalPanel sessionId="s2" />)
+    expect(screen.queryByTestId('terminal-view')).toBeNull()
+    await userEvent.click(screen.getByRole('tab', { name: /proj/ }))
+    expect(screen.getByTestId('terminal-view')).toBeInTheDocument()
   })
 
   it('says shells are loading before the list arrives', () => {

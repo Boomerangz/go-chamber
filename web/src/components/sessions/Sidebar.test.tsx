@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { resetStore, useSessionStore } from '../../stores/session'
 import type { Session } from '../../lib/api'
 import Sidebar from './Sidebar'
+import * as api from '../../lib/api'
 
 vi.mock('../../lib/api', async (orig) => ({
   ...(await orig<typeof import('../../lib/api')>()),
@@ -56,6 +57,7 @@ describe('Sidebar new session', () => {
     const field = screen.getByLabelText('Working directory')
     expect(field).toHaveFocus()
     expect(field).toHaveAttribute('aria-invalid', 'true')
+    expect(field).toHaveAccessibleDescription('Choose a folder first')
     await userEvent.type(field, '/tmp')
     expect(field).not.toHaveAttribute('aria-invalid')
   })
@@ -68,6 +70,23 @@ describe('Sidebar new session', () => {
     expect(onCreate).not.toHaveBeenCalled()
     expect(screen.getByLabelText('Branch name')).toHaveFocus()
     expect(screen.getByLabelText('Branch name')).toHaveAttribute('aria-invalid', 'true')
+    expect(screen.getByRole('alert')).toHaveTextContent('Name the branch')
+    expect(screen.getByLabelText('Branch name')).toHaveAccessibleDescription('Name the branch')
+    await userEvent.type(screen.getByLabelText('Branch name'), 'fix')
+    expect(screen.queryByText('Name the branch')).toBeNull()
+  })
+
+  it('offers a worktree only in a git repository, saying why not', async () => {
+    vi.mocked(api.listFolders).mockResolvedValue({ path: '/w', home: '/h', folders: [{ name: 'notes', path: '/w/notes' }, { name: 'app', path: '/w/app', repo: true }] })
+    setup()
+    const field = screen.getByLabelText('Working directory')
+    await userEvent.type(field, '/w/notes')
+    const box = screen.getByLabelText(/In a new worktree/)
+    await waitFor(() => expect(box).toBeDisabled())
+    expect(box).toHaveAccessibleDescription('· not a git repository')
+    await userEvent.clear(field)
+    await userEvent.type(field, '/w/app')
+    await waitFor(() => expect(box).toBeEnabled())
   })
 
   it('shows the start in progress and blocks a second start', async () => {
@@ -143,6 +162,12 @@ describe('Sidebar folder', () => {
     expect(screen.getByLabelText('Working directory')).toHaveValue('/src/app')
   })
 
+  it('starts in a worktree session’s repository, not the worktree', () => {
+    useSessionStore.setState({ activeId: 'w' })
+    setup(undefined, [{ ...session, id: 'w', cwd: '/data/worktrees/app/fix', worktree: { repo: '/src/app', path: '/data/worktrees/app/fix', branch: 'chamber/fix', base: 'main' } }])
+    expect(screen.getByLabelText('Working directory')).toHaveValue('/src/app')
+  })
+
   it('otherwise starts in the folder last used', async () => {
     const onCreate = setup()
     await userEvent.type(screen.getByLabelText('Working directory'), '/repo')
@@ -171,6 +196,16 @@ describe('Sidebar folder', () => {
     await userEvent.click(screen.getByRole('button', { name: 'New Claude session in /src/app' }))
     expect(screen.getByRole('button', { name: 'New Claude session in /src/app' })).toHaveAttribute('aria-busy', 'true')
     finish(true)
+  })
+})
+
+describe('Sidebar search', () => {
+  it('brings the list back to its top when the search changes', async () => {
+    setup(undefined, [session])
+    const body = document.querySelector('.sidebar-body')!
+    body.scrollTop = 300
+    await userEvent.type(screen.getByLabelText('Search sessions'), 'o')
+    expect(body.scrollTop).toBe(0)
   })
 })
 

@@ -145,6 +145,9 @@ function MenuSheet(props: {
             action: { label: 'Undo', run: () => void unarchiveSession(session.id) },
           })
         }
+      } else {
+        // The store's error notice says why; the menu gets out of its way.
+        onClose(true)
       }
       return ok
     }, [archived, archiveSession, unarchiveSession, onClose, session.id, title, trigger]),

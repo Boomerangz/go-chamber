@@ -8,6 +8,8 @@ import { openNewSession, showPane } from './pane'
 // their own box and never push past it.
 
 const longName = `payments-gateway-service-with-an-extraordinarily-long-directory-name`
+// a long name of its own, so this folder's chips don't match longName's
+const shellName = `inventory-reconciliation-worker-with-a-very-long-folder-name`
 
 async function box(l: Locator) {
   const b = await l.boundingBox()
@@ -63,6 +65,30 @@ test('the dock lists every shell under ▾ and attaches the one picked', async (
   await expect(panel.getByRole('tab', { selected: true })).toHaveAccessibleName(new RegExp(`^${name}$`))
   for (const t of [`${name} 2`, name]) {
     await panel.getByRole('button', { name: `Close terminal ${t}`, exact: true }).click()
+    await panel.getByRole('group', { name: /^Close terminal / }).getByRole('button', { name: 'Close', exact: true }).click()
+  }
+})
+
+test('numbered shells of a long folder keep their numbers in the dock tabs', async ({ page, isMobile }) => {
+  test.skip(isMobile, 'the dock is desktop-only')
+  await page.addInitScript(() => Object.defineProperty(window, 'RTCPeerConnection', { value: undefined }))
+  const dir = fs.realpathSync(fs.mkdtempSync(`${os.tmpdir()}/gc-numbered-`))
+  const cwd = `${dir}/${shellName}`
+  fs.mkdirSync(cwd)
+  await startSession(page, cwd)
+  await page.getByRole('toolbar', { name: 'Dock' }).getByRole('button', { name: /^Terminal/ }).click()
+  const panel = page.getByRole('region', { name: 'Terminals' })
+  await panel.getByRole('button', { name: 'New terminal in session dir' }).click()
+  await expect(panel.getByRole('tab', { selected: true })).toBeVisible()
+  await panel.getByRole('button', { name: 'New terminal in session dir' }).click()
+  const second = panel.getByRole('tab', { name: new RegExp(`${shellName} 2`) })
+  const n = second.locator('.numbered-n')
+  await expect(n).toBeVisible()
+  const [t, b] = [await box(second), await box(n)]
+  expect(b.x + b.width).toBeLessThanOrEqual(t.x + t.width)
+  expect(await second.locator('.numbered-name').evaluate((e) => e.scrollWidth > e.clientWidth)).toBe(true)
+  for (const name of [`${shellName} 2`, shellName]) {
+    await panel.getByRole('button', { name: `Close terminal ${name}`, exact: true }).click()
     await panel.getByRole('group', { name: /^Close terminal / }).getByRole('button', { name: 'Close', exact: true }).click()
   }
 })

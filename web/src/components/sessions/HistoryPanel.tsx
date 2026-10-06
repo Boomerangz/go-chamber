@@ -64,7 +64,8 @@ export default function HistoryPanel() {
     <details className="history" onToggle={(e) => e.currentTarget.open && load()}>
       <summary className="section-title">
         <ChevronRight {...icon(14)} className="icon chevron" />
-        History
+        <span>History</span>
+        <span className="history-hint">sessions started in the CLI</span>
       </summary>
       {error && (
         <div className="history-note">
@@ -93,7 +94,8 @@ export default function HistoryPanel() {
             onChange={(e) => setFilter(e.target.value)}
           />
           {shown.length === 0 && <p className="history-note">No matching conversations</p>}
-          <ul className="sessions" aria-busy={loading || undefined}>
+          {shown.length > 0 && <p className="history-note">Opening one moves it to your sessions, where it resumes.</p>}
+          <ul className="sessions history-list" aria-busy={loading || undefined}>
             {shown.map((s) => {
               const key = keyOf(s)
               const title = s.title || s.nativeId

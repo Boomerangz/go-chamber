@@ -53,4 +53,9 @@ describe('recentFolders', () => {
   it('lists unique session folders, newest first, skipping children', () => {
     expect(recentFolders([s('/a'), s('/b'), s('/a'), s('/c', 'x'), s('/d')], 3)).toEqual(['/d', '/a', '/b'])
   })
+
+  it('offers a worktree session’s repository, not the worktree', () => {
+    const w: Session = { ...s('/data/worktrees/app/x'), worktree: { repo: '/p/app', path: '/data/worktrees/app/x', branch: 'chamber/x', base: 'main' } }
+    expect(recentFolders([s('/p/app'), w], 3)).toEqual(['/p/app'])
+  })
 })

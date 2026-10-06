@@ -251,6 +251,15 @@ describe('SessionMenu', () => {
     await waitFor(() => expect(screen.getByRole('button', { name: 'Delete' })).toBeInTheDocument())
   })
 
+  it('closes the menu when an archive fails: the error notice explains', async () => {
+    actions.archiveSession.mockResolvedValueOnce(false)
+    render(<Row />)
+    await userEvent.click(trigger())
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Archive' }))
+    await waitFor(() => expect(screen.queryByRole('menu')).toBeNull())
+    expect(trigger()).toHaveFocus()
+  })
+
   it('says an archive happened and undoes it from the notice', async () => {
     render(<Row />)
     await userEvent.click(trigger())

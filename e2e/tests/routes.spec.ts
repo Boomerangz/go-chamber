@@ -33,3 +33,14 @@ test('a reload keeps the open session and terminal, Back returns', async ({ page
   await expect(page).toHaveURL(sessionURL)
   await expect(page.getByText(`echo: ${text}`)).toBeVisible()
 })
+
+test('terminal mode is a step of its own: its link opens it and Back returns to it', async ({ page }) => {
+  await page.goto(`/terminal?token=${token}`)
+  const terminal = page.getByRole('radio', { name: /^Terminal/ })
+  await expect(terminal).toHaveAttribute('aria-checked', 'true')
+  await page.getByRole('radio', { name: 'Diagnostics' }).click()
+  await expect(page).toHaveURL(/\/diagnostics/)
+  await page.goBack()
+  await expect(terminal).toHaveAttribute('aria-checked', 'true')
+  await expect(page).toHaveURL(/\/(terminal|t\/[^/?]+)(\?|$)/)
+})

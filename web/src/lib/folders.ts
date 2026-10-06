@@ -34,12 +34,14 @@ export function filterFolders(folders: Folder[], query: string): Folder[] {
 }
 
 // recentFolders lists the working folders of top-level sessions, newest
-// session first, without repeats.
+// session first, without repeats; a worktree session counts as its repository.
 export function recentFolders(sessions: Session[], limit: number): string[] {
   const out: string[] = []
   for (let i = sessions.length - 1; i >= 0 && out.length < limit; i--) {
     const s = sessions[i]
-    if (!s.parentId && !out.includes(s.cwd)) out.push(s.cwd)
+    // A worktree is offered as its repository: a worktree of a worktree isn't wanted.
+    const cwd = s.worktree?.repo ?? s.cwd
+    if (!s.parentId && !out.includes(cwd)) out.push(cwd)
   }
   return out
 }

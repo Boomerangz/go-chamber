@@ -12,6 +12,8 @@ import { useSessionStore } from '../../stores/session'
 import { icon } from '../icon'
 import { FileViewer } from '../markdown/FileLink'
 import { LoadFailed, LoadingLine } from '../ui/Loading'
+import MidCut from '../ui/MidCut'
+import PathText from '../ui/PathText'
 import { diffBody } from './diffBody'
 import './DiffPanel.css'
 
@@ -312,6 +314,7 @@ function FileRow(props: {
 }) {
   const { file: f, counts, isOpen, diff, wrap } = props
   const { base, dir } = splitPath(f.path)
+  const from = splitPath(f.from ?? '')
   const label = statusLabel[f.status] ?? f.status
   const busy = Boolean(diff?.loading)
   return (
@@ -325,12 +328,15 @@ function FileRow(props: {
           <span className="diff-path">
             {f.from && (
               <>
-                <span className="diff-from">{f.from}</span>
+                <span className="diff-from">
+                  {from.dir && <span className="diff-from-dir">{from.dir}</span>}
+                  <MidCut text={from.base} className="diff-from-base" />
+                </span>
                 <span className="diff-arrow"> → </span>
               </>
             )}
             {dir && <span className="diff-dir">{dir}</span>}
-            <span className="diff-base">{base}</span>
+            <MidCut text={base} className="diff-base" />
           </span>
           {busy && diff?.text !== undefined && <span className="busy-mark" aria-hidden="true" />}
           {f.binary ? (
@@ -474,6 +480,15 @@ function colour(text: string, tokens: ThemedToken[] | undefined): ReactNode {
   ))
 }
 
+// lossOf says what removing a worktree loses. The listed changes are
+// against the branch's start: with no commits yet every one of them is
+// uncommitted; with commits, some may be committed, and those stay.
+function lossOf(changed: number, commits: number): string {
+  if (changed === 0) return 'It has uncommitted changes: they will be lost.'
+  if (commits === 0) return `${changed} uncommitted ${changed === 1 ? 'change' : 'changes'} will be lost.`
+  return 'Changes not yet committed will be lost.'
+}
+
 function WorktreeBar({ session, worktree, changed, commits }: { session: api.Session; worktree: api.Worktree; changed: number; commits: number }) {
   const [confirming, setConfirming] = useState(false)
   // dirty: the server refused because of uncommitted changes the list
@@ -520,8 +535,12 @@ function WorktreeBar({ session, worktree, changed, commits }: { session: api.Ses
       )}
       {confirming || dirty ? (
         <div className="worktree-confirm" role="group" aria-label="Remove worktree?">
-          <p className={losing ? 'worktree-dirty' : undefined}>
-            remove folder {worktree.path}?{losing ? ' its uncommitted changes will be lost;' : ''} branch {worktree.branch} is kept
+          <p>
+            Remove the worktree folder <PathText path={worktree.path} />?
+          </p>
+          {losing && <p className="worktree-dirty">{lossOf(changed, commits)}</p>}
+          <p>
+            Branch {worktree.branch} is kept{commits > 0 ? `, with its ${commits} ${commits === 1 ? 'commit' : 'commits'}` : ''}.
           </p>
           <div className="worktree-actions">
             <button
