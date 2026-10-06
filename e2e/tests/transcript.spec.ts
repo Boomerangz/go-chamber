@@ -1,9 +1,10 @@
 import { expect, test, type Page } from '@playwright/test'
 import { token } from '../playwright.config'
-import { showPane } from './pane'
+import { openNewSession, showPane } from './pane'
 
 async function newSession(page: Page) {
   await page.goto(`/?token=${token}`)
+  await openNewSession(page)
   await page.getByLabel('working directory').fill('/tmp')
   await page.getByRole('button', { name: 'New session', exact: true }).click()
   await expect(page.getByLabel('message')).toBeVisible()

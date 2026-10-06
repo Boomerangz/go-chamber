@@ -1,9 +1,11 @@
 import { expect, test } from '@playwright/test'
 import { token } from '../playwright.config'
+import { openNewSession } from './pane'
 
 test('streams a fake agent reply end to end', async ({ page }) => {
   await page.goto(`/?token=${token}`)
 
+  await openNewSession(page)
   await page.getByLabel('working directory').fill('/tmp')
   await page.getByRole('button', { name: 'New session', exact: true }).click()
 
@@ -18,6 +20,7 @@ test('streams a fake agent reply end to end', async ({ page }) => {
 
 test('shows a tool call card from the fake agent', async ({ page }) => {
   await page.goto(`/?token=${token}`)
+  await openNewSession(page)
   await page.getByLabel('working directory').fill('/tmp')
   await page.getByRole('button', { name: 'New session', exact: true }).click()
   await expect(page.getByLabel('message')).toBeVisible()

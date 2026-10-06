@@ -1,10 +1,12 @@
 import { expect, test } from '@playwright/test'
 import { token } from '../playwright.config'
+import { openNewSession } from './pane'
 
 test('focus leaves only the chat and opens the requests when the agent asks', async ({ page }, info) => {
   test.skip(info.project.name === 'mobile', 'one pane at a time already')
   const text = `focus ${info.repeatEachIndex} ${Date.now()}: please permission`
   await page.goto(`/?token=${token}`)
+  await openNewSession(page)
   await page.getByLabel('working directory').fill('/tmp')
   await page.getByRole('button', { name: 'New session', exact: true }).click()
   await expect(page.getByLabel('message')).toBeVisible()

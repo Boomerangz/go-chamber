@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test'
 import fs from 'node:fs'
 import os from 'node:os'
 import { token } from '../playwright.config'
-import { showShells } from './pane'
+import { openNewSession, showShells } from './pane'
 
 // Transport upgrades have their own scenarios in terminal-rtc.spec.ts.
 test.beforeEach(async ({ page }) => {
@@ -87,12 +87,13 @@ test('independent terminal: run a command, survive reload, exit, close', async (
   await panel.getByRole('button', { name: `Close terminal ${dir.split('/').pop()}` }).click()
   await expect(panel.getByRole('tab', { name: new RegExp(dir.split('/').pop()!) })).toHaveCount(0)
   await page.getByRole('radio', { name: 'Agents' }).click()
-  await expect(page.getByRole('button', { name: 'New session', exact: true })).toBeVisible()
+  await expect(page.getByLabel('search sessions')).toBeVisible()
 })
 
 test('terminal in the session directory', async ({ page }) => {
   const dir = fs.realpathSync(fs.mkdtempSync(`${os.tmpdir()}/gc-sess-`))
   await page.goto(`/?token=${token}`)
+  await openNewSession(page)
   await page.getByLabel('working directory').fill(dir)
   await page.getByRole('button', { name: 'New session', exact: true }).click()
   await expect(page.getByLabel('message')).toBeVisible()
@@ -114,6 +115,7 @@ test('ad-hoc terminal docked next to the chat', async ({ page, isMobile }) => {
   test.skip(isMobile, 'the dock is desktop-only; phones use terminal mode')
   const dir = fs.realpathSync(fs.mkdtempSync(`${os.tmpdir()}/gc-dock-`))
   await page.goto(`/?token=${token}`)
+  await openNewSession(page)
   await page.getByLabel('working directory').fill(dir)
   await page.getByRole('button', { name: 'New session', exact: true }).click()
   await expect(page.getByLabel('message')).toBeVisible()

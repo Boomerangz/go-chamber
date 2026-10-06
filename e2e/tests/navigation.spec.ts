@@ -1,11 +1,12 @@
 import { expect, test, type Page } from '@playwright/test'
 import { mkdirSync } from 'node:fs'
 import { token } from '../playwright.config'
-import { showPane } from './pane'
+import { openNewSession, showPane } from './pane'
 
 async function startIn(page: Page, cwd: string, text: string, { make = true } = {}) {
   if (make) mkdirSync(cwd, { recursive: true })
   await showPane(page, 'Sessions')
+  await openNewSession(page)
   await page.getByLabel('working directory').fill(cwd)
   await page.getByRole('button', { name: 'New session', exact: true }).click()
   // On a phone the folder sits behind the header's "⋯"; it is there all the same.
@@ -27,7 +28,7 @@ test('the top bar stays quiet while online and asks before signing out', async (
   }
   await showPane(page, 'Sessions')
   await page.getByRole('button', { name: 'Sign out' }).filter({ visible: true }).click()
-  await expect(page.getByText("Sign out? You'll need the access token again.").filter({ visible: true })).toBeVisible()
+  await expect(page.getByText('Sign out?').filter({ visible: true })).toBeVisible()
   await page.getByRole('button', { name: 'Cancel' }).filter({ visible: true }).click()
   await expect(health).toBeVisible()
 })
@@ -38,6 +39,7 @@ test('a new session starts in the open folder, offers recent ones and says when 
   await startIn(page, cwd, 'hello folder')
   await expect(page.getByText('echo: hello folder')).toBeVisible()
   await showPane(page, 'Sessions')
+  await openNewSession(page)
   const field = page.getByLabel('working directory')
   await expect(field).toHaveValue(cwd)
   const chips = page.getByRole('group', { name: 'Recent folders' })
@@ -105,16 +107,102 @@ test('on a phone, Back from a chat returns to the list and notices stay clear of
   await page.locator('button.session', { hasText: 'phone back' }).first().click()
   await expect(page.getByLabel('message')).toBeVisible()
   await page.goBack()
-  await expect(page.getByLabel('working directory')).toBeVisible()
+  await expect(page.locator('.sidebar')).toBeVisible()
   await expect(page.getByRole('navigation', { name: 'Views' }).getByRole('button', { name: /^Sessions/ })).toHaveAttribute('aria-pressed', 'true')
 
-  // A failure notice sits under the top bar, not over the composer.
+  // A failure notice sits over the transcript: under the chat header, above the composer.
   await startIn(page, `/tmp/missing-${info.project.name}-${Date.now()}`, 'nowhere', { make: false })
   const toast = page.locator('.toast-error').first()
   await expect(toast).toBeVisible()
   const composer = await page.locator('.composer').boundingBox()
   const box = await toast.boundingBox()
-  const topbar = await page.locator('.topbar').boundingBox()
-  expect(box!.y).toBeGreaterThanOrEqual(topbar!.y + topbar!.height - 1)
+  const header = await page.locator('.chat-header').boundingBox()
+  expect(box!.y).toBeGreaterThanOrEqual(header!.y + header!.height - 1)
   expect(box!.y + box!.height).toBeLessThan(composer!.y)
+})
+
+test('Back from the first session opened at / leaves it, and stays left', async ({ page, isMobile }, info) => {
+  const cwd = `/tmp/first-${info.project.name}-${Date.now()}`
+  await page.goto(`/?token=${token}`)
+  await startIn(page, cwd, 'first back')
+  await expect(page.getByText('echo: first back')).toBeVisible()
+  await expect(page).toHaveURL(/\/s\//)
+  await page.goBack()
+  if (isMobile) {
+    await expect(page.getByRole('navigation', { name: 'Views' }).getByRole('button', { name: /^Sessions/ })).toHaveAttribute('aria-pressed', 'true')
+  } else {
+    await expect(page).toHaveURL(/\/\?token=|\/$/)
+    await expect(page.getByRole('heading', { name: 'Start a session' })).toBeVisible()
+  }
+  // A later change in the app must not push the session back.
+  const steps = await page.evaluate(() => history.length)
+  await page.getByLabel('search sessions').fill('first back')
+  await page.getByLabel('search sessions').fill('')
+  expect(await page.evaluate(() => history.length)).toBe(steps)
+  if (isMobile) await expect(page.locator('.sidebar')).toBeVisible()
+  else await expect(page.getByRole('heading', { name: 'Start a session' })).toBeVisible()
+})
+
+test('the sessions list never scrolls sideways, and its row menu clears the request count', async ({ page, isMobile }, info) => {
+  const long = `/tmp/a-folder-with-a-very-long-name-that-would-stretch-the-list-${info.project.name}-${Date.now()}`
+  await page.goto(`/?token=${token}`)
+  await startIn(page, long, `wide ${info.project.name}: please permission`)
+  await expect(page.locator('.request-title', { hasText: 'Run command' })).toBeVisible()
+  await showPane(page, 'Sessions')
+  const list = page.locator('.sidebar-body')
+  await expect(list.locator('.group-name', { hasText: 'a-folder-with-a-very-long-name' }).first()).toBeVisible()
+  const sizes = await list.evaluate((el) => {
+    const groups = el.querySelector('.groups')!
+    return { scroll: groups.scrollWidth, client: groups.clientWidth, bodyScroll: el.scrollWidth, bodyClient: el.clientWidth }
+  })
+  expect(sizes.scroll).toBeLessThanOrEqual(sizes.client)
+  expect(sizes.bodyScroll).toBeLessThanOrEqual(sizes.bodyClient)
+
+  const row = list.locator('li', { has: page.locator('button.session', { hasText: `wide ${info.project.name}` }) }).first()
+  await row.locator('button.session').hover()
+  const count = await row.locator('.session-meta .badge').boundingBox()
+  const trigger = await row.locator('.session-menu-trigger').boundingBox()
+  const sidebar = await page.locator('.sidebar').boundingBox()
+  expect(count).not.toBeNull()
+  // The menu button stays inside the sidebar and off the count.
+  expect(trigger!.x + trigger!.width).toBeLessThanOrEqual(sidebar!.x + sidebar!.width)
+  const overlaps = count!.x < trigger!.x + trigger!.width && trigger!.x < count!.x + count!.width && count!.y < trigger!.y + trigger!.height && trigger!.y < count!.y + count!.height
+  expect(overlaps).toBe(false)
+  if (isMobile) return
+
+  // Archived and History open below the list without squeezing it.
+  const before = (await page.locator('.groups').boundingBox())!.height
+  const history = page.locator('details.history', { hasText: 'History' }).last()
+  await history.locator('summary').click()
+  await expect(history).toHaveAttribute('open', '')
+  expect((await page.locator('.groups').boundingBox())!.height).toBeGreaterThanOrEqual(before - 1)
+})
+
+test('a failure notice covers no control: not the header, the dock rail, the composer or the folder field', async ({ page, isMobile }, info) => {
+  await page.goto(`/?token=${token}`)
+  await startIn(page, `/tmp/notice-${info.project.name}-${Date.now()}`, 'notice place')
+  await expect(page.getByText('echo: notice place')).toBeVisible()
+  await startIn(page, `/tmp/missing-${info.project.name}-${Date.now()}`, 'nowhere', { make: false })
+  const toast = page.locator('.toast-error').first()
+  await expect(toast).toBeVisible()
+  const box = (await toast.boundingBox())!
+  const clear = async (selector: string) => {
+    const other = await page.locator(selector).first().boundingBox()
+    if (!other) return
+    const overlaps = box.x < other.x + other.width && other.x < box.x + box.width && box.y < other.y + other.height && other.y < box.y + box.height
+    expect(overlaps, `notice over ${selector}`).toBe(false)
+  }
+  await clear('.chat-header')
+  await clear('.composer')
+  if (!isMobile) await clear('.dock-rail')
+  // The stack takes no clicks outside its notices.
+  expect(await page.locator('.notices').evaluate((el) => getComputedStyle(el).pointerEvents)).toBe('none')
+  if (isMobile) {
+    // On the list the notice sits above the pane bar, off the folder field.
+    await showPane(page, 'Sessions')
+    await openNewSession(page)
+    const moved = (await toast.boundingBox())!
+    const field = (await page.locator('.new-session .folder-field').boundingBox())!
+    expect(moved.y).toBeGreaterThan(field.y + field.height)
+  }
 })

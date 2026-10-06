@@ -1,8 +1,10 @@
 import { expect, test } from '@playwright/test'
 import { token } from '../playwright.config'
+import { openNewSession } from './pane'
 
 test('stops a background subagent task', async ({ page }) => {
   await page.goto(`/?token=${token}`)
+  await openNewSession(page)
   await page.getByLabel('working directory').fill('/tmp')
   await page.getByRole('button', { name: 'New session', exact: true }).click()
   await expect(page.getByLabel('message')).toBeVisible()

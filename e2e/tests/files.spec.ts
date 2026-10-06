@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { expect, test } from '@playwright/test'
 import { token } from '../playwright.config'
+import { openNewSession } from './pane'
 
 test('opens files the agent links inside its folder', async ({ page }) => {
   const cwd = mkdtempSync(join(tmpdir(), 'gc-files-'))
@@ -11,6 +12,7 @@ test('opens files the agent links inside its folder', async ({ page }) => {
   writeFileSync(join(outside, 'secret.md'), '# Secret')
 
   await page.goto(`/?token=${token}`)
+  await openNewSession(page)
   await page.getByLabel('working directory').fill(cwd)
   await page.getByRole('button', { name: 'New session', exact: true }).click()
   await page.getByLabel('message').fill(`see [notes](${join(cwd, 'notes.md')}) and [secret](${join(outside, 'secret.md')})`)

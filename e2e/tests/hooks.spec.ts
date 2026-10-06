@@ -1,11 +1,13 @@
 import { expect, test } from '@playwright/test'
 import { token } from '../playwright.config'
+import { openNewSession } from './pane'
 
 // A user Stop hook that blocks makes the agent answer twice; the chat
 // shows the hook between the answers and why it blocked.
 for (const agent of ['Claude', 'Codex'] as const) {
   test(`shows a blocking Stop hook (${agent})`, async ({ page }) => {
     await page.goto(`/?token=${token}`)
+    await openNewSession(page)
     await page.getByRole('radio', { name: agent }).click()
     await page.getByLabel('working directory').fill('/tmp')
     await page.getByRole('button', { name: 'New session', exact: true }).click()
