@@ -349,8 +349,19 @@ describe('session store', () => {
     ;(api.listModels as Mock).mockRejectedValueOnce(new Error('no')).mockResolvedValueOnce([{ id: 'm' }])
     await store().loadModels('claude')
     expect(store().models.claude).toEqual([])
-    await store().loadModels('claude')
+    expect(store().modelsStatus.claude).toBe('error')
+    const again = store().loadModels('claude')
+    expect(store().modelsStatus.claude).toBe('loading')
+    await again
     expect(store().models.claude).toEqual([{ id: 'm' }])
+    expect(store().modelsStatus.claude).toBe('ready')
+  })
+
+  it('takes an agent that lists no models as an answer, not a failure', async () => {
+    ;(api.listModels as Mock).mockRejectedValueOnce(new Error('{"error":"agent model listing is not supported"}'))
+    await store().loadModels('codex')
+    expect(store().modelsStatus.codex).toBe('ready')
+    expect(store().models.codex).toEqual([])
   })
 
   it('records load errors', async () => {

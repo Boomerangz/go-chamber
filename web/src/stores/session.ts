@@ -29,6 +29,8 @@ export interface SessionStore {
   searchHits: api.SearchHit[]
   // models caches each agent's model catalog; empty when unsupported.
   models: Partial<Record<api.AgentKind, api.ModelInfo[]>>
+  // modelsStatus tells a catalog loading or failed from an empty one.
+  modelsStatus: Partial<Record<api.AgentKind, LoadStatus>>
   // sessionsStatus tells a list still loading (or failed) from an empty one.
   sessionsStatus: LoadStatus
   // history is the state of the open chat's transcript fetch.
@@ -211,6 +213,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
   query: '',
   searchHits: [],
   models: {},
+  modelsStatus: {},
   sessionsStatus: 'loading',
   history: 'ready',
   searching: false,
@@ -235,15 +238,22 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
 
   async loadModels(agent) {
     if (get().models[agent] && !modelsFailed.has(agent)) return
+    if (get().modelsStatus[agent] === 'loading') return
+    set({ modelsStatus: { ...get().modelsStatus, [agent]: 'loading' } })
     try {
       const list = await api.listModels(agent)
       modelsFailed.delete(agent)
-      set({ models: { ...get().models, [agent]: list } })
-    } catch {
-      // The agent can't list models now: the picker offers only its default
-      // and asks again next time it opens.
-      modelsFailed.add(agent)
-      set({ models: { ...get().models, [agent]: [] } })
+      set({ models: { ...get().models, [agent]: list }, modelsStatus: { ...get().modelsStatus, [agent]: 'ready' } })
+    } catch (err) {
+      // An agent without a catalog says so: that is an answer. Anything else
+      // failed: the picker offers only the default and a retry, and asks
+      // again next time it opens.
+      const unsupported = /not supported/i.test(describeError(err))
+      if (!unsupported) modelsFailed.add(agent)
+      set({
+        models: { ...get().models, [agent]: [] },
+        modelsStatus: { ...get().modelsStatus, [agent]: unsupported ? 'ready' : 'error' },
+      })
     }
   },
 
@@ -722,6 +732,7 @@ export function resetStore(): void {
     query: '',
     searchHits: [],
     models: {},
+    modelsStatus: {},
     sessionsStatus: 'loading',
     history: 'ready',
     searching: false,
