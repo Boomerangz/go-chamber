@@ -3,6 +3,7 @@ import AccountPanel from '../account/AccountPanel'
 import AgentAvatar from '../AgentAvatar'
 import FolderField from '../folders/FolderField'
 import QuotaWidget from '../quota/QuotaWidget'
+import ArchivedSessions from './ArchivedSessions'
 import HistoryPanel from './HistoryPanel'
 import SessionList from './SessionList'
 import { recentFolders } from '../../lib/folders'
@@ -135,6 +136,7 @@ export default function Sidebar(props: SidebarProps) {
         </button>
       </form>
       <SessionList agent={agent} creating={creating} onCreateIn={(dir) => void create(agent, dir)} />
+      <ArchivedSessions />
       <HistoryPanel />
       <footer className="sidebar-footer">
         <AccountPanel key={agent} agent={agent} />

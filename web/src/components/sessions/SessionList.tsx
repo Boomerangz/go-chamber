@@ -20,6 +20,7 @@ import { useJustFinished } from '../../lib/finished'
 import { useNow } from '../../lib/now'
 import { useSessionStore } from '../../stores/session'
 import { LoadFailed, LoadingLine, Skeleton } from '../ui/Loading'
+import SessionMenu from './SessionMenu'
 
 // RECENT is how many sessions an expanded project shows before "older".
 const RECENT = 5
@@ -287,6 +288,7 @@ function SessionRow(props: {
         </span>
         <span className="session-badge">{waiting > 0 && <span className="badge">{waiting}</span>}</span>
       </button>
+      <SessionMenu session={s} />
       {props.node.children.length > 0 && (
         <ul className="sessions">
           {props.node.children.map((child) => (
