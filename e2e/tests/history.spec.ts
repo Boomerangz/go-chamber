@@ -7,7 +7,7 @@ test('opens a conversation started in a terminal and continues it', async ({ pag
   const bar = page.getByRole('navigation', { name: 'Views' })
   if (await bar.isVisible()) await bar.getByRole('button', { name: /^Sessions/ }).click()
 
-  await page.locator('.history summary').click()
+  await page.locator('.history:not(.archived) > summary').click()
   await expect(page.getByText('Tidy the README')).toBeVisible() // Codex's recorded thread
   await page.getByRole('button', { name: new RegExp(`Started in a terminal \\(${proj}\\)`) }).click()
 

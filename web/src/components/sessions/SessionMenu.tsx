@@ -178,12 +178,20 @@ function MenuSheet(props: {
       if (sheet.current?.contains(target) || trigger.current?.contains(target)) return
       onClose()
     }
-    // Only a scroll that moves the row away closes it: a scroll event
-    // that leaves the row in place (bringing the sheet into view) does not.
-    const openedAt = trigger.current?.getBoundingClientRect().top ?? 0
+    // The sheet follows its row while the row stays on screen: a live list
+    // update above shifts the row (and scroll anchoring fires a scroll) without
+    // the owner doing anything. Once the row scrolls out of view it closes.
+    let last = trigger.current?.getBoundingClientRect().top ?? 0
     const onScroll = () => {
-      const now = trigger.current?.getBoundingClientRect().top ?? openedAt
-      if (Math.abs(now - openedAt) > 2) onClose()
+      const row = trigger.current?.getBoundingClientRect()
+      if (!row) return
+      if (row.bottom < 0 || row.top > window.innerHeight) {
+        onClose()
+        return
+      }
+      const dy = row.top - last
+      last = row.top
+      if (dy !== 0) setPos((p) => (p ? { left: p.left, top: p.top + dy } : p))
     }
     const onResize = () => onClose()
     document.addEventListener('pointerdown', onDown)

@@ -140,12 +140,21 @@ describe('SessionMenu', () => {
     expect(screen.queryByRole('menu')).toBeNull()
   })
 
-  it('closes when a scroll moves the row away, not on a scroll that leaves it', async () => {
+  it('follows a row that moves on screen, and closes once the row scrolls out of view', async () => {
     render(<Row />)
+    trigger().getBoundingClientRect = () => ({ top: 100, bottom: 128, right: 300 }) as DOMRect
     await userEvent.click(trigger())
+    const menu = screen.getByRole('menu')
+    const top = () => parseFloat(menu.style.top)
+    const before = top()
     fireEvent.scroll(window)
-    expect(screen.getByRole('menu')).toBeInTheDocument()
-    trigger().getBoundingClientRect = () => ({ top: 40 }) as DOMRect
+    expect(screen.getByRole('menu')).toBe(menu)
+    // A list update above shifts the row (scroll anchoring fires a scroll): the sheet moves with it.
+    trigger().getBoundingClientRect = () => ({ top: 160, bottom: 188, right: 300 }) as DOMRect
+    fireEvent.scroll(window)
+    expect(screen.getByRole('menu')).toBe(menu)
+    expect(top()).toBe(before + 60)
+    trigger().getBoundingClientRect = () => ({ top: -40, bottom: -12, right: 300 }) as DOMRect
     fireEvent.scroll(window)
     expect(screen.queryByRole('menu')).toBeNull()
   })
