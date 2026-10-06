@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { describeError, lastError, notify, resetNotices, useNotices } from './notices'
+import { describeError, fail, lastError, notify, resetNotices, useNotices } from './notices'
 
 const notices = () => useNotices.getState().notices
 
@@ -56,7 +56,39 @@ describe('describeError', () => {
     expect(describeError(new TypeError('Failed to fetch'))).toBe('go-chamber is not reachable')
   })
 
+  it('names a request go-chamber never answered', () => {
+    expect(describeError(new DOMException('signal timed out', 'TimeoutError'))).toBe("go-chamber didn't answer")
+  })
+
   it('trims long messages', () => {
     expect(describeError('x'.repeat(400))).toHaveLength(241)
+  })
+})
+
+describe('quiet failures', () => {
+  it('names the reason for the caller that shows it in place, without a notice', () => {
+    fail('Answer not sent', new Error('gone'), 'answer', { quiet: true })
+    expect(useNotices.getState().notices).toEqual([])
+    expect(lastError()).toBe('gone')
+  })
+
+  it('gives the newest reason, shown or quiet', () => {
+    fail('A', new Error('loud'))
+    fail('B', new Error('quiet'), 'b', { quiet: true })
+    expect(lastError()).toBe('quiet')
+    fail('C', new Error('louder'))
+    expect(lastError()).toBe('louder')
+  })
+
+  it('forgets a quiet failure once its action succeeds or the notices reset', () => {
+    fail('B', new Error('quiet'), 'b', { quiet: true })
+    useNotices.getState().dismissKey('b')
+    expect(lastError()).toBeNull()
+    const id = notify({ kind: 'error', text: 'x' })
+    fail('B', new Error('quiet'), 'b', { quiet: true })
+    useNotices.getState().dismiss(id)
+    expect(lastError()).toBe('quiet')
+    resetNotices()
+    expect(lastError()).toBeNull()
   })
 })

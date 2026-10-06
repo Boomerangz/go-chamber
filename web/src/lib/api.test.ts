@@ -21,9 +21,17 @@ import {
   listModels,
   setModel,
   UNAUTHORIZED_EVENT,
+  ApiError,
+  createWorktreeSession,
+  requestRaw,
+  TIMEOUT_MS,
 } from './api'
+import { describeError } from '../stores/notices'
 
-afterEach(() => vi.unstubAllGlobals())
+afterEach(() => {
+  vi.unstubAllGlobals()
+  vi.useRealTimers()
+})
 
 function stubFetch(impl: (url: string, init?: RequestInit) => Promise<Response>) {
   const fn = vi.fn(impl)
@@ -38,7 +46,7 @@ describe('fetchHealth', () => {
   it('returns online when server answers ok', async () => {
     const fn = stubFetch(async () => json({ status: 'ok' }))
     expect(await fetchHealth()).toBe('online')
-    expect(fn).toHaveBeenCalledWith('/api/health', { credentials: 'same-origin' })
+    expect(fn).toHaveBeenCalledWith('/api/health', expect.objectContaining({ credentials: 'same-origin' }))
   })
 
   it('returns unauthorized on 401', async () => {
@@ -77,7 +85,7 @@ describe('session API', () => {
   it('lists sessions', async () => {
     const fn = stubFetch(async () => json([{ id: 'a' }]))
     expect(await listSessions()).toEqual([{ id: 'a' }])
-    expect(fn).toHaveBeenCalledWith('/api/sessions', { credentials: 'same-origin' })
+    expect(fn).toHaveBeenCalledWith('/api/sessions', expect.objectContaining({ credentials: 'same-origin' }))
   })
 
   it('creates a session with a JSON body', async () => {
@@ -236,5 +244,96 @@ describe('model API', () => {
     const fn = stubFetch(async () => json({ id: 'n' }))
     await createSession('codex', '/p', { model: 'gpt', effort: '' })
     expect(JSON.parse(String(fn.mock.calls[0][1]?.body))).toEqual({ agent: 'codex', cwd: '/p', model: 'gpt', effort: '' })
+  })
+})
+
+// hang is a fetch that never answers until its signal aborts.
+function hang() {
+  return stubFetch(
+    (_url, init) =>
+      new Promise<Response>((_resolve, reject) => {
+        const signal = init?.signal
+        if (signal?.aborted) reject(signal.reason)
+        signal?.addEventListener('abort', () => reject(signal.reason))
+      }),
+  )
+}
+
+describe('request timeouts', () => {
+  it('gives up on a request go-chamber never answers', async () => {
+    vi.useFakeTimers()
+    hang()
+    const sent = sendMessage('a', 'hi')
+    const outcome = expect(sent).rejects.toSatisfy((err) => describeError(err) === "go-chamber didn't answer")
+    await vi.advanceTimersByTimeAsync(TIMEOUT_MS)
+    await outcome
+  })
+
+  it('waits longer for a worktree to be created', async () => {
+    vi.useFakeTimers()
+    hang()
+    let settled = false
+    const created = createWorktreeSession('claude', '/p', 'b').finally(() => (settled = true))
+    created.catch(() => {})
+    await vi.advanceTimersByTimeAsync(TIMEOUT_MS + 1000)
+    expect(settled).toBe(false)
+    await vi.advanceTimersByTimeAsync(10 * 60_000)
+    expect(settled).toBe(true)
+  })
+
+  it('stops the clock once the answer arrives', async () => {
+    vi.useFakeTimers()
+    stubFetch(async () => json([]))
+    await listSessions()
+    expect(vi.getTimerCount()).toBe(0)
+  })
+
+  it('reports an unreachable health check as offline', async () => {
+    vi.useFakeTimers()
+    hang()
+    const health = fetchHealth()
+    await vi.advanceTimersByTimeAsync(TIMEOUT_MS)
+    expect(await health).toBe('offline')
+  })
+})
+
+describe('ApiError', () => {
+  it('carries the status of a refused request', async () => {
+    stubFetch(async () => json({ error: 'session not found' }, 404))
+    const err = await getSession('x').catch((e: unknown) => e)
+    expect(err).toBeInstanceOf(ApiError)
+    expect((err as ApiError).status).toBe(404)
+    expect((err as ApiError).message).toBe('{"error":"session not found"}')
+  })
+})
+
+describe('requestRaw', () => {
+  it('returns the response for the caller to read', async () => {
+    stubFetch(async () => new Response('body', { status: 404 }))
+    const res = await requestRaw('/api/x')
+    expect(res.status).toBe(404)
+    expect(await res.text()).toBe('body')
+  })
+
+  it('announces an expired login', async () => {
+    stubFetch(async () => new Response('', { status: 401 }))
+    const seen = vi.fn()
+    window.addEventListener(UNAUTHORIZED_EVENT, seen)
+    await expect(requestRaw('/api/x')).rejects.toThrow('Signed out')
+    window.removeEventListener(UNAUTHORIZED_EVENT, seen)
+    expect(seen).toHaveBeenCalledTimes(1)
+  })
+
+  it('aborts when the caller does', async () => {
+    hang()
+    const controller = new AbortController()
+    const res = requestRaw('/api/x', { signal: controller.signal })
+    controller.abort()
+    await expect(res).rejects.toSatisfy((err) => (err as Error).name === 'AbortError')
+  })
+
+  it('aborts at once with a caller signal already aborted', async () => {
+    hang()
+    await expect(requestRaw('/api/x', { signal: AbortSignal.abort() })).rejects.toBeDefined()
   })
 })

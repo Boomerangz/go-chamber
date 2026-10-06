@@ -4,7 +4,7 @@ import './HistoryPanel.css'
 import type { ExternalSession } from '../../lib/api'
 import { listHistory } from '../../lib/api'
 import { relativeTime } from '../../lib/sessions'
-import { describeError } from '../../stores/notices'
+import { describeError, lastError } from '../../stores/notices'
 import { useSessionStore } from '../../stores/session'
 import { icon } from '../icon'
 import { LoadFailed, LoadingLine } from '../ui/Loading'
@@ -23,6 +23,7 @@ export default function HistoryPanel() {
   const [filter, setFilter] = useState('')
   const [busy, setBusy] = useState<string | null>(null)
   const [failed, setFailed] = useState<string | null>(null)
+  const [reason, setReason] = useState<string | null>(null)
   const generation = useRef(0)
 
   const load = () => {
@@ -50,7 +51,10 @@ export default function HistoryPanel() {
     const ok = await importHistory(s.agent, s.nativeId)
     setBusy(null)
     if (ok) setList((prev) => prev?.filter((x) => keyOf(x) !== key) ?? null)
-    else setFailed(key)
+    else {
+      setFailed(key)
+      setReason(lastError())
+    }
   }
 
   const q = filter.trim().toLowerCase()
@@ -110,7 +114,7 @@ export default function HistoryPanel() {
                       </span>
                     </span>
                   </button>
-                  {failed === key && <p className="error history-error">Couldn't open the conversation</p>}
+                  {failed === key && <p className="error history-error">{`Couldn't open the conversation${reason ? `: ${reason}` : ''}`}</p>}
                 </li>
               )
             })}

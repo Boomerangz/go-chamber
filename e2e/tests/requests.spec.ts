@@ -81,3 +81,49 @@ test('approves a permission from the requests tray with the keyboard', async ({ 
   await showPane(page, 'Chat')
   await expect(page.locator('.item.assistant', { hasText: /approved: run/ })).toBeVisible()
 })
+
+// openTray shows the requests inbox: the pane on phones, the dock on desktop.
+async function openTray(page: import('@playwright/test').Page) {
+  const bar = page.getByRole('navigation', { name: 'Views' })
+  if (await bar.isVisible()) await bar.getByRole('button', { name: /^Requests/ }).click()
+  else await page.getByRole('toolbar', { name: 'Dock' }).getByRole('button', { name: /^Requests/ }).click()
+}
+
+test('the requests inbox says it failed to load instead of looking empty', async ({ page }) => {
+  let failing = true
+  await page.route('**/api/requests', (route) =>
+    failing ? route.fulfill({ status: 500, body: 'requests broke' }) : route.fallback(),
+  )
+  await page.goto(`/?token=${token}`)
+  await openTray(page)
+  const failed = page.locator('.load-failed', { hasText: "Couldn't load requests" })
+  await expect(failed).toBeVisible()
+  await expect(page.getByText('No pending requests')).toHaveCount(0)
+  // shown in place: no notice repeats it
+  await expect(page.getByText('requests broke')).toHaveCount(0)
+  failing = false
+  await failed.getByRole('button', { name: 'Retry' }).click()
+  await expect(failed).toHaveCount(0)
+})
+
+test('a tray answer on its way names itself', async ({ page }, info) => {
+  const text = `tray busy ${info.project.name} ${info.repeatEachIndex} ${Date.now()}: please permission`
+  await newSession(page)
+  await page.getByLabel('message').fill(text)
+  await page.getByRole('button', { name: 'Send' }).click()
+  await expect(page.locator('.request-title', { hasText: 'Run command' })).toBeVisible()
+
+  let release: () => void = () => {}
+  const held = new Promise<void>((r) => (release = r))
+  await page.route('**/api/sessions/*/requests/*', async (route) => {
+    await held
+    await route.fallback()
+  })
+  await openTray(page)
+  const line = page.getByRole('complementary', { name: 'Pending requests' }).getByRole('listitem').filter({ hasText: text })
+  await line.getByRole('button', { name: 'Deny', exact: true }).click()
+  await expect(line.getByRole('button', { name: 'Denying…' })).toBeVisible()
+  await expect(line.getByRole('button', { name: 'Allow', exact: true })).toBeDisabled()
+  release()
+  await expect(line).toHaveCount(0)
+})

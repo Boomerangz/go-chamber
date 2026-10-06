@@ -20,6 +20,7 @@ vi.mock('../lib/api', () => ({
   setModel: vi.fn(),
   setPermissionMode: vi.fn(),
   setAutoContinue: vi.fn(),
+  importHistory: vi.fn(),
 }))
 
 vi.mock('../lib/chime', () => ({ chimeOnEvent: vi.fn() }))
@@ -28,7 +29,7 @@ import * as api from '../lib/api'
 import { chimeOnEvent } from '../lib/chime'
 import { resetStore, useSessionStore } from './session'
 import { diagnostics, resetDiagnostics, beginAgentView, endAgentView, recordAgentCommit } from '../lib/diagnostics'
-import { lastError, resetNotices } from './notices'
+import { lastError, resetNotices, useNotices } from './notices'
 
 const store = () => useSessionStore.getState()
 
@@ -989,5 +990,90 @@ describe('audit fixes', () => {
       endAgentView('a')
       vi.useRealTimers()
     }
+  })
+})
+
+describe('failures shown in place', () => {
+  const toasts = () => useNotices.getState().notices
+
+  it('leaves a first failed session load to the list, but toasts a failed refresh', async () => {
+    ;(api.listSessions as Mock).mockRejectedValueOnce(new Error('down'))
+    await store().loadSessions()
+    expect(store().sessionsStatus).toBe('error')
+    expect(toasts()).toEqual([])
+    expect(lastError()).toBe('down')
+    ;(api.listSessions as Mock).mockResolvedValueOnce([{ id: 'a' }])
+    await store().loadSessions()
+    ;(api.listSessions as Mock).mockRejectedValueOnce(new Error('blip'))
+    await store().loadSessions()
+    expect(toasts().map((n) => n.text)).toEqual(['blip'])
+  })
+
+  it('tracks the request inbox load and leaves a first failure to it', async () => {
+    expect(store().requestsStatus).toBe('loading')
+    ;(api.listRequests as Mock).mockRejectedValueOnce(new Error('nope'))
+    await store().loadRequests()
+    expect(store().requestsStatus).toBe('error')
+    expect(toasts()).toEqual([])
+    ;(api.listRequests as Mock).mockResolvedValueOnce([])
+    await store().loadRequests()
+    expect(store().requestsStatus).toBe('ready')
+    expect(lastError()).toBeNull()
+    ;(api.listRequests as Mock).mockRejectedValueOnce(new Error('blip'))
+    await store().loadRequests()
+    expect(store().requestsStatus).toBe('ready')
+    expect(toasts().map((n) => n.text)).toEqual(['blip'])
+  })
+
+  it('shows a failed transcript only in the chat, with its reason', async () => {
+    ;(api.fetchEvents as Mock).mockRejectedValueOnce(new Error('gone'))
+    await store().selectSession('a')
+    expect(store().history).toBe('error')
+    expect(store().historyError).toEqual({ kind: 'failed', reason: 'gone' })
+    expect(toasts()).toEqual([])
+    ;(api.fetchEvents as Mock).mockResolvedValueOnce([])
+    await store().selectSession('a')
+    expect(store().historyError).toBeNull()
+  })
+
+  it('tells a session that is not there from a failed load', async () => {
+    vi.useFakeTimers()
+    try {
+      ;(api.fetchEvents as Mock).mockRejectedValue(Object.assign(new Error('{"error":"session not found"}'), { status: 404 }))
+      const pending = store().selectSession('a')
+      store().applyIncoming(event({ seq: 2, item: item({ id: 'live' }) }))
+      await pending
+      expect(store().historyError?.kind).toBe('not_found')
+      // a missing session is not retried on its own
+      await vi.advanceTimersByTimeAsync(5000)
+      expect(api.fetchEvents).toHaveBeenCalledTimes(1)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('clears the transcript error when another session opens', async () => {
+    ;(api.fetchEvents as Mock).mockRejectedValueOnce(new Error('gone'))
+    await store().selectSession('a')
+    let release: (v: SessionEvent[]) => void = () => {}
+    ;(api.fetchEvents as Mock).mockReturnValueOnce(new Promise((r) => (release = r)))
+    const pending = store().selectSession('b')
+    expect(store().historyError).toBeNull()
+    release([])
+    await pending
+  })
+
+  it('leaves a failed answer to the request it belongs to', async () => {
+    ;(api.respondRequest as Mock).mockRejectedValueOnce(new Error('gone'))
+    expect(await store().respond('a', 'r1', { behavior: 'allow' })).toBe(false)
+    expect(toasts()).toEqual([])
+    expect(lastError()).toBe('gone')
+  })
+
+  it('leaves a failed history import to the history panel', async () => {
+    ;(api.importHistory as Mock).mockRejectedValueOnce(new Error('thread is gone'))
+    expect(await store().importHistory('codex', 't1')).toBe(false)
+    expect(toasts()).toEqual([])
+    expect(lastError()).toBe('thread is gone')
   })
 })
