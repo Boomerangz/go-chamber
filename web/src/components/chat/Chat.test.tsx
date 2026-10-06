@@ -8,6 +8,7 @@ import { useNotices } from '../../stores/notices'
 import { resetStore, useSessionStore } from '../../stores/session'
 import Chat from './Chat'
 
+vi.mock('../../lib/home', () => ({ useHome: () => '/home/me' }))
 vi.mock('../../lib/api', async (orig) => ({
   ...(await orig<typeof import('../../lib/api')>()),
   uploadImage: vi.fn(),
@@ -116,6 +117,18 @@ describe('transcript loading', () => {
 })
 
 describe('header status', () => {
+  it('prints the folder short, home as ~, and copies it whole', async () => {
+    const writeText = vi.fn(async () => {})
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true })
+    setup()
+    const path = document.querySelector('.chat-path')!
+    expect(path).toHaveTextContent('~/project')
+    expect(path).toHaveAttribute('title', '/home/me/project')
+    await userEvent.click(screen.getByRole('button', { name: 'Copy path' }))
+    expect(writeText).toHaveBeenCalledWith('/home/me/project')
+    expect(useNotices.getState().notices.at(-1)?.text).toBe('Path copied')
+  })
+
   const statusEl = () => document.querySelector('.chat-meta .status')
 
   it('says the session waits for the owner while a request is open, as the list does', () => {
@@ -443,15 +456,6 @@ describe('header', () => {
     expect(document.querySelector('.no-approvals')).toBeNull()
   })
 
-  it('copies the session folder', async () => {
-    const writeText = vi.fn(async () => {})
-    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true })
-    setup()
-    expect(screen.getByText('/home/me/project')).toHaveAttribute('title', '/home/me/project')
-    await userEvent.click(screen.getByRole('button', { name: 'Copy path' }))
-    expect(writeText).toHaveBeenCalledWith('/home/me/project')
-    expect(useNotices.getState().notices.at(-1)?.text).toBe('Path copied')
-  })
 })
 
 describe('scrolling', () => {

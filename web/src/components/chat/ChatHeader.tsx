@@ -4,6 +4,7 @@ import AgentAvatar from '../AgentAvatar'
 import ModelPicker from '../models/ModelPicker'
 import PermissionModeSelect from '../models/PermissionModeSelect'
 import EditableTitle from '../title/EditableTitle'
+import PathText from '../ui/PathText'
 import { icon } from '../icon'
 import type { ApprovalReviewer, Session } from '../../lib/api'
 import { statusWord, type ShownStatus } from '../../lib/status'
@@ -80,9 +81,7 @@ function ChatPath({ cwd }: { cwd: string }) {
   }
   return (
     <span className="chat-path-line">
-      <span className="chat-path" title={cwd}>
-        {cwd}
-      </span>
+      <PathText path={cwd} className="chat-path" />
       <button type="button" className="btn btn-ghost btn-icon chat-path-copy" aria-label="Copy path" title="Copy path" onClick={() => void copy()}>
         <Copy {...icon(12)} />
       </button>
