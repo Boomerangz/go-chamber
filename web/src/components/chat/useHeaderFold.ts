@@ -2,6 +2,10 @@ import { useLayoutEffect, useRef, useState, type RefObject } from 'react'
 
 // The title keeps at least this much before the settings fold away.
 const TITLE_MIN = 160
+// The usage line is cut down to this before the settings fold.
+const USAGE_MIN = 96
+// The status at its longest, "waiting for you" beside its mark.
+const STATUS_MAX = 128
 
 // useHeaderFold tells when the chat header's settings (model, mode,
 // approvals, fork) no longer fit on its one row beside the title and the
@@ -41,8 +45,13 @@ export function useHeaderFold(header: RefObject<HTMLElement | null>): boolean {
           width += item.getBoundingClientRect().width
           settings++
         } else {
-          // Its whole text, even while the row cuts it.
-          rest += item.scrollWidth
+          // Its whole text, even while the row cuts it; the usage line may be
+          // cut, so a turn that adds to it doesn't fold the settings away.
+          // The status counts as its longest word ("waiting for you"), so a
+          // turn starting or asking doesn't either.
+          rest += item.classList.contains('usage')
+            ? Math.min(item.scrollWidth, USAGE_MIN)
+            : item.classList.contains('status') ? Math.max(item.scrollWidth, STATUS_MAX) : item.scrollWidth
           parts++
         }
       }
