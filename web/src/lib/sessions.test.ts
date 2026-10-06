@@ -173,6 +173,11 @@ describe('archived sessions', () => {
     expect(nodes[1].children[0].children.map((n) => n.session.id)).toEqual(['subsub'])
   })
 
+  it('survives a parent cycle', () => {
+    const loop = [s('x', '/p', '', { parentId: 'y' }), s('y', '/p', '', { parentId: 'x' })]
+    expect(archivedSessions(loop)).toEqual([])
+  })
+
   it('has nothing archived when nothing is', () => {
     expect(archivedSessions([s('a', '/p', '')])).toEqual([])
   })

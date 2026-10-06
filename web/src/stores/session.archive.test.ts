@@ -111,6 +111,39 @@ describe('delete', () => {
     expect(store().activeId).toBeNull()
   })
 
+  it('finds subagents listed before their parent', async () => {
+    useSessionStore.setState({
+      sessions: [session('subsub', { parentId: 'sub' }), session('sub', { parentId: 'a' }), session('a'), session('b')],
+    })
+    store().applyIncoming({ seq: 1, sessionId: 'a', type: 'session.removed' })
+    expect(store().sessions.map((s) => s.id)).toEqual(['b'])
+  })
+
+  it('does not bring back requests of a session deleted while they load', async () => {
+    useSessionStore.setState({ sessions: [session('a'), session('b')], pendingRequests: [request('r1', 'a')] })
+    let release: (v: SessionRequest[]) => void = () => {}
+    ;(api.listRequests as Mock).mockReturnValueOnce(new Promise((r) => (release = r)))
+    const loading = store().loadRequests()
+    store().applyIncoming({ seq: 2, sessionId: 'a', type: 'session.removed' })
+    release([request('r1', 'a'), request('r2', 'b')])
+    await loading
+    expect(store().pendingRequests.map((r) => r.id)).toEqual(['r2'])
+  })
+
+  it('drops the open transcript, even one still loading or failed', async () => {
+    useSessionStore.setState({ sessions: [session('a')] })
+    let release: (v: SessionEvent[]) => void = () => {}
+    ;(api.fetchEvents as Mock).mockReturnValueOnce(new Promise((r) => (release = r)))
+    const selecting = store().selectSession('a')
+    useSessionStore.setState({ historyError: { kind: 'failed', reason: 'x' } })
+    store().applyIncoming({ seq: 4, sessionId: 'a', type: 'session.removed' })
+    expect(store()).toMatchObject({ activeId: null, history: 'ready', historyError: null })
+    release([{ seq: 1, sessionId: 'a', type: 'item.updated', item: { id: 'i1', sessionId: 'a', kind: 'assistant_message', status: 'completed', text: 'late' } }])
+    await selecting
+    expect(store().chat.lastSeq).toBe(0)
+    expect(store().history).toBe('ready')
+  })
+
   it('does not bring back a session deleted while the list loads', async () => {
     useSessionStore.setState({ sessions: [session('a'), session('b')] })
     let release: (v: Session[]) => void = () => {}
