@@ -105,7 +105,7 @@ test('a waiting worktree row keeps "waiting for you" on one line; the branch yie
   await openNewSession(page)
   await page.getByLabel('Working directory').fill(repo)
   await page.getByLabel('In a new worktree').check()
-  await page.getByLabel('Branch name').fill(`add-the-quarterly-billing-export-${info.project.name}`)
+  await page.getByLabel('Branch name').fill(`add-the-quarterly-billing-export-${info.project.name}-${Date.now()}`)
   await page.getByRole('button', { name: 'New session', exact: true }).click()
   await page.getByLabel('Message').fill('ask me something')
   await page.getByRole('button', { name: 'Send' }).click()

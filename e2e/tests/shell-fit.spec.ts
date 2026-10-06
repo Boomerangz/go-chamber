@@ -216,6 +216,8 @@ test('a path shortened at its start lines up with the title above it', async ({ 
     await page.getByRole('radio', { name: /^Terminal/ }).click()
     for (const name of ['billing-service', 'docs']) {
       const row = page.locator('.term-sidebar [role="tab"]').filter({ hasText: `projects/${name}` })
+      // the server's other shells may push it down the list
+      await row.scrollIntoViewIfNeeded()
       const [title, path] = [await box(row.locator('.term-title')), await box(row.locator('.path-text'))]
       expect(await row.locator('.path-head').evaluate((e) => e.scrollWidth > e.clientWidth)).toBe(true)
       // where the ink starts: the title's first letter, the path's "…"
