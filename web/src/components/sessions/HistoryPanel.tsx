@@ -73,6 +73,11 @@ export default function HistoryPanel() {
         </div>
       )}
       {list !== null && list.length === 0 && !error && <p className="history-note">No other conversations to open.</p>}
+      {list !== null && loading && (
+        <div className="history-note">
+          <LoadingLine>refreshing…</LoadingLine>
+        </div>
+      )}
       {list !== null && list.length > 0 && (
         <>
           <input
