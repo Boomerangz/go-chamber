@@ -10,6 +10,8 @@ import type { ApprovalReviewer, Session, Worktree } from '../../lib/api'
 import { statusWord, type ShownStatus } from '../../lib/status'
 import { isDangerousMode } from '../../lib/models'
 import { sessionTitle } from '../../lib/sessions'
+import { basename } from '../../lib/format'
+import { usePending } from '../../lib/pending'
 import { notify } from '../../stores/notices'
 import { useHeaderFold } from './useHeaderFold'
 import { useSessionStore } from '../../stores/session'
@@ -73,8 +75,9 @@ function SessionUsage() {
 }
 
 // ChatPath shows the session folder, whole on hover, with a copy button. A
-// session in a worktree reads as its repository with the branch beside it
-// (as in the sessions list); the copy is still the folder the agent runs in.
+// session in a worktree reads as its repository's name with the branch
+// beside it (as in the sessions list), the branch keeping its room; the copy
+// is still the folder the agent runs in. A removed worktree says so.
 function ChatPath({ cwd, worktree }: { cwd: string; worktree?: Worktree }) {
   const copy = async () => {
     try {
@@ -86,16 +89,38 @@ function ChatPath({ cwd, worktree }: { cwd: string; worktree?: Worktree }) {
   }
   return (
     <span className="chat-path-line">
-      <PathText path={worktree?.repo ?? cwd} className="chat-path" />
-      {worktree && (
-        <span className="session-branch" title={`In a worktree on ${worktree.branch} · ${worktree.path}`}>
-          {worktree.branch.replace(/^chamber\//, '')}
-        </span>
+      {worktree ? (
+        <>
+          <span className="chat-path chat-repo" title={worktree.repo}>
+            {basename(worktree.repo)}
+          </span>
+          <span
+            className="session-branch"
+            title={worktree.removed ? `Worktree removed · branch ${worktree.branch} kept` : `In a worktree on ${worktree.branch} · ${worktree.path}`}
+          >
+            {worktree.branch.replace(/^chamber\//, '')}
+          </span>
+          {worktree.removed && <span className="worktree-removed">worktree removed</span>}
+        </>
+      ) : (
+        <PathText path={cwd} className="chat-path" />
       )}
       <button type="button" className="btn btn-ghost btn-icon chat-path-copy" aria-label="Copy path" title="Copy path" onClick={() => void copy()}>
         <Copy {...icon(12)} />
       </button>
     </span>
+  )
+}
+
+// UnarchiveButton brings an open archived session back to the list.
+function UnarchiveButton({ id }: { id: string }) {
+  const unarchiveSession = useSessionStore((s) => s.unarchiveSession)
+  // Success takes the button away with the tag.
+  const [unarchive, busy] = usePending(() => unarchiveSession(id), { holdOnSuccess: true })
+  return (
+    <button type="button" className="btn btn-ghost chat-unarchive" aria-busy={busy || undefined} onClick={() => void unarchive()}>
+      {busy ? 'Unarchiving…' : 'Unarchive'}
+    </button>
   )
 }
 
@@ -165,9 +190,11 @@ export default function ChatHeader({ session, status, unsettled, loading, notFou
             no approvals
           </span>
         )}
+        {session?.archivedAt && <span className="archived-tag">archived</span>}
         <SessionUsage />
         {session && (
           <div className="chat-tools" id={toolsId}>
+            {session.archivedAt && <UnarchiveButton id={session.id} />}
             {/* The word shows only where the settings stack, on a phone. */}
             <span className="tool-row">
               <span className="tool-label" aria-hidden="true">

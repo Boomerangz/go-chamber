@@ -349,4 +349,18 @@ describe('worktree sessions', () => {
     expect(tag).toHaveTextContent('fix-readme')
     expect(tag).toHaveAttribute('title', expect.stringContaining('chamber/fix-readme'))
   })
+
+  it('stay in their repository’s group once the worktree is removed, marked so', () => {
+    const wt = {
+      ...session('w', 'Fix the readme'),
+      cwd: '/data/worktrees/p/fix-readme',
+      worktree: { repo: '/p', path: '/data/worktrees/p/fix-readme', branch: 'chamber/fix-readme', base: 'main', removed: true },
+    }
+    useSessionStore.setState({ sessions: [session('s1', 'One'), wt] })
+    render(<SessionList onCreateIn={() => {}} />)
+    expect(screen.getAllByRole('region')).toHaveLength(1)
+    const tag = screen.getByRole('button', { name: /^Fix the readme/ }).querySelector('.session-branch')!
+    expect(tag).toHaveAttribute('data-removed')
+    expect(tag).toHaveAttribute('title', 'Worktree removed · branch chamber/fix-readme kept')
+  })
 })

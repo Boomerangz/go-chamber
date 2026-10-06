@@ -1,7 +1,10 @@
 import { useLayoutEffect, useRef, useState, type RefObject } from 'react'
 
-// The title keeps at least this much before the settings fold away.
-const TITLE_MIN = 160
+// The title keeps its whole width up to this much (about 24 characters of
+// the 20px heading) before the settings fold away and the usage line gives
+// way; a title being edited or not known yet keeps TITLE_FALLBACK.
+const TITLE_MAX = 280
+const TITLE_FALLBACK = 160
 // The usage line is cut down to this before the settings fold.
 const USAGE_MIN = 96
 // The status at its longest, "waiting for you" beside its mark.
@@ -57,7 +60,11 @@ export function useHeaderFold(header: RefObject<HTMLElement | null>): boolean {
       }
       if (!folded.current) toolsWidth.current = width + settings * metaGap
       const avatar = el.querySelector<HTMLElement>(':scope > .avatar')
-      const need = (avatar ? avatar.offsetWidth + gap : 0) + TITLE_MIN + gap + rest + Math.max(0, parts - 1) * metaGap + toolsWidth.current
+      const heading = el.querySelector<HTMLElement>('.chat-heading h2')
+      const titleMin = heading ? Math.min(Math.ceil(heading.scrollWidth), TITLE_MAX) : TITLE_FALLBACK
+      // The heading holds this much (CSS reads it), so the usage line is cut first.
+      el.style.setProperty('--title-min', `${titleMin}px`)
+      const need = (avatar ? avatar.offsetWidth + gap : 0) + titleMin + gap + rest + Math.max(0, parts - 1) * metaGap + toolsWidth.current
       setFold(need > avail)
     }
     check()

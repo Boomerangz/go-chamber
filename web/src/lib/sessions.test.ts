@@ -251,4 +251,16 @@ describe('recentProjects', () => {
       { cwd: '/p/beta', name: 'beta' },
     ])
   })
+
+  it('counts a fork made in a since-removed worktree as the repository', () => {
+    const wt = { repo: '/p/alpha', path: '/data/worktrees/alpha/x', branch: 'chamber/x', base: 'main', removed: true }
+    const projects = recentProjects(
+      [
+        s('w', wt.path, '2026-09-25T10:00:00Z', { worktree: wt }),
+        s('f', wt.path, '2026-09-26T10:00:00Z'),
+      ],
+      4,
+    )
+    expect(projects).toEqual([{ cwd: '/p/alpha', name: 'alpha' }])
+  })
 })

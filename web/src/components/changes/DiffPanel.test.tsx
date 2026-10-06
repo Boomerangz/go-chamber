@@ -78,7 +78,7 @@ describe('DiffPanel', () => {
 
   it('shows the merge hint and removes a clean worktree', async () => {
     vi.mocked(api.getChanges).mockResolvedValue({ repository: true, base: 'abc', files: [], commits: 2 })
-    vi.mocked(api.removeWorktree).mockResolvedValue({ id: 's1', agent: 'claude', cwd: worktree.path, status: 'idle' })
+    vi.mocked(api.removeWorktree).mockResolvedValue({ id: 's1', agent: 'claude', cwd: worktree.path, status: 'idle', worktree: { ...worktree, removed: true } })
     useSessionStore.setState({ sessions: [{ id: 's1', agent: 'claude', cwd: worktree.path, status: 'idle', worktree }] })
     render(<DiffPanel sessionId="s1" />)
     expect(await screen.findByText('git -C /src/app merge chamber/fix')).toHaveAttribute('title', 'git -C /src/app merge chamber/fix')
@@ -92,8 +92,20 @@ describe('DiffPanel', () => {
     expect(ask).not.toHaveTextContent(/lost/)
     await userEvent.click(screen.getByRole('button', { name: 'Remove' }))
     expect(api.removeWorktree).toHaveBeenCalledWith('s1', false)
-    await waitFor(() => expect(useSessionStore.getState().sessions[0].worktree).toBeUndefined())
+    await waitFor(() => expect(useSessionStore.getState().sessions[0].worktree?.removed).toBe(true))
     expect(useNotices.getState().notices.at(-1)).toMatchObject({ kind: 'info', text: 'Worktree removed, branch kept' })
+  })
+
+  it('says a removed worktree is gone and its branch kept, with no list to show', async () => {
+    vi.mocked(api.getChanges).mockResolvedValue({ repository: false, removed: true, branch: 'chamber/fix', files: [] })
+    useSessionStore.setState({ sessions: [{ id: 's1', agent: 'claude', cwd: worktree.path, status: 'idle', worktree: { ...worktree, removed: true } }] })
+    render(<DiffPanel sessionId="s1" />)
+    const gone = await screen.findByRole('status', { name: 'Worktree removed' })
+    expect(gone).toHaveTextContent('Worktree removed · branch chamber/fix kept')
+    expect(screen.getByText('git -C /src/app merge chamber/fix')).toBeInTheDocument()
+    expect(screen.queryByText(/not a git repository/)).toBeNull()
+    expect(screen.queryByText('No changes')).toBeNull()
+    expect(screen.queryByRole('button', { name: /Remove/ })).toBeNull()
   })
 
   it('keeps the worktree when the owner changes their mind', async () => {

@@ -439,6 +439,8 @@ button.health { border: 0; background: none; padding: 0; }
 /* a worktree session names its branch, after a branch glyph */
 .session-branch { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--font-mono); font-size: 11.5px; color: var(--ink-3); }
 .session-branch::before { content: '⎇ '; }
+/* the worktree folder is gone; the branch stays */
+.session-branch[data-removed]::before { content: '⎇ removed · '; }
 .session-status-interrupted { color: var(--ink); }
 .session-status-interrupted::before { background: linear-gradient(to top right, transparent 45%, currentColor 45% 60%, transparent 60%); }
 .session-status-detached { color: var(--ink-3); }

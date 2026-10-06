@@ -116,6 +116,58 @@ describe('transcript loading', () => {
   })
 })
 
+describe('a removed worktree', () => {
+  const worktree = { repo: '/home/me/project', path: '/home/me/.go-chamber/worktrees/project/fix', branch: 'chamber/fix', base: 'abc', removed: true }
+  const gone = { ...session, cwd: worktree.path, worktree }
+
+  it('takes no more messages and offers a fork into the repository or the archive', async () => {
+    const archiveSession = vi.fn(async () => true)
+    setup({ sessions: [gone], archiveSession, chat: chatOf([item('u1', 'user_message')]) })
+    expect(screen.queryByRole('combobox', { name: 'Message' })).toBeNull()
+    const note = screen.getByRole('group', { name: 'Worktree removed' })
+    expect(note).toHaveTextContent('Worktree removed · branch chamber/fix kept in project')
+    await userEvent.click(screen.getByRole('button', { name: 'Fork into project' }))
+    expect(fns.forkSession).toHaveBeenCalledWith('s1')
+    await userEvent.click(screen.getByRole('button', { name: 'Archive' }))
+    expect(archiveSession).toHaveBeenCalledWith('s1')
+  })
+
+  it('offers no fork before the first turn, and no archive once archived', () => {
+    setup({ sessions: [{ ...gone, nativeId: undefined, archivedAt: '2026-10-06T09:00:00Z' }] })
+    expect(screen.queryByRole('button', { name: /Fork into/ })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Archive' })).toBeNull()
+    expect(screen.queryByText(/Send a message to start/)).toBeNull()
+  })
+
+  it('offers no continue for a cut-off turn whose folder is gone', () => {
+    const cut = { ...gone, status: 'interrupted' as const, interruption: { reason: 'crashed' } }
+    setup({ sessions: [cut], chat: chatOf([item('u1', 'user_message')], { status: 'interrupted' }) })
+    expect(screen.queryByRole('button', { name: /Continue/ })).toBeNull()
+  })
+
+  it('marks the header: the branch stays, the folder is gone', () => {
+    setup({ sessions: [gone] })
+    const tag = document.querySelector('.chat-path-line .worktree-removed')
+    expect(tag).toHaveTextContent('worktree removed')
+  })
+})
+
+describe('an archived session', () => {
+  it('says so in the header and unarchives from there', async () => {
+    const unarchiveSession = vi.fn(async () => true)
+    setup({ sessions: [{ ...session, archivedAt: '2026-10-06T09:00:00Z' }], unarchiveSession })
+    expect(document.querySelector('.chat-meta .archived-tag')).toHaveTextContent('archived')
+    await userEvent.click(screen.getByRole('button', { name: 'Unarchive' }))
+    expect(unarchiveSession).toHaveBeenCalledWith('s1')
+  })
+
+  it('shows neither for a listed session', () => {
+    setup()
+    expect(document.querySelector('.archived-tag')).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Unarchive' })).toBeNull()
+  })
+})
+
 describe('header status', () => {
   it('prints the folder short, home as ~, and copies it whole', async () => {
     const writeText = vi.fn(async () => {})
@@ -134,7 +186,10 @@ describe('header status', () => {
     Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true })
     const worktree = { repo: '/home/me/project', path: '/home/me/.go-chamber/worktrees/project/fix-readme', branch: 'chamber/fix-readme', base: 'abc' }
     setup({ sessions: [{ ...session, cwd: worktree.path, worktree }] })
-    expect(document.querySelector('.chat-path')).toHaveTextContent('~/project')
+    // The repository by its name, as the sessions list groups it: the
+    // branch keeps its room.
+    expect(document.querySelector('.chat-path')).toHaveTextContent(/^project$/)
+    expect(document.querySelector('.chat-path')).toHaveAttribute('title', '/home/me/project')
     const branch = document.querySelector('.chat-path-line .session-branch')!
     expect(branch).toHaveTextContent('fix-readme')
     expect(branch).toHaveAttribute('title', `In a worktree on chamber/fix-readme · ${worktree.path}`)

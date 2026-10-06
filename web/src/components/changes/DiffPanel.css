@@ -109,6 +109,8 @@
 .worktree-confirm p { overflow-wrap: anywhere; }
 .worktree-actions { display: flex; gap: 6px; }
 .worktree-dirty { color: var(--ink); }
+/* the worktree folder is gone: its keyword in mono caps, as on the composer's place */
+.worktree-bar .worktree-gone-kw { font-family: var(--font-mono); font-size: 12px; letter-spacing: 0.04em; text-transform: uppercase; color: var(--ink); }
 
 .layout[data-dock='changes'] { --dock: max(380px, 34%); }
 .changes-pane { display: none; }

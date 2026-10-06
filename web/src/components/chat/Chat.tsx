@@ -5,6 +5,7 @@ import ComposerInput from '../composer/ComposerInput'
 import Attachments from '../composer/Attachments'
 import { useAttachments } from '../composer/useAttachments'
 import InterruptedBanner from './InterruptedBanner'
+import WorktreeGone from './WorktreeGone'
 import ChatHeader from './ChatHeader'
 import LiveStrip from './LiveStrip'
 import RequestCard from '../requests/RequestCard'
@@ -391,6 +392,8 @@ export default function Chat() {
   }, [dropped])
 
   const [fork, forking] = usePending(() => forkSession(sessionId!), { holdOnSuccess: true })
+  // A session whose worktree folder is gone takes no more turns.
+  const gone = session?.worktree?.removed ? session.worktree : undefined
 
   // An answer that went through moves focus on: to the next request waiting,
   // or back to the composer, instead of dropping it on the page.
@@ -481,9 +484,9 @@ export default function Chat() {
             </LoadFailed>
           </div>
         )}
-        {!notFound && history === 'ready' && chat.order.length === 0 && pendingSends.length === 0 && status !== 'interrupted' && !busy && (
+        {!notFound && !gone && history === 'ready' && chat.order.length === 0 && pendingSends.length === 0 && status !== 'interrupted' && !busy && (
           <div className="chat-hint">
-            <p>Send a message to start. The agent runs in {session?.cwd ?? 'the session folder'}.</p>
+            <p className="chat-hint-where">Send a message to start. The agent runs in {session?.cwd ?? 'the session folder'}.</p>
             <p className="chat-hint-keys">
               <kbd>@</kbd> file · <kbd>/</kbd> commands · paste or drop images
             </p>
@@ -521,7 +524,7 @@ export default function Chat() {
           </div>
         )}
       </div>
-      {status === 'interrupted' && session && (
+      {status === 'interrupted' && session && !gone && (
         <InterruptedBanner
           session={session}
           onContinue={continueSession}
@@ -529,7 +532,8 @@ export default function Chat() {
         />
       )}
       <LiveStrip note={stopSent ? 'stop sent · waiting for the agent' : undefined} />
-      {!notFound && (
+      {!notFound && session && gone && <WorktreeGone session={session} worktree={gone} />}
+      {!notFound && !gone && (
       <form
         className={['composer', attachments.dragging && 'dragging', multiline && 'multiline'].filter(Boolean).join(' ')}
         {...attachments.dropProps}

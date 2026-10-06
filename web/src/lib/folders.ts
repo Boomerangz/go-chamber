@@ -1,4 +1,5 @@
 import type { Folder, Session } from './api'
+import { startFolder } from './sessions'
 
 export interface Crumb {
   label: string
@@ -37,10 +38,11 @@ export function filterFolders(folders: Folder[], query: string): Folder[] {
 // session first, without repeats; a worktree session counts as its repository.
 export function recentFolders(sessions: Session[], limit: number): string[] {
   const out: string[] = []
+  const folder = startFolder(sessions)
   for (let i = sessions.length - 1; i >= 0 && out.length < limit; i--) {
     const s = sessions[i]
     // A worktree is offered as its repository: a worktree of a worktree isn't wanted.
-    const cwd = s.worktree?.repo ?? s.cwd
+    const cwd = folder(s)
     if (!s.parentId && !out.includes(cwd)) out.push(cwd)
   }
   return out

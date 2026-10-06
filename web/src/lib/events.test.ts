@@ -128,6 +128,15 @@ describe('failed turns', () => {
     expect(state.turnResults?.u1).toMatchObject({ stopped: true })
   })
 
+  it('keeps a cut-off turn on record and does not call it finished or failed', () => {
+    let state = applyEvent(initialChat('running'), ev({ seq: 1, item: user('u1') }))
+    state = applyEvent(state, ev({ seq: 2, type: 'turn.ended', result: { interruptionReason: 'crashed' } }))
+    expect(state.status).toBe('interrupted')
+    expect(state.lastTurnFailed).toBe(false)
+    expect(state.order).toEqual(['u1'])
+    expect(state.turnResults?.u1).toMatchObject({ interruptionReason: 'crashed' })
+  })
+
   it('falls back to the result text, then to a plain sentence', () => {
     let state = applyEvent(initialChat(), ev({ seq: 1, type: 'turn.ended', result: { isError: true, text: 'Prompt is too long' } }))
     expect(state.items[state.order[0]!]!.text).toBe('Prompt is too long')

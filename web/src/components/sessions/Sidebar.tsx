@@ -13,7 +13,7 @@ import { branchError, branchPreview } from '../../lib/branch'
 import { recentFolders } from '../../lib/folders'
 import { usePending } from '../../lib/pending'
 import { useIsRepo } from '../../lib/useIsRepo'
-import { recentProjects } from '../../lib/sessions'
+import { recentProjects, startFolder } from '../../lib/sessions'
 import { lastError } from '../../stores/notices'
 import { useSessionStore } from '../../stores/session'
 import './Sidebar.css'
@@ -72,7 +72,7 @@ export default function Sidebar(props: SidebarProps) {
   // A worktree session offers its repository: a worktree of a worktree isn't wanted.
   const activeCwd = useSessionStore((s) => {
     const active = s.sessions.find((x) => x.id === s.activeId)
-    return active?.worktree?.repo ?? active?.cwd
+    return active && startFolder(s.sessions)(active)
   })
   const [remembered, setRemembered] = useState(lastFolder)
   const cwd = typed ?? activeCwd ?? remembered
