@@ -23,12 +23,42 @@ function stamp(iso: string | undefined): number {
 
 const activity = (s: Session) => stamp(s.activeAt) || stamp(s.createdAt)
 
-// groupSessions groups sessions by working folder. Groups and sessions are
-// ordered by last activity, newest first; subagent sessions stay nested
-// under their parent.
+// shelvedIds are the archived sessions and the subagents below them: they
+// leave the list together.
+export function shelvedIds(sessions: Session[]): Set<string> {
+  const byId = new Map(sessions.map((s) => [s.id, s]))
+  const out = new Set<string>()
+  for (const s of sessions) {
+    // Walk up the parents; the bound guards against a malformed cycle.
+    let at: Session | undefined = s
+    for (let depth = 0; at && depth < sessions.length; depth++) {
+      if (at.archivedAt) {
+        out.add(s.id)
+        break
+      }
+      at = at.parentId ? byId.get(at.parentId) : undefined
+    }
+  }
+  return out
+}
+
+// archivedSessions are the archived sessions, most recently archived first,
+// with their subagents nested.
+export function archivedSessions(sessions: Session[]): SessionNode[] {
+  const shelved = shelvedIds(sessions)
+  return sessionTree(sessions.filter((s) => shelved.has(s.id))).sort((a, b) =>
+    (b.session.archivedAt ?? '').localeCompare(a.session.archivedAt ?? ''),
+  )
+}
+
+// groupSessions groups the listed (not archived) sessions by working
+// folder. Groups and sessions are ordered by last activity, newest first;
+// subagent sessions stay nested under their parent.
 export function groupSessions(sessions: Session[]): SessionGroup[] {
+  const shelved = shelvedIds(sessions)
   const byCwd = new Map<string, Session[]>()
   for (const s of sessions) {
+    if (shelved.has(s.id)) continue
     const list = byCwd.get(s.cwd) ?? []
     list.push(s)
     byCwd.set(s.cwd, list)

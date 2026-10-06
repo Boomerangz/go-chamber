@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { Session } from './api'
-import { bucketOf, groupSessions, matchesQuery, relativeTime, sessionTitle, snippetParts, visibleInGroup } from './sessions'
+import { archivedSessions, bucketOf, groupSessions, matchesQuery, relativeTime, sessionTitle, snippetParts, visibleInGroup } from './sessions'
 
 const now = new Date('2026-09-25T12:00:00Z')
 const s = (id: string, cwd: string, activeAt: string, over: Partial<Session> = {}): Session => ({
@@ -146,5 +146,34 @@ describe('snippetParts', () => {
     expect(snippetParts('[[a]]')).toEqual([{ text: 'a', match: true }])
     expect(snippetParts('plain')).toEqual([{ text: 'plain', match: false }])
     expect(snippetParts('')).toEqual([])
+  })
+})
+
+describe('archived sessions', () => {
+  const sessions = [
+    s('kept', '/p/alpha', '2026-09-24T10:00:00Z'),
+    s('away', '/p/alpha', '2026-09-23T10:00:00Z', { archivedAt: '2026-09-25T08:00:00Z' }),
+    s('sub', '/p/alpha', '2026-09-23T10:30:00Z', { parentId: 'away' }),
+    s('subsub', '/p/alpha', '2026-09-23T10:40:00Z', { parentId: 'sub' }),
+    s('later', '/p/beta', '2026-09-20T10:00:00Z', { archivedAt: '2026-09-25T09:00:00Z' }),
+    s('alone', '/p/gamma', '2026-09-20T10:00:00Z', { archivedAt: '2026-09-24T09:00:00Z' }),
+  ]
+
+  it('leaves archived sessions and their subagents out of the groups', () => {
+    const groups = groupSessions(sessions)
+    expect(groups.map((g) => g.cwd)).toEqual(['/p/alpha'])
+    expect(groups[0].nodes.map((n) => n.session.id)).toEqual(['kept'])
+    expect(groups[0].count).toBe(1)
+  })
+
+  it('lists archived sessions newest archived first, with their subagents', () => {
+    const nodes = archivedSessions(sessions)
+    expect(nodes.map((n) => n.session.id)).toEqual(['later', 'away', 'alone'])
+    expect(nodes[1].children.map((n) => n.session.id)).toEqual(['sub'])
+    expect(nodes[1].children[0].children.map((n) => n.session.id)).toEqual(['subsub'])
+  })
+
+  it('has nothing archived when nothing is', () => {
+    expect(archivedSessions([s('a', '/p', '')])).toEqual([])
   })
 })

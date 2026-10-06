@@ -1,6 +1,6 @@
 import type { Session } from './api'
 import { basename } from './format'
-import { sessionTitle } from './sessions'
+import { sessionTitle, shelvedIds } from './sessions'
 import type { Terminal } from './terminal'
 
 export interface SwitcherEntry {
@@ -20,8 +20,9 @@ function rank(s: Session, waiting: number): number {
 }
 
 // switcherEntries is the quick switcher's list: what needs the owner first,
-// then what runs, then the most recent; terminals after sessions. Every word
-// of the query must appear in the title or the folder.
+// then what runs, then the most recent; terminals after sessions. Archived
+// sessions stay out. Every word of the query must appear in the title or
+// the folder.
 export function switcherEntries(
   sessions: Session[],
   terminals: Terminal[],
@@ -33,8 +34,9 @@ export function switcherEntries(
     const text = fields.join(' ').toLowerCase()
     return words.every((w) => text.includes(w))
   }
+  const shelved = shelvedIds(sessions)
   const sessionEntries = sessions
-    .filter((s) => hit(sessionTitle(s), s.cwd, s.agent))
+    .filter((s) => !shelved.has(s.id) && hit(sessionTitle(s), s.cwd, s.agent))
     .sort((a, b) => {
       const byRank = rank(a, waitingBySession.get(a.id) ?? 0) - rank(b, waitingBySession.get(b.id) ?? 0)
       if (byRank !== 0) return byRank
