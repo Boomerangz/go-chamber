@@ -1,7 +1,9 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 import { X } from 'lucide-react'
 import { icon } from '../icon'
 import QuickSwitcher from './QuickSwitcher'
+import { replacingHistory } from './routeSync'
+import { useOverlay, type Overlay } from './overlay'
 import { formatCombo, isTypingTarget, matches, nextIndex, type Combo } from '../../lib/hotkeys'
 import { useLayoutStore, type Mode } from '../../stores/layout'
 import { useSessionStore } from '../../stores/session'
@@ -32,7 +34,8 @@ function stepSession(step: 1 | -1) {
   const all = rows()
   const current = all.findIndex((b) => b.getAttribute('aria-current') === 'true')
   const next = all[nextIndex(current, all.length, step)]
-  next?.click()
+  // Stepping is browsing, not navigating: Back still leaves the last session opened on purpose.
+  replacingHistory(() => next?.click())
   next?.scrollIntoView?.({ block: 'nearest' })
 }
 
@@ -48,11 +51,12 @@ function nextWaiting() {
 
 function focusIn(selector: string, pane?: 'sessions' | 'chat') {
   useLayoutStore.getState().setMode('agents')
+  // Focus hides the sidebar: leave it when the target lives there.
+  if (pane === 'sessions' && useLayoutStore.getState().focus) useLayoutStore.getState().toggleFocus()
   if (pane) useSessionStore.getState().setPane(pane)
   requestAnimationFrame(() => document.querySelector<HTMLElement>(selector)?.focus())
 }
 
-type Overlay = 'switcher' | 'help' | null
 
 const modeKeys: [string, Mode][] = [['1', 'agents'], ['2', 'terminal'], ['3', 'diagnostics']]
 
@@ -80,8 +84,13 @@ function buildShortcuts(setOverlay: SetOverlay): Shortcut[] {
 
 // Hotkeys owns the app-wide shortcuts, the ⌘K switcher and the ? help.
 export default function Hotkeys() {
-  const [overlay, setOverlay] = useState<Overlay>(null)
-  const shortcuts = useMemo(() => buildShortcuts(setOverlay), [])
+  const overlay = useOverlay((s) => s.overlay)
+  const shortcuts = useMemo(
+    () => buildShortcuts((update) => useOverlay.setState((s) => ({ overlay: update(s.overlay) }))),
+    [],
+  )
+
+  useEffect(() => () => useOverlay.setState({ overlay: null }), [])
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -100,7 +109,7 @@ export default function Hotkeys() {
     return () => window.removeEventListener('keydown', onKey)
   }, [shortcuts])
 
-  const close = () => setOverlay(null)
+  const close = () => useOverlay.setState({ overlay: null })
   if (overlay === 'switcher') return <QuickSwitcher onClose={close} />
   if (overlay === 'help') return <ShortcutHelp shortcuts={shortcuts} onClose={close} />
   return null

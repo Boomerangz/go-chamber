@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import { useState, type ReactNode } from 'react'
 import { useNow } from '../../lib/now'
 import type { Health } from '../../lib/api'
 import { ChevronsRight, FileDiff, Inbox, List, MessageSquareText, SquareTerminal } from 'lucide-react'
@@ -37,9 +37,9 @@ export function DockRail() {
   const pending = useSessionStore((s) => s.pendingRequests.length)
   const running = useTerminalStore((s) => s.terminals.filter((t) => t.status === 'running').length)
   const tabs = [
-    { id: 'requests' as const, label: 'Requests', icon: <Inbox {...icon(16)} />, count: pending },
-    { id: 'terminal' as const, label: 'Terminal', icon: <SquareTerminal {...icon(16)} />, count: running },
-    { id: 'changes' as const, label: 'Changes', icon: <FileDiff {...icon(16)} />, count: 0 },
+    { id: 'requests' as const, label: 'Requests', icon: <Inbox {...icon(16)} />, count: pending, key: '' },
+    { id: 'terminal' as const, label: 'Terminal', icon: <SquareTerminal {...icon(16)} />, count: running, key: 't' },
+    { id: 'changes' as const, label: 'Changes', icon: <FileDiff {...icon(16)} />, count: 0, key: '' },
   ]
   return (
     <div className="dock-rail" role="toolbar" aria-label="Dock" aria-orientation="vertical">
@@ -50,7 +50,7 @@ export function DockRail() {
           className={`rail-btn rail-${t.id}`}
           aria-pressed={dock === t.id}
           aria-label={t.count > 0 ? `${t.label} ${t.count}` : t.label}
-          title={t.label}
+          title={t.key ? `${t.label} (${t.key})` : t.label}
           onClick={() => toggleDock(t.id)}
         >
           {t.icon}
@@ -117,10 +117,44 @@ export function HealthStatus({ health }: { health: Health | null }) {
     )
   }
   const state = health ?? 'connecting'
+  // All is well most of the time: then only the mark shows, and says so on hover.
+  if (state === 'online' && connection !== 'offline') {
+    return (
+      <span className="health health-online" role="status" aria-label="online" title="online · live updates connected">
+        <span className="dot" aria-hidden="true" />
+      </span>
+    )
+  }
   return (
     <span className={`health health-${state}`} role="status">
       <span className="dot" aria-hidden="true" />
       {state}
     </span>
+  )
+}
+
+// SignOut asks once before signing out: signing back in needs the access
+// token go-chamber printed at startup.
+export function SignOut({ className }: { className?: string }) {
+  const [asking, setAsking] = useState(false)
+  if (!asking) {
+    return (
+      <div className={className}>
+        <button type="button" className="btn btn-ghost" onClick={() => setAsking(true)}>
+          Sign out
+        </button>
+      </div>
+    )
+  }
+  return (
+    <form method="post" action="/logout" className={`${className ?? ''} signout-confirm`} role="group" aria-label="Sign out">
+      <span className="signout-question">Sign out? You'll need the access token again.</span>
+      <button type="submit" className="btn btn-danger btn-xs" autoFocus>
+        Sign out
+      </button>
+      <button type="button" className="btn btn-ghost btn-xs" onClick={() => setAsking(false)}>
+        Cancel
+      </button>
+    </form>
   )
 }

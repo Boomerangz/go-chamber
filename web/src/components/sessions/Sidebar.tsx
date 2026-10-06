@@ -3,6 +3,7 @@ import AccountPanel from '../account/AccountPanel'
 import AgentAvatar from '../AgentAvatar'
 import FolderField from '../folders/FolderField'
 import QuotaWidget from '../quota/QuotaWidget'
+import { SignOut } from '../shell/Shell'
 import HistoryPanel from './HistoryPanel'
 import SessionList from './SessionList'
 import { recentFolders } from '../../lib/folders'
@@ -139,11 +140,7 @@ export default function Sidebar(props: SidebarProps) {
       <footer className="sidebar-footer">
         <AccountPanel key={agent} agent={agent} />
         <QuotaWidget />
-        <form method="post" action="/logout" className="sidebar-signout">
-          <button type="submit" className="btn btn-ghost">
-            Sign out
-          </button>
-        </form>
+        <SignOut className="sidebar-signout" />
       </footer>
     </aside>
   )

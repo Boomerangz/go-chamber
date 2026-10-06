@@ -9,6 +9,7 @@ vi.mock('../../lib/api', async (orig) => ({
 }))
 
 import Hotkeys from './Hotkeys'
+import { openShortcuts } from './overlay'
 import { resetStore, useSessionStore } from '../../stores/session'
 import { useLayoutStore } from '../../stores/layout'
 
@@ -63,4 +64,28 @@ describe('Hotkeys', () => {
     expect(useLayoutStore.getState().mode).toBe('agents')
     expect(useSessionStore.getState().activeId).toBe('b')
   })
+
+  it('leaves Focus first when / or n targets the hidden sidebar', async () => {
+    useLayoutStore.setState({ focus: true })
+    render(<Hotkeys />)
+    await userEvent.keyboard('/')
+    expect(useLayoutStore.getState().focus).toBe(false)
+    useLayoutStore.setState({ focus: true })
+    await userEvent.keyboard('n')
+    expect(useLayoutStore.getState().focus).toBe(false)
+  })
+
+  it('keeps Focus when c targets the composer', async () => {
+    useLayoutStore.setState({ focus: true })
+    render(<Hotkeys />)
+    await userEvent.keyboard('c')
+    expect(useLayoutStore.getState().focus).toBe(true)
+  })
+
+  it('opens the shortcut list from the top bar button', () => {
+    render(<Hotkeys />)
+    act(() => openShortcuts())
+    expect(screen.getByRole('dialog', { name: 'Keyboard shortcuts' })).toBeInTheDocument()
+  })
 })
+

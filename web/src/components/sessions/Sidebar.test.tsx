@@ -110,8 +110,9 @@ describe('Sidebar new session', () => {
 })
 
 describe('Sidebar footer', () => {
-  it('has a sign-out form for phones, where the topbar hides it', () => {
+  it('has a sign-out form for phones, where the topbar hides it', async () => {
     setup()
+    await userEvent.click(screen.getByRole('button', { name: 'Sign out' }))
     const button = screen.getByRole('button', { name: 'Sign out' })
     const form = button.closest('form')!
     expect(form).toHaveAttribute('action', '/logout')
