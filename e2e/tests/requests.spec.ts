@@ -140,6 +140,9 @@ test('a turn cut off with a permission open still waits in the inbox', async ({ 
   await expect(page.locator('.chat-meta .status')).toHaveText(/waiting for you/)
   // Nothing of the cut-off turn still reads as running.
   await expect(page.locator('form.composer').getByRole('button', { name: /^Stop/ })).toHaveCount(0)
+  // It is kept: a reload (a fresh list from the server) still knows.
+  await page.reload()
+  await expect(page.locator('.chat-meta .status')).toHaveText(/waiting for you/)
 
   const bar = page.getByRole('navigation', { name: 'Views' })
   if (await bar.isVisible()) await bar.getByRole('button', { name: /^Requests/ }).click()

@@ -104,20 +104,21 @@ func applyMigration(db *sql.DB, fsys fs.FS, name string, version int) error {
 
 type sessionRepo struct{ db *sql.DB }
 
-const sessionCols = "id, agent, cwd, native_id, parent_id, status, title, interruption_reason, resume_after, approval_reviewer, created_at, active_at, model, effort, permission_mode, fork_of, auto_continue, worktree, archived_at"
+const sessionCols = "id, agent, cwd, native_id, parent_id, status, title, interruption_reason, resume_after, approval_reviewer, created_at, active_at, model, effort, permission_mode, fork_of, auto_continue, worktree, archived_at, interrupted_with_request"
 
 func (r sessionRepo) Save(ctx context.Context, s domain.SessionSnapshot) error {
-	_, err := r.db.ExecContext(ctx, `INSERT INTO sessions (`+sessionCols+`) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+	_, err := r.db.ExecContext(ctx, `INSERT INTO sessions (`+sessionCols+`) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
 		ON CONFLICT(id) DO UPDATE SET agent=excluded.agent, cwd=excluded.cwd, native_id=excluded.native_id,
 		parent_id=excluded.parent_id, status=excluded.status, title=excluded.title,
 		interruption_reason=excluded.interruption_reason, resume_after=excluded.resume_after,
 		approval_reviewer=excluded.approval_reviewer, created_at=excluded.created_at, active_at=excluded.active_at,
 		model=excluded.model, effort=excluded.effort, permission_mode=excluded.permission_mode,
 		fork_of=excluded.fork_of, auto_continue=excluded.auto_continue, worktree=excluded.worktree,
-		archived_at=excluded.archived_at`,
+		archived_at=excluded.archived_at, interrupted_with_request=excluded.interrupted_with_request`,
 		s.ID, s.Agent, s.Cwd, s.NativeID, s.ParentID, s.Status, s.Title, s.Interruption.Reason,
 		formatTime(s.Interruption.ResumeAfter), s.ApprovalReviewer, formatTime(s.CreatedAt), formatTime(s.ActiveAt), s.Model, s.Effort,
-		s.PermissionMode, s.ForkOf, s.AutoContinue, encodeWorktree(s.Worktree), formatTime(s.ArchivedAt))
+		s.PermissionMode, s.ForkOf, s.AutoContinue, encodeWorktree(s.Worktree), formatTime(s.ArchivedAt),
+		s.Interruption.WithRequest)
 	return err
 }
 
@@ -162,7 +163,7 @@ func scanSession(row scanner) (domain.SessionSnapshot, error) {
 	var resume, created, active, worktree, archived string
 	err := row.Scan(&s.ID, &s.Agent, &s.Cwd, &s.NativeID, &s.ParentID, &s.Status, &s.Title,
 		&s.Interruption.Reason, &resume, &s.ApprovalReviewer, &created, &active, &s.Model, &s.Effort,
-		&s.PermissionMode, &s.ForkOf, &s.AutoContinue, &worktree, &archived)
+		&s.PermissionMode, &s.ForkOf, &s.AutoContinue, &worktree, &archived, &s.Interruption.WithRequest)
 	if err != nil {
 		return domain.SessionSnapshot{}, err
 	}
