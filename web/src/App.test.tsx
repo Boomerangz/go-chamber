@@ -162,6 +162,17 @@ describe('App', () => {
     await waitFor(() => expect(document.title).toBe('(1) Diagnostics · go-chamber'))
   })
 
+  it('counts a turn cut off while asking in the tab title, as the tray lists it', async () => {
+    mockApi()
+    vi.mocked(api.listSessions).mockResolvedValue([
+      { id: 's1', agent: 'claude', cwd: '/p', status: 'interrupted', interruption: { withRequest: true } } as never,
+    ])
+    vi.mocked(api.listRequests).mockResolvedValue([])
+    render(<App />)
+    await screen.findByRole('status', { name: 'online' })
+    await waitFor(() => expect(document.title).toBe('(1) go-chamber'))
+  })
+
   it('signs out with a form post, after asking', async () => {
     mockApi()
     render(<App />)

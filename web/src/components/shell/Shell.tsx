@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { useNow } from '../../lib/now'
 import type { Health } from '../../lib/api'
+import { useWaitingCount } from '../../lib/waiting'
 import { ChevronsRight, FileDiff, Inbox, List, MessageSquareText, SquareTerminal } from 'lucide-react'
 import { icon } from '../icon'
 import { DOCK_MAX, DOCK_MIN, SIDEBAR_MAX, SIDEBAR_MIN, useLayoutStore, visibleDock, type DockTab, type Mode } from '../../stores/layout'
@@ -75,7 +76,7 @@ export function DockRail() {
   const chosen = useLayoutStore((s) => s.dock)
   const focus = useLayoutStore((s) => s.focus)
   const toggleDock = useLayoutStore((s) => s.toggleDock)
-  const pending = useSessionStore((s) => s.pendingRequests.length)
+  const pending = useWaitingCount()
   const hasSession = useSessionStore((s) => Boolean(s.activeId))
   const running = useTerminalStore((s) => s.terminals.filter((t) => t.status === 'running').length)
   // Pressed is what is on screen, not what was last chosen.
@@ -319,7 +320,7 @@ const panes: { id: Pane; label: string; icon: ReactNode }[] = [
 export function PaneBar() {
   const pane = useSessionStore((s) => s.pane)
   const setPane = useSessionStore((s) => s.setPane)
-  const pending = useSessionStore((s) => s.pendingRequests.length)
+  const pending = useWaitingCount()
   return (
     <nav className="panebar" aria-label="Views">
       {panes.map((p) => (
