@@ -96,7 +96,7 @@ test('terminal in the session directory', async ({ page }) => {
   await openNewSession(page)
   await page.getByLabel('Working directory').fill(dir)
   await page.getByRole('button', { name: 'New session', exact: true }).click()
-  await expect(page.getByLabel('message')).toBeVisible()
+  await expect(page.getByLabel('Message')).toBeVisible()
 
   const panel = page.getByRole('region', { name: 'Terminals' })
   await page.getByRole('radio', { name: /^Terminal/ }).click()
@@ -118,7 +118,7 @@ test('ad-hoc terminal docked next to the chat', async ({ page, isMobile }) => {
   await openNewSession(page)
   await page.getByLabel('Working directory').fill(dir)
   await page.getByRole('button', { name: 'New session', exact: true }).click()
-  await expect(page.getByLabel('message')).toBeVisible()
+  await expect(page.getByLabel('Message')).toBeVisible()
 
   // Collapsed by default: only the rail shows.
   const rail = page.getByRole('toolbar', { name: 'Dock' })
@@ -130,7 +130,7 @@ test('ad-hoc terminal docked next to the chat', async ({ page, isMobile }) => {
   await screen.click()
   await page.keyboard.type('pwd\n')
   await expect(screen.locator('.xterm-rows')).toContainText(dir)
-  await expect(page.getByLabel('message')).toBeVisible()
+  await expect(page.getByLabel('Message')).toBeVisible()
 
   await rail.getByRole('button', { name: 'Collapse dock' }).click()
   await expect(panel).toBeHidden()

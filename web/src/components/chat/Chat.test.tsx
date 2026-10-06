@@ -60,7 +60,7 @@ function setup(state: Partial<ReturnType<typeof useSessionStore.getState>> = {})
   return render(<Chat />)
 }
 
-const box = () => screen.getByRole('combobox', { name: 'message' })
+const box = () => screen.getByRole('combobox', { name: 'Message' })
 const running = (items: api.Item[] = [], extra: Partial<ChatState> = {}) => chatOf(items, { status: 'running', ...extra })
 
 beforeEach(() => {
@@ -79,7 +79,7 @@ afterEach(() => {
 describe('transcript loading', () => {
   it('shows placeholder rows while the transcript loads, not the start hint', () => {
     setup({ history: 'loading', chat: initialChat() })
-    expect(screen.getByRole('status', { name: 'loading transcript' })).toBeInTheDocument()
+    expect(screen.getByRole('status', { name: 'Loading transcript' })).toBeInTheDocument()
     expect(screen.queryByText(/Send a message to start/)).toBeNull()
   })
 
@@ -98,7 +98,7 @@ describe('transcript loading', () => {
 
   it('shows the session status where a screen reader can follow it', () => {
     setup({ chat: chatOf([item('u1', 'user_message')]) })
-    expect(screen.getByRole('list', { name: 'transcript' })).toBeInTheDocument()
+    expect(screen.getByRole('list', { name: 'Transcript' })).toBeInTheDocument()
     expect(document.querySelector('.chat-meta .status')).toHaveAttribute('role', 'status')
     expect(document.querySelector('.chat-meta .status')).toHaveTextContent('idle')
   })
@@ -277,7 +277,7 @@ describe('sending', () => {
     vi.mocked(api.uploadImage).mockImplementation(() => new Promise(() => {}))
     setup()
     await userEvent.type(box(), 'look')
-    await userEvent.upload(screen.getByLabelText('attach images'), new File(['x'], 'a.png', { type: 'image/png' }))
+    await userEvent.upload(screen.getByLabelText('Attach images'), new File(['x'], 'a.png', { type: 'image/png' }))
     const button = screen.getByRole('button', { name: 'Uploading…' })
     expect(button).toHaveAttribute('aria-busy', 'true')
     await userEvent.click(button)
@@ -415,7 +415,7 @@ describe('header', () => {
     let done: (ok: boolean) => void = () => {}
     setup({ sessions: [{ ...session, agent: 'codex', approvalReviewer: 'user' }] })
     fns.setApprovalReviewer.mockImplementationOnce(() => new Promise<boolean>((r) => (done = r)))
-    const select = screen.getByLabelText('approval reviewer')
+    const select = screen.getByLabelText('Approval reviewer')
     await userEvent.selectOptions(select, 'auto_review')
     expect(select).toHaveValue('auto_review')
     expect(select).toHaveAttribute('aria-busy', 'true')
@@ -425,9 +425,9 @@ describe('header', () => {
 
   it('folds the folder and settings behind a details button', async () => {
     setup()
-    const more = screen.getByRole('button', { name: 'session details' })
+    const more = screen.getByRole('button', { name: 'Session details' })
     expect(more).toHaveAttribute('aria-expanded', 'false')
-    expect(document.getElementById(more.getAttribute('aria-controls')!)).toContainElement(screen.getByLabelText('permission mode'))
+    expect(document.getElementById(more.getAttribute('aria-controls')!)).toContainElement(screen.getByLabelText('Permission mode'))
     await userEvent.click(more)
     expect(more).toHaveAttribute('aria-expanded', 'true')
     expect(document.querySelector('.chat-header')).toHaveAttribute('data-details', 'open')
@@ -448,7 +448,7 @@ describe('header', () => {
     Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true })
     setup()
     expect(screen.getByText('/home/me/project')).toHaveAttribute('title', '/home/me/project')
-    await userEvent.click(screen.getByRole('button', { name: 'copy path' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Copy path' }))
     expect(writeText).toHaveBeenCalledWith('/home/me/project')
     expect(useNotices.getState().notices.at(-1)?.text).toBe('Path copied')
   })
@@ -608,12 +608,12 @@ describe('live connection', () => {
 describe('usage in the header', () => {
   it('names a turn result for what it is: the last turn', () => {
     setup({ chat: chatOf([], { result: { inputTokens: 10, outputTokens: 20 } }) })
-    expect(screen.getByLabelText('last turn usage')).toHaveTextContent('30 tokens · last turn')
+    expect(screen.getByLabelText('Last turn usage')).toHaveTextContent('30 tokens · last turn')
   })
 
   it('keeps the session total when the agent reports one', () => {
     setup({ chat: chatOf([], { usage: { totalTokens: 1200 }, result: { inputTokens: 1, outputTokens: 2 } }) })
-    expect(screen.getByLabelText('session usage')).toHaveTextContent('1,200 tokens')
+    expect(screen.getByLabelText('Session usage')).toHaveTextContent('1,200 tokens')
   })
 })
 
@@ -621,7 +621,7 @@ describe('session not loaded yet', () => {
   it('holds the heading as a placeholder while sessions load', () => {
     setup({ sessions: [], sessionsStatus: 'loading', history: 'loading', chat: initialChat() })
     expect(screen.queryByRole('heading', { name: 'Session' })).toBeNull()
-    expect(screen.getByRole('status', { name: 'loading session' })).toBeInTheDocument()
+    expect(screen.getByRole('status', { name: 'Loading session' })).toBeInTheDocument()
   })
 
   it('says so for an unknown session whose empty transcript loaded fine', () => {
@@ -630,7 +630,7 @@ describe('session not loaded yet', () => {
     // A session that isn't there has no state to show.
     expect(document.querySelector('.chat-meta .status')).toBeNull()
     expect(screen.queryByText(/Send a message to start/)).toBeNull()
-    expect(screen.queryByRole('combobox', { name: 'message' })).toBeNull()
+    expect(screen.queryByRole('combobox', { name: 'Message' })).toBeNull()
   })
 
   it('says a session that does not exist was not found and leads back', async () => {
@@ -724,8 +724,8 @@ describe('approval reviewer', () => {
   it('shows a busy mark while saving, like the mode select', async () => {
     setup({ sessions: [{ ...session, agent: 'codex', approvalReviewer: 'user' }] })
     fns.setApprovalReviewer.mockImplementationOnce(() => new Promise<boolean>(() => {}))
-    await userEvent.selectOptions(screen.getByLabelText('approval reviewer'), 'auto_review')
-    expect(screen.getByLabelText('approval reviewer').closest('.reviewer')?.querySelector('.busy-mark')).not.toBeNull()
+    await userEvent.selectOptions(screen.getByLabelText('Approval reviewer'), 'auto_review')
+    expect(screen.getByLabelText('Approval reviewer').closest('.reviewer')?.querySelector('.busy-mark')).not.toBeNull()
   })
 })
 

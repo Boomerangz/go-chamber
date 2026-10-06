@@ -8,19 +8,19 @@ async function newCodexSession(page: import('@playwright/test').Page, cwd = '/tm
   await page.getByRole('radio', { name: 'Codex' }).click()
   await page.getByLabel('Working directory').fill(cwd)
   await page.getByRole('button', { name: 'New session', exact: true }).click()
-  await expect(page.getByLabel('message')).toBeVisible()
+  await expect(page.getByLabel('Message')).toBeVisible()
 }
 
 test('streams a codex app-server reply', async ({ page }) => {
   await newCodexSession(page)
-  await page.getByLabel('message').fill('hello codex')
+  await page.getByLabel('Message').fill('hello codex')
   await page.getByRole('button', { name: 'Send' }).click()
   await expect(page.locator('.item.assistant', { hasText: 'echo: hello codex' })).toBeVisible()
 })
 
 test('approves a codex command execution', async ({ page }) => {
   await newCodexSession(page)
-  await page.getByLabel('message').fill('please permission')
+  await page.getByLabel('Message').fill('please permission')
   await page.getByRole('button', { name: 'Send' }).click()
 
   await expect(page.locator('.request-title', { hasText: 'please permission' })).toBeVisible()
@@ -30,7 +30,7 @@ test('approves a codex command execution', async ({ page }) => {
 
 test('answers a codex requestUserInput question', async ({ page }) => {
   await newCodexSession(page)
-  await page.getByLabel('message').fill('ask me')
+  await page.getByLabel('Message').fill('ask me')
   await page.getByRole('button', { name: 'Send' }).click()
 
   await expect(page.locator('legend', { hasText: 'Which option should we use?' })).toBeVisible()
@@ -53,17 +53,17 @@ test('switches who reviews codex approvals', async ({ page }, info) => {
   const cwd = `/tmp/reviewer-${info.project.name}-${Date.now()}`
   await newCodexSession(page, cwd)
   await showSessionDetails(page)
-  const reviewer = page.getByLabel('approval reviewer')
+  const reviewer = page.getByLabel('Approval reviewer')
   await expect(reviewer).toHaveValue('')
 
   await reviewer.selectOption('auto_review')
-  await page.getByLabel('message').fill('auto permission run')
+  await page.getByLabel('Message').fill('auto permission run')
   await page.getByRole('button', { name: 'Send' }).click()
   await expect(page.locator('.item.assistant', { hasText: 'auto-approved: auto permission run' })).toBeVisible()
   await expect(page.locator('.request-title', { hasText: 'auto permission run' })).toHaveCount(0)
 
   await reviewer.selectOption('user')
-  await page.getByLabel('message').fill('manual permission run')
+  await page.getByLabel('Message').fill('manual permission run')
   await page.getByRole('button', { name: 'Send' }).click()
   await expect(page.locator('.request-title', { hasText: 'manual permission run' })).toBeVisible()
   await page.getByRole('button', { name: 'Allow', exact: true }).click()
@@ -72,5 +72,5 @@ test('switches who reviews codex approvals', async ({ page }, info) => {
   // The choice survives a reload, which reopens the same session.
   await page.reload()
   await showSessionDetails(page)
-  await expect(page.getByLabel('approval reviewer')).toHaveValue('user')
+  await expect(page.getByLabel('Approval reviewer')).toHaveValue('user')
 })

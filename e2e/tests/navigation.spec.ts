@@ -11,7 +11,7 @@ async function startIn(page: Page, cwd: string, text: string, { make = true } = 
   await page.getByRole('button', { name: 'New session', exact: true }).click()
   // On a phone the folder sits behind the header's "⋯"; it is there all the same.
   await expect(page.locator('.chat-path', { hasText: cwd })).toBeAttached()
-  await page.getByLabel('message').fill(text)
+  await page.getByLabel('Message').fill(text)
   await page.getByRole('button', { name: 'Send' }).click()
 }
 
@@ -105,7 +105,7 @@ test('on a phone, Back from a chat returns to the list and notices stay clear of
   await expect(page.getByText('echo: phone back')).toBeVisible()
   await showPane(page, 'Sessions')
   await page.locator('button.session', { hasText: 'phone back' }).first().click()
-  await expect(page.getByLabel('message')).toBeVisible()
+  await expect(page.getByLabel('Message')).toBeVisible()
   await page.goBack()
   await expect(page.locator('.sidebar')).toBeVisible()
   await expect(page.getByRole('navigation', { name: 'Views' }).getByRole('button', { name: /^Sessions/ })).toHaveAttribute('aria-pressed', 'true')

@@ -15,14 +15,14 @@ test('groups sessions by project and finds them by title', async ({ page }) => {
     await openNewSession(page)
     await page.getByLabel('Working directory').fill(dir)
     await page.getByRole('button', { name: 'New session', exact: true }).click()
-    await page.getByLabel('message').fill(text)
+    await page.getByLabel('Message').fill(text)
     await page.getByRole('button', { name: 'Send' }).click()
     await expect(page.locator('.item.assistant', { hasText: `echo: ${text}` })).toBeVisible()
   }
   await expect(page.locator('.chat-header h2')).toHaveText('second topic')
   // A later message doesn't rename the session but is found by content.
   const word = `quasar${Date.now()}`
-  await page.getByLabel('message').fill(`mention ${word} here`)
+  await page.getByLabel('Message').fill(`mention ${word} here`)
   await page.getByRole('button', { name: 'Send' }).click()
   await expect(page.locator('.item.assistant', { hasText: word })).toBeVisible()
 

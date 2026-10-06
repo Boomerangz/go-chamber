@@ -118,25 +118,22 @@
 /* a touch screen keeps no hover: a tapped "⋯" doesn't keep a border */
 @media (hover: none) { .chat-header .chat-more:hover { border-color: transparent; } }
 
-/* the header folds by the room the chat column has, not the window: a dock
-   open beside it narrows the column. Its height never changes with the
-   session, the mode or a dock: one row, the title cut first. */
-.chat { container: chat / inline-size; }
+/* a wide header is one row whose height never changes with the session, the
+   mode or a dock: the title is cut first, then the usage line. When the
+   settings no longer fit beside them (a dock opened, a Codex session's
+   approvals, an unguarded mode) they fold behind "⋯", as on a phone, and
+   open as a row of their own under the title (see useHeaderFold). */
 @media (min-width: 721px) {
   .chat-header { flex-wrap: nowrap; }
   .chat-header .chat-heading { flex: 1 1 0; min-width: 120px; }
   .chat-header .chat-meta { flex: 0 1 auto; flex-wrap: nowrap; min-width: 0; }
   .chat-header .status, .chat-header .reviewer, .chat-header .mode-select { flex: none; white-space: nowrap; flex-wrap: nowrap; }
   .chat-header .usage { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  /* a narrow column: the model, mode and fork go behind "⋯", as on a phone,
-     and open as a row of their own under the title */
-  @container chat (max-width: 900px) {
-    .chat-header { flex-wrap: wrap; }
-    .chat-header .chat-meta { display: contents; }
-    .chat-header .chat-more { display: inline-grid; place-items: center; flex: none; order: 1; }
-    .chat-header .chat-tools { display: none; }
-    .chat-header[data-details='open'] .chat-tools {
-      display: flex; order: 2; flex-basis: 100%; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 10px 14px;
-    }
+  .chat-header[data-fold] { flex-wrap: wrap; }
+  .chat-header[data-fold] .chat-meta { display: contents; }
+  .chat-header[data-fold] .chat-more { display: inline-grid; place-items: center; flex: none; order: 1; }
+  .chat-header[data-fold] .chat-tools { display: none; }
+  .chat-header[data-fold][data-details='open'] .chat-tools {
+    display: flex; order: 2; flex-basis: 100%; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 10px 14px;
   }
 }

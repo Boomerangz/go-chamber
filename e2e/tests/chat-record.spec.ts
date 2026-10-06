@@ -12,11 +12,11 @@ async function newSession(page: import('@playwright/test').Page) {
   await page.getByRole('radio', { name: 'Claude' }).click()
   await page.getByLabel('Working directory').fill('/tmp')
   await page.getByRole('button', { name: 'New session', exact: true }).click()
-  await expect(page.getByLabel('message')).toBeVisible()
+  await expect(page.getByLabel('Message')).toBeVisible()
 }
 
 async function send(page: import('@playwright/test').Page, text: string) {
-  await page.getByLabel('message').fill(text)
+  await page.getByLabel('Message').fill(text)
   await page.getByRole('button', { name: 'Send' }).click()
 }
 
@@ -25,7 +25,7 @@ test('a denied command reads "not run", a skipped question "skipped", without ra
   await send(page, 'please permission')
   await expect(page.locator('.request-title', { hasText: 'Run command' })).toBeVisible()
   await page.getByRole('button', { name: 'Deny', exact: true }).click()
-  await page.getByLabel('deny reason').fill('not now')
+  await page.getByLabel('Deny reason').fill('not now')
   await page.getByRole('button', { name: 'Confirm deny' }).click()
   await expect(page.locator('.item.assistant', { hasText: 'denied: not now' })).toBeVisible()
   const command = page.locator('.item.command')

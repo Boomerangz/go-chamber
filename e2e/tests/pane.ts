@@ -22,8 +22,8 @@ export async function showPane(page: Page, name: 'Sessions' | 'Chat' | 'Requests
 // folder, model, mode and fork sit behind "⋯"; elsewhere it is a no-op.
 export async function showSessionDetails(page: Page) {
   // The chat is open once its composer is; only then is the header complete.
-  await page.getByLabel('message').waitFor()
-  const more = page.getByRole('button', { name: 'session details' })
+  await page.getByLabel('Message').waitFor()
+  const more = page.getByRole('button', { name: 'Session details' })
   if ((await more.isVisible()) && (await more.getAttribute('aria-expanded')) !== 'true') await more.click()
 }
 

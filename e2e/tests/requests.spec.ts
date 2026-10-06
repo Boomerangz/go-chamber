@@ -7,12 +7,12 @@ async function newSession(page: import('@playwright/test').Page) {
   await openNewSession(page)
   await page.getByLabel('Working directory').fill('/tmp')
   await page.getByRole('button', { name: 'New session', exact: true }).click()
-  await expect(page.getByLabel('message')).toBeVisible()
+  await expect(page.getByLabel('Message')).toBeVisible()
 }
 
 test('approves a permission prompt from the fake agent', async ({ page }) => {
   await newSession(page)
-  await page.getByLabel('message').fill('please permission')
+  await page.getByLabel('Message').fill('please permission')
   await page.getByRole('button', { name: 'Send' }).click()
 
   await expect(page.locator('.request-title', { hasText: 'Run command' })).toBeVisible()
@@ -23,19 +23,19 @@ test('approves a permission prompt from the fake agent', async ({ page }) => {
 
 test('denies a permission prompt from the fake agent', async ({ page }) => {
   await newSession(page)
-  await page.getByLabel('message').fill('please permission')
+  await page.getByLabel('Message').fill('please permission')
   await page.getByRole('button', { name: 'Send' }).click()
 
   await expect(page.locator('.request-title', { hasText: 'Run command' })).toBeVisible()
   await page.getByRole('button', { name: 'Deny', exact: true }).click()
-  await page.getByLabel('deny reason').fill('not allowed')
+  await page.getByLabel('Deny reason').fill('not allowed')
   await page.getByRole('button', { name: 'Confirm deny' }).click()
   await expect(page.locator('.item.assistant', { hasText: 'denied: not allowed' })).toBeVisible()
 })
 
 test('answers an AskUserQuestion from the fake agent', async ({ page }) => {
   await newSession(page)
-  await page.getByLabel('message').fill('ask me something')
+  await page.getByLabel('Message').fill('ask me something')
   await page.getByRole('button', { name: 'Send' }).click()
 
   await expect(page.locator('legend', { hasText: 'Which option should we use?' })).toBeVisible()
@@ -48,7 +48,7 @@ test('approves a permission from the requests tray without opening the session c
   // The tray is shared by every session on the server: find this one's line.
   const text = `tray ${info.project.name} ${info.repeatEachIndex} ${Date.now()}: please permission`
   await newSession(page)
-  await page.getByLabel('message').fill(text)
+  await page.getByLabel('Message').fill(text)
   await page.getByRole('button', { name: 'Send' }).click()
   await expect(page.locator('.request-title', { hasText: 'Run command' })).toBeVisible()
 
@@ -67,7 +67,7 @@ test('approves a permission from the requests tray without opening the session c
 test('approves a permission from the requests tray with the keyboard', async ({ page }, info) => {
   const text = `tray key ${info.project.name} ${info.repeatEachIndex} ${Date.now()}: please permission`
   await newSession(page)
-  await page.getByLabel('message').fill(text)
+  await page.getByLabel('Message').fill(text)
   await page.getByRole('button', { name: 'Send' }).click()
   await expect(page.locator('.request-title', { hasText: 'Run command' })).toBeVisible()
 
@@ -110,7 +110,7 @@ test('the requests inbox says it failed to load instead of looking empty', async
 test('a tray answer on its way names itself', async ({ page }, info) => {
   const text = `tray busy ${info.project.name} ${info.repeatEachIndex} ${Date.now()}: please permission`
   await newSession(page)
-  await page.getByLabel('message').fill(text)
+  await page.getByLabel('Message').fill(text)
   await page.getByRole('button', { name: 'Send' }).click()
   await expect(page.locator('.request-title', { hasText: 'Run command' })).toBeVisible()
 

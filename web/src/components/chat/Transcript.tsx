@@ -57,7 +57,7 @@ export const Row = memo(function Row({ node, turn, unseen, reduced, animateIn, o
         transition={motionProps.transition}
       >
         {turn !== undefined && (
-          <span className="turn-no" aria-label={`turn ${turn}`}>
+          <span className="turn-no" aria-label={`Turn ${turn}`}>
             {turn}.
           </span>
         )}
@@ -458,7 +458,7 @@ function TurnFoot({ result }: { result: TurnResult }) {
   if (result.costUsd) parts.push(`$${result.costUsd.toFixed(4)}`)
   if (parts.length === 0) return null
   return (
-    <li className="turn-foot" aria-label="turn usage">
+    <li className="turn-foot" aria-label="Turn usage">
       {parts.join(' · ')}
     </li>
   )

@@ -14,7 +14,7 @@ test('names a session and a terminal', async ({ page }, info) => {
   await expect(page.getByRole('heading', { name })).toBeVisible()
 
   // The first message no longer overrides a chosen name, and it survives a reload.
-  await page.getByLabel('message').fill('hello')
+  await page.getByLabel('Message').fill('hello')
   await page.getByRole('button', { name: 'Send' }).click()
   await expect(page.getByText('echo: hello')).toBeVisible()
   await page.reload()

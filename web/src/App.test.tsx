@@ -228,7 +228,7 @@ describe('App', () => {
     expect(screen.getByRole('region', { name: 'Project proj' })).toBeInTheDocument()
     expect(screen.getByText('hello')).toBeInTheDocument()
     expect(screen.getByText('echo: hello')).toBeInTheDocument()
-    expect(screen.getByLabelText('message')).toBeInTheDocument()
+    expect(screen.getByLabelText('Message')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'New session' })).toBeInTheDocument()
   })
 
@@ -306,7 +306,7 @@ describe('App', () => {
       for (let i = 0; i < 20; i++) act(() => useSessionStore.setState((state) => ({
         chat: { ...state.chat, items: { ...state.chat.items, a1: { ...state.chat.items.a1, text: `delta ${i}` } } },
       })))
-      await userEvent.type(screen.getByRole('combobox', { name: 'message' }), 'hello')
+      await userEvent.type(screen.getByRole('combobox', { name: 'Message' }), 'hello')
       expect(scans).toBe(0)
       act(() => useSessionStore.setState((state) => ({
         chat: { ...state.chat, items: { ...state.chat.items, c1: { ...state.chat.items.c1, text: 'changed\noutput' } } },

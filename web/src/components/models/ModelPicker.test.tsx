@@ -69,7 +69,7 @@ describe('ModelPicker', () => {
   it('does nothing when the choice is unchanged and hides effort for models without it', async () => {
     render(<ModelPicker session={session({ agent: 'claude', model: 'tiny' })} />)
     await userEvent.click(await screen.findByRole('button', { name: /Model:/ }))
-    expect(screen.queryByRole('radiogroup', { name: 'effort' })).toBeNull()
+    expect(screen.queryByRole('radiogroup', { name: 'Effort' })).toBeNull()
     expect(screen.getByText('Big, from Claude settings')).toBeInTheDocument()
     await userEvent.click(screen.getByRole('radio', { name: /Tiny/ }))
     expect(api.setModel).not.toHaveBeenCalled()

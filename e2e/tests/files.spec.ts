@@ -15,7 +15,7 @@ test('opens files the agent links inside its folder', async ({ page }) => {
   await openNewSession(page)
   await page.getByLabel('Working directory').fill(cwd)
   await page.getByRole('button', { name: 'New session', exact: true }).click()
-  await page.getByLabel('message').fill(`see [notes](${join(cwd, 'notes.md')}) and [secret](${join(outside, 'secret.md')})`)
+  await page.getByLabel('Message').fill(`see [notes](${join(cwd, 'notes.md')}) and [secret](${join(outside, 'secret.md')})`)
   await page.getByRole('button', { name: 'Send' }).click()
 
   await page.getByRole('link', { name: 'notes' }).click()

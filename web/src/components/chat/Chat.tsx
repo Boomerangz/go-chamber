@@ -419,11 +419,11 @@ export default function Chat() {
       <div className="scroll" ref={scrollRef}>
         {notFound ? null : history === 'loading' && chat.order.length === 0 ? (
           <div className="chat-loading">
-            <Skeleton rows={4} label="loading transcript" />
+            <Skeleton rows={4} label="Loading transcript" />
           </div>
         ) : (
           <SessionFiles.Provider value={sessionId}>
-            <ol className="items" aria-label="transcript" aria-busy={streaming}>
+            <ol className="items" aria-label="Transcript" aria-busy={streaming}>
               {rows.map((node, i) => (
                 <Row
                   key={node.item.id}

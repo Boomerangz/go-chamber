@@ -54,7 +54,7 @@ beforeEach(() => {
   ])
 })
 
-const box = () => screen.getByRole('combobox', { name: 'message' }) as HTMLTextAreaElement
+const box = () => screen.getByRole('combobox', { name: 'Message' }) as HTMLTextAreaElement
 
 describe('ComposerInput', () => {
   it('suggests files after @ and inserts the chosen path with Enter', async () => {

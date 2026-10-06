@@ -102,7 +102,7 @@ export default function ModelPicker({ session }: { session: Session }) {
       </button>
       {open && (
         <div className="model-menu" role="dialog" aria-label="Choose model" ref={menu}>
-          <div className="model-options" role="radiogroup" aria-label="model" onKeyDown={walkRadios}>
+          <div className="model-options" role="radiogroup" aria-label="Model" onKeyDown={walkRadios}>
             <ModelOption
               checked={modelChecked('')}
               focusable={modelChecked('') || !anyModelChecked}
@@ -129,7 +129,7 @@ export default function ModelPicker({ session }: { session: Session }) {
           {efforts.length > 0 && (
             <div className="effort">
               <span className="section-title">Reasoning effort</span>
-              <div className="effort-options" role="radiogroup" aria-label="effort" onKeyDown={walkRadios}>
+              <div className="effort-options" role="radiogroup" aria-label="Effort" onKeyDown={walkRadios}>
                 {['', ...efforts].map((e) => (
                   <button
                     key={e || 'auto'}

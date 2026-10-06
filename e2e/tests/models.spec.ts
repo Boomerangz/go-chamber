@@ -11,7 +11,7 @@ async function newSession(page: Page, agent: 'Claude' | 'Codex') {
   await page.getByRole('radio', { name: agent }).click()
   await page.getByLabel('Working directory').fill(dir)
   await page.getByRole('button', { name: 'New session', exact: true }).click()
-  await expect(page.getByLabel('message')).toBeVisible()
+  await expect(page.getByLabel('Message')).toBeVisible()
 }
 
 async function pick(page: Page, group: 'model' | 'effort', name: RegExp | string) {
@@ -22,7 +22,7 @@ async function pick(page: Page, group: 'model' | 'effort', name: RegExp | string
 }
 
 async function ask(page: Page, expected: string) {
-  await page.getByLabel('message').fill('which model?')
+  await page.getByLabel('Message').fill('which model?')
   await page.getByRole('button', { name: 'Send' }).click()
   await expect(page.locator('.item.assistant', { hasText: expected }).last()).toBeVisible()
 }
@@ -67,7 +67,7 @@ test('names the default model once', async ({ page }) => {
   await expect(menu.getByRole('radio', { name: /^Default/ })).toContainText('Fake-large, from Codex config')
   await expect(menu.locator('.model-tag')).toHaveCount(0)
   // Each effort word keeps clear of its segment's borders.
-  for (const radio of await menu.getByRole('radiogroup', { name: 'effort' }).getByRole('radio').all()) {
+  for (const radio of await menu.getByRole('radiogroup', { name: 'Effort' }).getByRole('radio').all()) {
     expect(await radio.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true)
   }
 })

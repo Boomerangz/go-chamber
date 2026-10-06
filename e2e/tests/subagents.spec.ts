@@ -7,9 +7,9 @@ test('stops a background subagent task', async ({ page }) => {
   await openNewSession(page)
   await page.getByLabel('Working directory').fill('/tmp')
   await page.getByRole('button', { name: 'New session', exact: true }).click()
-  await expect(page.getByLabel('message')).toBeVisible()
+  await expect(page.getByLabel('Message')).toBeVisible()
 
-  await page.getByLabel('message').fill('run a subagent')
+  await page.getByLabel('Message').fill('run a subagent')
   await page.getByRole('button', { name: 'Send' }).click()
 
   await expect(page.getByText('subagent: Task')).toBeVisible()
@@ -22,7 +22,7 @@ test('stopping the turn stops its foreground subagent', async ({ page }) => {
   await openNewSession(page)
   await page.getByLabel('Working directory').fill('/tmp')
   await page.getByRole('button', { name: 'New session', exact: true }).click()
-  await page.getByLabel('message').fill('run a foreground subagent')
+  await page.getByLabel('Message').fill('run a foreground subagent')
   await page.getByRole('button', { name: 'Send' }).click()
   await expect(page.locator('.subagent .stop-task')).toBeVisible()
   await page.locator('form.composer').getByRole('button', { name: 'Stop' }).click()

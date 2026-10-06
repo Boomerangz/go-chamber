@@ -23,7 +23,7 @@ test('chimes when the agent asks for a decision once sounds are on', async ({ pa
   await openNewSession(page)
   await page.getByLabel('Working directory').fill('/tmp')
   await page.getByRole('button', { name: 'New session', exact: true }).click()
-  await page.getByLabel('message').fill(`sound ${info.project.name} ${Date.now()}: please permission`)
+  await page.getByLabel('Message').fill(`sound ${info.project.name} ${Date.now()}: please permission`)
   await page.getByRole('button', { name: 'Send' }).click()
   await expect(page.locator('.request-title', { hasText: 'Run command' })).toBeVisible()
   await expect.poll(() => page.evaluate(() => (window as unknown as { tones: number }).tones)).toBeGreaterThanOrEqual(3)

@@ -8,11 +8,11 @@ async function newSession(page: Page) {
   await openNewSession(page)
   await page.getByLabel('Working directory').fill('/tmp')
   await page.getByRole('button', { name: 'New session', exact: true }).click()
-  await expect(page.getByLabel('message')).toBeVisible()
+  await expect(page.getByLabel('Message')).toBeVisible()
 }
 
 async function say(page: Page, text: string) {
-  await page.getByLabel('message').fill(text)
+  await page.getByLabel('Message').fill(text)
   await page.getByRole('button', { name: 'Send' }).click()
   await expect(page.locator('.item.assistant', { hasText: `echo: ${text}` })).toBeVisible()
   await expect(page.locator('.chat-meta .status', { hasText: 'idle' })).toBeVisible()
@@ -24,11 +24,11 @@ test('shows a message on its way and keeps the draft when it fails', async ({ pa
     await new Promise((r) => setTimeout(r, 600))
     await route.fulfill({ status: 500, body: 'agent unavailable' })
   })
-  await page.getByLabel('message').fill('will not arrive')
+  await page.getByLabel('Message').fill('will not arrive')
   await page.getByRole('button', { name: 'Send' }).click()
   await expect(page.locator('.row-pending', { hasText: 'will not arrive' })).toContainText('sending…')
   await expect(page.locator('.row-pending')).toHaveCount(0)
-  await expect(page.getByLabel('message')).toHaveValue('will not arrive')
+  await expect(page.getByLabel('Message')).toHaveValue('will not arrive')
 })
 
 test('sends messages typed in quick succession one by one, in order', async ({ page, isMobile }) => {
@@ -41,7 +41,7 @@ test('sends messages typed in quick succession one by one, in order', async ({ p
       await route.continue()
     })
   }
-  const box = page.getByLabel('message')
+  const box = page.getByLabel('Message')
   for (const text of ['rapid 1', 'rapid 2', 'rapid 3']) {
     await box.fill(text)
     await box.press('Enter')
@@ -58,7 +58,7 @@ test('the header and the sessions list show one status', async ({ page, isMobile
   // A session that never ran is idle, not detached.
   await expect(page.locator('.chat-meta .status')).toHaveText('idle')
   await expect(page.locator('.session.active .session-status-detached')).toHaveCount(0)
-  await page.getByLabel('message').fill('please permission')
+  await page.getByLabel('Message').fill('please permission')
   await page.getByRole('button', { name: 'Send' }).click()
   await expect(page.locator('.chat-meta .status')).toHaveText('waiting for you')
   await expect(page.locator('.chat-meta .status')).toHaveClass(/status-waiting/)
@@ -67,7 +67,7 @@ test('the header and the sessions list show one status', async ({ page, isMobile
 
 test('a draft of several lines gets the whole composer width', async ({ page }) => {
   await newSession(page)
-  const box = page.getByLabel('message')
+  const box = page.getByLabel('Message')
   const width = async () => {
     const form = (await page.locator('form.composer').boundingBox())!
     const area = (await box.boundingBox())!
@@ -89,7 +89,7 @@ test('a draft of several lines gets the whole composer width', async ({ page }) 
 test('cuts a long command to one line', async ({ page }) => {
   await newSession(page)
   const long = `bash ${'some/rather/long/path/segment '.repeat(12)}`.trim()
-  await page.getByLabel('message').fill(long)
+  await page.getByLabel('Message').fill(long)
   await page.getByRole('button', { name: 'Send' }).click()
   const code = page.locator('.item.command .item-line > code')
   await expect(code).toHaveAttribute('title', `echo ${long}`)
@@ -101,7 +101,7 @@ test('cuts a long command to one line', async ({ page }) => {
 test('keeps Copy off the output on a touch screen', async ({ page, isMobile }) => {
   test.skip(!isMobile, 'touch screens only')
   await newSession(page)
-  await page.getByLabel('message').fill('bash it')
+  await page.getByLabel('Message').fill('bash it')
   await page.getByRole('button', { name: 'Send' }).click()
   const fold = page.locator('.item.command details.item-output')
   await fold.locator('summary').click()
@@ -112,7 +112,7 @@ test('keeps Copy off the output on a touch screen', async ({ page, isMobile }) =
 
 test('a plan tool line says "plan", the plan itself is in the card', async ({ page }) => {
   await newSession(page)
-  await page.getByLabel('message').fill('make a plan')
+  await page.getByLabel('Message').fill('make a plan')
   await page.getByRole('button', { name: 'Send' }).click()
   await expect(page.locator('.request-title', { hasText: 'Ready to code?' })).toBeVisible()
   await expect(page.locator('.item.tool .item-summary')).toHaveText('plan')
@@ -122,21 +122,21 @@ test('brings sent messages back with ArrowUp', async ({ page }) => {
   await newSession(page)
   await say(page, 'first thing')
   await say(page, 'second thing')
-  await page.getByLabel('message').focus()
+  await page.getByLabel('Message').focus()
   await page.keyboard.press('ArrowUp')
-  await expect(page.getByLabel('message')).toHaveValue('second thing')
+  await expect(page.getByLabel('Message')).toHaveValue('second thing')
   await page.keyboard.press('ArrowUp')
-  await expect(page.getByLabel('message')).toHaveValue('first thing')
+  await expect(page.getByLabel('Message')).toHaveValue('first thing')
   await page.keyboard.press('ArrowDown')
   await page.keyboard.press('ArrowDown')
-  await expect(page.getByLabel('message')).toHaveValue('')
+  await expect(page.getByLabel('Message')).toHaveValue('')
 })
 
 test('sends with Enter and breaks lines with Shift+Enter', async ({ page, isMobile }) => {
   test.skip(isMobile, 'on a touch screen Enter is the newline')
   await newSession(page)
   await expect(page.locator('.composer-keys')).toContainText('send')
-  const box = page.getByLabel('message')
+  const box = page.getByLabel('Message')
   await box.fill('two')
   await box.press('Shift+Enter')
   await box.pressSequentially('lines')
@@ -150,7 +150,7 @@ test('sends with Enter and breaks lines with Shift+Enter', async ({ page, isMobi
 test('keeps Enter a newline on a touch screen', async ({ page, isMobile }) => {
   test.skip(!isMobile, 'touch screens only')
   await newSession(page)
-  const box = page.getByLabel('message')
+  const box = page.getByLabel('Message')
   await box.fill('a')
   await box.press('Enter')
   await expect(box).toHaveValue('a\n')
@@ -160,12 +160,12 @@ test('keeps Enter a newline on a touch screen', async ({ page, isMobile }) => {
 test('moves focus on after a request is answered', async ({ page, isMobile }) => {
   test.skip(isMobile, 'a phone keeps the keyboard down')
   await newSession(page)
-  await page.getByLabel('message').fill('please permission')
+  await page.getByLabel('Message').fill('please permission')
   await page.getByRole('button', { name: 'Send' }).click()
   await expect(page.locator('.request-title', { hasText: 'Run command' })).toBeVisible()
   await page.getByRole('button', { name: 'Allow', exact: true }).click()
   await expect(page.locator('.item.assistant', { hasText: /approved: run/ })).toBeVisible()
-  await expect(page.getByLabel('message')).toBeFocused()
+  await expect(page.getByLabel('Message')).toBeFocused()
 })
 
 test('says live updates paused when the socket drops, and reconnects', async ({ page }) => {
@@ -222,11 +222,11 @@ test('keeps the session header one height with any dock open', async ({ page, is
 test('folds the session header on a phone', async ({ page, isMobile }) => {
   test.skip(!isMobile, 'the header folds only on a narrow screen')
   await newSession(page)
-  await expect(page.getByLabel('permission mode')).toBeHidden()
+  await expect(page.getByLabel('Permission mode')).toBeHidden()
   const height = (await page.locator('.chat-header').boundingBox())!.height
   expect(height).toBeLessThan(110)
-  await page.getByRole('button', { name: 'session details' }).click()
-  await expect(page.getByLabel('permission mode')).toBeVisible()
+  await page.getByRole('button', { name: 'Session details' }).click()
+  await expect(page.getByLabel('Permission mode')).toBeVisible()
   await expect(page.locator('.chat-path')).toBeVisible()
 })
 
@@ -243,7 +243,7 @@ test('a stop sent while offline says so above the composer, not in its row', asy
     }
   })
   await newSession(page)
-  await page.getByLabel('message').fill('run a subagent')
+  await page.getByLabel('Message').fill('run a subagent')
   await page.getByRole('button', { name: 'Send' }).click()
   await expect(page.locator('.subagent')).toBeVisible()
   const composer = page.locator('form.composer')
@@ -257,7 +257,7 @@ test('a stop sent while offline says so above the composer, not in its row', asy
 
 test('a running turn keeps its clock across a reload', async ({ page }) => {
   await newSession(page)
-  await page.getByLabel('message').fill('run a subagent')
+  await page.getByLabel('Message').fill('run a subagent')
   await page.getByRole('button', { name: 'Send' }).click()
   await expect(page.locator('.working-tail')).toContainText(/0:0[3-9]/, { timeout: 6000 })
   await page.reload()
