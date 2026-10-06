@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test'
 import { token } from '../playwright.config'
+import { showSessionDetails } from './pane'
 
 async function newSession(page: import('@playwright/test').Page, agent: 'Claude' | 'Codex' = 'Claude') {
   await page.goto(`/?token=${token}`)
@@ -31,6 +32,7 @@ test('forks a session and keeps talking on the branch', async ({ page }, info) =
   await page.getByRole('button', { name: 'Send' }).click()
   await expect(page.getByText(`echo: ${text}`)).toBeVisible()
 
+  await showSessionDetails(page)
   await page.getByRole('button', { name: 'Fork', exact: true }).click()
   await expect(page.getByRole('heading', { name: `${text} (fork)` })).toBeVisible()
   await page.getByLabel('message').fill('on the branch')
@@ -49,6 +51,7 @@ test('keeps Claude answers after restarting its runtime', async ({ page }) => {
   await expect(page.getByText('echo: before runtime restart')).toBeVisible()
   await expect(page.locator('.chat-meta .status', { hasText: 'idle' })).toBeVisible()
 
+  await showSessionDetails(page)
   await page.getByLabel('permission mode').selectOption('bypassPermissions')
   await page.getByRole('group', { name: /^confirm/ }).getByRole('button', { name: 'Switch' }).click()
   await expect(page.locator('.chat-meta .no-approvals')).toBeVisible()
@@ -68,6 +71,7 @@ test('keeps user messages and answers in a Codex fork', async ({ page }, info) =
   await page.getByRole('button', { name: 'Send' }).click()
   await expect(page.getByText(`echo: ${text}`)).toBeVisible()
   await expect(page.locator('.chat-meta .status', { hasText: 'idle' })).toBeVisible()
+  await showSessionDetails(page)
   await page.getByRole('button', { name: 'Fork', exact: true }).click()
   await expect(page.getByRole('heading', { name: `${text} (fork)` })).toBeVisible()
   await expect(page.locator('.item.user', { hasText: text })).toBeVisible()

@@ -41,7 +41,7 @@ export function useAnnouncement(chat: ChatState, history: LoadStatus, status: Se
     const fresh = requests.find((r) => !was.requests.has(r.id))
     let text: string | null = null
     if (fresh) text = fresh.kind === 'permission' ? 'approval needed' : 'answer needed'
-    else if (was.status === 'running' && status !== 'running') text = status === 'interrupted' ? 'turn interrupted' : 'turn finished'
+    else if (was.status === 'running' && status !== 'running') text = status === 'interrupted' ? 'the turn was interrupted' : 'turn finished'
     else if (now.replies > was.replies) text = 'assistant replied'
     // Announcing is the point of this effect: it reacts to what just changed.
     // eslint-disable-next-line react/set-state-in-effect

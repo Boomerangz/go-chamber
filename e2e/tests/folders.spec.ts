@@ -3,6 +3,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { token } from '../playwright.config'
+import { showSessionDetails } from './pane'
 
 // The picker browses the server's real filesystem.
 test('picks a session folder with the folder picker', async ({ page }) => {
@@ -32,5 +33,6 @@ test('picks a session folder with the folder picker', async ({ page }) => {
   await expect(picker).toHaveCount(0)
   await expect(page.getByLabel('working directory')).toHaveValue(path.join(root, 'beta'))
   await page.getByRole('button', { name: 'New session', exact: true }).click()
+  await showSessionDetails(page)
   await expect(page.locator('.chat-path', { hasText: path.join(root, 'beta') })).toBeVisible()
 })

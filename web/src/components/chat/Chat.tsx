@@ -98,6 +98,8 @@ export default function Chat() {
   const running = status === 'running'
   const reduced = useReducedMotion() ?? false
   const narrow = useMedia('(max-width: 720px)')
+  // On a touch screen Enter is the keyboard's newline; Send is a tap away.
+  const touch = useMedia('(pointer: coarse)')
   const nodes = useMemo(() => itemTree(chat.order, chat.items).filter((node) => !isBlank(node.item)), [chat.order, chat.items])
   const turns = useMemo(() => turnNumbers(nodes), [nodes])
   // What the "latest" button counts: replies and requests, not tool lines.
@@ -413,6 +415,7 @@ export default function Chat() {
             if (!text) stopRef.current()
           }}
           history={sent}
+          enterSends={!touch}
           placeholder={placeholder}
         />
         <div className="composer-actions">
@@ -434,10 +437,10 @@ export default function Chat() {
             </button>
           )}
           {lines > LONG_DRAFT_LINES && <span className="composer-note composer-lines">{lines} lines</span>}
-          {!narrow && (
+          {!narrow && !touch && (
             <span className="composer-keys" aria-hidden="true">
-              <kbd>{mod.replace('+', '')}</kbd>
-              <kbd>↵</kbd>
+              <kbd>↵</kbd> {busy ? 'steer' : 'send'} · <kbd>⇧</kbd>
+              <kbd>↵</kbd> newline
             </span>
           )}
           <button
@@ -445,8 +448,8 @@ export default function Chat() {
             className="btn btn-primary"
             aria-busy={sendBusy}
             disabled={empty && !sendBusy}
-            title={`${busy ? 'Steer' : 'Send'} (${mod}↵)`}
-            aria-keyshortcuts={isMac() ? 'Meta+Enter' : 'Control+Enter'}
+            title={`${busy ? 'Steer' : 'Send'} (${touch ? `${mod}↵` : '↵'})`}
+            aria-keyshortcuts={touch ? (isMac() ? 'Meta+Enter' : 'Control+Enter') : 'Enter'}
           >
             {sendLabel}
           </button>

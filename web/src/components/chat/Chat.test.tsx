@@ -201,8 +201,14 @@ describe('sending', () => {
   it('names the send shortcut on the button and beside it', async () => {
     setup()
     await userEvent.type(box(), 'hi')
-    expect(screen.getByRole('button', { name: 'Send' })).toHaveAttribute('title', 'Send (Ctrl+↵)')
-    expect(document.querySelector('.composer-keys')).toHaveTextContent('Ctrl↵')
+    expect(screen.getByRole('button', { name: 'Send' })).toHaveAttribute('title', 'Send (↵)')
+    expect(document.querySelector('.composer-keys')).toHaveTextContent('↵ send · ⇧↵ newline')
+  })
+
+  it('sends with Enter', async () => {
+    setup()
+    await userEvent.type(box(), 'go{Enter}')
+    expect(fns.send).toHaveBeenCalledWith('go', [])
   })
 
   it('says how long a long message is', () => {

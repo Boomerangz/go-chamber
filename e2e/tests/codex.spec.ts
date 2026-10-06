@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test'
 import { token } from '../playwright.config'
+import { showSessionDetails } from './pane'
 
 async function newCodexSession(page: import('@playwright/test').Page, cwd = '/tmp') {
   await page.goto(`/?token=${token}`)
@@ -49,6 +50,7 @@ test('starts a codex device-code login', async ({ page }) => {
 test('switches who reviews codex approvals', async ({ page }, info) => {
   const cwd = `/tmp/reviewer-${info.project.name}-${Date.now()}`
   await newCodexSession(page, cwd)
+  await showSessionDetails(page)
   const reviewer = page.getByLabel('approval reviewer')
   await expect(reviewer).toHaveValue('')
 
@@ -67,5 +69,6 @@ test('switches who reviews codex approvals', async ({ page }, info) => {
 
   // The choice survives a reload, which reopens the same session.
   await page.reload()
+  await showSessionDetails(page)
   await expect(page.getByLabel('approval reviewer')).toHaveValue('user')
 })

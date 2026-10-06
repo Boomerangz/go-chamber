@@ -23,6 +23,10 @@ interface Props {
   // walks back through it, ArrowDown forward and then to the draft.
   history?: string[]
   placeholder: string
+  // enterSends: Enter sends and Shift+Enter breaks the line. Off on touch
+  // screens, where Enter is the keyboard's newline and Send is a tap away.
+  // ⌘↵ / Ctrl+↵ sends either way.
+  enterSends?: boolean
   inputRef?: Ref<HTMLTextAreaElement>
 }
 
@@ -39,7 +43,7 @@ const sizesItself = () => typeof CSS !== 'undefined' && !!CSS.supports?.('field-
 
 // ComposerInput is the message box with a completion popup: "@" for files
 // in the session folder, "/" (and "$" for Codex) for the agent's commands.
-export default function ComposerInput({ sessionId, agent, value, onChange, onSubmit, onEscape, history, placeholder, inputRef }: Props) {
+export default function ComposerInput({ sessionId, agent, value, onChange, onSubmit, onEscape, history, placeholder, enterSends = true, inputRef }: Props) {
   const ref = useRef<HTMLTextAreaElement>(null)
   useImperativeHandle(inputRef, () => ref.current!, [])
   const listId = useId()
@@ -164,10 +168,17 @@ export default function ComposerInput({ sessionId, agent, value, onChange, onSub
       setToken(null)
       return
     }
-    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
-      e.preventDefault()
-      onSubmit()
-      return
+    if (e.key === 'Enter' && !e.shiftKey && !e.altKey) {
+      // An input method uses Enter to commit its text; that is not a send.
+      if (e.nativeEvent.isComposing || e.keyCode === 229) return
+      const modified = e.metaKey || e.ctrlKey
+      if (modified || enterSends) {
+        e.preventDefault()
+        // Suggestions still on their way: Enter waits for them, not sends.
+        if (!modified && note === 'searching…') return
+        onSubmit()
+        return
+      }
     }
     if (e.key === 'Escape' && onEscape) {
       onEscape()

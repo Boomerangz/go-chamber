@@ -6,3 +6,12 @@ export async function showPane(page: Page, name: 'Sessions' | 'Chat' | 'Requests
   const bar = page.getByRole('navigation', { name: 'Views' })
   if (await bar.isVisible()) await bar.getByRole('button', { name: new RegExp(`^${name}`) }).click()
 }
+
+// showSessionDetails unfolds the session header on narrow screens, where the
+// folder, model, mode and fork sit behind "⋯"; elsewhere it is a no-op.
+export async function showSessionDetails(page: Page) {
+  // The chat is open once its composer is; only then is the header complete.
+  await page.getByLabel('message').waitFor()
+  const more = page.getByRole('button', { name: 'session details' })
+  if ((await more.isVisible()) && (await more.getAttribute('aria-expanded')) !== 'true') await more.click()
+}

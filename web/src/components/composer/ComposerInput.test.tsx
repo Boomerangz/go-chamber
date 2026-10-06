@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { useState } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -17,7 +17,9 @@ function Harness({
   onEscape,
   history,
   initial = '',
+  enterSends,
 }: {
+  enterSends?: boolean
   agent?: 'claude' | 'codex'
   onSubmit?: () => void
   onEscape?: () => void
@@ -35,6 +37,7 @@ function Harness({
         onSubmit={onSubmit}
         onEscape={onEscape}
         history={history}
+        enterSends={enterSends}
         placeholder="msg"
       />
       <output data-testid="value">{text}</output>
@@ -99,6 +102,44 @@ describe('ComposerInput', () => {
     render(<Harness agent="codex" />)
     await userEvent.type(box(), 'use $comp')
     expect(await screen.findByRole('option', { name: /compact/ })).toBeVisible()
+  })
+
+  it('sends with Enter and breaks the line with Shift+Enter', async () => {
+    const onSubmit = vi.fn()
+    render(<Harness onSubmit={onSubmit} />)
+    await userEvent.type(box(), 'one{Shift>}{Enter}{/Shift}two')
+    expect(box()).toHaveValue('one\ntwo')
+    expect(onSubmit).not.toHaveBeenCalled()
+    await userEvent.keyboard('{Enter}')
+    expect(onSubmit).toHaveBeenCalledTimes(1)
+    expect(box()).toHaveValue('one\ntwo')
+  })
+
+  it('does not send while an input method composes', () => {
+    const onSubmit = vi.fn()
+    render(<Harness onSubmit={onSubmit} />)
+    fireEvent.keyDown(box(), { key: 'Enter', isComposing: true })
+    fireEvent.keyDown(box(), { key: 'Enter', keyCode: 229 })
+    expect(onSubmit).not.toHaveBeenCalled()
+  })
+
+  it('keeps Enter a newline where it should not send (touch)', async () => {
+    const onSubmit = vi.fn()
+    render(<Harness onSubmit={onSubmit} enterSends={false} />)
+    await userEvent.type(box(), 'a{Enter}b')
+    expect(box()).toHaveValue('a\nb')
+    expect(onSubmit).not.toHaveBeenCalled()
+    await userEvent.keyboard('{Control>}{Enter}{/Control}')
+    expect(onSubmit).toHaveBeenCalledTimes(1)
+  })
+
+  it('picks the open suggestion with Enter instead of sending', async () => {
+    const onSubmit = vi.fn()
+    render(<Harness onSubmit={onSubmit} />)
+    await userEvent.type(box(), 'see @ma')
+    await screen.findByRole('listbox')
+    await userEvent.keyboard('{Enter}')
+    expect(onSubmit).not.toHaveBeenCalled()
   })
 
   it('sends with cmd+enter when no popup is open', async () => {
