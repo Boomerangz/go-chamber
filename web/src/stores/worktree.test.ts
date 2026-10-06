@@ -8,6 +8,7 @@ vi.mock('../lib/api', () => ({
 
 import * as api from '../lib/api'
 import { resetStore, useSessionStore } from './session'
+import { lastError, resetNotices } from './notices'
 
 const store = () => useSessionStore.getState()
 
@@ -15,6 +16,7 @@ beforeEach(() => {
   vi.clearAllMocks()
   vi.stubGlobal('WebSocket', undefined)
   resetStore()
+  resetNotices()
 })
 
 describe('worktree sessions', () => {
@@ -29,6 +31,6 @@ describe('worktree sessions', () => {
   it('reports a failed worktree', async () => {
     ;(api.createWorktreeSession as Mock).mockRejectedValue(new Error('not a git repository'))
     await store().createSession('claude', '/tmp', 'fix')
-    expect(store().error).toBe('not a git repository')
+    expect(lastError()).toBe('not a git repository')
   })
 })

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi, type Mock } from 'vitest'
-import type { Item, SessionEvent, Session, SessionRequest, QuotaSnapshot } from '../lib/api'
+import type { Item, SessionEvent, Session, SessionRequest, QuotaSnapshot, SearchHit } from '../lib/api'
 
 vi.mock('../lib/api', () => ({
   listSessions: vi.fn(),
@@ -28,6 +28,7 @@ import * as api from '../lib/api'
 import { chimeOnEvent } from '../lib/chime'
 import { resetStore, useSessionStore } from './session'
 import { diagnostics, resetDiagnostics, beginAgentView, endAgentView, recordAgentCommit } from '../lib/diagnostics'
+import { lastError, resetNotices } from './notices'
 
 const store = () => useSessionStore.getState()
 
@@ -44,6 +45,7 @@ beforeEach(() => {
   vi.clearAllMocks()
   vi.stubGlobal('WebSocket', undefined)
   resetStore()
+  resetNotices()
   ;(api.fetchEvents as Mock).mockResolvedValue([])
 })
 
@@ -240,7 +242,7 @@ describe('session store', () => {
     await store().loadSessions()
     reject(new Error('stale'))
     await pending
-    expect(store().error).toBeNull()
+    expect(lastError()).toBeNull()
   })
 
   it('keeps requests opened during a list reload', async () => {
@@ -270,10 +272,91 @@ describe('session store', () => {
     expect(store().sessions.map((s) => s.id)).toEqual(['a', 'b'])
   })
 
+  it('tells a loading session list from an empty one', async () => {
+    let release: (v: Session[]) => void = () => {}
+    ;(api.listSessions as Mock).mockReturnValueOnce(new Promise((r) => (release = r)))
+    expect(store().sessionsStatus).toBe('loading')
+    const pending = store().loadSessions()
+    release([])
+    await pending
+    expect(store().sessionsStatus).toBe('ready')
+  })
+
+  it('marks the session list failed only before it ever loaded', async () => {
+    ;(api.listSessions as Mock).mockRejectedValueOnce(new Error('down'))
+    await store().loadSessions()
+    expect(store().sessionsStatus).toBe('error')
+    ;(api.listSessions as Mock).mockResolvedValueOnce([])
+    await store().loadSessions()
+    expect(store().sessionsStatus).toBe('ready')
+    expect(lastError()).toBeNull()
+    ;(api.listSessions as Mock).mockRejectedValueOnce(new Error('blip'))
+    await store().loadSessions()
+    expect(store().sessionsStatus).toBe('ready')
+  })
+
+  it('does not let a later success hide an unread error', async () => {
+    ;(api.renameSession as Mock).mockRejectedValueOnce(new Error('rename broke'))
+    await store().renameSession('a', 'x')
+    ;(api.getQuotas as Mock).mockResolvedValueOnce([])
+    await store().loadQuotas()
+    expect(lastError()).toBe('rename broke')
+  })
+
+  it('reselecting the open session keeps its transcript', async () => {
+    ;(api.fetchEvents as Mock).mockResolvedValueOnce([event({ seq: 1 })])
+    await store().selectSession('a')
+    useSessionStore.setState({ pane: 'sessions' })
+    await store().selectSession('a')
+    expect(api.fetchEvents).toHaveBeenCalledTimes(1)
+    expect(store().chat.order).toEqual(['i1'])
+    expect(store().pane).toBe('chat')
+  })
+
+  it('tracks the transcript load', async () => {
+    let reject: (e: Error) => void = () => {}
+    ;(api.fetchEvents as Mock).mockReturnValueOnce(new Promise((_, r) => (reject = r)))
+    const pending = store().selectSession('a')
+    expect(store().history).toBe('loading')
+    reject(new Error('gone'))
+    await pending
+    expect(store().history).toBe('error')
+    expect(lastError()).toBe('gone')
+    ;(api.fetchEvents as Mock).mockResolvedValueOnce([])
+    await store().selectSession('a')
+    expect(store().history).toBe('ready')
+    expect(lastError()).toBeNull()
+  })
+
+  it('returns whether an action went through', async () => {
+    ;(api.respondRequest as Mock).mockResolvedValueOnce(undefined)
+    expect(await store().respond('a', 'r1', { behavior: 'allow' })).toBe(true)
+    ;(api.respondRequest as Mock).mockRejectedValueOnce(new Error('gone'))
+    expect(await store().respond('a', 'r1', { behavior: 'allow' })).toBe(false)
+  })
+
+  it('flags a message search in flight', async () => {
+    let release: (v: SearchHit[]) => void = () => {}
+    ;(api.searchMessages as Mock).mockReturnValueOnce(new Promise((r) => (release = r)))
+    const pending = store().searchMessages('needle')
+    expect(store().searching).toBe(true)
+    release([])
+    await pending
+    expect(store().searching).toBe(false)
+  })
+
+  it('asks for models again after a failed listing', async () => {
+    ;(api.listModels as Mock).mockRejectedValueOnce(new Error('no')).mockResolvedValueOnce([{ id: 'm' }])
+    await store().loadModels('claude')
+    expect(store().models.claude).toEqual([])
+    await store().loadModels('claude')
+    expect(store().models.claude).toEqual([{ id: 'm' }])
+  })
+
   it('records load errors', async () => {
     ;(api.listSessions as Mock).mockRejectedValue(new Error('down'))
     await store().loadSessions()
-    expect(store().error).toBe('down')
+    expect(lastError()).toBe('down')
   })
 
   it('creates and selects a session', async () => {
@@ -357,7 +440,7 @@ describe('session store', () => {
   it('reports model errors', async () => {
     ;(api.setModel as Mock).mockRejectedValue(new Error('bad model'))
     await store().setModel('a', { model: 'x y', effort: '' })
-    expect(store().error).toBe('bad model')
+    expect(lastError()).toBe('bad model')
   })
 
   it('keeps the session search query', () => {
@@ -391,7 +474,7 @@ describe('session store', () => {
   it('records select errors', async () => {
     ;(api.fetchEvents as Mock).mockRejectedValue(new Error('nope'))
     await store().selectSession('a')
-    expect(store().error).toBe('nope')
+    expect(lastError()).toBe('nope')
   })
 
   it('buffers live events while history loads, then flushes them', async () => {
@@ -414,7 +497,7 @@ describe('session store', () => {
     await pending
     expect(store().chat.order).toEqual(['live'])
     expect(store().chat.lastSeq).toBe(1)
-    expect(store().error).toBe('offline')
+    expect(lastError()).toBe('offline')
   })
 
   it('retries failed history without skipping a gap before buffered live events', async () => {
@@ -432,7 +515,7 @@ describe('session store', () => {
       await vi.advanceTimersByTimeAsync(1000)
       expect(api.fetchEvents).toHaveBeenLastCalledWith('a', 0)
       expect(store().chat.order).toEqual(['old', 'live'])
-      expect(store().error).toBeNull()
+      expect(lastError()).toBeNull()
     } finally {
       vi.useRealTimers()
     }
@@ -521,13 +604,13 @@ describe('session store', () => {
     await store().setApprovalReviewer('a', 'user')
     expect(api.setApprovalReviewer).toHaveBeenCalledWith('a', 'user')
     expect(store().sessions[0].approvalReviewer).toBe('user')
-    expect(store().error).toBeNull()
+    expect(lastError()).toBeNull()
   })
 
   it('reports approval reviewer errors', async () => {
     ;(api.setApprovalReviewer as Mock).mockRejectedValue(new Error('nope'))
     await store().setApprovalReviewer('a', 'user')
-    expect(store().error).toBe('nope')
+    expect(lastError()).toBe('nope')
   })
 
   it('stops a background task', async () => {
@@ -535,17 +618,17 @@ describe('session store', () => {
     expect(api.stopTask).toHaveBeenCalledWith('a', 'task-1')
     ;(api.stopTask as Mock).mockRejectedValue(new Error('nope'))
     await store().stopTask('a', 'task-1')
-    expect(store().error).toBe('nope')
+    expect(lastError()).toBe('nope')
   })
 
   it('reports send and interrupt errors', async () => {
     useSessionStore.setState({ activeId: 'a' })
     ;(api.sendMessage as Mock).mockRejectedValue(new Error('send failed'))
     await store().send('x')
-    expect(store().error).toBe('send failed')
+    expect(lastError()).toBe('send failed')
     ;(api.interrupt as Mock).mockRejectedValue(new Error('stop failed'))
     await store().interrupt()
-    expect(store().error).toBe('stop failed')
+    expect(lastError()).toBe('stop failed')
   })
 
   it('interrupts the active session', async () => {
@@ -575,9 +658,9 @@ describe('session store', () => {
       close() {}
     }
     vi.stubGlobal('WebSocket', FakeSocket)
-    useSessionStore.setState({ activeId: 'a' })
     const pending = store().selectSession('a')
     const ws = instances[0]!
+    expect(store().connection).toBe('connecting')
     expect(ws.url).toBe(`ws://${location.host}/api/ws`)
     ws.onopen?.()
     expect(store().connection).toBe('online')
@@ -613,7 +696,7 @@ describe('request handling', () => {
   it('records load-request errors', async () => {
     ;(api.listRequests as Mock).mockRejectedValue(new Error('nope'))
     await store().loadRequests()
-    expect(store().error).toBe('nope')
+    expect(lastError()).toBe('nope')
   })
 
   it('answers a request', async () => {
@@ -624,7 +707,7 @@ describe('request handling', () => {
   it('reports respond errors', async () => {
     ;(api.respondRequest as Mock).mockRejectedValue(new Error('gone'))
     await store().respond('a', 'r1', { behavior: 'allow' })
-    expect(store().error).toBe('gone')
+    expect(lastError()).toBe('gone')
   })
 
   it('tracks pending requests across sessions from live events', () => {
@@ -748,7 +831,7 @@ describe('live stream consistency', () => {
     await store().selectSession('b')
     reject(new Error('stale'))
     await first
-    expect(store().error).toBeNull()
+    expect(lastError()).toBeNull()
   })
 
   it('refetches missing events when the live stream skips a sequence number', async () => {
@@ -780,7 +863,7 @@ describe('live stream consistency', () => {
 
     expect(store().activeId).toBe('b')
     expect(store().chat.order).toEqual(['from-b'])
-    expect(store().error).toBeNull()
+    expect(lastError()).toBeNull()
   })
 })
 

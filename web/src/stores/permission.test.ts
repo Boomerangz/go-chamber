@@ -8,6 +8,7 @@ vi.mock('../lib/api', () => ({
 
 import * as api from '../lib/api'
 import { resetStore, useSessionStore } from './session'
+import { lastError, resetNotices } from './notices'
 
 const store = () => useSessionStore.getState()
 
@@ -16,6 +17,7 @@ beforeEach(() => {
   vi.clearAllMocks()
   vi.stubGlobal('WebSocket', undefined)
   resetStore()
+  resetNotices()
   ;(api.fetchEvents as Mock).mockResolvedValue([])
 })
 
@@ -28,7 +30,7 @@ describe('permission mode', () => {
     expect(store().sessions[0].permissionMode).toBeUndefined()
     ;(api.setPermissionMode as Mock).mockRejectedValue(new Error('bypassPermissions mode is disabled'))
     await store().setPermissionMode('a', 'bypassPermissions')
-    expect(store().error).toBe('bypassPermissions mode is disabled')
+    expect(lastError()).toBe('bypassPermissions mode is disabled')
   })
 
   it('starts new sessions of the agent in the mode last chosen', async () => {

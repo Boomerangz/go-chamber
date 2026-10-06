@@ -5,8 +5,11 @@ import { applyEvents, initialChat, type ChatState } from '../lib/events'
 import type { GroupMode } from '../lib/sessions'
 import { LiveList } from '../lib/live-list'
 import { chimeOnEvent } from '../lib/chime'
+import { fail, useNotices } from './notices'
 
 export type Connection = 'connecting' | 'online' | 'offline'
+
+export type LoadStatus = 'loading' | 'ready' | 'error'
 
 // Pane is the view shown on narrow screens, where only one fits at a time.
 export type Pane = 'sessions' | 'chat' | 'requests' | 'changes'
@@ -26,37 +29,46 @@ export interface SessionStore {
   searchHits: api.SearchHit[]
   // models caches each agent's model catalog; empty when unsupported.
   models: Partial<Record<api.AgentKind, api.ModelInfo[]>>
-  error: string | null
+  // sessionsStatus tells a list still loading (or failed) from an empty one.
+  sessionsStatus: LoadStatus
+  // history is the state of the open chat's transcript fetch.
+  history: LoadStatus
+  // searching is true while the server searches messages for the query.
+  searching: boolean
+  // nextRetryAt is when the live socket tries again after a drop (ms epoch).
+  nextRetryAt: number | null
 
   setPane: (pane: Pane) => void
   setGroupMode: (cwd: string, mode: GroupMode) => void
   setQuery: (query: string) => void
   searchMessages: (query: string) => Promise<void>
   loadModels: (agent: api.AgentKind) => Promise<void>
-  setModel: (sessionId: string, choice: api.ModelChoice) => Promise<void>
+  setModel: (sessionId: string, choice: api.ModelChoice) => Promise<boolean>
   loadSessions: () => Promise<void>
   loadRequests: () => Promise<void>
   loadQuotas: () => Promise<void>
   // createSession starts a session in cwd, or in a new worktree on branch chamber/<branch>.
-  createSession: (agent: api.AgentKind, cwd: string, branch?: string) => Promise<void>
+  createSession: (agent: api.AgentKind, cwd: string, branch?: string) => Promise<boolean>
   selectSession: (id: string) => Promise<void>
   send: (text: string, images?: string[]) => Promise<boolean>
   steer: (text: string) => Promise<boolean>
-  interrupt: () => Promise<void>
-  continueSession: () => Promise<void>
-  setAutoContinue: (sessionId: string, on: boolean) => Promise<void>
-  forkSession: (sessionId: string) => Promise<void>
-  importHistory: (agent: api.AgentKind, nativeId: string) => Promise<void>
-  stopTask: (sessionId: string, taskId: string) => Promise<void>
-  setApprovalReviewer: (sessionId: string, reviewer: api.ApprovalReviewer) => Promise<void>
-  renameSession: (sessionId: string, title: string) => Promise<void>
-  setPermissionMode: (sessionId: string, mode: string) => Promise<void>
+  interrupt: () => Promise<boolean>
+  continueSession: () => Promise<boolean>
+  setAutoContinue: (sessionId: string, on: boolean) => Promise<boolean>
+  forkSession: (sessionId: string) => Promise<boolean>
+  importHistory: (agent: api.AgentKind, nativeId: string) => Promise<boolean>
+  stopTask: (sessionId: string, taskId: string) => Promise<boolean>
+  setApprovalReviewer: (sessionId: string, reviewer: api.ApprovalReviewer) => Promise<boolean>
+  renameSession: (sessionId: string, title: string) => Promise<boolean>
+  setPermissionMode: (sessionId: string, mode: string) => Promise<boolean>
   removeWorktree: (sessionId: string, force: boolean) => Promise<void>
-  respond: (sessionId: string, requestId: string, answer: api.RequestAnswerInput) => Promise<void>
+  respond: (sessionId: string, requestId: string, answer: api.RequestAnswerInput) => Promise<boolean>
   applyIncoming: (ev: api.SessionEvent) => void
   setConnection: (c: Connection) => void
   // connect keeps the live event socket open, reconnecting when it drops.
   connect: () => void
+  // retryNow reconnects at once instead of waiting out the backoff.
+  retryNow: () => void
 }
 
 const GROUP_MODES_KEY = 'gc.groupModes'
@@ -144,6 +156,8 @@ const sessionRevisions = new Map<string, Partial<Record<keyof api.Session, numbe
 let preferenceRequest = 0
 const modelPreferenceRequests = new Map<api.AgentKind, number>()
 const modePreferenceRequests = new Map<api.AgentKind, number>()
+const modelsFailed = new Set<api.AgentKind>()
+let wakeListening = false
 
 function recordSessionChanges(before: api.Session | undefined, updated: api.Session): void {
   const revisions = sessionRevisions.get(updated.id) ?? {}
@@ -193,10 +207,14 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
   query: '',
   searchHits: [],
   models: {},
-  error: null,
+  sessionsStatus: 'loading',
+  history: 'ready',
+  searching: false,
+  nextRetryAt: null,
 
   setConnection: (connection) => set({ connection }),
   connect: () => connect(get, set),
+  retryNow: () => retryNow(get, set),
   setPane: (pane) => set({ pane }),
   setGroupMode: (cwd, mode) => {
     const groupModes = { ...get().groupModes, [cwd]: mode }
@@ -210,14 +228,17 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
   setQuery: (query) => set({ query }),
 
   async loadModels(agent) {
-    if (get().models[agent]) return
-    let list: api.ModelInfo[] = []
+    if (get().models[agent] && !modelsFailed.has(agent)) return
     try {
-      list = await api.listModels(agent)
+      const list = await api.listModels(agent)
+      modelsFailed.delete(agent)
+      set({ models: { ...get().models, [agent]: list } })
     } catch {
-      // the agent can't list models: the picker offers only its default
+      // The agent can't list models now: the picker offers only its default
+      // and asks again next time it opens.
+      modelsFailed.add(agent)
+      set({ models: { ...get().models, [agent]: [] } })
     }
-    set({ models: { ...get().models, [agent]: list } })
   },
 
   async setModel(sessionId, choice) {
@@ -225,13 +246,15 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     const preference = ++preferenceRequest
     try {
       const updated = await api.setModel(sessionId, choice)
-      set({ sessions: applySessionMutation(get().sessions, before, updated), error: null })
+      set({ sessions: applySessionMutation(get().sessions, before, updated) })
       if (preference > (modelPreferenceRequests.get(updated.agent) ?? 0)) {
         modelPreferenceRequests.set(updated.agent, preference)
         rememberModel(updated.agent, choice)
       }
+      return true
     } catch (err) {
-      set({ error: errorMessage(err) })
+      fail("Couldn't change the model", err)
+      return false
     }
   },
 
@@ -244,14 +267,15 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
   async searchMessages(query) {
     const mine = ++searchGeneration
     if (query.trim().length < 2) {
-      set({ searchHits: [] })
+      set({ searchHits: [], searching: false })
       return
     }
+    set({ searching: true })
     try {
       const hits = await api.searchMessages(query.trim())
-      if (mine === searchGeneration) set({ searchHits: hits })
+      if (mine === searchGeneration) set({ searchHits: hits, searching: false })
     } catch {
-      if (mine === searchGeneration) set({ searchHits: [] })
+      if (mine === searchGeneration) set({ searchHits: [], searching: false })
     }
   },
 
@@ -261,28 +285,30 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       if (sessions) {
         const current = new Map(get().sessions.map((session) => [session.id, session]))
         for (const session of sessions) recordSessionChanges(current.get(session.id), session)
-        set({ sessions, error: null })
+        set({ sessions, sessionsStatus: 'ready' })
+        useNotices.getState().dismissKey('load-sessions')
       }
     } catch (err) {
-      set({ error: errorMessage(err) })
+      if (get().sessionsStatus !== 'ready') set({ sessionsStatus: 'error' })
+      fail("Couldn't load sessions", err, 'load-sessions')
     }
   },
 
   async loadRequests() {
     try {
       const pendingRequests = await requestLists.load(api.listRequests)
-      if (pendingRequests) set({ pendingRequests, error: null })
+      if (pendingRequests) set({ pendingRequests })
     } catch (err) {
-      set({ error: errorMessage(err) })
+      fail("Couldn't load requests", err, 'load-requests')
     }
   },
 
   async loadQuotas() {
     try {
       const quotas = await quotaLists.load(api.getQuotas)
-      if (quotas) set({ quotas, error: null })
+      if (quotas) set({ quotas })
     } catch (err) {
-      set({ error: errorMessage(err) })
+      fail("Couldn't load quotas", err, 'load-quotas')
     }
   },
 
@@ -291,17 +317,24 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       const created = branch
         ? await api.createWorktreeSession(agent, cwd, branch, startChoice(agent))
         : await api.createSession(agent, cwd, startChoice(agent))
-      set({ sessions: replaceSession(get().sessions, created), error: null })
+      set({ sessions: replaceSession(get().sessions, created) })
       await get().selectSession(created.id)
+      return true
     } catch (err) {
-      set({ error: errorMessage(err) })
+      fail("Couldn't start the session", err)
+      return false
     }
   },
 
   async selectSession(id) {
+    // The open session is already live: just bring it forward.
+    if (id === get().activeId && get().history !== 'error') {
+      set({ pane: 'chat' })
+      return
+    }
     buffered = null
     dropQueued()
-    set({ activeId: id, chat: initialChat(), pane: 'chat', error: null })
+    set({ activeId: id, chat: initialChat(), pane: 'chat', history: 'loading' })
     connect(get, set)
     await resync(get, set, id)
   },
@@ -311,10 +344,10 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     if (!id || (!text.trim() && !images?.length)) return false
     try {
       await (images?.length ? api.sendMessage(id, text, images) : api.sendMessage(id, text))
-      set({ error: null })
+      useNotices.getState().dismissKey('send')
       return true
     } catch (err) {
-      set({ error: errorMessage(err) })
+      fail('Message not sent', err, 'send')
       return false
     }
   },
@@ -324,10 +357,10 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     if (!id || !text.trim()) return false
     try {
       await api.steer(id, text)
-      set({ error: null })
+      useNotices.getState().dismissKey('send')
       return true
     } catch (err) {
-      set({ error: errorMessage(err) })
+      fail('Steer not sent', err, 'send')
       return false
     }
   },
@@ -337,13 +370,15 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     const preference = ++preferenceRequest
     try {
       const updated = await api.setPermissionMode(sessionId, mode)
-      set({ sessions: applySessionMutation(get().sessions, before, updated), error: null })
+      set({ sessions: applySessionMutation(get().sessions, before, updated) })
       if (preference > (modePreferenceRequests.get(updated.agent) ?? 0)) {
         modePreferenceRequests.set(updated.agent, preference)
         rememberMode(updated.agent, mode)
       }
+      return true
     } catch (err) {
-      set({ error: errorMessage(err) })
+      fail("Couldn't change the permission mode", err)
+      return false
     }
   },
 
@@ -351,9 +386,11 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     const before = sessionRevision
     try {
       const updated = await api.renameSession(sessionId, title)
-      set({ sessions: applySessionMutation(get().sessions, before, updated), error: null })
+      set({ sessions: applySessionMutation(get().sessions, before, updated) })
+      return true
     } catch (err) {
-      set({ error: errorMessage(err) })
+      fail("Couldn't rename the session", err)
+      return false
     }
   },
 
@@ -361,39 +398,45 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     const before = sessionRevision
     try {
       const updated = await api.setApprovalReviewer(sessionId, reviewer)
-      set({ sessions: applySessionMutation(get().sessions, before, updated), error: null })
+      set({ sessions: applySessionMutation(get().sessions, before, updated) })
+      return true
     } catch (err) {
-      set({ error: errorMessage(err) })
+      fail("Couldn't change the approval reviewer", err)
+      return false
     }
   },
 
   async stopTask(sessionId, taskId) {
     try {
       await api.stopTask(sessionId, taskId)
-      set({ error: null })
+      return true
     } catch (err) {
-      set({ error: errorMessage(err) })
+      fail("Couldn't stop the subagent", err)
+      return false
     }
   },
 
   async interrupt() {
     const id = get().activeId
-    if (!id) return
+    if (!id) return false
     try {
       await api.interrupt(id)
+      return true
     } catch (err) {
-      set({ error: errorMessage(err) })
+      fail("Couldn't stop the turn", err)
+      return false
     }
   },
 
   async continueSession() {
     const id = get().activeId
-    if (!id) return
+    if (!id) return false
     try {
       await api.continueSession(id)
-      set({ error: null })
+      return true
     } catch (err) {
-      set({ error: errorMessage(err) })
+      fail("Couldn't continue", err)
+      return false
     }
   },
 
@@ -401,38 +444,45 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     const before = sessionRevision
     try {
       const updated = await api.setAutoContinue(sessionId, on)
-      set({ sessions: applySessionMutation(get().sessions, before, updated), error: null })
+      set({ sessions: applySessionMutation(get().sessions, before, updated) })
+      return true
     } catch (err) {
-      set({ error: errorMessage(err) })
+      fail("Couldn't change auto-continue", err)
+      return false
     }
   },
 
   async forkSession(sessionId) {
     try {
       const fork = await api.forkSession(sessionId)
-      set({ sessions: replaceSession(get().sessions, fork), error: null })
+      set({ sessions: replaceSession(get().sessions, fork) })
       await get().selectSession(fork.id)
+      return true
     } catch (err) {
-      set({ error: errorMessage(err) })
+      fail("Couldn't fork the session", err)
+      return false
     }
   },
 
   async importHistory(agent, nativeId) {
     try {
       const imported = await api.importHistory(agent, nativeId)
-      set({ sessions: replaceSession(get().sessions, imported), error: null })
+      set({ sessions: replaceSession(get().sessions, imported) })
       await get().selectSession(imported.id)
+      return true
     } catch (err) {
-      set({ error: errorMessage(err) })
+      fail("Couldn't open the conversation", err)
+      return false
     }
   },
 
   async respond(sessionId, requestId, answer) {
     try {
       await api.respondRequest(sessionId, requestId, answer)
-      set({ error: null })
+      return true
     } catch (err) {
-      set({ error: errorMessage(err) })
+      fail('Answer not sent', err)
+      return false
     }
   },
 
@@ -494,6 +544,7 @@ function connect(
   set: (partial: Partial<SessionStore>) => void,
 ): void {
   if (socket || typeof WebSocket === 'undefined') return
+  listenForWake(get, set)
   if (reconnectTimer) {
     clearTimeout(reconnectTimer)
     reconnectTimer = null
@@ -502,9 +553,10 @@ function connect(
   const host = typeof location !== 'undefined' ? location.host : 'localhost'
   const ws = new WebSocket(`${scheme}://${host}/api/ws`)
   socket = ws
+  set({ connection: 'connecting' })
   ws.onopen = () => {
     reconnectDelay = 1000
-    set({ connection: 'online' })
+    set({ connection: 'online', nextRetryAt: null })
     // Anything missed while offline: reload the lists the socket feeds.
     lastSeqs = {}
     void get().loadSessions()
@@ -518,7 +570,7 @@ function connect(
   ws.onclose = () => {
     if (socket !== ws) return
     socket = null
-    set({ connection: 'offline' })
+    set({ connection: 'offline', nextRetryAt: Date.now() + reconnectDelay })
     reconnectTimer = setTimeout(() => {
       reconnectTimer = null
       connect(get, set)
@@ -533,6 +585,27 @@ function connect(
       // ignore malformed frames
     }
   }
+}
+
+// retryNow skips the rest of the backoff: the owner asked, or the page
+// just came back (wake from sleep, network back, tab shown).
+function retryNow(get: () => SessionStore, set: (partial: Partial<SessionStore>) => void): void {
+  if (socket) return
+  reconnectDelay = 1000
+  connect(get, set)
+}
+
+// listenForWake reconnects as soon as the device can talk again, instead of
+// waiting out a backoff that grew while the laptop slept.
+function listenForWake(get: () => SessionStore, set: (partial: Partial<SessionStore>) => void): void {
+  if (wakeListening || typeof window === 'undefined') return
+  wakeListening = true
+  const wake = () => {
+    if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return
+    retryNow(get, set)
+  }
+  window.addEventListener('online', wake)
+  document.addEventListener('visibilitychange', wake)
 }
 
 // resync fetches the active session's events after chat.lastSeq and folds
@@ -557,7 +630,8 @@ async function resync(
     const history = await api.fetchEvents(id, get().chat.lastSeq)
     if (mine !== generation) return
     const chat = applyEvents(get().chat, [...history, ...live])
-    set({ chat, error: null })
+    set({ chat, history: 'ready' })
+    useNotices.getState().dismissKey('history')
   } catch (err) {
     if (mine === generation) {
       const initial = get().chat
@@ -572,7 +646,8 @@ async function resync(
       // Keep events beyond a missing prefix for the next history fetch;
       // advancing lastSeq over that gap would make replay discard it.
       retry = live.some((ev) => ev.seq > chat.lastSeq)
-      set({ chat, error: errorMessage(err) })
+      set({ chat, history: 'error' })
+      fail("Couldn't load the transcript", err, 'history')
       if (retry) resyncTimer = setTimeout(() => void resync(get, set, id), 1000)
     }
   } finally {
@@ -603,10 +678,6 @@ function dropQueued(): void {
   queuedAt = null
 }
 
-function errorMessage(err: unknown): string {
-  return err instanceof Error ? err.message : String(err)
-}
-
 // resetStore restores the initial state; used by tests.
 export function resetStore(): void {
   preferenceRequest++
@@ -614,6 +685,7 @@ export function resetStore(): void {
   modePreferenceRequests.clear()
   sessionRevision++
   sessionRevisions.clear()
+  modelsFailed.clear()
   sessionLists.reset()
   requestLists.reset()
   quotaLists.reset()
@@ -643,6 +715,9 @@ export function resetStore(): void {
     query: '',
     searchHits: [],
     models: {},
-    error: null,
+    sessionsStatus: 'loading',
+    history: 'ready',
+    searching: false,
+    nextRetryAt: null,
   })
 }

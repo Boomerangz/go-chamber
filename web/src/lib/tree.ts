@@ -52,3 +52,9 @@ export function sameNode(a: ItemNode, b: ItemNode): boolean {
   return a.item === b.item && a.children.length === b.children.length &&
     a.children.every((child, i) => sameNode(child, b.children[i]!))
 }
+
+// isBlank hides finished assistant messages without text (Codex sends
+// them, e.g. after a hook continued the turn).
+export function isBlank(item: Item): boolean {
+  return item.kind === 'assistant_message' && item.status === 'completed' && !item.text?.trim()
+}

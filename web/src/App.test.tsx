@@ -2,6 +2,7 @@ import { act, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import App from './App'
+import { notify, resetNotices } from './stores/notices'
 import * as api from './lib/api'
 import { initialChat } from './lib/events'
 import * as terminal from './lib/terminal'
@@ -34,6 +35,7 @@ const shell = (id: string, cwd: string, over: Partial<terminal.Terminal> = {}): 
 })
 
 beforeEach(() => {
+  resetNotices()
   history.replaceState(null, '', '/')
   useSessionStore.setState({ activeId: null, sessions: [], chat: initialChat() })
   localStorage.clear()
@@ -57,7 +59,7 @@ describe('App', () => {
     render(<App />)
     await screen.findByText('online')
     await new Promise((r) => setTimeout(r, 0))
-    act(() => useSessionStore.setState({ error: 'boom' }))
+    act(() => { notify({ kind: 'error', title: 'Fork failed', text: 'boom' }) })
     expect(await screen.findByText('boom')).toBeInTheDocument()
     await userEvent.click(screen.getByRole('button', { name: 'Dismiss' }))
     expect(screen.queryByText('boom')).toBeNull()

@@ -9,6 +9,7 @@ vi.mock('../lib/api', () => ({
 
 import * as api from '../lib/api'
 import { resetStore, useSessionStore } from './session'
+import { lastError, resetNotices } from './notices'
 
 const store = () => useSessionStore.getState()
 
@@ -17,6 +18,7 @@ beforeEach(() => {
   vi.clearAllMocks()
   vi.stubGlobal('WebSocket', undefined)
   resetStore()
+  resetNotices()
   ;(api.fetchEvents as Mock).mockResolvedValue([])
 })
 
@@ -27,7 +29,7 @@ describe('continue and fork', () => {
     expect(api.continueSession).toHaveBeenCalledWith('a')
     ;(api.continueSession as Mock).mockRejectedValue(new Error('nothing to continue'))
     await store().continueSession()
-    expect(store().error).toBe('nothing to continue')
+    expect(lastError()).toBe('nothing to continue')
   })
 
   it('toggles auto-continue and keeps the server copy', async () => {
@@ -38,7 +40,7 @@ describe('continue and fork', () => {
     expect(store().sessions[0].autoContinue).toBe(true)
     ;(api.setAutoContinue as Mock).mockRejectedValue(new Error('no reset time'))
     await store().setAutoContinue('a', true)
-    expect(store().error).toBe('no reset time')
+    expect(lastError()).toBe('no reset time')
   })
 
   it('forks into a new session and opens it', async () => {
@@ -49,6 +51,6 @@ describe('continue and fork', () => {
     expect(store().activeId).toBe('f')
     ;(api.forkSession as Mock).mockRejectedValue(new Error('fork before the first turn'))
     await store().forkSession('a')
-    expect(store().error).toBe('fork before the first turn')
+    expect(lastError()).toBe('fork before the first turn')
   })
 })

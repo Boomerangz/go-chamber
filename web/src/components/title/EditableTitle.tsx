@@ -4,7 +4,7 @@ interface Props {
   value: string
   // label names the thing being renamed: "session", "terminal".
   label: string
-  onRename: (title: string) => Promise<void> | void
+  onRename: (title: string) => Promise<unknown> | void
   className?: string
   // heading renders the name as an h2, keeping the button out of its name.
   heading?: boolean

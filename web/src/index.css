@@ -163,6 +163,33 @@ select.field option { background: var(--paper); color: var(--ink); }
 .status-done, .session-status-done { color: var(--ink); }
 .status-done::before, .session-status-done::before { animation: mark-land 450ms var(--ease-out); }
 
+/* busy: the "not yet settled" form (a dashed square) that breathes while
+   something is on its way. No spinners: state is form. */
+.busy-mark, .loading-line::before, .btn[aria-busy='true']::before {
+  content: ''; flex: none; display: inline-block; width: 8px; height: 8px;
+  border: 1px dashed currentColor; border-radius: 1px;
+  animation: mark-breathe 1.2s ease-in-out infinite;
+}
+.btn[aria-busy='true'] { cursor: progress; }
+.btn-primary[aria-busy='true'] { border-color: var(--act); background: var(--act); color: var(--act-ink); }
+.loading-line {
+  display: flex; align-items: center; gap: 8px;
+  font-family: var(--font-mono); font-size: 12px; color: var(--ink-3); text-transform: lowercase;
+}
+.load-failed { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; color: var(--bad); font-size: 13px; }
+/* skeleton rows: dashed hairlines where text will land */
+.skeleton { display: grid; gap: 14px; padding: 6px 8px; }
+.skeleton-row { display: grid; grid-template-columns: 20px 1fr; gap: 8px; align-items: center; }
+.skeleton-row::before { content: ''; width: 20px; height: 20px; border: 1px dashed var(--rule-strong); border-radius: var(--r); }
+.skeleton-lines { display: grid; gap: 7px; }
+.skeleton-line { height: 0; border-top: 1px dashed var(--rule-strong); width: var(--w, 70%); }
+.skeleton { animation: mark-breathe 2.4s ease-in-out infinite; }
+kbd {
+  display: inline-grid; place-items: center; min-width: 18px; height: 18px; padding: 0 4px;
+  border: 1px solid var(--rule-strong); border-radius: var(--r);
+  font-size: 11px; color: var(--ink-2); background: var(--paper);
+}
+
 /* agents are peers: a letter in a box, same weight for both */
 .avatar {
   flex: none; display: grid; place-items: center;
@@ -208,8 +235,12 @@ h1 { font-family: var(--font-mono); font-size: 14px; font-weight: 400; letter-sp
 .health-offline, .health-unauthorized { color: var(--bad); }
 .health-offline .dot, .health-unauthorized .dot { background: currentColor; }
 .health-connecting .dot { border-style: dashed; }
+button.health { border: 0; background: none; padding: 0; }
+.health-reconnecting { color: var(--ink); }
+.health-reconnecting:hover { color: var(--act); }
+.health-reconnecting .dot { border-style: dashed; animation: mark-breathe 1.2s ease-in-out infinite; }
 
-.notice { max-width: 520px; margin: 12vh auto 0; padding: 0 var(--gutter); display: grid; gap: 10px; }
+.notice { max-width: 520px; margin: 12vh auto 0; padding: 0 var(--gutter); display: grid; gap: 10px; align-content: start; }
 .notice h2 { font-size: 20px; font-weight: 600; }
 .notice p { color: var(--ink-2); }
 
@@ -837,13 +868,23 @@ h1 { font-family: var(--font-mono); font-size: 14px; font-weight: 400; letter-sp
 
 /* ---------- errors ---------- */
 .error { color: var(--bad); font-size: 13px; }
-.toast {
-  position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%); z-index: 20;
-  max-width: min(560px, calc(100vw - 32px)); padding: 9px 14px;
-  border: 1px solid var(--bad); border-radius: var(--r); background: var(--paper);
-  display: flex; align-items: center; gap: 10px;
+/* notices: a short stack under the top bar, clear of the composer */
+.notices {
+  position: fixed; top: 52px; right: 16px; z-index: 20;
+  display: grid; gap: 6px; width: min(420px, calc(100vw - 32px));
 }
-.toast-close { padding: 0 6px; min-height: 0; line-height: 1.4; }
+.toast {
+  display: flex; align-items: flex-start; gap: 10px; padding: 8px 6px 8px 12px;
+  border: 1px solid var(--rule-strong); border-radius: var(--r); background: var(--paper);
+  animation: toast-in var(--dur) var(--ease-out);
+}
+.toast-error { border-color: var(--bad); }
+.toast-body { display: grid; gap: 2px; min-width: 0; flex: 1; padding-top: 3px; }
+.toast-title { font-family: var(--font-mono); font-size: 11.5px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-2); }
+.toast-error .toast-title { color: var(--bad); }
+.toast-text { font-size: 13px; color: var(--ink); overflow-wrap: anywhere; }
+.toast-close { flex: none; }
+@keyframes toast-in { from { opacity: 0; transform: translateY(-4px); } }
 .elicitation .field-row { display: grid; gap: 4px; margin: 8px 0; }
 
 /* ---------- pane bar (mobile) ---------- */
@@ -904,7 +945,7 @@ h1 { font-family: var(--font-mono); font-size: 14px; font-weight: 400; letter-sp
   }
   .panebar button[aria-pressed='true'] { color: var(--ink); border-top-color: var(--ink); }
   .panebar .badge { position: absolute; top: 6px; right: calc(50% - 22px); }
-  .toast { bottom: calc(68px + env(safe-area-inset-bottom)); }
+  .notices { top: auto; right: 14px; left: 14px; width: auto; bottom: calc(64px + env(safe-area-inset-bottom)); }
 }
 
 @media (prefers-reduced-motion: reduce) {
