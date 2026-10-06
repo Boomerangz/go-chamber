@@ -149,7 +149,8 @@ function ShortcutHelp({ shortcuts, onClose }: { shortcuts: Shortcut[]; onClose: 
           <X {...icon(16)} />
         </button>
       </header>
-      <div className="shortcut-groups">
+      {/* the list scrolls on a short screen; it takes focus so the keys can scroll it */}
+      <div className="shortcut-groups" role="group" aria-label="All shortcuts" tabIndex={0}>
         {GROUPS.map((group) => (
           <section key={group} aria-label={group}>
             <h3 className="section-title">{group}</h3>

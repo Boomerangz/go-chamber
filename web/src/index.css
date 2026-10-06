@@ -406,8 +406,9 @@ button.health { border: 0; background: none; padding: 0; }
 .session-status-interrupted::before { background: linear-gradient(to top right, transparent 45%, currentColor 45% 60%, transparent 60%); }
 .session-status-detached { color: var(--ink-3); }
 .session-status-detached::before { border-style: dashed; }
-.session-status-waiting { color: var(--req); }
-.session-status-waiting::before { border-color: var(--req-mark); background: var(--req-mark); }
+/* waiting for the owner: the one state mark that takes the needs-you amber */
+.session-status-waiting, .status-waiting { color: var(--req); }
+.session-status-waiting::before, .status-waiting::before { border-color: var(--req-mark); background: var(--req-mark); }
 /* changed while the owner was away: the unseen label, with its dashed rule */
 .session-unseen, .group-unseen {
   flex: none; font-family: var(--font-mono); font-size: 10.5px; letter-spacing: 0.06em; text-transform: uppercase;

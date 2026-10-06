@@ -48,6 +48,14 @@ describe('Hotkeys', () => {
     expect(screen.getByRole('region', { name: 'Terminal' })).toHaveTextContent('Terminal dock on or off')
   })
 
+  it('lets the keyboard scroll the shortcut list', async () => {
+    render(<Hotkeys />)
+    await userEvent.keyboard('?')
+    const list = screen.getByRole('group', { name: 'All shortcuts' })
+    expect(list).toHaveAttribute('tabindex', '0')
+    expect(list).toHaveClass('shortcut-groups')
+  })
+
   it('jumps to a session from the switcher', async () => {
     render(<Hotkeys />)
     await userEvent.keyboard('{Control>}k{/Control}')
@@ -141,6 +149,23 @@ describe('QuickSwitcher', () => {
     const option = screen.getAllByRole('option')[0]!
     expect([...option.querySelectorAll('.switcher-title mark')].map((m) => m.textContent)).toEqual(['a', 'ph'])
     expect(option).toHaveTextContent('current')
+  })
+
+  it('marks a session that waits for the owner as waiting, not running', async () => {
+    useSessionStore.setState({
+      sessions: [{ ...session('a', 'alpha'), status: 'running' }, { ...session('b', 'beta'), status: 'running' }],
+      pendingRequests: [{ id: 'r1', sessionId: 'a', kind: 'permission', state: 'pending', title: 'Run' }],
+    } as never)
+    await openSwitcher()
+    const [first, second] = screen.getAllByRole('option')
+    expect(first!.querySelector('.switcher-mark')).toHaveClass('status-waiting')
+    expect(first!.querySelector('.switcher-mark')).not.toHaveClass('status-running')
+    expect(second!.querySelector('.switcher-mark')).toHaveClass('status-running')
+  })
+
+  it('puts the whole title on hover, since the row may cut it', async () => {
+    await openSwitcher()
+    expect(screen.getAllByRole('option')[0]!.querySelector('.switcher-title')).toHaveAttribute('title', 'alpha')
   })
 
   it('keeps a matched folder one word, marks inside it', async () => {

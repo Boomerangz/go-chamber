@@ -37,6 +37,21 @@ describe('RequestTray', () => {
     })
     render(<RequestTray />)
     expect(screen.getByRole('button', { name: /Pick one/ })).toHaveTextContent('proj')
+    // the name may be cut to the line: the whole of it is on hover
+    expect(screen.getByText('proj')).toHaveAttribute('title', 'proj')
+  })
+
+  it('names each kind as the request block does: what it requires', () => {
+    useSessionStore.setState({
+      pendingRequests: [
+        { id: 'r1', sessionId: 's1', kind: 'permission', state: 'pending', title: 'Run command' },
+        { id: 'r2', sessionId: 's1', kind: 'question', state: 'pending', title: 'Pick one' },
+        { id: 'r3', sessionId: 's1', kind: 'elicitation', state: 'pending', title: 'Fill in' },
+      ],
+    })
+    render(<RequestTray />)
+    const kinds = [...document.querySelectorAll('.request-kind')].map((k) => k.textContent)
+    expect(kinds).toEqual(['Approval', 'Answer', 'Input'])
   })
 
   it('lists requests and opens their session', async () => {

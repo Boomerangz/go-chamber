@@ -9,7 +9,8 @@ import { LoadFailed, Skeleton } from '../ui/Loading'
 import { notSent, shortcut } from './answer'
 import './RequestTray.css'
 
-const kindLabel: Record<string, string> = { permission: 'Permission', question: 'Question', elicitation: 'Input' }
+// The kind says what the request requires, as its block does ("Requires approval").
+const kindLabel: Record<string, string> = { permission: 'Approval', question: 'Answer', elicitation: 'Input' }
 
 const keyOf = (r: SessionRequest) => `${r.sessionId}/${r.id}`
 
@@ -126,6 +127,7 @@ function TrayLine({
   }
 
   const key = keyOf(r)
+  const where = session ? session.title || basename(session.cwd) : null
   return (
     <motion.li className={sending ? 'answering' : undefined} aria-busy={sending || undefined} {...arrive}>
       <button
@@ -138,7 +140,11 @@ function TrayLine({
       >
         <span className={`request-kind kind-${r.kind}`}>{kindLabel[r.kind] ?? r.kind}</span>
         <span className="request-label">{r.title || r.prompt || r.payload?.toolName}</span>
-        {session && <span className="request-session">{session.title || basename(session.cwd)}</span>}
+        {where && (
+          <span className="request-session" title={where}>
+            {where}
+          </span>
+        )}
       </button>
       {r.kind === 'permission' && (
         <TrayActions

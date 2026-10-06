@@ -98,12 +98,20 @@ function Splitter(props: {
   const { grows, measure, onChange } = props
   const drag = useRef<{ x: number; width: number } | null>(null)
   const clamp = (px: number) => Math.min(props.max, Math.max(props.min, px))
+  // A separator always says where it stands: the remembered width, else the
+  // column as laid out (measured once it and its anchor are on screen).
+  const [measured, setMeasured] = useState<number>()
+  useEffect(() => {
+    // eslint-disable-next-line react/set-state-in-effect -- the width is read from the laid-out DOM
+    if (props.value === undefined) setMeasured(Math.round(measure()))
+  }, [props.value, measure])
+  const now = props.value ?? (measured === undefined ? undefined : clamp(measured))
   return (
     <div
       role="separator"
       aria-orientation="vertical"
       aria-label={props.label}
-      aria-valuenow={props.value}
+      aria-valuenow={now}
       aria-valuemin={props.min}
       aria-valuemax={props.max}
       tabIndex={0}
