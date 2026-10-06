@@ -70,6 +70,9 @@
 }
 .live-strip .btn { margin-left: auto; }
 .composer-note { align-self: center; font-family: var(--font-mono); font-size: 12px; color: var(--ink-3); white-space: nowrap; }
+/* the send shortcut, kept beside Send once the placeholder is gone */
+.composer-keys { display: inline-flex; gap: 2px; align-self: center; margin-left: 2px; }
+.composer-keys kbd { color: var(--ink-3); }
 
 @media (max-width: 720px) {
   /* a phone keeps the screen for the transcript: the title with "⋯", then

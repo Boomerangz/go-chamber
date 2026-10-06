@@ -39,6 +39,8 @@ const ECHO_MS = 30_000
 // A stop the agent hasn't answered in this long stops looking busy, so it
 // can be pressed again.
 const STOP_HOLD_MS = 10_000
+// Past this many lines the composer says how long the message is.
+const LONG_DRAFT_LINES = 20
 
 // PendingSend is a message accepted (or on its way) that the transcript
 // doesn't show yet.
@@ -122,7 +124,6 @@ export default function Chat() {
     }
     return texts
   }, [chat.order, chat.items])
-  const lastUserText = [...sent].reverse().find((t) => t) || undefined
 
   // A message shows as on its way from submit until the agent records it.
   const [pendingSends, setPendingSends] = useState<PendingSend[]>([])
@@ -285,7 +286,9 @@ export default function Chat() {
   const sendLabel = attachments.uploading && !busy ? 'Uploading…' : submitting ? (busy ? 'Steering…' : 'Sending…') : busy ? 'Steer' : 'Send'
   const sendBusy = submitting || (attachments.uploading && !busy)
   const mod = isMac() ? '⌘' : 'Ctrl+'
-  const placeholder = busy ? 'Steer the running turn…' : narrow ? 'Message the agent…' : `Message the agent…  ${mod}↵ to send`
+  const placeholder = busy ? 'Steer the running turn…' : 'Message the agent…'
+  // A long message says how long it is; the box itself stops growing.
+  const lines = text ? text.split('\n').length : 0
 
   return (
     <section className="chat panel">
@@ -411,7 +414,7 @@ export default function Chat() {
           onEscape={() => {
             if (!text) stopRef.current()
           }}
-          recall={busy ? undefined : lastUserText}
+          history={sent}
           placeholder={placeholder}
         />
         <div className="composer-actions">
@@ -432,7 +435,21 @@ export default function Chat() {
               {stopping ? 'Stopping…' : 'Stop'}
             </button>
           )}
-          <button type="submit" className="btn btn-primary" aria-busy={sendBusy} disabled={empty && !sendBusy}>
+          {lines > LONG_DRAFT_LINES && <span className="composer-note composer-lines">{lines} lines</span>}
+          {!narrow && (
+            <span className="composer-keys" aria-hidden="true">
+              <kbd>{mod.replace('+', '')}</kbd>
+              <kbd>↵</kbd>
+            </span>
+          )}
+          <button
+            type="submit"
+            className="btn btn-primary"
+            aria-busy={sendBusy}
+            disabled={empty && !sendBusy}
+            title={`${busy ? 'Steer' : 'Send'} (${mod}↵)`}
+            aria-keyshortcuts={isMac() ? 'Meta+Enter' : 'Control+Enter'}
+          >
             {sendLabel}
           </button>
         </div>

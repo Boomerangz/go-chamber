@@ -198,6 +198,32 @@ describe('sending', () => {
     expect(box()).toHaveValue('fix the tests')
   })
 
+  it('names the send shortcut on the button and beside it', async () => {
+    setup()
+    await userEvent.type(box(), 'hi')
+    expect(screen.getByRole('button', { name: 'Send' })).toHaveAttribute('title', 'Send (Ctrl+↵)')
+    expect(document.querySelector('.composer-keys')).toHaveTextContent('Ctrl↵')
+  })
+
+  it('says how long a long message is', () => {
+    localStorage.setItem('gc.draft:s1', Array.from({ length: 21 }, (_, i) => `line ${i}`).join('\n'))
+    setup()
+    expect(document.querySelector('.composer-lines')).toHaveTextContent('21 lines')
+  })
+
+  it('stays quiet about length for a short message', async () => {
+    setup()
+    await userEvent.type(box(), 'one{Shift>}{Enter}{/Shift}two')
+    expect(document.querySelector('.composer-lines')).toBeNull()
+  })
+
+  it('walks back through the messages sent in this session', async () => {
+    setup({ chat: chatOf([item('u1', 'user_message', { text: 'first' }), item('a1', 'assistant_message'), item('u2', 'user_message', { text: 'second' })]) })
+    box().focus()
+    await userEvent.keyboard('{ArrowUp}{ArrowUp}')
+    expect(box()).toHaveValue('first')
+  })
+
   it('takes images only with a new message, not a steer', () => {
     setup({ chat: running() })
     expect(screen.getByRole('button', { name: 'Attach' })).toHaveAttribute('title', 'Images go with the next message')

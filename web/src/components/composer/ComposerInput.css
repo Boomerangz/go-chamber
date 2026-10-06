@@ -10,6 +10,8 @@
 .completions-note {
   padding: 6px 12px; font-family: var(--font-mono); font-size: 12px; color: var(--ink-3);
 }
+/* the last suggestions while the next lookup runs: kept, dimmed */
+.completions.stale li { opacity: 0.55; }
 /* a quick answer never flashes "searching…" */
 .completions-note.searching { animation: completions-wait 0s linear 180ms backwards; }
 @keyframes completions-wait { from { visibility: hidden; } }
