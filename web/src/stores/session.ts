@@ -70,6 +70,8 @@ export interface SessionStore {
   // createSession starts a session in cwd, or in a new worktree on branch chamber/<branch>.
   createSession: (agent: api.AgentKind, cwd: string, branch?: string) => Promise<boolean>
   selectSession: (id: string) => Promise<void>
+  // closeSession leaves the open session for the empty workspace.
+  closeSession: () => void
   send: (text: string, images?: string[]) => Promise<boolean>
   steer: (text: string) => Promise<boolean>
   interrupt: () => Promise<boolean>
@@ -387,6 +389,8 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     await resync(get, set, id)
   },
 
+  closeSession: () => closeChat(set),
+
   async send(text, images) {
     const id = get().activeId
     if (!id || (!text.trim() && !images?.length)) return false
@@ -628,6 +632,15 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
   },
 }))
 
+// closeChat empties the workspace, superseding the open chat's history
+// fetch and live queue.
+function closeChat(set: (partial: Partial<SessionStore>) => void): void {
+  generation++
+  buffered = null
+  dropQueued()
+  set({ activeId: null, chat: initialChat(), history: 'ready', historyError: null })
+}
+
 // removeSession forgets a deleted session and the subagents below it, with
 // their requests. If it was open, the workspace returns to the empty state.
 function removeSession(get: () => SessionStore, set: (partial: Partial<SessionStore>) => void, id: string): void {
@@ -655,11 +668,8 @@ function removeSession(get: () => SessionStore, set: (partial: Partial<SessionSt
     pendingRequests: dropped.length ? pendingRequests.filter((r) => !gone.has(r.sessionId)) : pendingRequests,
   })
   if (!activeId || !gone.has(activeId)) return
-  // Supersede the open chat's history fetch and live queue.
-  generation++
-  buffered = null
-  dropQueued()
-  set({ activeId: null, chat: initialChat(), history: 'ready', historyError: null, pane: 'sessions' })
+  closeChat(set)
+  set({ pane: 'sessions' })
   if (typeof location === 'undefined') return
   const route = parseRoute(location.pathname)
   if (route.kind === 'session' && gone.has(route.id)) window.history.replaceState(null, '', '/' + location.search)

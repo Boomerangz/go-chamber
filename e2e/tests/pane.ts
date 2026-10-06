@@ -26,3 +26,11 @@ export async function showSessionDetails(page: Page) {
   const more = page.getByRole('button', { name: 'session details' })
   if ((await more.isVisible()) && (await more.getAttribute('aria-expanded')) !== 'true') await more.click()
 }
+
+// openNewSession unfolds the new-session form on a phone, where it folds to
+// one line so the sessions own the screen; elsewhere it is a no-op.
+export async function openNewSession(page: Page) {
+  const open = page.locator('.new-session-open')
+  await open.waitFor({ state: 'attached' })
+  if ((await open.isVisible()) && (await open.getAttribute('aria-expanded')) === 'false') await open.click()
+}

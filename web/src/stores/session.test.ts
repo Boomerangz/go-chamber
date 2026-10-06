@@ -51,6 +51,20 @@ beforeEach(() => {
 })
 
 describe('session store', () => {
+  it('closes the open session, ignoring its history that arrives later', async () => {
+    let answer: (items: SessionEvent[]) => void = () => {}
+    ;(api.fetchEvents as Mock).mockReturnValueOnce(new Promise((r) => (answer = r)))
+    useSessionStore.setState({ sessions: [{ id: 'a', agent: 'claude', cwd: '/p', status: 'idle' }] })
+    const opening = store().selectSession('a')
+    store().closeSession()
+    expect(store().activeId).toBeNull()
+    expect(store().history).toBe('ready')
+    answer([event({ seq: 1 })])
+    await opening
+    expect(store().activeId).toBeNull()
+    expect(store().chat.order).toEqual([])
+  })
+
   it('matches a reloaded session list to existing sessions in linear work', async () => {
     let idReads = 0
     const sessions: Session[] = Array.from({ length: 1000 }, (_, i) => ({

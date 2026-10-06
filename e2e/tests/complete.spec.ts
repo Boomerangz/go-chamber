@@ -3,7 +3,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { token } from '../playwright.config'
-import { showPane } from './pane'
+import { openNewSession, showPane } from './pane'
 
 test('completes @files and /commands in the composer', async ({ page }) => {
   const dir = fs.realpathSync(fs.mkdtempSync(`${os.tmpdir()}/gc-complete-`))
@@ -13,6 +13,7 @@ test('completes @files and /commands in the composer', async ({ page }) => {
 
   await page.goto(`/?token=${token}`)
   await showPane(page, 'Sessions')
+  await openNewSession(page)
   await page.getByRole('radio', { name: 'Claude' }).click()
   await page.getByLabel('working directory').fill(dir)
   await page.getByRole('button', { name: 'New session', exact: true }).click()

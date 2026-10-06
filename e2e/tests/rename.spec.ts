@@ -1,10 +1,11 @@
 import { expect, test } from '@playwright/test'
 import { token } from '../playwright.config'
-import { showShells } from './pane'
+import { openNewSession, showShells } from './pane'
 
 test('names a session and a terminal', async ({ page }, info) => {
   const name = `Release notes ${info.project.name}`
   await page.goto(`/?token=${token}`)
+  await openNewSession(page)
   await page.getByLabel('working directory').fill('/tmp')
   await page.getByRole('button', { name: 'New session', exact: true }).click()
   await page.getByRole('button', { name: 'Rename session' }).click()

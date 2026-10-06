@@ -80,6 +80,12 @@ export default function SessionList({ onCreateIn, agent = 'claude', creating = f
     return groupSessions(withParents)
   }, [sessions, query, searching])
 
+  // A session already listed for its title isn't listed again under messages.
+  const shownIds = useMemo(
+    () => new Set(searching ? sessions.filter((s) => matchesQuery(s, query)).map((s) => s.id) : []),
+    [sessions, query, searching],
+  )
+
   const pendingBySession = useMemo(() => {
     const m = new Map<string, number>()
     for (const r of pending) m.set(r.sessionId, (m.get(r.sessionId) ?? 0) + 1)
@@ -150,7 +156,7 @@ export default function SessionList({ onCreateIn, agent = 'claude', creating = f
         )}
         {searching && (
           <MessageHits
-            hits={searchHits}
+            hits={searchHits.filter((h) => !shownIds.has(h.sessionId))}
             sessions={sessions}
             activeId={activeId}
             onSelect={(id) => void selectSession(id)}
@@ -308,7 +314,12 @@ function SessionRow(props: {
           </span>
           <span className="session-meta">
             {waiting > 0 ? (
-              <span className="session-status session-status-waiting">waiting for you</span>
+              <>
+                <span className="session-status session-status-waiting">waiting for you</span>
+                <span className="badge" title="Requests waiting for you">
+                  {waiting}
+                </span>
+              </>
             ) : (
               (s.status === 'running' || s.status === 'interrupted' || finished) && (
                 <span className={`session-status session-status-${finished ? 'done' : s.status}`}>{finished ? 'done' : s.status}</span>
@@ -317,6 +328,10 @@ function SessionRow(props: {
             {s.status === 'detached' && !finished && waiting === 0 && (
               // Most sessions rest detached; the dashed mark alone says so.
               <span className="session-status session-status-detached" role="img" aria-label="detached" title="detached · resumes when you write" />
+            )}
+            {s.status === 'idle' && !finished && waiting === 0 && (
+              // Idle is a resting state too: the hollow mark alone.
+              <span className="session-status session-status-idle" role="img" aria-label="idle" title="idle · waiting for your next message" />
             )}
             {unseen && (
               <span className="session-unseen" title="Changed since you last opened it">
@@ -331,7 +346,6 @@ function SessionRow(props: {
             <span className="session-time">{relativeTime(s.activeAt ?? s.createdAt, new Date(props.now))}</span>
           </span>
         </span>
-        <span className="session-badge">{waiting > 0 && <span className="badge">{waiting}</span>}</span>
       </button>
       <SessionMenu session={s} />
       {props.node.children.length > 0 && (

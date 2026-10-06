@@ -2,7 +2,7 @@ import { expect, test, type Page } from '@playwright/test'
 import fs from 'node:fs'
 import os from 'node:os'
 import { token } from '../playwright.config'
-import { showPane } from './pane'
+import { openNewSession, showPane } from './pane'
 
 // A 1x1 transparent PNG.
 const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==', 'base64')
@@ -10,6 +10,7 @@ const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR
 async function newSession(page: Page, agent: 'Claude' | 'Codex') {
   const dir = fs.realpathSync(fs.mkdtempSync(`${os.tmpdir()}/gc-img-`))
   await showPane(page, 'Sessions')
+  await openNewSession(page)
   await page.getByRole('radio', { name: agent }).click()
   await page.getByLabel('working directory').fill(dir)
   await page.getByRole('button', { name: 'New session', exact: true }).click()

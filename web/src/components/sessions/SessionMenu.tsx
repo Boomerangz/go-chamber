@@ -20,6 +20,22 @@ type Step = 'menu' | 'rename' | 'delete'
 
 const EDGE = 8
 
+// neighbourOf finds where focus goes once a row leaves the list (archived,
+// unarchived or deleted): the next row, else the previous one. Rows nested
+// in the leaving one leave with it.
+function neighbourOf(trigger: React.RefObject<HTMLElement | null>): () => void {
+  const item = trigger.current?.parentElement
+  const rows = [...document.querySelectorAll<HTMLElement>('button.session')]
+  const own = item?.querySelector<HTMLElement>(':scope > button.session')
+  const at = own ? rows.indexOf(own) : -1
+  const others = (list: HTMLElement[]) => list.filter((r) => !item?.contains(r))
+  const next = at < 0 ? [] : [...others(rows.slice(at + 1)), ...others(rows.slice(0, at)).reverse()]
+  return () => {
+    const target = next.find((r) => r.isConnected) ?? document.querySelector<HTMLElement>('input[aria-label="search sessions"]')
+    target?.focus()
+  }
+}
+
 // SessionMenu is a session row's "⋯" button and its menu: Rename, Archive
 // or Unarchive, and Delete after an in-place question. Right-clicking the
 // row (the list item the menu sits in) opens it too. It renders next to
@@ -113,18 +129,26 @@ function MenuSheet(props: {
   const deleteSession = useSessionStore((s) => s.deleteSession)
   const [archive, archiving] = usePending(
     useCallback(async () => {
+      const refocus = neighbourOf(trigger)
       const ok = await (archived ? unarchiveSession(session.id) : archiveSession(session.id))
-      if (ok) onClose()
+      if (ok) {
+        onClose()
+        refocus()
+      }
       return ok
-    }, [archived, archiveSession, unarchiveSession, onClose, session.id]),
+    }, [archived, archiveSession, unarchiveSession, onClose, session.id, trigger]),
   )
   // A deleted session's row leaves with its menu: stay busy until then.
   const [remove, deleting] = usePending(
     useCallback(async () => {
+      const refocus = neighbourOf(trigger)
       const ok = await deleteSession(session.id)
-      if (ok) onClose()
+      if (ok) {
+        onClose()
+        refocus()
+      }
       return ok
-    }, [deleteSession, onClose, session.id]),
+    }, [deleteSession, onClose, session.id, trigger]),
     { holdOnSuccess: true },
   )
 

@@ -22,13 +22,26 @@ function duration(minutes: number): string {
   return `${minutes}m`
 }
 
-// resetLabel tells how long until a window resets, or null when unknown.
-export function resetLabel(resetsAt: string | undefined, now: Date = new Date()): string | null {
+function resetTime(resetsAt: string | undefined): Date | null {
   if (!resetsAt) return null
   const at = new Date(resetsAt)
-  if (Number.isNaN(at.getTime()) || at.getUTCFullYear() < 2000) return null
+  return Number.isNaN(at.getTime()) || at.getUTCFullYear() < 2000 ? null : at
+}
+
+// hasReset tells a window whose reset time has passed: the usage reported
+// before it is old until fresh numbers arrive.
+export function hasReset(resetsAt: string | undefined, now: Date = new Date()): boolean {
+  const at = resetTime(resetsAt)
+  return at !== null && at.getTime() <= now.getTime()
+}
+
+// resetLabel tells how long until a window resets ("reset" once it has),
+// or null when unknown.
+export function resetLabel(resetsAt: string | undefined, now: Date = new Date()): string | null {
+  const at = resetTime(resetsAt)
+  if (!at) return null
   const ms = at.getTime() - now.getTime()
-  if (ms <= 0) return 'resets now'
+  if (ms <= 0) return 'reset'
   const mins = Math.max(1, Math.floor(ms / 60_000))
   const days = Math.floor(mins / 1440)
   const hours = Math.floor((mins % 1440) / 60)

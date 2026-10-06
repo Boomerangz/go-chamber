@@ -4,7 +4,7 @@ import { mkdtempSync, realpathSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { token } from '../playwright.config'
-import { showPane } from './pane'
+import { openNewSession, showPane } from './pane'
 
 const env = { ...process.env, GIT_AUTHOR_NAME: 't', GIT_AUTHOR_EMAIL: 't@t', GIT_COMMITTER_NAME: 't', GIT_COMMITTER_EMAIL: 't@t' }
 
@@ -22,6 +22,7 @@ test('works in a new worktree and shows its changes', async ({ page }, info) => 
   const branch = `e2e-${info.project.name}`
   await page.goto(`/?token=${token}`)
   await showPane(page, 'Sessions')
+  await openNewSession(page)
   await page.getByLabel('working directory').fill(repo)
   await page.getByLabel('In a new worktree').check()
   await page.getByLabel('branch name').fill(branch)

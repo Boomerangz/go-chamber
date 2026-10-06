@@ -191,6 +191,39 @@ describe('what changed while you were away', () => {
 })
 
 describe('state on the row', () => {
+  it('does not list a session again under "In messages" when its title already matched', () => {
+    useSessionStore.setState({
+      query: 'needle',
+      sessions: [session('s1', 'needle work'), session('s2', 'Other')],
+      searchHits: [
+        { sessionId: 's1', itemId: 'i1', snippet: 'a [[needle]] here', matches: 1 },
+        { sessionId: 's2', itemId: 'i2', snippet: 'one [[needle]] too', matches: 1 },
+      ],
+    })
+    render(<SessionList onCreateIn={() => {}} />)
+    const hits = screen.getByRole('region', { name: 'Message matches' })
+    expect([...hits.querySelectorAll('.session-title')].map((e) => e.textContent)).toEqual(['Other'])
+    expect(screen.getAllByText('needle work')).toHaveLength(1)
+  })
+
+  it('draws an idle session with the hollow mark', () => {
+    useSessionStore.setState({ sessions: [session('s1', 'One')] })
+    render(<SessionList onCreateIn={() => {}} />)
+    const mark = document.querySelector('.session-status-idle')!
+    expect(mark).toBeInTheDocument()
+    expect(mark).toHaveAccessibleName('idle')
+  })
+
+  it('keeps the request count beside the state, clear of the row menu', () => {
+    useSessionStore.setState({
+      sessions: [session('s2', 'Asks')],
+      pendingRequests: [{ id: 'r1', sessionId: 's2', kind: 'permission' } as never],
+    })
+    render(<SessionList onCreateIn={() => {}} />)
+    const meta = screen.getByText('Asks').closest('button')!.querySelector('.session-meta')!
+    expect(meta.querySelector('.badge')).toHaveTextContent('1')
+  })
+
   it('draws a detached session with the dashed mark', () => {
     useSessionStore.setState({ sessions: [{ ...session('s1', 'One'), status: 'detached' }] })
     render(<SessionList onCreateIn={() => {}} />)

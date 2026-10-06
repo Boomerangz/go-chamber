@@ -1,9 +1,11 @@
 import { expect, test } from '@playwright/test'
 import { token } from '../playwright.config'
+import { openNewSession } from './pane'
 
 test('a reload keeps the open session and terminal, Back returns', async ({ page }, info) => {
   const text = `route ${info.project.name}`
   await page.goto(`/?token=${token}`)
+  await openNewSession(page)
   await page.getByLabel('working directory').fill('/tmp')
   await page.getByRole('button', { name: 'New session', exact: true }).click()
   await page.getByLabel('message').fill(text)

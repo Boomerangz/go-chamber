@@ -1,12 +1,13 @@
 import { expect, test } from '@playwright/test'
 import { token } from '../playwright.config'
-import { showPane, showSessionDetails } from './pane'
+import { openNewSession, showPane, showSessionDetails } from './pane'
 
 // A long unbreakable session title must be ellipsized, not widen the page
 // (on mobile that zooms the whole UI out and shifts every control).
 test('long session paths do not overflow the viewport', async ({ page }, info) => {
   const cwd = `/tmp/${'very-long-directory-name-'.repeat(6)}${info.project.name}`
   await page.goto(`/?token=${token}`)
+  await openNewSession(page)
   await page.getByLabel('working directory').fill(cwd)
   await page.getByRole('button', { name: 'New session', exact: true }).click()
   const width = page.viewportSize()!.width

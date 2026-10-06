@@ -3,7 +3,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { token } from '../playwright.config'
-import { showSessionDetails } from './pane'
+import { openNewSession, showSessionDetails } from './pane'
 
 // The picker browses the server's real filesystem.
 test('picks a session folder with the folder picker', async ({ page }) => {
@@ -13,6 +13,7 @@ test('picks a session folder with the folder picker', async ({ page }) => {
   fs.mkdirSync(path.join(root, '.secret'))
 
   await page.goto(`/?token=${token}`)
+  await openNewSession(page)
   await page.getByRole('button', { name: 'Browse' }).first().click()
   const picker = page.getByRole('dialog', { name: 'Choose a folder' })
   // Parallel projects share the server, so recent-folder chips may repeat names.

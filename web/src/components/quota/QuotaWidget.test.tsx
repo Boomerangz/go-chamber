@@ -28,6 +28,21 @@ beforeEach(() => {
 afterEach(() => vi.useRealTimers())
 
 describe('QuotaWidget', () => {
+  it('says a window whose reset time passed has reset, and marks its percentage as old', () => {
+    useSessionStore.setState({
+      quotasStatus: 'ready',
+      quotas: [{ ...snapshot(), windows: [{ name: 'primary', usedPct: 30, status: '300m', resetsAt: '2020-01-01T00:00:00Z' } as api.QuotaWindow] }],
+    })
+    render(<QuotaWidget />)
+    const pcts = document.querySelectorAll('.pct')
+    expect(pcts.length).toBeGreaterThan(0)
+    for (const pct of pcts) {
+      expect(pct).toHaveAttribute('data-stale')
+      expect(pct).toHaveAttribute('title', expect.stringContaining('before the reset'))
+    }
+    expect(screen.getAllByText(/· reset$|^reset$/).length).toBeGreaterThan(0)
+  })
+
   it('keeps its line while no quotas are known', () => {
     useSessionStore.setState({ quotasStatus: 'ready' })
     render(<QuotaWidget />)

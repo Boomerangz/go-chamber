@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test'
 import { token } from '../playwright.config'
+import { openNewSession } from './pane'
 
 test('chimes when the agent asks for a decision once sounds are on', async ({ page }, info) => {
   // count synthesized tones instead of listening for them
@@ -19,6 +20,7 @@ test('chimes when the agent asks for a decision once sounds are on', async ({ pa
   await expect(toggle).toHaveAttribute('aria-pressed', 'true')
   await expect.poll(() => page.evaluate(() => (window as unknown as { tones: number }).tones)).toBe(1)
 
+  await openNewSession(page)
   await page.getByLabel('working directory').fill('/tmp')
   await page.getByRole('button', { name: 'New session', exact: true }).click()
   await page.getByLabel('message').fill(`sound ${info.project.name} ${Date.now()}: please permission`)

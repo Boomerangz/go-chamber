@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
 import { token } from '../playwright.config'
-import { showPane } from './pane'
+import { openNewSession, showPane } from './pane'
 
 // menuFor opens a session row's "⋯" menu in the sidebar.
 async function menuFor(page: Page, name: string) {
@@ -12,6 +12,7 @@ async function menuFor(page: Page, name: string) {
 test('archives, unarchives and deletes a session, live in another tab', async ({ page, context }, info) => {
   const name = `Put away ${info.project.name} ${info.repeatEachIndex}`
   await page.goto(`/?token=${token}`)
+  await openNewSession(page)
   await page.getByLabel('working directory').fill('/tmp')
   await page.getByRole('button', { name: 'New session', exact: true }).click()
   await page.getByRole('button', { name: 'Rename session' }).click()

@@ -1,9 +1,10 @@
 import { expect, test } from '@playwright/test'
 import { token } from '../playwright.config'
-import { showPane } from './pane'
+import { openNewSession, showPane } from './pane'
 
 test('shows codex quota bars and session usage', async ({ page }) => {
   await page.goto(`/?token=${token}`)
+  await openNewSession(page)
   await page.getByRole('radio', { name: 'Codex' }).click()
   await page.getByLabel('working directory').fill('/tmp')
   await page.getByRole('button', { name: 'New session', exact: true }).click()
@@ -22,6 +23,7 @@ test('shows codex quota bars and session usage', async ({ page }) => {
 
 test('shows claude quota bars', async ({ page }) => {
   await page.goto(`/?token=${token}`)
+  await openNewSession(page)
   await page.getByLabel('working directory').fill('/tmp')
   await page.getByRole('button', { name: 'New session', exact: true }).click()
   await expect(page.getByLabel('message')).toBeVisible()

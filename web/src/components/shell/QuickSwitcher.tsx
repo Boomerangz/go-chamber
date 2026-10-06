@@ -111,7 +111,11 @@ export default function QuickSwitcher({ onClose }: { onClose: () => void }) {
               {entry.current && <span className="switcher-current">current</span>}
             </span>
             <span className="switcher-detail" title={entry.kind === 'new' ? entry.cwd : undefined}>
-              {entry.kind === 'new' ? null : <Marked text={entry.detail} hits={entry.detailHits} />}
+              {entry.kind === 'new' ? null : (
+                <span className="switcher-path">
+                  <Marked text={entry.detail} hits={entry.detailHits} />
+                </span>
+              )}
               {entry.at && <span className="switcher-time">{relativeTime(entry.at, new Date(now))}</span>}
             </span>
             {entry.waiting > 0 ? <span className="badge">{entry.waiting}</span> : <span />}

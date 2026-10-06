@@ -164,7 +164,8 @@ export default function FolderPicker({ start = '', recent = [], onPick, onClose 
                 >
                   {c.label}
                 </button>
-                {i < all.length - 1 && <span aria-hidden="true">/</span>}
+                {/* the root is a slash already: no second one after it */}
+                {i < all.length - 1 && c.label !== '/' && <span aria-hidden="true">/</span>}
               </span>
             ))}
           </nav>
@@ -207,7 +208,7 @@ export default function FolderPicker({ start = '', recent = [], onPick, onClose 
                 <button type="button" className="chip" title={`Use ${p}`} onClick={() => onPick(p)}>
                   {basename(p)}
                 </button>
-                <button type="button" className="btn btn-ghost btn-icon recent-open" aria-label={`Open ${p}`} title={`Open ${p}`} onClick={() => go(p)}>
+                <button type="button" className="btn btn-ghost btn-icon recent-open" aria-label={`Browse inside ${p}`} title={`Browse inside ${p}`} onClick={() => go(p)}>
                   <FolderOpen {...icon(13)} />
                 </button>
               </span>

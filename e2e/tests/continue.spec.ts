@@ -1,11 +1,12 @@
 import { expect, test } from '@playwright/test'
 import { token } from '../playwright.config'
-import { showSessionDetails } from './pane'
+import { openNewSession, showSessionDetails } from './pane'
 
 async function newSession(page: import('@playwright/test').Page, agent: 'Claude' | 'Codex' = 'Claude') {
   await page.goto(`/?token=${token}`)
   const bar = page.getByRole('navigation', { name: 'Views' })
   if (await bar.isVisible()) await bar.getByRole('button', { name: /^Sessions/ }).click()
+  await openNewSession(page)
   await page.getByRole('radio', { name: agent }).click()
   await page.getByLabel('working directory').fill('/tmp')
   await page.getByRole('button', { name: 'New session', exact: true }).click()

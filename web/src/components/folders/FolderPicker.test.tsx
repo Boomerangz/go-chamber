@@ -106,8 +106,18 @@ describe('FolderPicker', () => {
     await screen.findByRole('button', { name: 'dev' })
     await userEvent.click(screen.getByLabelText('Hidden'))
     expect(api.listFolders).toHaveBeenLastCalledWith('/Users/me', true)
-    await userEvent.click(screen.getByRole('button', { name: 'Open /tmp' }))
+    const browse = screen.getByRole('button', { name: 'Browse inside /tmp' })
+    expect(browse).toHaveAttribute('title', 'Browse inside /tmp')
+    await userEvent.click(browse)
     expect(api.listFolders).toHaveBeenLastCalledWith('/tmp', true)
+  })
+
+  it('reads a path outside home as / tmp, with one slash after the root', async () => {
+    setup({ recent: ['/tmp'] })
+    await screen.findByRole('button', { name: 'dev' })
+    await userEvent.click(screen.getByRole('button', { name: 'Browse inside /tmp' }))
+    const nav = await screen.findByRole('navigation', { name: 'Folder path' })
+    await waitFor(() => expect(nav).toHaveTextContent(/^\/tmp$/))
   })
 
   it('picks a recent folder with one click', async () => {

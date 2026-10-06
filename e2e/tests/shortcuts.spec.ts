@@ -1,7 +1,9 @@
 import { expect, test } from '@playwright/test'
 import { token } from '../playwright.config'
+import { openNewSession } from './pane'
 
 async function startSession(page: import('@playwright/test').Page, text: string) {
+  await openNewSession(page)
   await page.getByLabel('working directory').fill('/tmp')
   await page.getByRole('button', { name: 'New session', exact: true }).click()
   // The previous chat stays on screen until the new one opens.

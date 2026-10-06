@@ -49,6 +49,48 @@ function Row({ session = base, child }: { session?: Session; child?: Session }) 
 
 const trigger = (title = 'Release notes') => screen.getByRole('button', { name: `Actions for ${title}` })
 
+// List renders sibling rows; an archived or deleted row leaves the list.
+function List({ gone = [] as string[] }) {
+  const rows: Session[] = [base, { ...base, id: 's2', title: 'Second' }, { ...base, id: 's3', title: 'Third' }]
+  return (
+    <ul>
+      {rows
+        .filter((s) => !gone.includes(s.id))
+        .map((s) => (
+          <li key={s.id}>
+            <button className="session">{s.title}</button>
+            <SessionMenu session={s} />
+          </li>
+        ))}
+    </ul>
+  )
+}
+
+describe('SessionMenu focus after the row leaves', () => {
+  it('moves focus to the next row once archived', async () => {
+    const view = render(<List />)
+    actions.archiveSession.mockImplementation(async () => {
+      view.rerender(<List gone={['s2']} />)
+      return true
+    })
+    await userEvent.click(trigger('Second'))
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Archive' }))
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Third' })).toHaveFocus())
+  })
+
+  it('moves focus to the previous row when the last one is deleted', async () => {
+    const view = render(<List />)
+    actions.deleteSession.mockImplementation(async () => {
+      view.rerender(<List gone={['s3']} />)
+      return true
+    })
+    await userEvent.click(trigger('Third'))
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Delete…' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Delete' }))
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Second' })).toHaveFocus())
+  })
+})
+
 describe('SessionMenu', () => {
   it('opens from its button with the first item focused, and Escape closes it', async () => {
     render(<Row />)

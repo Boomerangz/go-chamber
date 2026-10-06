@@ -158,7 +158,7 @@ describe('App', () => {
     mockApi()
     render(<App />)
     await userEvent.click((await screen.findAllByRole('button', { name: 'Sign out' }))[0]!)
-    expect(screen.getByText("Sign out? You'll need the access token again.")).toBeInTheDocument()
+    expect(screen.getByText('Sign out?')).toBeInTheDocument()
     const confirm = screen.getAllByRole('button', { name: 'Sign out' }).find((b) => b.getAttribute('type') === 'submit')!
     const form = confirm.closest('form')!
     expect(form).toHaveAttribute('method', 'post')

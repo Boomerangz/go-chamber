@@ -209,14 +209,17 @@ kbd {
   height: 44px; padding: 0 var(--gutter); border-bottom: 1px solid var(--rule);
 }
 .topbar > :last-child { justify-self: end; }
-.topbar-end { display: flex; align-items: center; gap: 10px; }
+.topbar-end { grid-column: 3; display: flex; align-items: center; gap: 10px; }
 @media (max-width: 720px) { .topbar-end .signout, .focus-toggle, .shortcuts-help { display: none; } }
 .shortcuts-help { font-family: var(--font-mono); font-size: 13px; }
 /* signing out asks once, in place */
-.signout-confirm { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.signout-confirm { display: flex; align-items: center; gap: 6px; white-space: nowrap; }
+.sidebar-signout.signout-confirm { justify-content: center; }
 .signout-question { font-size: 12.5px; color: var(--ink-2); }
 .focus-toggle[aria-pressed='true'] { color: var(--ink); border-color: var(--ink); }
-.brand { display: flex; align-items: baseline; gap: 10px; }
+.brand { display: flex; align-items: center; gap: 12px; }
+.show-sessions { display: inline-flex; align-items: center; gap: 4px; }
+@media (max-width: 720px) { .show-sessions { display: none; } }
 h1 { font-family: var(--font-mono); font-size: 14px; font-weight: 400; letter-spacing: 0.01em; }
 
 .segmented.mode-switch { display: flex; gap: 0; align-self: stretch; border: 0; border-radius: 0; background: none; }
@@ -278,6 +281,25 @@ button.health { border: 0; background: none; padding: 0; }
 .sidebar > * { margin-left: 14px; margin-right: 14px; }
 .new-session { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; }
 .new-session .btn-primary { width: 100%; }
+/* phones fold the form to this one line; wider screens never show it */
+.new-session-open {
+  display: none; align-items: center; gap: 8px; height: 40px; padding: 0 2px;
+  border: 0; border-bottom: 1px solid var(--rule); background: none; text-align: left;
+  font-family: var(--font-mono); font-size: 12.5px; color: var(--ink);
+}
+.new-session-open .chevron { transform: rotate(-90deg); }
+.new-session-open[aria-expanded='true'] .chevron { transform: none; }
+@media (max-width: 720px) {
+  .new-session-open { display: flex; }
+  .new-session[data-folded] > :not(.new-session-open) { display: none; }
+}
+/* the sessions, archived and history read as one column that scrolls under
+   a pinned search, so no part squeezes another */
+.sidebar-body {
+  flex: 1; min-height: 0; overflow: auto; margin: 0;
+  display: flex; flex-direction: column; gap: 12px; scroll-padding-top: 44px;
+}
+.sidebar-body > .session-search { flex: none; position: sticky; top: 0; z-index: 2; margin: 0 14px; background: var(--paper); }
 
 .segmented {
   display: grid; grid-template-columns: 1fr 1fr;
@@ -321,11 +343,11 @@ button.health { border: 0; background: none; padding: 0; }
 .session-search .search-clear { width: 24px; height: 24px; color: var(--ink-3); }
 
 .groups {
-  flex: 1; min-height: 0; overflow: auto; display: grid; gap: 14px; align-content: start;
+  flex: none; display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; align-content: start;
   margin: 0; padding: 2px 14px 14px;
 }
 .sessions-empty { padding: 18px 0; color: var(--ink-3); font-size: 13px; }
-.group { display: grid; gap: 2px; }
+.group { display: grid; grid-template-columns: minmax(0, 1fr); gap: 2px; }
 .group-header { display: flex; align-items: center; gap: 2px; }
 .group-toggle {
   flex: 1; min-width: 0; display: flex; align-items: center; gap: 7px;
@@ -364,7 +386,7 @@ button.health { border: 0; background: none; padding: 0; }
 .session-child > .sessions { margin-top: 1px; }
 /* each row is a label grid: agent · title / state · age */
 .session {
-  width: 100%; display: grid; grid-template-columns: auto minmax(0, 1fr) 18px; column-gap: 9px; align-items: center;
+  width: 100%; display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: 9px; align-items: center;
   padding: 6px 8px; border: 1px solid transparent; border-radius: var(--r);
   background: none; text-align: left; color: inherit;
   transition: background var(--dur-fast), border-color var(--dur-fast);
@@ -393,7 +415,7 @@ button.health { border: 0; background: none; padding: 0; }
 }
 .group-unseen { font-size: 11px; }
 .session-time { white-space: nowrap; margin-left: auto; }
-.session-badge { display: grid; justify-items: end; }
+.session-meta .badge { flex: none; min-width: 16px; height: 16px; font-size: 10.5px; }
 .message-hits { display: grid; gap: 4px; padding-top: 10px; border-top: 1px solid var(--rule); }
 .message-hits .section-title { padding: 2px 0; }
 .session.hit { align-items: flex-start; }
@@ -408,8 +430,16 @@ button.health { border: 0; background: none; padding: 0; }
 .sidebar-signout { display: none; }
 .sidebar-signout .btn { width: 100%; }
 
-/* phones: sidebar controls get a finger-sized target */
+/* phones: the sidebar itself scrolls, footer and all, and its controls
+   get a finger-sized target */
 @media (max-width: 720px) {
+  .sidebar { overflow-y: auto; scroll-padding-top: 52px; }
+  /* sticky offsets count from inside the sidebar's 14px top padding */
+  .sidebar-body > .session-search { top: -14px; }
+  .sidebar-body { flex: none; overflow: visible; }
+  .sidebar-footer { flex: none; }
+  /* the row menu is always shown here: keep the row's text clear of it */
+  .session { padding-right: 44px; }
   .sidebar-signout { display: block; }
   .group-new { width: 40px; height: 40px; }
   .group-more { min-height: 40px; }
@@ -439,6 +469,7 @@ button.health { border: 0; background: none; padding: 0; }
 .quota-mini .bar { display: block; width: 44px; }
 .quota-mini .fill { display: block; }
 .quota-mini .pct, .window .pct { color: var(--ink); }
+.pct[data-stale] { color: var(--ink-3); text-decoration: underline dashed var(--rule-strong); text-underline-offset: 3px; }
 .quotas { display: grid; gap: 12px; font-size: 12.5px; }
 .quota { display: grid; gap: 8px; }
 .quota header { display: flex; justify-content: space-between; align-items: center; }
@@ -660,7 +691,7 @@ button.health { border: 0; background: none; padding: 0; }
 .model-hint { padding: 0 8px 4px; color: var(--ink-3); font-size: 12px; }
 
 @media (max-width: 720px) {
-  .model-menu { position: fixed; left: 10px; right: 10px; top: 132px; width: auto; max-height: calc(100dvh - 260px); }
+  .model-menu { position: fixed; left: 10px; right: 10px; top: 88px; width: auto; max-height: calc(100dvh - 216px); }
   .model-name { max-width: 120px; }
 }
 
@@ -812,6 +843,9 @@ button.health { border: 0; background: none; padding: 0; }
 .term-projects { display: grid; gap: 8px; }
 .term-chips { display: flex; flex-wrap: wrap; gap: 6px; }
 .term-chips .chip .icon { color: var(--ink-3); }
+/* a long project name stays one line in its 24px chip; the title has it all */
+.term-chips .chip { display: inline-block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; line-height: 22px; }
+.term-chips .chip .icon { vertical-align: -2px; }
 .term-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 1px; }
 .term-row { display: flex; align-items: center; border: 1px solid transparent; border-radius: var(--r); transition: background var(--dur-fast); }
 .term-row:hover { background: var(--paper-2); }
@@ -929,11 +963,15 @@ button.health { border: 0; background: none; padding: 0; }
 
 /* ---------- errors ---------- */
 .error { color: var(--bad); font-size: 13px; }
-/* notices: a short stack under the top bar, clear of the composer */
+/* notices: a short stack over the top of what is being read (placed from
+   script); without a transcript, bottom right clear of the dock rail. The
+   stack never takes clicks beyond its own sheets. */
 .notices {
-  position: fixed; top: 52px; right: 16px; z-index: 20;
+  position: fixed; bottom: 16px; right: 60px; z-index: 20;
   display: grid; gap: 6px; width: min(420px, calc(100vw - 32px));
+  pointer-events: none;
 }
+.notices > .toast { pointer-events: auto; }
 .toast {
   display: flex; align-items: flex-start; gap: 10px; padding: 8px 6px 8px 12px;
   border: 1px solid var(--rule-strong); border-radius: var(--r); background: var(--paper);
@@ -960,11 +998,16 @@ button.health { border: 0; background: none; padding: 0; }
 @media (max-width: 720px) {
   :root { --gutter: 14px; }
   .app { padding-top: env(safe-area-inset-top); }
-  .topbar { grid-template-columns: minmax(0, 1fr) auto; height: auto; gap: 0 10px; }
-  .topbar .brand { grid-column: 1; grid-row: 1; min-height: 44px; align-items: center; }
-  .topbar-end { grid-column: 2; grid-row: 1; }
-  .mode-switch { grid-column: 1 / -1; grid-row: 2; justify-self: center; }
-  .segmented.mode-switch button { padding: 0 10px; }
+  /* one 44px row: the modes take the masthead's place once online (the
+     name stays for screen readers), health and toggles at the end */
+  .topbar { grid-template-columns: minmax(0, 1fr) auto; height: 44px; gap: 0 8px; padding-left: 4px; }
+  .topbar .brand { grid-column: 1; grid-row: 1; min-height: 44px; align-items: center; padding-left: 10px; }
+  .topbar:has(.mode-switch) .brand {
+    position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap;
+  }
+  .topbar-end { grid-column: 2; grid-row: 1; gap: 4px; }
+  .mode-switch { grid-column: 1; grid-row: 1; justify-self: start; min-width: 0; overflow-x: auto; scrollbar-width: none; }
+  .segmented.mode-switch button { flex: none; padding: 0 10px; }
   .layout { grid-template-columns: minmax(0, 1fr); padding-bottom: calc(56px + env(safe-area-inset-bottom)); }
   .layout > *, .layout > .chat.empty, .layout > .dock { display: none; }
   .layout[data-pane='sessions'] > .sidebar,
@@ -1006,8 +1049,8 @@ button.health { border: 0; background: none; padding: 0; }
   }
   .panebar button[aria-pressed='true'] { color: var(--ink); border-top-color: var(--ink); }
   .panebar .badge { position: absolute; top: 6px; right: calc(50% - 22px); }
-  /* under the top bar (masthead and mode row), never over the composer */
-  .notices { top: calc(96px + env(safe-area-inset-top)); right: 14px; left: 14px; width: auto; }
+  /* without a transcript on screen: just above the pane bar */
+  .notices { bottom: calc(64px + env(safe-area-inset-bottom)); right: 14px; left: 14px; width: auto; }
 }
 
 @media (prefers-reduced-motion: reduce) {

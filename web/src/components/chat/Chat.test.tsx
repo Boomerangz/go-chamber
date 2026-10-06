@@ -494,6 +494,8 @@ describe('session not loaded yet', () => {
   it('says so for an unknown session whose empty transcript loaded fine', () => {
     setup({ sessions: [], sessionsStatus: 'ready', history: 'ready', chat: initialChat() })
     expect(screen.getByRole('heading', { name: 'Session not found' })).toBeInTheDocument()
+    // A session that isn't there has no state to show.
+    expect(document.querySelector('.chat-meta .status')).toBeNull()
     expect(screen.queryByText(/Send a message to start/)).toBeNull()
     expect(screen.queryByRole('combobox', { name: 'message' })).toBeNull()
   })

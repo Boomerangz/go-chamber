@@ -1,4 +1,6 @@
 import { useCallback, useRef, useState } from 'react'
+import { ChevronDown } from 'lucide-react'
+import { icon } from '../icon'
 import { Accounts } from '../account/AccountPanel'
 import AgentAvatar from '../AgentAvatar'
 import FolderField from '../folders/FolderField'
@@ -75,6 +77,9 @@ export default function Sidebar(props: SidebarProps) {
   const [branch, setBranch] = useState('')
   // missing names the field a submit found empty, until it is filled.
   const [missing, setMissing] = useState<'cwd' | 'branch' | null>(null)
+  // composing unfolds the form on phones, where it otherwise folds to one
+  // line so the sessions own the screen. Wider screens always show it.
+  const [composing, setComposing] = useState(false)
   const folderInput = useRef<HTMLInputElement>(null)
   const branchInput = useRef<HTMLInputElement>(null)
 
@@ -87,6 +92,7 @@ export default function Sidebar(props: SidebarProps) {
         setRemembered(dir)
       }
       if (ok && branch) setBranch('')
+      if (ok) setComposing(false)
       return ok
     },
     [onCreate],
@@ -120,12 +126,20 @@ export default function Sidebar(props: SidebarProps) {
     <aside className="sidebar panel">
       <form
         className="new-session"
+        data-folded={!composing || undefined}
         noValidate
+        onFocus={(e) => {
+          if (e.target !== e.currentTarget.querySelector('.new-session-open')) setComposing(true)
+        }}
         onSubmit={(e) => {
           e.preventDefault()
           submit()
         }}
       >
+        <button type="button" className="new-session-open" aria-expanded={composing} onClick={() => setComposing(!composing)}>
+          <ChevronDown {...icon(14)} className="icon chevron" />
+          Start a session
+        </button>
         <div className="segmented" role="radiogroup" aria-label="agent">
           {(['claude', 'codex'] as const).map((a) => (
             <button
@@ -204,9 +218,11 @@ export default function Sidebar(props: SidebarProps) {
           {creating && !creatingIn ? 'Starting…' : 'New session'}
         </button>
       </form>
-      <SessionList agent={agent} creating={creating} creatingIn={creatingIn} onCreateIn={(dir) => void createIn(dir)} />
-      <ArchivedSessions />
-      <HistoryPanel />
+      <div className="sidebar-body">
+        <SessionList agent={agent} creating={creating} creatingIn={creatingIn} onCreateIn={(dir) => void createIn(dir)} />
+        <ArchivedSessions />
+        <HistoryPanel />
+      </div>
       <footer className="sidebar-footer">
         <Accounts />
         <QuotaWidget />

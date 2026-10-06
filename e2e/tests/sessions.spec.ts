@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test'
 import fs from 'node:fs'
 import os from 'node:os'
 import { token } from '../playwright.config'
-import { showPane } from './pane'
+import { openNewSession, showPane } from './pane'
 
 // Sessions are grouped by project folder, titled by their first message
 // and searchable by title.
@@ -12,6 +12,7 @@ test('groups sessions by project and finds them by title', async ({ page }) => {
   await page.goto(`/?token=${token}`)
   for (const text of ['first topic', 'second topic']) {
     await showPane(page, 'Sessions')
+    await openNewSession(page)
     await page.getByLabel('working directory').fill(dir)
     await page.getByRole('button', { name: 'New session', exact: true }).click()
     await page.getByLabel('message').fill(text)

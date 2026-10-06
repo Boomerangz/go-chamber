@@ -2,11 +2,12 @@ import { expect, test, type Page } from '@playwright/test'
 import fs from 'node:fs'
 import os from 'node:os'
 import { token } from '../playwright.config'
-import { showPane, showSessionDetails } from './pane'
+import { openNewSession, showPane, showSessionDetails } from './pane'
 
 async function newSession(page: Page, agent: 'Claude' | 'Codex') {
   const dir = fs.realpathSync(fs.mkdtempSync(`${os.tmpdir()}/gc-mode-`))
   await showPane(page, 'Sessions')
+  await openNewSession(page)
   await page.getByRole('radio', { name: agent }).click()
   await page.getByLabel('working directory').fill(dir)
   await page.getByRole('button', { name: 'New session', exact: true }).click()

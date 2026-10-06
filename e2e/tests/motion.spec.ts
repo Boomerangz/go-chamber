@@ -1,11 +1,13 @@
 import { expect, test } from '@playwright/test'
 import { token } from '../playwright.config'
+import { openNewSession } from './pane'
 
 test.use({ reducedMotion: 'reduce' })
 
 test('works without motion: items appear and an answered request leaves', async ({ page }, info) => {
   const text = `still ${info.project.name}: please permission`
   await page.goto(`/?token=${token}`)
+  await openNewSession(page)
   await page.getByLabel('working directory').fill('/tmp')
   await page.getByRole('button', { name: 'New session', exact: true }).click()
   await expect(page.getByLabel('message')).toBeVisible()
@@ -32,6 +34,7 @@ test('marks what arrived since the session was last open', async ({ page }, info
   await page.goto(`/?token=${token}`)
   const open = async (dir: string) => {
     await showSessions(page)
+    await openNewSession(page)
     await page.getByLabel('working directory').fill(dir)
     await page.getByRole('button', { name: 'New session', exact: true }).click()
     await expect(page.locator('.chat-hint')).toBeVisible()
