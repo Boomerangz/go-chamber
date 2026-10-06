@@ -101,6 +101,19 @@ test('archiving a session that waits for you keeps the request in sight, with an
   await page.getByRole('button', { name: 'Allow', exact: true }).click()
 })
 
+test('a failed archive closes the menu and says why', async ({ page }) => {
+  const headers = { Authorization: `Bearer ${token}` }
+  const created = await page.request.post('/api/sessions', { headers, data: { agent: 'claude', cwd: ownDir() } })
+  const { id } = (await created.json()) as { id: string }
+  await page.route(`**/api/sessions/${id}/archive`, (route) => route.fulfill({ status: 500, body: 'disk full' }))
+  await page.goto(`/s/${id}?token=${token}`)
+  await showPane(page, 'Sessions')
+  await page.locator('li:has(> button.session[aria-current="true"]) > .session-menu-trigger').click()
+  await page.getByRole('menu').getByRole('menuitem', { name: 'Archive' }).click()
+  await expect(page.getByRole('menu')).toHaveCount(0)
+  await expect(page.locator('.notices')).toContainText("Couldn't archive the session")
+})
+
 test('a search looks in Archived too, and says when only archived sessions match', async ({ page }) => {
   const headers = { Authorization: `Bearer ${token}` }
   const dir = `${ownDir()}/shelved-search-${Date.now()}`
