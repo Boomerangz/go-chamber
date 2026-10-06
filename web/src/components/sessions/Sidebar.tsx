@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { ChevronDown } from 'lucide-react'
 import { icon } from '../icon'
 import { Accounts } from '../account/AccountPanel'
@@ -75,6 +75,15 @@ export default function Sidebar(props: SidebarProps) {
   const [agent, setAgent] = useState<AgentKind>(lastAgent)
   const [inWorktree, setInWorktree] = useState(false)
   const [branch, setBranch] = useState('')
+  // A new search reads from the top: what matches is above, not scrolled past.
+  const body = useRef<HTMLDivElement>(null)
+  const query = useSessionStore((s) => s.query)
+  const searched = useRef(query)
+  useEffect(() => {
+    if (searched.current === query) return
+    searched.current = query
+    if (body.current) body.current.scrollTop = 0
+  }, [query])
   // missing names the field a submit found empty, until it is filled.
   const [missing, setMissing] = useState<'cwd' | 'branch' | null>(null)
   // composing unfolds the form on phones, where it otherwise folds to one
@@ -218,7 +227,7 @@ export default function Sidebar(props: SidebarProps) {
           {creating && !creatingIn ? 'Starting…' : 'New session'}
         </button>
       </form>
-      <div className="sidebar-body">
+      <div className="sidebar-body" ref={body}>
         <SessionList agent={agent} creating={creating} creatingIn={creatingIn} onCreateIn={(dir) => void createIn(dir)} />
         <ArchivedSessions />
         <HistoryPanel />

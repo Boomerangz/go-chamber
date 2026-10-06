@@ -89,6 +89,24 @@ describe('loading the list', () => {
     expect(loadSessions).toHaveBeenCalled()
   })
 
+  it('says when only archived sessions match, instead of nothing or "no match"', () => {
+    useSessionStore.setState({
+      query: 'deploy',
+      sessions: [{ ...session('a', 'deploy notes'), archivedAt: '2026-10-01T09:00:00Z' }, session('b', 'other')],
+      // the server's message hit for the archived session is shown in Archived
+      searchHits: [{ sessionId: 'a', snippet: 'deploy it', item: 'i1' }] as never,
+    })
+    render(<SessionList onCreateIn={() => {}} />)
+    expect(screen.queryByText('No matching sessions')).toBeNull()
+    expect(screen.getByText('Only archived sessions match')).toBeInTheDocument()
+  })
+
+  it('says nothing matches when an archived session doesn’t either', () => {
+    useSessionStore.setState({ query: 'zzz', sessions: [{ ...session('a', 'deploy notes'), archivedAt: '2026-10-01T09:00:00Z' }] })
+    render(<SessionList onCreateIn={() => {}} />)
+    expect(screen.getByText('No matching sessions')).toBeInTheDocument()
+  })
+
   it('says the list is empty once it loaded', () => {
     render(<SessionList onCreateIn={() => {}} />)
     expect(screen.getByText('No sessions yet')).toBeInTheDocument()

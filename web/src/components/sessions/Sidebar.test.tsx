@@ -174,6 +174,16 @@ describe('Sidebar folder', () => {
   })
 })
 
+describe('Sidebar search', () => {
+  it('brings the list back to its top when the search changes', async () => {
+    setup(undefined, [session])
+    const body = document.querySelector('.sidebar-body')!
+    body.scrollTop = 300
+    await userEvent.type(screen.getByLabelText('Search sessions'), 'o')
+    expect(body.scrollTop).toBe(0)
+  })
+})
+
 describe('Sidebar footer', () => {
   it('has a sign-out form for phones, where the topbar hides it', async () => {
     setup()

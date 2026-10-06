@@ -1,6 +1,6 @@
 import { ChevronRight } from 'lucide-react'
 import { useMemo, useState } from 'react'
-import { archivedSessions, relativeTime, sessionTitle } from '../../lib/sessions'
+import { archivedSessions, matchingTree, relativeTime, sessionTitle } from '../../lib/sessions'
 import type { SessionNode } from '../../lib/tree'
 import { useNow } from '../../lib/now'
 import { useSessionStore } from '../../stores/session'
@@ -19,7 +19,10 @@ export default function ArchivedSessions() {
   const selectSession = useSessionStore((s) => s.selectSession)
   const pending = useSessionStore((s) => s.pendingRequests)
   const now = useNow(60_000)
-  const nodes = useMemo(() => archivedSessions(sessions), [sessions])
+  const query = useSessionStore((s) => s.query)
+  const searching = query.trim() !== ''
+  // A search looks in here too: only the matches show, unfolded.
+  const nodes = useMemo(() => matchingTree(archivedSessions(sessions), query), [sessions, query])
   // Archiving puts a session away, not its requests: they still wait here.
   const waitingBy = useMemo(() => {
     const m = new Map<string, number>()
@@ -38,7 +41,7 @@ export default function ArchivedSessions() {
 
   if (nodes.length === 0) return null
   return (
-    <details className="history archived" open={open} onToggle={(e) => setOpen(e.currentTarget.open)}>
+    <details className="history archived" open={open || searching} onToggle={(e) => !searching && setOpen(e.currentTarget.open)}>
       <summary className="section-title">
         <ChevronRight {...icon(14)} className="icon chevron" />
         Archived <span className="group-count">{nodes.length}</span>

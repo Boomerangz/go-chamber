@@ -51,6 +51,18 @@ export function archivedSessions(sessions: Session[]): SessionNode[] {
   )
 }
 
+// matchingTree keeps the nodes that match a query, or hold a child that
+// does, so a matching subagent stays under its parent.
+export function matchingTree(nodes: SessionNode[], query: string): SessionNode[] {
+  if (!query.trim()) return nodes
+  const out: SessionNode[] = []
+  for (const n of nodes) {
+    const children = matchingTree(n.children, query)
+    if (matchesQuery(n.session, query) || children.length > 0) out.push({ ...n, children })
+  }
+  return out
+}
+
 // groupSessions groups the listed (not archived) sessions by working
 // folder. Groups and sessions are ordered by last activity, newest first;
 // subagent sessions stay nested under their parent.

@@ -2,7 +2,7 @@ import './MidCut.css'
 
 // tailOf is the part of a name that stays when it is cut: the extension and
 // a few characters before it, where similar names usually differ.
-export function tailOf(name: string): string {
+function tailOf(name: string): string {
   const dot = name.lastIndexOf('.')
   const ext = dot > 0 ? name.length - dot : 0
   const keep = Math.max(ext + 8, 10)

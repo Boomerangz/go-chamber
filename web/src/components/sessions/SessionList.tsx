@@ -5,8 +5,10 @@ import { Fragment, useEffect, useMemo, useRef } from 'react'
 import type { AgentKind, SearchHit, Session } from '../../lib/api'
 import {
   bucketOf,
+  archivedSessions,
   groupSessions,
   matchesQuery,
+  matchingTree,
   relativeTime,
   sessionTitle,
   snippetParts,
@@ -87,6 +89,10 @@ export default function SessionList({ onCreateIn, agent = 'claude', creating = f
     [sessions, query, searching],
   )
 
+  // Archived matches show in their own fold below: they count as found.
+  const archivedFound = useMemo(() => (searching ? matchingTree(archivedSessions(sessions), query).length : 0), [sessions, query, searching])
+  const hits = searchHits.filter((h) => !shownIds.has(h.sessionId))
+
   const pendingBySession = useMemo(() => {
     const m = new Map<string, number>()
     for (const r of pending) m.set(r.sessionId, (m.get(r.sessionId) ?? 0) + 1)
@@ -157,14 +163,14 @@ export default function SessionList({ onCreateIn, agent = 'claude', creating = f
         )}
         {searching && (
           <MessageHits
-            hits={searchHits.filter((h) => !shownIds.has(h.sessionId))}
+            hits={hits}
             sessions={sessions}
             activeId={activeId}
             onSelect={(id) => void selectSession(id)}
           />
         )}
-        {status === 'ready' && groups.length === 0 && (!searching || (!searchingMessages && !searchError && searchHits.length === 0)) && (
-          <p className="sessions-empty">{searching ? 'No matching sessions' : 'No sessions yet'}</p>
+        {status === 'ready' && groups.length === 0 && (!searching || (!searchingMessages && !searchError && hits.length === 0)) && (
+          <p className="sessions-empty">{!searching ? 'No sessions yet' : archivedFound > 0 ? 'Only archived sessions match' : 'No matching sessions'}</p>
         )}
       </div>
     </>

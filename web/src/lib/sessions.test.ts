@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { Session } from './api'
-import { archivedSessions, bucketOf, folderNames, groupSessions, matchesQuery, relativeTime, sessionTitle, snippetParts, visibleInGroup } from './sessions'
+import { archivedSessions, bucketOf, matchingTree, folderNames, groupSessions, matchesQuery, relativeTime, sessionTitle, snippetParts, visibleInGroup } from './sessions'
 
 const now = new Date('2026-09-25T12:00:00Z')
 const s = (id: string, cwd: string, activeAt: string, over: Partial<Session> = {}): Session => ({
@@ -197,5 +197,19 @@ describe('folderNames', () => {
   it('names folders by their last part, adding the parent when two collide', () => {
     const names = folderNames(['/src/app/web', '/src/site/web', '/src/api'])
     expect([...names.values()]).toEqual(['app/web', 'site/web', 'api'])
+  })
+})
+
+describe('matchingTree', () => {
+  const node = (id: string, title: string, children: ReturnType<typeof archivedSessions> = []) => ({
+    session: { id, title, agent: 'claude' as const, cwd: '/p', status: 'idle' as const },
+    children,
+  })
+  it('keeps what matches, and a parent for its matching child', () => {
+    const tree = [node('a', 'deploy'), node('b', 'other', [node('c', 'deploy helper'), node('d', 'noise')]), node('e', 'noise')]
+    const kept = matchingTree(tree as never, 'deploy')
+    expect(kept.map((n) => n.session.id)).toEqual(['a', 'b'])
+    expect(kept[1]!.children.map((n) => n.session.id)).toEqual(['c'])
+    expect(matchingTree(tree as never, '  ')).toBe(tree)
   })
 })
