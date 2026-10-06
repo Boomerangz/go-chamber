@@ -96,6 +96,17 @@ describe('withoutAnsweredQuestions', () => {
     expect(ids(withoutAnsweredQuestions(nodes))).toEqual(['q1', 'u', 'd', 'r', 'q2'])
   })
 
+  it('hides only question tool lines before the record, not what ran beside them', () => {
+    const nodes = [
+      node({ id: 'q', name: 'AskUserQuestion' }),
+      node({ id: 'r', name: 'Read' }),
+      node({ id: 'c', kind: 'command', name: 'AskUserQuestion' }),
+      node({ id: 'n', name: undefined }),
+      node({ id: 'd', kind: 'decision' }),
+    ]
+    expect(ids(withoutAnsweredQuestions(nodes))).toEqual(['r', 'c', 'n', 'd'])
+  })
+
   it('returns the same list when nothing is hidden', () => {
     const nodes = [node({ id: 'a', kind: 'assistant_message' })]
     expect(withoutAnsweredQuestions(nodes)).toBe(nodes)
