@@ -206,3 +206,22 @@ test('a failure notice covers no control: not the header, the dock rail, the com
     expect(moved.y).toBeGreaterThan(field.y + field.height)
   }
 })
+
+// Chromium draws nothing in an input scrolled to its end while it also
+// ellipsizes, so a picked project path looked blank.
+test('a long folder path shows its end, not a blank field', async ({ page }) => {
+  const long = `/tmp/a-rather-long-parent-folder/${'nested/'.repeat(4)}the-project`
+  mkdirSync(long, { recursive: true })
+  await page.goto(`/?token=${token}`)
+  await showPane(page, 'Sessions')
+  await openNewSession(page)
+  const field = page.getByLabel('Working directory')
+  await field.fill(long)
+  await field.blur()
+  await expect(field).toHaveValue(long)
+  const shown = await field.evaluate((el: HTMLInputElement) => ({
+    overflow: getComputedStyle(el).textOverflow,
+    atEnd: el.scrollLeft > 0 && Math.abs(el.scrollLeft + el.clientWidth - el.scrollWidth) <= 2,
+  }))
+  expect(shown).toEqual({ overflow: 'clip', atEnd: true })
+})

@@ -349,7 +349,9 @@ button.health { border: 0; background: none; padding: 0; }
 .folder-field:focus-within { border-color: var(--act); box-shadow: 0 0 0 1px var(--act); }
 .folder-field input {
   flex: 1; min-width: 0; height: 100%; border: 0; outline: none; background: transparent;
-  font-family: var(--font-mono); font-size: 12.5px; text-overflow: ellipsis;
+  /* no ellipsis: scrolled to the end to show the project name, Chromium
+     would draw an ellipsized input blank */
+  font-family: var(--font-mono); font-size: 12.5px;
 }
 .folder-field .browse { color: var(--act); }
 .folder-field .browse:hover { border-color: var(--act); color: var(--act); }
