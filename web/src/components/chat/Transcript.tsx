@@ -112,8 +112,11 @@ function ItemView({ node, onStopTask, onRetry, onEdit }: ItemViewProps) {
           </ItemIcon>
           <span className="item-line">
             <code>{commandText(item)}</code>
-            {item.exitCode !== undefined && (
+            {item.exitCode !== undefined ? (
               <span className={`exit-tag${item.exitCode !== 0 ? ' exit-bad' : ''}`}>exit {item.exitCode}</span>
+            ) : (
+              // Finished without an exit code: refused before it ran.
+              item.status === 'completed' && <span className="exit-tag">not run</span>
             )}
           </span>
           {item.text && <Folded label="Output" text={item.text} open={failed} streaming={live(item)} preview />}
@@ -127,8 +130,11 @@ function ItemView({ node, onStopTask, onRetry, onEdit }: ItemViewProps) {
             <FilePen {...icon(13)} />
           </ItemIcon>
           <code>{item.path || item.name}</code>
-          {lines && lines.length > 0 && <DiffFold lines={lines} raw={item.diff} open={failed} />}
-          {!item.diff && <InputFold input={item.input} />}
+          {lines && lines.length > 0 ? (
+            <DiffFold lines={lines} raw={item.diff} open={failed} />
+          ) : (
+            <InputFold input={item.input} />
+          )}
         </div>
       )
     }
@@ -141,8 +147,9 @@ function ItemView({ node, onStopTask, onRetry, onEdit }: ItemViewProps) {
     default: {
       const summary = toolSummary(item)
       const edit = item.name && EDIT_TOOLS.has(item.name) ? editDiff(item.input) : null
-      return (
-        <div className={`item tool state-${item.status}`}>
+      const diffed = !!edit && edit.length > 0
+      const head = (
+        <>
           <ItemIcon label="tool" item={item}>
             <Wrench {...icon(13)} />
           </ItemIcon>
@@ -154,8 +161,25 @@ function ItemView({ node, onStopTask, onRetry, onEdit }: ItemViewProps) {
               </span>
             )}
           </span>
-          {edit && edit.length > 0 && <DiffFold lines={edit} />}
-          <InputFold input={item.input} />
+        </>
+      )
+      // The diff shows what an edit's input says; other input folds behind
+      // the line itself rather than a row of its own.
+      const input = diffed ? undefined : toolInput(item.input)
+      return (
+        <div className={`item tool state-${item.status}`}>
+          {input ? (
+            <details className="tool-line">
+              <summary title="Show input">{head}</summary>
+              <div className="item-output-body">
+                <pre>{input}</pre>
+                <CopyButton text={input} className="item-output-copy" />
+              </div>
+            </details>
+          ) : (
+            head
+          )}
+          {diffed && <DiffFold lines={edit} />}
           {item.text && <Folded label="Output" text={item.text} open={failed} streaming={live(item)} preview />}
         </div>
       )
@@ -191,6 +215,20 @@ function ItemIcon({ label, item, children }: { label: string; item: Item; childr
   )
 }
 
+// useTapActions shows a message's actions after a tap on the message: a
+// touch screen has no hover, and a row of buttons under every message would
+// double the transcript. A tap on a link, a button or a selection of text
+// leaves them as they are; the stylesheet uses the class only on touch.
+function useTapActions(): [boolean, (e: React.MouseEvent) => void] {
+  const [shown, setShown] = useState(false)
+  const onClick = (e: React.MouseEvent) => {
+    if ((e.target as Element).closest('a, button, summary, input, textarea, select')) return
+    if (window.getSelection()?.toString()) return
+    setShown((v) => !v)
+  }
+  return [shown, onClick]
+}
+
 // A user message this long folds behind "show more": a pasted log should not
 // push the answer off screen.
 const LONG_LINES = 20
@@ -202,8 +240,9 @@ function UserMessage({ item, onEdit }: { item: Item; onEdit?: (text: string) => 
   const text = item.text ?? ''
   const long = text.split('\n').length > LONG_LINES || text.length > LONG_CHARS
   const [expanded, setExpanded] = useState(false)
+  const [actions, tap] = useTapActions()
   return (
-    <div className={`item user${long && !expanded ? ' folded' : ''}`}>
+    <div className={`item user${long && !expanded ? ' folded' : ''}${actions ? ' actions-shown' : ''}`} onClick={tap}>
       <div className="user-text">{text}</div>
       {long && (
         <button type="button" className="act-link" aria-expanded={expanded} onClick={() => setExpanded(!expanded)}>
@@ -238,8 +277,9 @@ function UserMessage({ item, onEdit }: { item: Item; onEdit?: (text: string) => 
 function AssistantMessage({ item }: { item: Item }) {
   const streaming = live(item)
   const text = item.text ?? ''
+  const [actions, tap] = useTapActions()
   return (
-    <div className={`item assistant${streaming ? ' streaming' : ''}`}>
+    <div className={`item assistant${streaming ? ' streaming' : ''}${actions ? ' actions-shown' : ''}`} onClick={tap}>
       <Markdown text={text} />
       {!streaming && text.trim() && <CopyButton text={text} label="Copy reply" iconOnly className="msg-copy" />}
     </div>
@@ -265,18 +305,22 @@ function ErrorView({ item, onRetry }: { item: Item; onRetry?: () => Promise<unkn
 
 // A request without a name of its own; its record says what was decided.
 const GENERIC_REQUESTS = new Set(['', 'Question', 'Request', 'AskUserQuestion'])
+// Questions: declining one skips it, which is no refusal of anything.
+const QUESTIONS = new Set(['Question', 'AskUserQuestion'])
 
 // DecisionView is the one-line record an answered request leaves: the
 // outcome keyword and the request struck through, its detail beneath. A
 // question has no name worth striking; its record is the answer, read plainly.
 function DecisionView({ item }: { item: Item }) {
-  const decision = item.decision ?? 'answered'
-  const named = !GENERIC_REQUESTS.has(item.name?.trim() ?? '')
+  const name = item.name?.trim() ?? ''
+  const skipped = item.decision === 'denied' && QUESTIONS.has(name)
+  const decision = skipped ? 'skipped' : (item.decision ?? 'answered')
+  const named = !GENERIC_REQUESTS.has(name)
   const answer = !named && decision === 'answered'
   return (
     <div className={`item decision decision-${decision}${answer ? ' decision-answer' : ''}`}>
       <span className="decision-kw">{decision}</span>
-      {!answer && <span className="decision-name">{item.name || 'Request'}</span>}
+      {!answer && !skipped && <span className="decision-name">{item.name || 'Request'}</span>}
       {item.text && <span className="decision-text">{item.text}</span>}
     </div>
   )
