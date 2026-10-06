@@ -1,3 +1,4 @@
+import type { CSSProperties } from 'react'
 import { create } from 'zustand'
 
 // Mode is the workspace: agent sessions, or terminals on their own.
@@ -113,6 +114,17 @@ export const useLayoutStore = create<LayoutStore>((set, get) => {
     toggleSidebar: () => update({ sidebar: !get().sidebar }),
   }
 })
+
+// useLayoutVars is the grid's dragged widths, as CSS variables: the open
+// dock's and the sidebar's. Without them each takes its default width.
+export function useLayoutVars(dock: Dock): CSSProperties {
+  const dockWidth = useLayoutStore((s) => (dock ? s.widths[dock] : undefined))
+  const sidebarWidth = useLayoutStore((s) => s.sidebarWidth)
+  const vars: Record<string, string> = {}
+  if (dockWidth) vars['--dock-w'] = `${dockWidth}px`
+  if (sidebarWidth) vars['--sidebar-w'] = `${sidebarWidth}px`
+  return vars as CSSProperties
+}
 
 export function resetLayout() {
   useLayoutStore.setState(loadLayout())

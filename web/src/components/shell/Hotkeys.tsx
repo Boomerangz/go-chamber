@@ -72,6 +72,7 @@ function buildShortcuts(setOverlay: SetOverlay): Shortcut[] {
     { combo: { key: 'f' }, label: 'Focus mode on or off', run: () => useLayoutStore.getState().toggleFocus() },
     { combo: { key: 't' }, label: 'Terminal dock on or off', run: () => useLayoutStore.getState().toggleDock('terminal') },
     { combo: { key: 'd' }, label: 'Changes dock on or off', run: () => useLayoutStore.getState().toggleDock('changes') },
+    { combo: { key: 'b', mod: true }, label: 'Sessions list on or off', anywhere: true, run: () => useLayoutStore.getState().toggleSidebar() },
     ...modeKeys.map(([key, mode]) => ({
       combo: { key },
       label: `${mode[0]!.toUpperCase()}${mode.slice(1)}`,

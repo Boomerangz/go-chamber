@@ -78,14 +78,14 @@
 .worktree-actions { display: flex; gap: 6px; }
 .worktree-dirty { color: var(--ink); }
 
-.layout[data-dock='changes'] { grid-template-columns: 300px minmax(0, 1fr) minmax(380px, 34%); }
+.layout[data-dock='changes'] { grid-template-columns: var(--sb) minmax(0, 1fr) var(--dock-w, minmax(380px, 34%)); }
 .changes-pane { display: none; }
 .worktree-toggle { display: flex; gap: 8px; align-items: center; font-size: 13px; color: var(--ink-2); cursor: pointer; }
 .worktree-branch { display: flex; align-items: center; gap: 4px; font-family: var(--font-mono); font-size: 12.5px; color: var(--ink-3); }
 .worktree-branch .field { flex: 1; min-width: 0; }
 
 @media (max-width: 1100px) {
-  .layout[data-dock='changes'] { grid-template-columns: 260px minmax(0, 1fr) minmax(300px, 40%); }
+  .layout[data-dock='changes'] { grid-template-columns: var(--sb) minmax(0, 1fr) var(--dock-w, minmax(300px, 40%)); }
 }
 
 @media (max-width: 720px) {

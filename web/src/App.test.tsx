@@ -66,6 +66,22 @@ describe('App', () => {
     expect(screen.queryByText('boom')).toBeNull()
   })
 
+  it('keeps the Changes dock on its rail until a session is open, and sizes the grid', async () => {
+    mockApi()
+    useLayoutStore.setState({ dock: 'changes', widths: { terminal: 520 }, sidebar: false })
+    const { container } = render(<App />)
+    await screen.findByText('online')
+    const layout = container.querySelector('.layout')!
+    expect(layout).toHaveAttribute('data-dock', 'closed')
+    expect(screen.queryByText('Open a session to see its changes')).toBeNull()
+    expect(layout).toHaveAttribute('data-sidebar', 'off')
+    act(() => useLayoutStore.setState({ dock: 'terminal' }))
+    expect(layout).toHaveAttribute('data-dock', 'terminal')
+    expect((layout as HTMLElement).style.getPropertyValue('--dock-w')).toBe('520px')
+    expect(screen.getByRole('separator', { name: 'Resize the dock' })).toBeInTheDocument()
+    act(() => useLayoutStore.setState({ dock: null, widths: {}, sidebar: true }))
+  })
+
   it('in focus hides the side columns until a request waits', async () => {
     mockApi()
     const { container } = render(<App />)

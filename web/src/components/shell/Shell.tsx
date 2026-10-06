@@ -1,9 +1,10 @@
-import type { ReactNode } from 'react'
+import { useRef, type ReactNode } from 'react'
 import { useNow } from '../../lib/now'
 import type { Health } from '../../lib/api'
 import { ChevronsRight, FileDiff, Inbox, List, MessageSquareText, SquareTerminal } from 'lucide-react'
 import { icon } from '../icon'
-import { useLayoutStore, type Mode } from '../../stores/layout'
+import { DOCK_MAX, DOCK_MIN, SIDEBAR_MAX, SIDEBAR_MIN, useLayoutStore, type DockTab, type Mode } from '../../stores/layout'
+import { formatCombo } from '../../lib/hotkeys'
 import { useSessionStore, type Pane } from '../../stores/session'
 import { useTerminalStore } from '../../stores/terminals'
 
@@ -67,6 +68,122 @@ export function DockRail() {
         </button>
       )}
     </div>
+  )
+}
+
+const KEY_STEP = 16
+// The chat keeps at least this much room when a dock or the sidebar grows.
+const CHAT_MIN = 360
+
+// Splitter is a 4px handle on a column edge: drag it (or use ←/→) to
+// resize, double-click to go back to the default width.
+function Splitter(props: {
+  label: string
+  className: string
+  // value is the remembered width; without one the column is measured.
+  value: number | undefined
+  min: number
+  max: number
+  // grows: +1 when dragging right widens the column, -1 when left does.
+  grows: 1 | -1
+  measure: () => number
+  onChange: (px: number) => void
+  onReset: () => void
+}) {
+  const { grows, measure, onChange } = props
+  const drag = useRef<{ x: number; width: number } | null>(null)
+  const clamp = (px: number) => Math.min(props.max, Math.max(props.min, px))
+  return (
+    <div
+      role="separator"
+      aria-orientation="vertical"
+      aria-label={props.label}
+      aria-valuenow={props.value}
+      aria-valuemin={props.min}
+      aria-valuemax={props.max}
+      tabIndex={0}
+      title={`${props.label}: drag, or double-click for the default width`}
+      className={`splitter ${props.className}`}
+      onPointerDown={(e) => {
+        if (e.button !== 0) return
+        e.preventDefault()
+        e.currentTarget.setPointerCapture?.(e.pointerId)
+        drag.current = { x: e.clientX, width: measure() }
+      }}
+      onPointerMove={(e) => {
+        if (!drag.current) return
+        onChange(clamp(drag.current.width + grows * (e.clientX - drag.current.x)))
+      }}
+      onPointerUp={() => (drag.current = null)}
+      onPointerCancel={() => (drag.current = null)}
+      onDoubleClick={props.onReset}
+      onKeyDown={(e) => {
+        const step = e.key === 'ArrowRight' ? KEY_STEP : e.key === 'ArrowLeft' ? -KEY_STEP : 0
+        if (!step) return
+        e.preventDefault()
+        onChange(clamp((props.value ?? measure()) + grows * step))
+      }}
+    />
+  )
+}
+
+const widthOf = (el: Element | null | undefined) => el?.getBoundingClientRect().width ?? 0
+
+// DockSplitter sits on the open dock's left edge.
+export function DockSplitter({ dock }: { dock: DockTab }) {
+  const width = useLayoutStore((s) => s.widths[dock])
+  const sidebar = useLayoutStore((s) => (s.sidebar ? s.sidebarWidth ?? 300 : 0))
+  const setDockWidth = useLayoutStore((s) => s.setDockWidth)
+  const ref = useRef<HTMLSpanElement>(null)
+  const measure = () => widthOf(ref.current?.closest('.dock'))
+  const max = Math.max(DOCK_MIN, Math.min(DOCK_MAX, (typeof window === 'undefined' ? DOCK_MAX : window.innerWidth) - sidebar - CHAT_MIN))
+  return (
+    <span ref={ref} className="splitter-anchor">
+      <Splitter
+        label="Resize the dock"
+        className="splitter-dock"
+        value={width ?? undefined}
+        min={DOCK_MIN}
+        max={max}
+        grows={-1}
+        measure={measure}
+        onChange={(px) => setDockWidth(dock, px)}
+        onReset={() => setDockWidth(dock, null)}
+      />
+    </span>
+  )
+}
+
+// SidebarSplitter sits on the sessions sidebar's right edge; while the
+// sidebar is hidden it is a slim button that brings it back.
+export function SidebarSplitter() {
+  const shown = useLayoutStore((s) => s.sidebar)
+  const width = useLayoutStore((s) => s.sidebarWidth)
+  const setSidebarWidth = useLayoutStore((s) => s.setSidebarWidth)
+  const toggleSidebar = useLayoutStore((s) => s.toggleSidebar)
+  const ref = useRef<HTMLSpanElement>(null)
+  if (!shown) {
+    return (
+      <button type="button" className="splitter sidebar-show" aria-label="Show sessions" title={`Show sessions (${formatCombo({ key: 'b', mod: true })})`} onClick={toggleSidebar}>
+        <ChevronsRight {...icon(14)} />
+      </button>
+    )
+  }
+  const measure = () => widthOf(ref.current?.parentElement?.querySelector(':scope > .sidebar'))
+  return (
+    <span ref={ref} className="splitter-anchor">
+      <Splitter
+        label="Resize the sessions list"
+        className="splitter-sidebar"
+        value={width ?? undefined}
+        min={SIDEBAR_MIN}
+        max={SIDEBAR_MAX}
+        grows={1}
+        measure={measure}
+        onChange={setSidebarWidth}
+        onReset={() => setSidebarWidth(null)}
+      />
+    </span>
   )
 }
 

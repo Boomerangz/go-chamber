@@ -8,7 +8,7 @@ import NotifyToggle from './components/notify/NotifyToggle'
 import SoundToggle from './components/notify/SoundToggle'
 import RequestTray from './components/requests/RequestTray'
 import Sidebar from './components/sessions/Sidebar'
-import { DockRail, HealthStatus, ModeSwitch, PaneBar } from './components/shell/Shell'
+import { DockRail, DockSplitter, HealthStatus, ModeSwitch, PaneBar, SidebarSplitter } from './components/shell/Shell'
 import Notices from './components/shell/Notices'
 import Hotkeys from './components/shell/Hotkeys'
 import TerminalPanel from './components/terminal/TerminalPanel'
@@ -17,7 +17,7 @@ import { fetchHealth, UNAUTHORIZED_EVENT, type Health } from './lib/api'
 import { parseRoute, routePath } from './lib/route'
 import { sessionTitle } from './lib/sessions'
 import { attentionTitle } from './lib/title'
-import { useLayoutStore, visibleDock } from './stores/layout'
+import { useLayoutStore, useLayoutVars, visibleDock } from './stores/layout'
 import { useSessionStore } from './stores/session'
 import { useTerminalStore } from './stores/terminals'
 
@@ -36,7 +36,9 @@ export default function App() {
   const toggleFocus = useLayoutStore((s) => s.toggleFocus)
   const pending = useSessionStore((s) => s.pendingRequests.length)
   const chosenDock = useLayoutStore((s) => s.dock)
-  const dock = visibleDock({ dock: chosenDock, focus }, pending)
+  const dock = visibleDock({ dock: chosenDock, focus }, pending, Boolean(activeId))
+  const sidebar = useLayoutStore((s) => s.sidebar)
+  const layoutVars = useLayoutVars(dock)
   const loadTerminals = useTerminalStore((s) => s.load)
 
   useAttentionTitle()
@@ -111,10 +113,12 @@ export default function App() {
       )}
       {health === 'online' && mode === 'agents' && (
         <>
-          <div className="layout" data-pane={pane} data-dock={dock ?? 'closed'} data-focus={focus ? 'on' : undefined}>
+          <div className="layout" data-pane={pane} data-dock={dock ?? 'closed'} data-focus={focus ? 'on' : undefined} data-sidebar={sidebar ? undefined : 'off'} style={layoutVars}>
             <Sidebar sessions={sessions} onCreate={(agent, cwd, branch) => createSession(agent, cwd, branch)} />
+            <SidebarSplitter />
             {activeId ? <Chat key={activeId} /> : <EmptyChat />}
             <div className="dock">
+              {dock && <DockSplitter dock={dock} />}
               {dock && (
                 <div className="dock-body">
                   {dock === 'requests' ? (
