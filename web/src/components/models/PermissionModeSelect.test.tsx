@@ -50,6 +50,31 @@ describe('PermissionModeSelect', () => {
     expect(document.querySelector('.reviewer .busy-mark')).toBeNull()
   })
 
+  it('asks before switching to a mode that never asks', async () => {
+    render(<PermissionModeSelect session={{ id: 's', agent: 'claude', cwd: '/p', status: 'idle', permissionMode: 'default' }} />)
+    const select = screen.getByLabelText('permission mode')
+    await userEvent.selectOptions(select, 'bypassPermissions')
+    expect(api.setPermissionMode).not.toHaveBeenCalled()
+    expect(select).toHaveValue('default')
+    const confirm = screen.getByRole('group', { name: 'confirm bypass permissions' })
+    expect(confirm).toHaveTextContent(/won't ask/)
+    expect(screen.getByRole('button', { name: 'Cancel' })).toHaveFocus()
+    await userEvent.click(screen.getByRole('button', { name: 'Switch' }))
+    expect(api.setPermissionMode).toHaveBeenCalledWith('s', 'bypassPermissions')
+    expect(screen.queryByRole('group', { name: /confirm/ })).toBeNull()
+  })
+
+  it('stays in the asking mode when the switch is cancelled', async () => {
+    render(<PermissionModeSelect session={{ id: 's', agent: 'codex', cwd: '/p', status: 'idle', permissionMode: 'auto' }} />)
+    await userEvent.selectOptions(screen.getByLabelText('permission mode'), 'full-access')
+    await userEvent.keyboard('{Escape}')
+    expect(screen.queryByRole('group', { name: /confirm/ })).toBeNull()
+    await userEvent.selectOptions(screen.getByLabelText('permission mode'), 'full-access')
+    await userEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+    expect(api.setPermissionMode).not.toHaveBeenCalled()
+    expect(screen.getByLabelText('permission mode')).toHaveValue('auto')
+  })
+
   it('reads the modes that never ask as dangerous', () => {
     const { rerender } = render(<PermissionModeSelect session={{ id: 's', agent: 'claude', cwd: '/p', status: 'idle', permissionMode: 'bypassPermissions' }} />)
     const select = screen.getByLabelText('permission mode')

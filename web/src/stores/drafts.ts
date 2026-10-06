@@ -32,10 +32,12 @@ export interface DraftImage {
   name: string
 }
 
-// Upload is one file on its way to the server; key tells same-named files apart.
+// Upload is one file on its way to the server; key tells same-named files
+// apart. The file stays for a preview and to try again if it fails.
 export interface Upload {
   key: string
   name: string
+  file?: File
 }
 
 export interface UploadError extends Upload {
@@ -49,10 +51,10 @@ interface DraftStore {
   addImage: (session: string, image: DraftImage) => void
   removeImage: (session: string, id: string) => void
   clearImages: (session: string) => void
-  startUpload: (session: string, key: string, name: string) => void
+  startUpload: (session: string, key: string, name: string, file?: File) => void
   finishUpload: (session: string, key: string) => void
   failUpload: (session: string, key: string, message: string) => void
-  reject: (session: string, key: string, name: string, message: string) => void
+  reject: (session: string, key: string, name: string, message: string, file?: File) => void
   dismissError: (session: string, key: string) => void
   clearErrors: (session: string) => void
 }
@@ -74,17 +76,17 @@ export const useDrafts = create<DraftStore>((set, get) => ({
   removeImage: (session, id) =>
     set({ images: put(get().images, session, (get().images[session] ?? []).filter((i) => i.id !== id)) }),
   clearImages: (session) => set({ images: put(get().images, session, []) }),
-  startUpload: (session, key, name) =>
-    set({ uploads: put(get().uploads, session, [...(get().uploads[session] ?? []), { key, name }]) }),
+  startUpload: (session, key, name, file) =>
+    set({ uploads: put(get().uploads, session, [...(get().uploads[session] ?? []), { key, name, file }]) }),
   finishUpload: (session, key) =>
     set({ uploads: put(get().uploads, session, (get().uploads[session] ?? []).filter((u) => u.key !== key)) }),
   failUpload: (session, key, message) => {
     const upload = get().uploads[session]?.find((u) => u.key === key)
     get().finishUpload(session, key)
-    if (upload) get().reject(session, key, upload.name, message)
+    if (upload) get().reject(session, key, upload.name, message, upload.file)
   },
-  reject: (session, key, name, message) =>
-    set({ errors: put(get().errors, session, [...(get().errors[session] ?? []), { key, name, message }]) }),
+  reject: (session, key, name, message, file) =>
+    set({ errors: put(get().errors, session, [...(get().errors[session] ?? []), { key, name, message, file }]) }),
   dismissError: (session, key) =>
     set({ errors: put(get().errors, session, (get().errors[session] ?? []).filter((e) => e.key !== key)) }),
   clearErrors: (session) => set({ errors: put(get().errors, session, []) }),

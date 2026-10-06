@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { useState } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -15,14 +15,18 @@ function Harness({
   agent = 'claude' as const,
   onSubmit = () => {},
   onEscape,
-  recall,
+  history,
+  initial = '',
+  enterSends,
 }: {
+  enterSends?: boolean
   agent?: 'claude' | 'codex'
   onSubmit?: () => void
   onEscape?: () => void
-  recall?: string
+  history?: string[]
+  initial?: string
 }) {
-  const [text, setText] = useState('')
+  const [text, setText] = useState(initial)
   return (
     <>
       <ComposerInput
@@ -32,7 +36,8 @@ function Harness({
         onChange={setText}
         onSubmit={onSubmit}
         onEscape={onEscape}
-        recall={recall}
+        history={history}
+        enterSends={enterSends}
         placeholder="msg"
       />
       <output data-testid="value">{text}</output>
@@ -49,7 +54,7 @@ beforeEach(() => {
   ])
 })
 
-const box = () => screen.getByRole('combobox', { name: 'message' })
+const box = () => screen.getByRole('combobox', { name: 'message' }) as HTMLTextAreaElement
 
 describe('ComposerInput', () => {
   it('suggests files after @ and inserts the chosen path with Enter', async () => {
@@ -99,6 +104,44 @@ describe('ComposerInput', () => {
     expect(await screen.findByRole('option', { name: /compact/ })).toBeVisible()
   })
 
+  it('sends with Enter and breaks the line with Shift+Enter', async () => {
+    const onSubmit = vi.fn()
+    render(<Harness onSubmit={onSubmit} />)
+    await userEvent.type(box(), 'one{Shift>}{Enter}{/Shift}two')
+    expect(box()).toHaveValue('one\ntwo')
+    expect(onSubmit).not.toHaveBeenCalled()
+    await userEvent.keyboard('{Enter}')
+    expect(onSubmit).toHaveBeenCalledTimes(1)
+    expect(box()).toHaveValue('one\ntwo')
+  })
+
+  it('does not send while an input method composes', () => {
+    const onSubmit = vi.fn()
+    render(<Harness onSubmit={onSubmit} />)
+    fireEvent.keyDown(box(), { key: 'Enter', isComposing: true })
+    fireEvent.keyDown(box(), { key: 'Enter', keyCode: 229 })
+    expect(onSubmit).not.toHaveBeenCalled()
+  })
+
+  it('keeps Enter a newline where it should not send (touch)', async () => {
+    const onSubmit = vi.fn()
+    render(<Harness onSubmit={onSubmit} enterSends={false} />)
+    await userEvent.type(box(), 'a{Enter}b')
+    expect(box()).toHaveValue('a\nb')
+    expect(onSubmit).not.toHaveBeenCalled()
+    await userEvent.keyboard('{Control>}{Enter}{/Control}')
+    expect(onSubmit).toHaveBeenCalledTimes(1)
+  })
+
+  it('picks the open suggestion with Enter instead of sending', async () => {
+    const onSubmit = vi.fn()
+    render(<Harness onSubmit={onSubmit} />)
+    await userEvent.type(box(), 'see @ma')
+    await screen.findByRole('listbox')
+    await userEvent.keyboard('{Enter}')
+    expect(onSubmit).not.toHaveBeenCalled()
+  })
+
   it('sends with cmd+enter when no popup is open', async () => {
     const onSubmit = vi.fn()
     render(<Harness onSubmit={onSubmit} />)
@@ -107,12 +150,31 @@ describe('ComposerInput', () => {
     expect(onSubmit).toHaveBeenCalledTimes(1)
   })
 
-  it('keeps quiet when the lookup fails', async () => {
+  it('says when files could not be listed', async () => {
     vi.mocked(complete.completeFiles).mockRejectedValue(new Error('boom'))
     render(<Harness />)
     await userEvent.type(box(), '@x')
-    await waitFor(() => expect(complete.completeFiles).toHaveBeenCalled())
+    expect(await screen.findByText("couldn't list files")).toBeInTheDocument()
     expect(screen.queryByRole('listbox')).toBeNull()
+  })
+
+  it('says when commands could not be listed', async () => {
+    vi.mocked(complete.listCommands).mockRejectedValue(new Error('boom'))
+    render(<Harness />)
+    await userEvent.type(box(), '/co')
+    expect(await screen.findByText("couldn't list commands")).toBeInTheDocument()
+  })
+
+  it('keeps the last suggestions, dimmed, while the next lookup runs', async () => {
+    render(<Harness />)
+    await userEvent.type(box(), '@ma')
+    await screen.findByRole('listbox')
+    vi.mocked(complete.completeFiles).mockImplementation(() => new Promise(() => {}))
+    await userEvent.type(box(), 'i')
+    const list = screen.getByRole('listbox')
+    expect(list).toHaveAttribute('aria-busy', 'true')
+    expect(list).toHaveClass('stale')
+    expect(screen.getAllByRole('option')).toHaveLength(2)
   })
 
   it('says it is searching, then that nothing matched', async () => {
@@ -141,13 +203,50 @@ describe('ComposerInput', () => {
   })
 
   it('recalls the last message with ArrowUp in an empty composer', async () => {
-    render(<Harness recall="fix the tests" />)
+    render(<Harness history={['older', 'fix the tests']} />)
     await userEvent.type(box(), 'x')
     await userEvent.keyboard('{ArrowUp}')
     expect(box()).toHaveValue('x')
     await userEvent.clear(box())
     await userEvent.keyboard('{ArrowUp}')
     expect(box()).toHaveValue('fix the tests')
+  })
+
+  it('walks back and forth through sent messages like a shell', async () => {
+    render(<Harness history={['first', 'second', 'third']} />)
+    box().focus()
+    await userEvent.keyboard('{ArrowUp}{ArrowUp}')
+    expect(box()).toHaveValue('second')
+    await userEvent.keyboard('{ArrowUp}{ArrowUp}')
+    expect(box()).toHaveValue('first')
+    await userEvent.keyboard('{ArrowDown}')
+    expect(box()).toHaveValue('second')
+    await userEvent.keyboard('{ArrowDown}{ArrowDown}')
+    expect(box()).toHaveValue('')
+  })
+
+  it('keeps a draft: recalls only from the start of it and brings it back after', async () => {
+    render(<Harness history={['sent before']} initial="my draft" />)
+    box().focus()
+    box().setSelectionRange(8, 8)
+    await userEvent.keyboard('{ArrowUp}')
+    expect(box()).toHaveValue('my draft')
+    box().setSelectionRange(0, 0)
+    await userEvent.keyboard('{ArrowUp}')
+    expect(box()).toHaveValue('sent before')
+    await userEvent.keyboard('{ArrowDown}')
+    expect(box()).toHaveValue('my draft')
+  })
+
+  it('moves inside an edited message instead of leaving it', async () => {
+    render(<Harness history={['one\ntwo']} />)
+    box().focus()
+    await userEvent.keyboard('{ArrowUp}')
+    expect(box()).toHaveValue('one\ntwo')
+    await userEvent.type(box(), '!')
+    box().setSelectionRange(2, 2)
+    await userEvent.keyboard('{ArrowDown}')
+    expect(box()).toHaveValue('one\ntwo!')
   })
 
   it('grows with its text where CSS cannot size it', async () => {

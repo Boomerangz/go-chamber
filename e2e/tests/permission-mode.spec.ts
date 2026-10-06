@@ -2,7 +2,7 @@ import { expect, test, type Page } from '@playwright/test'
 import fs from 'node:fs'
 import os from 'node:os'
 import { token } from '../playwright.config'
-import { showPane } from './pane'
+import { showPane, showSessionDetails } from './pane'
 
 async function newSession(page: Page, agent: 'Claude' | 'Codex') {
   const dir = fs.realpathSync(fs.mkdtempSync(`${os.tmpdir()}/gc-mode-`))
@@ -21,6 +21,7 @@ async function say(page: Page, text: string) {
 test('switches the Claude permission mode and approves a plan', async ({ page }) => {
   await page.goto(`/?token=${token}`)
   await newSession(page, 'Claude')
+  await showSessionDetails(page)
   await page.getByLabel('permission mode').selectOption('plan')
   await say(page, 'current mode?')
   await expect(page.locator('.item.assistant', { hasText: 'mode: plan' })).toBeVisible()
@@ -32,19 +33,24 @@ test('switches the Claude permission mode and approves a plan', async ({ page })
   await expect(page.locator('.request')).toHaveCount(0)
 
   // Switches live in the running CLI.
+  await showSessionDetails(page)
   await page.getByLabel('permission mode').selectOption('acceptEdits')
   await say(page, 'current mode?')
   await expect(page.locator('.item.assistant', { hasText: 'mode: acceptEdits' })).toBeVisible()
 
   // New sessions of the agent start in the last chosen mode.
   await newSession(page, 'Claude')
+  await showSessionDetails(page)
   await expect(page.getByLabel('permission mode')).toHaveValue('acceptEdits')
 })
 
 test('runs Codex commands without asking in full access', async ({ page }) => {
   await page.goto(`/?token=${token}`)
   await newSession(page, 'Codex')
+  await showSessionDetails(page)
   await page.getByLabel('permission mode').selectOption('full-access')
+  await page.getByRole('group', { name: /^confirm/ }).getByRole('button', { name: 'Switch' }).click()
+  await expect(page.locator('.chat-meta .no-approvals')).toBeVisible()
   await say(page, 'current mode?')
   await expect(page.locator('.item.assistant', { hasText: 'mode: never dangerFullAccess' })).toBeVisible()
 })
@@ -52,10 +58,14 @@ test('runs Codex commands without asking in full access', async ({ page }) => {
 test('restores configured Codex approvals after full access', async ({ page }) => {
   await page.goto(`/?token=${token}`)
   await newSession(page, 'Codex')
+  await showSessionDetails(page)
   await page.getByLabel('permission mode').selectOption('full-access')
+  await page.getByRole('group', { name: /^confirm/ }).getByRole('button', { name: 'Switch' }).click()
+  await expect(page.locator('.chat-meta .no-approvals')).toBeVisible()
   await say(page, 'current mode?')
   await expect(page.locator('.item.assistant', { hasText: 'mode: never dangerFullAccess' })).toBeVisible()
   await expect(page.locator('.chat-meta .status', { hasText: 'idle' })).toBeVisible()
+  await showSessionDetails(page)
   await page.getByLabel('permission mode').selectOption('')
   await say(page, 'current mode?')
   await expect(page.locator('.item.assistant', { hasText: 'mode: on-request workspaceWrite' })).toBeVisible()

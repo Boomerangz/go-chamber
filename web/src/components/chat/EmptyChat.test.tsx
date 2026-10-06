@@ -43,4 +43,17 @@ describe('EmptyChat', () => {
     expect(screen.getByText('quick switch')).toBeInTheDocument()
     expect(screen.getByText('shortcuts')).toBeInTheDocument()
   })
+
+  it('holds the list with placeholder rows while sessions load', () => {
+    useSessionStore.setState({ sessions: [], sessionsStatus: 'loading' })
+    render(<EmptyChat />)
+    expect(screen.getByRole('status', { name: 'loading sessions' })).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Recent' })).toBeNull()
+  })
+
+  it('shows no placeholder once the list loaded empty', () => {
+    useSessionStore.setState({ sessions: [], sessionsStatus: 'ready' })
+    render(<EmptyChat />)
+    expect(screen.queryByRole('status', { name: 'loading sessions' })).toBeNull()
+  })
 })

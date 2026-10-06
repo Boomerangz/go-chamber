@@ -2,7 +2,7 @@ import { expect, test, type Page } from '@playwright/test'
 import fs from 'node:fs'
 import os from 'node:os'
 import { token } from '../playwright.config'
-import { showPane } from './pane'
+import { showPane, showSessionDetails } from './pane'
 
 async function newSession(page: Page, agent: 'Claude' | 'Codex') {
   const dir = fs.realpathSync(fs.mkdtempSync(`${os.tmpdir()}/gc-model-`))
@@ -15,6 +15,7 @@ async function newSession(page: Page, agent: 'Claude' | 'Codex') {
 
 async function pick(page: Page, group: 'model' | 'effort', name: RegExp | string) {
   const menu = page.getByRole('dialog', { name: 'Choose model' })
+  await showSessionDetails(page)
   if (!(await menu.isVisible())) await page.getByRole('button', { name: /^Model:/ }).click()
   await menu.getByRole('radiogroup', { name: group }).getByRole('radio', { name, exact: typeof name === 'string' }).click()
 }
@@ -51,6 +52,7 @@ test('chooses the Codex model and remembers it for new sessions', async ({ page 
   await ask(page, 'model: fake-small effort: low')
 
   await newSession(page, 'Codex')
+  await showSessionDetails(page)
   await expect(page.getByRole('button', { name: 'Model: Fake-small · low' })).toBeVisible()
   await ask(page, 'model: fake-small effort: low')
 })

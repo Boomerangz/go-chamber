@@ -2,6 +2,7 @@ import { useSessionStore } from '../../stores/session'
 import { sessionTitle } from '../../lib/sessions'
 import type { Session } from '../../lib/api'
 import { isMac, useMedia } from './useMedia'
+import { Skeleton } from '../ui/Loading'
 import './EmptyChat.css'
 
 const MAX = 5
@@ -12,6 +13,7 @@ export default function EmptyChat() {
   const sessions = useSessionStore((s) => s.sessions)
   const pending = useSessionStore((s) => s.pendingRequests)
   const selectSession = useSessionStore((s) => s.selectSession)
+  const status = useSessionStore((s) => s.sessionsStatus)
   // On a phone the sessions are a pane of their own, not a column on the left.
   const narrow = useMedia('(max-width: 720px)')
   const waitingIds = [...new Set(pending.map((r) => r.sessionId))]
@@ -30,6 +32,11 @@ export default function EmptyChat() {
             ? 'Pick an agent and a project folder under Sessions, or open an existing session.'
             : 'Pick an agent and a project folder on the left, or open an existing session.'}
         </p>
+        {status === 'loading' && list.length === 0 && (
+          <div className="empty-sessions">
+            <Skeleton rows={3} label="loading sessions" />
+          </div>
+        )}
         {list.length > 0 && (
           <div className="empty-sessions">
             <h3 className="section-title">{title}</h3>

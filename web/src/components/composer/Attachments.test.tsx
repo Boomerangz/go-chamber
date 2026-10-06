@@ -24,7 +24,7 @@ const png = (name = 'a.png') => new File(['x'], name, { type: 'image/png' })
 
 let latest: ReturnType<typeof useAttachments>
 function Harness({ sessionId = 's1', locked = false }: { sessionId?: string; locked?: boolean }) {
-  const state = useAttachments(sessionId)
+  const state = useAttachments(sessionId, locked)
   useEffect(() => {
     latest = state
   })
@@ -115,5 +115,44 @@ describe('Attachments', () => {
     const attach = screen.getByRole('button', { name: 'Attach' })
     expect(attach).toBeDisabled()
     expect(attach).toHaveAttribute('title', 'Images go with the next message')
+  })
+
+  it('shows the picture of an image still uploading and lets it go after', async () => {
+    const create = vi.fn(() => 'blob:thumb')
+    const revoke = vi.fn()
+    const spies = [vi.spyOn(URL, 'createObjectURL').mockImplementation(create), vi.spyOn(URL, 'revokeObjectURL').mockImplementation(revoke)]
+    let finish: (v: api.UploadedImage) => void = () => {}
+    vi.mocked(api.uploadImage).mockImplementationOnce(() => new Promise((r) => (finish = r)))
+    render(<Harness />)
+    await userEvent.upload(screen.getByLabelText('attach images'), png('big.png'))
+    const chip = screen.getByLabelText('uploading big.png')
+    expect(chip.querySelector('img')).toHaveAttribute('src', 'blob:thumb')
+    expect(chip.querySelector('.busy-mark')).not.toBeNull()
+    await act(async () => finish({ id: 'big.png', mimeType: 'image/png' }))
+    expect(revoke).toHaveBeenCalledWith('blob:thumb')
+    spies.forEach((s) => s.mockRestore())
+  })
+
+  it('retries a failed upload with the same file', async () => {
+    vi.mocked(api.uploadImage).mockRejectedValueOnce(new Error('network down'))
+    render(<Harness />)
+    await userEvent.upload(screen.getByLabelText('attach images'), png('again.png'))
+    expect(await screen.findByRole('alert')).toHaveTextContent('again.png: network down')
+    await userEvent.click(screen.getByRole('button', { name: 'retry again.png' }))
+    await waitFor(() => expect(latest.ids).toEqual(['img1.png']))
+    expect((vi.mocked(api.uploadImage).mock.calls[1]![1] as File).name).toBe('again.png')
+    expect(screen.queryByRole('alert')).toBeNull()
+  })
+
+  it('takes no pasted or dropped images while attaching is locked', () => {
+    render(<Harness locked />)
+    const form = screen.getByRole('form', { name: 'composer' })
+    fireEvent.dragEnter(form, { dataTransfer: { types: ['Files'] } })
+    expect(latest.dragging).toBe(false)
+    fireEvent.paste(form, { clipboardData: { files: [png('pasted.png')] } })
+    const dropped = fireEvent.drop(form, { dataTransfer: { files: [png('dropped.png')] } })
+    expect(dropped).toBe(false)
+    expect(api.uploadImage).not.toHaveBeenCalled()
+    expect(screen.getByRole('alert')).toHaveTextContent('images go with the next message')
   })
 })
