@@ -4,7 +4,8 @@ import { icon } from '../icon'
 import QuickSwitcher from './QuickSwitcher'
 import { replacingHistory } from './routeSync'
 import { useOverlay, type Overlay } from './overlay'
-import { formatCombo, isTypingTarget, matches, nextIndex, type Combo } from '../../lib/hotkeys'
+import { formatCombo, isMac, isTypingTarget, matches, nextIndex, type Combo } from '../../lib/hotkeys'
+import { terminalShortcuts } from '../../lib/terminal-keys'
 import { useLayoutStore, type Mode } from '../../stores/layout'
 import { useSessionStore } from '../../stores/session'
 import './shell.css'
@@ -24,12 +25,14 @@ interface Shortcut {
 
 // Shortcuts handled elsewhere, listed in the help so it is complete.
 const local: { keys: string; label: string; group: Group }[] = [
-  { keys: formatCombo({ key: 'Enter', mod: true }), label: 'Send the message', group: 'Chat' },
+  { keys: `Enter · ${formatCombo({ key: 'Enter', mod: true })}`, label: 'Send the message', group: 'Chat' },
+  { keys: formatCombo({ key: 'Enter', shift: true }), label: 'New line in the message', group: 'Chat' },
   { keys: formatCombo({ key: '.', mod: true }), label: 'Stop the running turn', group: 'Chat' },
   { keys: 'Esc', label: 'In an empty composer: stop the turn, or leave it', group: 'Chat' },
   { keys: 'A · S · D', label: 'Allow, allow for session, deny a request', group: 'Requests' },
   { keys: '↑ ↓', label: 'Move through requests in the tray', group: 'Requests' },
   { keys: 'j · k', label: 'In Changes: next, previous file', group: 'Navigate' },
+  ...terminalShortcuts(isMac).map((s) => ({ ...s, group: 'Terminal' as const })),
 ]
 
 function rows(): HTMLButtonElement[] {

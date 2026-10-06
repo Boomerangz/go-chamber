@@ -3,7 +3,7 @@ import { useNow } from '../../lib/now'
 import type { Health } from '../../lib/api'
 import { ChevronsRight, FileDiff, Inbox, List, MessageSquareText, SquareTerminal } from 'lucide-react'
 import { icon } from '../icon'
-import { DOCK_MAX, DOCK_MIN, SIDEBAR_MAX, SIDEBAR_MIN, useLayoutStore, type DockTab, type Mode } from '../../stores/layout'
+import { DOCK_MAX, DOCK_MIN, SIDEBAR_MAX, SIDEBAR_MIN, useLayoutStore, visibleDock, type DockTab, type Mode } from '../../stores/layout'
 import { formatCombo } from '../../lib/hotkeys'
 import { useSessionStore, type Pane } from '../../stores/session'
 import { useTerminalStore } from '../../stores/terminals'
@@ -33,14 +33,18 @@ export function ModeSwitch() {
 
 // DockRail is the collapsed dock: one button per tab, with counts.
 export function DockRail() {
-  const dock = useLayoutStore((s) => s.dock)
+  const chosen = useLayoutStore((s) => s.dock)
+  const focus = useLayoutStore((s) => s.focus)
   const toggleDock = useLayoutStore((s) => s.toggleDock)
   const pending = useSessionStore((s) => s.pendingRequests.length)
+  const hasSession = useSessionStore((s) => Boolean(s.activeId))
   const running = useTerminalStore((s) => s.terminals.filter((t) => t.status === 'running').length)
+  // Pressed is what is on screen, not what was last chosen.
+  const dock = visibleDock({ dock: chosen, focus }, pending, hasSession)
   const tabs = [
-    { id: 'requests' as const, label: 'Requests', icon: <Inbox {...icon(16)} />, count: pending, key: '' },
-    { id: 'terminal' as const, label: 'Terminal', icon: <SquareTerminal {...icon(16)} />, count: running, key: 't' },
-    { id: 'changes' as const, label: 'Changes', icon: <FileDiff {...icon(16)} />, count: 0, key: '' },
+    { id: 'requests' as const, label: 'Requests', icon: <Inbox {...icon(16)} />, count: pending, key: '', off: '' },
+    { id: 'terminal' as const, label: 'Terminal', icon: <SquareTerminal {...icon(16)} />, count: running, key: 't', off: '' },
+    { id: 'changes' as const, label: 'Changes', icon: <FileDiff {...icon(16)} />, count: 0, key: 'd', off: hasSession ? '' : 'Open a session to see its changes' },
   ]
   return (
     <div className="dock-rail" role="toolbar" aria-label="Dock" aria-orientation="vertical">
@@ -51,7 +55,8 @@ export function DockRail() {
           className={`rail-btn rail-${t.id}`}
           aria-pressed={dock === t.id}
           aria-label={t.count > 0 ? `${t.label} ${t.count}` : t.label}
-          title={t.key ? `${t.label} (${t.key})` : t.label}
+          title={t.off || (t.key ? `${t.label} (${t.key})` : t.label)}
+          disabled={Boolean(t.off)}
           onClick={() => toggleDock(t.id)}
         >
           {t.icon}
@@ -62,7 +67,7 @@ export function DockRail() {
           )}
         </button>
       ))}
-      {dock && (
+      {dock && !focus && (
         <button type="button" className="rail-btn rail-collapse" aria-label="Collapse dock" title="Collapse" onClick={() => toggleDock(dock)}>
           <ChevronsRight {...icon(16)} />
         </button>

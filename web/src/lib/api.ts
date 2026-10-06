@@ -204,6 +204,21 @@ export class ApiError extends Error {
   }
 }
 
+// errorMessage turns a failed response's body into the message to show:
+// the server answers {"error":"…"}, and the owner should read the reason,
+// not the JSON around it. Any other body is kept whole for describeError.
+export function errorMessage(body: string, status: string): string {
+  if (!body) return status
+  try {
+    const parsed: unknown = JSON.parse(body)
+    const reason = (parsed as { error?: unknown } | null)?.error
+    if (typeof reason === 'string' && reason) return reason
+  } catch {
+    // Not JSON: an HTML page or plain text.
+  }
+  return body
+}
+
 // withDeadline runs fn with a signal that aborts after ms (reason: a
 // TimeoutError) or when the caller's own signal does, whichever is first.
 async function withDeadline<T>(outer: AbortSignal | null | undefined, ms: number, fn: (signal: AbortSignal) => Promise<T>): Promise<T> {
@@ -246,7 +261,7 @@ async function request<T>(path: string, init?: RequestInit, timeoutMs = TIMEOUT_
   })
   if (status === 401) signedOut()
   if (status < 200 || status > 299) {
-    throw new ApiError(status, text || `${status} ${statusText}`)
+    throw new ApiError(status, errorMessage(text, `${status} ${statusText}`))
   }
   return (text ? JSON.parse(text) : undefined) as T
 }
@@ -488,6 +503,8 @@ export interface Changes {
   root?: string
   base?: string
   files: FileChange[]
+  // commits counts a worktree branch's commits since base.
+  commits?: number
 }
 
 export function createWorktreeSession(agent: AgentKind, cwd: string, branch: string, choice?: ModelChoice): Promise<Session> {

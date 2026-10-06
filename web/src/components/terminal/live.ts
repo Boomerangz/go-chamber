@@ -92,6 +92,8 @@ function fontReady(): Promise<void> | null {
 const stopTyping = (xterm: XTerm) => {
   xterm.options.disableStdin = true
   xterm.options.cursorBlink = false
+  // An exited shell takes no input, so it shows no cursor either.
+  xterm.write('\x1b[?25l')
 }
 
 // liveFor returns the screen of a terminal, opening it inside host the

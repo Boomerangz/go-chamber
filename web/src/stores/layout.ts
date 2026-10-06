@@ -1,5 +1,6 @@
 import type { CSSProperties } from 'react'
 import { create } from 'zustand'
+import { useSessionStore } from './session'
 
 // Mode is the workspace: agent sessions, or terminals on their own.
 export type Mode = 'agents' | 'terminal' | 'diagnostics'
@@ -101,7 +102,12 @@ export const useLayoutStore = create<LayoutStore>((set, get) => {
   return {
     ...loadLayout(),
     setMode: (mode) => update({ mode }),
-    toggleDock: (tab) => update({ dock: get().dock === tab ? null : tab }),
+    toggleDock: (tab) => {
+      if (get().dock === tab) return update({ dock: null })
+      // Changes are a session's: without one there is nothing to open.
+      if (tab === 'changes' && !useSessionStore.getState().activeId) return
+      update({ dock: tab })
+    },
     toggleFocus: () => update({ focus: !get().focus }),
     toggleWrap: () => update({ wrap: !get().wrap }),
     setDockWidth: (tab, px) => {

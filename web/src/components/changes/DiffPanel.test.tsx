@@ -67,12 +67,22 @@ describe('DiffPanel', () => {
     await waitFor(() => expect(api.getChanges).toHaveBeenCalledTimes(2))
   })
 
+  it('says a branch without commits has nothing to merge yet', async () => {
+    vi.mocked(api.getChanges).mockResolvedValue({ repository: true, base: 'abc', files: [], commits: 0 })
+    useSessionStore.setState({ sessions: [{ id: 's1', agent: 'claude', cwd: worktree.path, status: 'idle', worktree }] })
+    render(<DiffPanel sessionId="s1" />)
+    expect(await screen.findByText(/no commits yet/)).toBeInTheDocument()
+    expect(screen.queryByText(/git -C/)).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Copy merge command' })).toBeNull()
+  })
+
   it('shows the merge hint and removes a clean worktree', async () => {
-    vi.mocked(api.getChanges).mockResolvedValue({ repository: true, base: 'abc', files: [] })
+    vi.mocked(api.getChanges).mockResolvedValue({ repository: true, base: 'abc', files: [], commits: 2 })
     vi.mocked(api.removeWorktree).mockResolvedValue({ id: 's1', agent: 'claude', cwd: worktree.path, status: 'idle' })
     useSessionStore.setState({ sessions: [{ id: 's1', agent: 'claude', cwd: worktree.path, status: 'idle', worktree }] })
     render(<DiffPanel sessionId="s1" />)
-    expect(await screen.findByText('git -C /src/app merge chamber/fix')).toBeInTheDocument()
+    expect(await screen.findByText('git -C /src/app merge chamber/fix')).toHaveAttribute('title', 'git -C /src/app merge chamber/fix')
+    expect(screen.getByText(/2 commits to merge/)).toBeInTheDocument()
     await userEvent.click(screen.getByRole('button', { name: 'Remove worktree' }))
     expect(api.removeWorktree).not.toHaveBeenCalled()
     expect(screen.getByText(/remove folder \/wt\/app\/fix\? branch chamber\/fix is kept/)).toBeInTheDocument()
@@ -105,7 +115,7 @@ describe('DiffPanel', () => {
   it('copies the merge command', async () => {
     const writeText = vi.fn(() => Promise.resolve())
     vi.stubGlobal('navigator', { ...navigator, clipboard: { writeText } })
-    vi.mocked(api.getChanges).mockResolvedValue({ repository: true, base: 'abc', files: [] })
+    vi.mocked(api.getChanges).mockResolvedValue({ repository: true, base: 'abc', files: [], commits: 1 })
     useSessionStore.setState({ sessions: [{ id: 's1', agent: 'claude', cwd: worktree.path, status: 'idle', worktree }] })
     render(<DiffPanel sessionId="s1" />)
     await userEvent.click(await screen.findByRole('button', { name: 'Copy merge command' }))
@@ -214,7 +224,8 @@ describe('DiffPanel', () => {
     await userEvent.click(await screen.findByRole('button', { name: /big\.txt/ }))
     expect(await screen.findByText('line 1999')).toBeInTheDocument()
     expect(screen.queryByText('line 2000')).toBeNull()
-    await userEvent.click(screen.getByRole('button', { name: 'show all 2500 lines' }))
+    expect(screen.getByText('showing 2,000 of 2,500 lines')).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'show all 2,500 lines' }))
     expect(screen.getByText('line 2499')).toBeInTheDocument()
   })
 
@@ -369,7 +380,10 @@ describe('DiffPanel reading', () => {
       vi.mocked(api.getChanges).mockReturnValueOnce(new Promise((r) => { list = r }))
       await act(async () => vi.advanceTimersByTime(POLL_MS))
       expect(api.getChanges).toHaveBeenCalledTimes(2)
-      expect(screen.getByText('refreshing…')).toBeInTheDocument()
+      // A poll is quiet: only a reload asked for says "refreshing…".
+      expect(screen.queryByText('refreshing…')).toBeNull()
+      expect(screen.getByText(/^updated \d\d:\d\d$/)).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Refresh changes' })).not.toHaveAttribute('aria-busy')
       await act(async () => list({ ...two, files: [{ ...two.files[0]!, added: 5 }, two.files[1]!, two.files[2]!] }))
       await waitFor(() => expect(api.getFileDiff).toHaveBeenCalledTimes(3))
       expect(vi.mocked(api.getFileDiff).mock.calls[2]).toEqual(['s1', 'src/a.go'])
@@ -382,6 +396,49 @@ describe('DiffPanel reading', () => {
     } finally {
       vi.useRealTimers()
     }
+  })
+})
+
+describe('DiffPanel headers', () => {
+  it('hides git’s header lines and keeps a rename as a quiet note', async () => {
+    vi.mocked(api.getChanges).mockResolvedValue({ repository: true, files: [{ path: 'new.go', status: 'M', added: 1, removed: 1 }] })
+    vi.mocked(api.getFileDiff).mockResolvedValue({
+      diff: 'diff --git a/old.go b/new.go\nsimilarity index 90%\nrename from old.go\nrename to new.go\nindex 1..2 100644\n--- a/old.go\n+++ b/new.go\n@@ -1 +1 @@\n-a\n+b\n',
+    })
+    render(<DiffPanel sessionId="s1" />)
+    await userEvent.click(await screen.findByRole('button', { name: /new\.go/ }))
+    expect(await screen.findByText('renamed from old.go')).toHaveClass('diff-note')
+    expect(screen.queryByText(/^diff --git/)).toBeNull()
+    expect(screen.queryByText(/^index /)).toBeNull()
+    expect(screen.queryByText('+++ b/new.go')).toBeNull()
+  })
+
+  it('says a binary file is binary and offers to view it', async () => {
+    vi.mocked(api.getChanges).mockResolvedValue({ repository: true, files: [{ path: 'shot.png', status: 'M', binary: true }] })
+    vi.mocked(api.getFileDiff).mockResolvedValue({ diff: 'diff --git a/shot.png b/shot.png\nBinary files a/shot.png and b/shot.png differ\n' })
+    render(<DiffPanel sessionId="s1" />)
+    await userEvent.click(await screen.findByRole('button', { name: /shot\.png/ }))
+    expect(await screen.findByText('binary file')).toBeInTheDocument()
+    expect(screen.queryByText(/Binary files/)).toBeNull()
+    await userEvent.click(screen.getByRole('button', { name: 'View' }))
+    expect(document.querySelector('.file-viewer')).not.toBeNull()
+  })
+
+  it('reads a binary diff git reports for a file the list didn’t mark', async () => {
+    vi.mocked(api.getChanges).mockResolvedValue({ repository: true, files: [{ path: 'old.bin', status: 'D' }] })
+    vi.mocked(api.getFileDiff).mockResolvedValue({ diff: 'diff --git a/old.bin b/old.bin\nBinary files a/old.bin and /dev/null differ\n' })
+    render(<DiffPanel sessionId="s1" />)
+    await userEvent.click(await screen.findByRole('button', { name: /old\.bin/ }))
+    expect(await screen.findByText('binary file')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'View' })).toBeNull()
+  })
+
+  it('says “refreshing…” for a reload asked for', async () => {
+    vi.mocked(api.getChanges).mockResolvedValueOnce({ repository: true, files: [] }).mockReturnValueOnce(new Promise(() => {}))
+    render(<DiffPanel sessionId="s1" />)
+    expect(await screen.findByText(/^updated/)).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Refresh changes' }))
+    expect(screen.getByText('refreshing…')).toBeInTheDocument()
   })
 })
 

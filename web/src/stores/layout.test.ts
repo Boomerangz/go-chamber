@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest'
+import { useSessionStore } from './session'
 import { DOCK_MAX, DOCK_MIN, loadLayout, resetLayout, SIDEBAR_MAX, SIDEBAR_MIN, useLayoutStore, visibleDock } from './layout'
 
 const store = () => useLayoutStore.getState()
@@ -34,9 +35,19 @@ describe('layout store', () => {
   })
 
   it('opens the changes tab and remembers it', () => {
+    useSessionStore.setState({ activeId: 's1' })
     store().toggleDock('changes')
     expect(store().dock).toBe('changes')
     expect(loadLayout().dock).toBe('changes')
+  })
+
+  it('leaves the changes tab shut without a session, but lets it close', () => {
+    useSessionStore.setState({ activeId: null })
+    store().toggleDock('changes')
+    expect(store().dock).toBeNull()
+    useLayoutStore.setState({ dock: 'changes' })
+    store().toggleDock('changes')
+    expect(store().dock).toBeNull()
   })
 
   it('ignores unknown or broken stored values', () => {

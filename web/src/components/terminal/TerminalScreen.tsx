@@ -17,11 +17,12 @@ export default function TerminalScreen({ id }: { id: string }) {
   const markExited = useTerminalStore((s) => s.markExited)
   const finding = useTerminalStore((s) => s.finding === id)
   const unseen = useTerminalStore((s) => Boolean(s.unseen[id]))
+  const exited = useTerminalStore((s) => s.terminals.find((t) => t.id === id)?.status === 'exited')
   return (
     <div className="terminal-panel" id="terminal-panel" role="tabpanel" aria-labelledby={`terminal-tab-${id}`}>
       <ConnectionLine id={id} />
       {finding && <FindBar id={id} />}
-      <TerminalKeys id={id} />
+      {!exited && <TerminalKeys id={id} />}
       <div className="term-screen">
         <TerminalView
           key={id}
@@ -31,6 +32,7 @@ export default function TerminalScreen({ id }: { id: string }) {
           onExit={(code) => markExited(id, code)}
           onDisconnect={() => void load()}
         />
+        <ZoomLevel />
         {unseen && (
           <button type="button" className="btn btn-xs term-new-output" onClick={() => scrollToBottom(id)}>
             <ArrowDown {...icon(13)} /> new output
@@ -41,8 +43,31 @@ export default function TerminalScreen({ id }: { id: string }) {
   )
 }
 
-// FindBar searches the terminal's scrollback: Enter for the next match,
-// Shift+Enter for the previous, Escape to go back to the shell.
+const ZOOM_SHOWN_MS = 1200
+
+// ZoomLevel says the text size for a moment after it changes.
+function ZoomLevel() {
+  const size = useTerminalStore((s) => s.fontSize)
+  const [shown, setShown] = useState<number | null>(null)
+  const first = useRef<number | null>(size)
+  useEffect(() => {
+    if (size === first.current) return
+    first.current = null
+    setShown(size)
+    const timer = setTimeout(() => setShown(null), ZOOM_SHOWN_MS)
+    return () => clearTimeout(timer)
+  }, [size])
+  if (shown === null) return null
+  return (
+    <span className="term-zoom" role="status" aria-label="text size">
+      {shown}px
+    </span>
+  )
+}
+
+// FindBar searches the terminal's scrollback from the newest output up:
+// Enter for the next older match, Shift+Enter for a newer one, Escape to go
+// back to the shell.
 export function FindBar({ id }: { id: string }) {
   const setFinding = useTerminalStore((s) => s.setFinding)
   const [term, setTerm] = useState('')
@@ -80,12 +105,12 @@ export function FindBar({ id }: { id: string }) {
         autoFocus
         onChange={(e) => {
           setTerm(e.target.value)
-          find(e.target.value, { incremental: true })
+          find(e.target.value, { incremental: true, backwards: true })
         }}
         onKeyDown={(e) => {
           if (e.key === 'Enter') {
             e.preventDefault()
-            find(term, { backwards: e.shiftKey })
+            find(term, { backwards: !e.shiftKey })
           } else if (e.key === 'Escape') {
             e.preventDefault()
             e.stopPropagation()
@@ -94,10 +119,10 @@ export function FindBar({ id }: { id: string }) {
         }}
       />
       <span className="term-strip-word term-find-count" aria-live="polite">{status}</span>
-      <button type="button" className="btn btn-ghost btn-icon" aria-label="Previous match" title="Previous match (Shift+Enter)" disabled={!term} onClick={() => find(term, { backwards: true })}>
+      <button type="button" className="btn btn-ghost btn-icon" aria-label="Older match" title="Older match (Enter)" disabled={!term} onClick={() => find(term, { backwards: true })}>
         <ChevronUp {...icon(14)} />
       </button>
-      <button type="button" className="btn btn-ghost btn-icon" aria-label="Next match" title="Next match (Enter)" disabled={!term} onClick={() => find(term)}>
+      <button type="button" className="btn btn-ghost btn-icon" aria-label="Newer match" title="Newer match (Shift+Enter)" disabled={!term} onClick={() => find(term)}>
         <ChevronDown {...icon(14)} />
       </button>
       <button type="button" className="btn btn-ghost btn-icon" aria-label="Close find" title="Close (Esc)" onClick={close}>

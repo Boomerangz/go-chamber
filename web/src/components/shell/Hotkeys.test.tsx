@@ -30,6 +30,8 @@ describe('Hotkeys', () => {
     await userEvent.keyboard('?')
     expect(screen.getByRole('dialog', { name: 'Keyboard shortcuts' })).toBeInTheDocument()
     expect(screen.getByText('Next session that needs you')).toBeInTheDocument()
+    expect(screen.getByText('In a terminal: find in the scrollback')).toBeInTheDocument()
+    expect(screen.getByText('In a terminal: larger, smaller, default text')).toBeInTheDocument()
   })
 
   it('groups the shortcut list and names the modes', async () => {
@@ -82,6 +84,10 @@ describe('Hotkeys', () => {
 
   it('opens and closes the changes dock with d', async () => {
     render(<Hotkeys />)
+    await userEvent.keyboard('d')
+    // Without a session there are no changes to open.
+    expect(useLayoutStore.getState().dock).toBeNull()
+    act(() => useSessionStore.setState({ activeId: 's1' }))
     await userEvent.keyboard('d')
     expect(useLayoutStore.getState().dock).toBe('changes')
     await userEvent.keyboard('d')

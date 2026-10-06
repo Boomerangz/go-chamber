@@ -2,7 +2,8 @@ import { fireEvent, render, renderHook, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { DOCK_MIN, resetLayout, SIDEBAR_MAX, useLayoutStore } from '../../stores/layout'
 import { useLayoutVars } from '../../stores/layout'
-import { DockSplitter, SidebarSplitter } from './Shell'
+import { useSessionStore } from '../../stores/session'
+import { DockRail, DockSplitter, SidebarSplitter } from './Shell'
 
 const layout = () => useLayoutStore.getState()
 
@@ -107,5 +108,31 @@ describe('useLayoutVars', () => {
     expect(result.current).toEqual({ '--sidebar-w': '280px' })
     rerender({ dock: null })
     expect(result.current).toEqual({ '--sidebar-w': '280px' })
+  })
+})
+
+describe('DockRail', () => {
+  afterEach(() => useSessionStore.setState({ activeId: null }))
+
+  it('keeps Changes off without a session and says why', () => {
+    useSessionStore.setState({ activeId: null })
+    useLayoutStore.setState({ dock: 'changes' })
+    render(<DockRail />)
+    const changes = screen.getByRole('button', { name: 'Changes' })
+    expect(changes).toBeDisabled()
+    expect(changes).toHaveAttribute('title', 'Open a session to see its changes')
+    expect(changes).toHaveAttribute('aria-pressed', 'false')
+    expect(screen.queryByRole('button', { name: 'Collapse dock' })).toBeNull()
+  })
+
+  it('names the key for Changes and presses the dock shown', () => {
+    useSessionStore.setState({ activeId: 's1' })
+    useLayoutStore.setState({ dock: 'changes' })
+    render(<DockRail />)
+    const changes = screen.getByRole('button', { name: 'Changes' })
+    expect(changes).toBeEnabled()
+    expect(changes).toHaveAttribute('title', 'Changes (d)')
+    expect(changes).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('button', { name: 'Collapse dock' })).toBeInTheDocument()
   })
 })

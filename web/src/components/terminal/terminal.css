@@ -101,3 +101,29 @@
   .terminal-tabs .close-terminal { width: 36px; height: 36px; }
   .term-row .close-terminal { width: 36px; height: 36px; }
 }
+
+/* a failed exit is red in the list too, not only above the screen */
+.term-exit.term-bad { color: var(--bad); }
+
+/* the size a zoom just set, for a moment, in the screen's corner */
+.term-zoom {
+  position: absolute; top: 8px; right: 14px; z-index: 2; padding: 2px 6px;
+  border: 1px solid var(--rule-strong); border-radius: var(--r); background: var(--paper);
+  font-family: var(--font-mono); font-size: 12px; color: var(--ink-2); pointer-events: none;
+}
+
+/* the find bar has its own close; the browser's clear button would be a second */
+.term-find-input::-webkit-search-cancel-button { -webkit-appearance: none; appearance: none; display: none; }
+
+/* tabs hidden past an edge of the strip fade out there */
+.terminal-tabs[data-fade='end'] { mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent); }
+.terminal-tabs[data-fade='start'] { mask-image: linear-gradient(to left, #000 calc(100% - 28px), transparent); }
+.terminal-tabs[data-fade='both'] { mask-image: linear-gradient(to right, transparent, #000 28px, #000 calc(100% - 28px), transparent); }
+
+/* a phone with nothing attached: the shell list is the whole screen */
+@media (max-width: 720px) {
+  .term-workspace:not([data-attached]) { grid-template-rows: minmax(0, 1fr) auto; }
+  .term-workspace:not([data-attached]) > .term-sidebar { max-height: none; border-bottom: 0; }
+  .term-workspace:not([data-attached]):not([data-missing]) > .term-main { display: none; }
+  .term-workspace:not([data-attached]) > .term-main > .hero > :not(.term-missing) { display: none; }
+}

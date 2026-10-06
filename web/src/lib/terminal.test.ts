@@ -43,7 +43,7 @@ describe('terminal REST', () => {
 
   it('surfaces server errors', async () => {
     stubFetch(async () => new Response('{"error":"bad cwd"}', { status: 400 }))
-    await expect(openTerminal({ cwd: 'x' })).rejects.toThrow('bad cwd')
+    await expect(openTerminal({ cwd: 'x' })).rejects.toThrow(/^bad cwd$/)
   })
 })
 

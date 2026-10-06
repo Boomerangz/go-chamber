@@ -171,6 +171,19 @@ func (r Repo) FileDiff(ctx context.Context, dir, base, path string) (string, err
 
 // resolve maps base to a commit, or to the empty tree when HEAD is asked
 // for in a repository without commits.
+// Commits counts the commits on dir's HEAD since base.
+func (r Repo) Commits(ctx context.Context, dir, base string) (int, error) {
+	out, err := run(ctx, dir, "rev-list", "--count", base+"..HEAD", "--")
+	if err != nil {
+		return 0, err
+	}
+	n, err := strconv.Atoi(strings.TrimSpace(out))
+	if err != nil {
+		return 0, fmt.Errorf("git rev-list: %q: %w", out, err)
+	}
+	return n, nil
+}
+
 func resolve(ctx context.Context, dir, base string) (string, error) {
 	if _, err := run(ctx, dir, "rev-parse", "--verify", "-q", base+"^{commit}"); err == nil {
 		return base, nil
