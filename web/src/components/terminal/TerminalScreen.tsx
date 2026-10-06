@@ -59,7 +59,7 @@ function ZoomLevel() {
   }, [size])
   if (shown === null) return null
   return (
-    <span className="term-zoom" role="status" aria-label="text size">
+    <span className="term-zoom" role="status" aria-label="Text size">
       {shown}px
     </span>
   )

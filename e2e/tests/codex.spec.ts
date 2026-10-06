@@ -6,7 +6,7 @@ async function newCodexSession(page: import('@playwright/test').Page, cwd = '/tm
   await page.goto(`/?token=${token}`)
   await openNewSession(page)
   await page.getByRole('radio', { name: 'Codex' }).click()
-  await page.getByLabel('working directory').fill(cwd)
+  await page.getByLabel('Working directory').fill(cwd)
   await page.getByRole('button', { name: 'New session', exact: true }).click()
   await expect(page.getByLabel('message')).toBeVisible()
 }

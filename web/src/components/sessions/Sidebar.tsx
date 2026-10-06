@@ -140,7 +140,7 @@ export default function Sidebar(props: SidebarProps) {
           <ChevronDown {...icon(14)} className="icon chevron" />
           Start a session
         </button>
-        <div className="segmented" role="radiogroup" aria-label="agent">
+        <div className="segmented" role="radiogroup" aria-label="Agent">
           {(['claude', 'codex'] as const).map((a) => (
             <button
               key={a}
@@ -158,7 +158,7 @@ export default function Sidebar(props: SidebarProps) {
           ))}
         </div>
         <FolderField
-          label="working directory"
+          label="Working directory"
           placeholder="Choose a project folder"
           value={cwd}
           onChange={(v) => {
@@ -203,7 +203,7 @@ export default function Sidebar(props: SidebarProps) {
             <input
               ref={branchInput}
               className="field"
-              aria-label="branch name"
+              aria-label="Branch name"
               aria-invalid={missing === 'branch' || undefined}
               placeholder="branch name"
               value={branch}

@@ -87,7 +87,7 @@ export default function HistoryPanel() {
           <input
             type="search"
             className="field history-filter"
-            aria-label="filter history"
+            aria-label="Filter history"
             placeholder="Filter by title or folder"
             value={filter}
             onChange={(e) => setFilter(e.target.value)}

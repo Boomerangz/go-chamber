@@ -109,7 +109,7 @@ describe('message search', () => {
   it('clears with the clear button, Escape clears and a second Escape leaves the field', async () => {
     render(<SessionList onCreateIn={() => {}} />)
     expect(screen.queryByRole('button', { name: 'Clear search' })).toBeNull()
-    const input = screen.getByLabelText('search sessions')
+    const input = screen.getByLabelText('Search sessions')
     await userEvent.type(input, 'abc')
     await userEvent.click(screen.getByRole('button', { name: 'Clear search' }))
     expect(input).toHaveValue('')

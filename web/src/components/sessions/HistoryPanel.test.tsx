@@ -42,7 +42,7 @@ describe('HistoryPanel', () => {
 
   it('filters by title and folder', async () => {
     await open()
-    await userEvent.type(screen.getByLabelText('filter history'), 'site')
+    await userEvent.type(screen.getByLabelText('Filter history'), 'site')
     expect(screen.queryByText('Fix the flaky test')).not.toBeInTheDocument()
     expect(screen.getByText('Tidy the README')).toBeInTheDocument()
   })
@@ -113,7 +113,7 @@ describe('HistoryPanel', () => {
 
   it('says when the filter matches nothing', async () => {
     await open()
-    await userEvent.type(screen.getByLabelText('filter history'), 'zzz')
+    await userEvent.type(screen.getByLabelText('Filter history'), 'zzz')
     expect(screen.getByText('No matching conversations')).toBeInTheDocument()
   })
 

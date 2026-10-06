@@ -99,7 +99,7 @@ export default function SessionList({ onCreateIn, agent = 'claude', creating = f
         <input
           ref={input}
           type="search"
-          aria-label="search sessions"
+          aria-label="Search sessions"
           placeholder="Search sessions"
           title="Search sessions (/)"
           value={query}

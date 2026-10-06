@@ -8,7 +8,7 @@ async function newSession(page: import('@playwright/test').Page, agent: 'Claude'
   if (await bar.isVisible()) await bar.getByRole('button', { name: /^Sessions/ }).click()
   await openNewSession(page)
   await page.getByRole('radio', { name: agent }).click()
-  await page.getByLabel('working directory').fill('/tmp')
+  await page.getByLabel('Working directory').fill('/tmp')
   await page.getByRole('button', { name: 'New session', exact: true }).click()
   await expect(page.getByLabel('message')).toBeVisible()
 }

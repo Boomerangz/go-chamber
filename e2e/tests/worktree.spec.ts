@@ -23,9 +23,9 @@ test('works in a new worktree and shows its changes', async ({ page }, info) => 
   await page.goto(`/?token=${token}`)
   await showPane(page, 'Sessions')
   await openNewSession(page)
-  await page.getByLabel('working directory').fill(repo)
+  await page.getByLabel('Working directory').fill(repo)
   await page.getByLabel('In a new worktree').check()
-  await page.getByLabel('branch name').fill(branch)
+  await page.getByLabel('Branch name').fill(branch)
   await page.getByRole('button', { name: 'New session', exact: true }).click()
   await expect(page.getByLabel('message')).toBeVisible()
 

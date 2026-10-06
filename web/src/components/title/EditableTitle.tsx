@@ -51,7 +51,7 @@ export default function EditableTitle({ value, label, onRename, className, headi
     return (
       <input
         className={`title-input ${className ?? ''}`}
-        aria-label={`${label} name`}
+        aria-label={`${label[0]!.toUpperCase()}${label.slice(1)} name`}
         value={draft}
         maxLength={200}
         autoFocus

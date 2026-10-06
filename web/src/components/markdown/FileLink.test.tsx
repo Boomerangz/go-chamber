@@ -129,7 +129,7 @@ describe('file links', () => {
     fireEvent.click(screen.getByRole('link', { name: 'shot' }))
     expect(screen.getByText('loading image…')).toBeInTheDocument()
     fireEvent.error(screen.getByRole('img'))
-    expect(screen.getByRole('alert')).toHaveTextContent('Couldn’t load the image')
+    expect(screen.getByRole('alert')).toHaveTextContent("Couldn't load the image")
   })
 
   it('stops saying loading once the image arrives', () => {

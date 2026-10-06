@@ -356,7 +356,7 @@ describe('DiffPanel reading', () => {
     vi.mocked(api.getFileDiff).mockRejectedValueOnce(new Error('too big')).mockResolvedValueOnce({ diff: '+fine\n' })
     render(<DiffPanel sessionId="s1" />)
     await userEvent.click(await screen.findByRole('button', { name: /src\/a\.go/ }))
-    expect(await screen.findByRole('alert')).toHaveTextContent('Couldn’t load the diff: too big')
+    expect(await screen.findByRole('alert')).toHaveTextContent("Couldn't load the diff: too big")
     await userEvent.click(screen.getByRole('button', { name: 'Retry' }))
     expect(await screen.findByText('fine')).toBeInTheDocument()
     vi.mocked(api.getFileDiff).mockReturnValueOnce(new Promise(() => {}))

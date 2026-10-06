@@ -15,7 +15,7 @@ test('WebSocket terminal renders large output and replays it after reload', asyn
   await page.goto(`/?token=${token}`)
   await page.getByRole('radio', { name: /^Terminal/ }).click()
   const panel = page.getByRole('region', { name: 'Terminals' })
-  await panel.getByLabel('terminal directory').fill(dir)
+  await panel.getByLabel('Terminal directory').fill(dir)
   await panel.getByRole('button', { name: 'New terminal' }).click()
   await panel.getByTestId('terminal-view').click()
   await page.keyboard.insertText('cat output.txt')
@@ -42,7 +42,7 @@ test('independent terminal: run a command, survive reload, exit, close', async (
   await page.getByRole('radio', { name: /^Terminal/ }).click()
   const panel = page.getByRole('region', { name: 'Terminals' })
   await expect(page.getByRole('heading', { name: 'Start a session' })).toBeHidden()
-  await panel.getByLabel('terminal directory').fill(dir)
+  await panel.getByLabel('Terminal directory').fill(dir)
   await panel.getByRole('button', { name: 'New terminal' }).click()
 
   await showShells(page)
@@ -87,14 +87,14 @@ test('independent terminal: run a command, survive reload, exit, close', async (
   await panel.getByRole('button', { name: `Close terminal ${dir.split('/').pop()}` }).click()
   await expect(panel.getByRole('tab', { name: new RegExp(dir.split('/').pop()!) })).toHaveCount(0)
   await page.getByRole('radio', { name: 'Agents' }).click()
-  await expect(page.getByLabel('search sessions')).toBeVisible()
+  await expect(page.getByLabel('Search sessions')).toBeVisible()
 })
 
 test('terminal in the session directory', async ({ page }) => {
   const dir = fs.realpathSync(fs.mkdtempSync(`${os.tmpdir()}/gc-sess-`))
   await page.goto(`/?token=${token}`)
   await openNewSession(page)
-  await page.getByLabel('working directory').fill(dir)
+  await page.getByLabel('Working directory').fill(dir)
   await page.getByRole('button', { name: 'New session', exact: true }).click()
   await expect(page.getByLabel('message')).toBeVisible()
 
@@ -116,7 +116,7 @@ test('ad-hoc terminal docked next to the chat', async ({ page, isMobile }) => {
   const dir = fs.realpathSync(fs.mkdtempSync(`${os.tmpdir()}/gc-dock-`))
   await page.goto(`/?token=${token}`)
   await openNewSession(page)
-  await page.getByLabel('working directory').fill(dir)
+  await page.getByLabel('Working directory').fill(dir)
   await page.getByRole('button', { name: 'New session', exact: true }).click()
   await expect(page.getByLabel('message')).toBeVisible()
 

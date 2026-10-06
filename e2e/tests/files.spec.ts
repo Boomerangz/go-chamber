@@ -13,7 +13,7 @@ test('opens files the agent links inside its folder', async ({ page }) => {
 
   await page.goto(`/?token=${token}`)
   await openNewSession(page)
-  await page.getByLabel('working directory').fill(cwd)
+  await page.getByLabel('Working directory').fill(cwd)
   await page.getByRole('button', { name: 'New session', exact: true }).click()
   await page.getByLabel('message').fill(`see [notes](${join(cwd, 'notes.md')}) and [secret](${join(outside, 'secret.md')})`)
   await page.getByRole('button', { name: 'Send' }).click()

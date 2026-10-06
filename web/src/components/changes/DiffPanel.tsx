@@ -271,7 +271,7 @@ function SessionDiffPanel({ sessionId }: { sessionId: string | null }) {
         <WorktreeBar session={session} worktree={session.worktree} changed={files.length} commits={changes?.commits ?? 0} />
       )}
       {listError && (
-        <LoadFailed onRetry={refresh}>{`Couldn’t load changes: ${listError}`}</LoadFailed>
+        <LoadFailed onRetry={refresh}>{`Couldn't load changes: ${listError}`}</LoadFailed>
       )}
       {!changes && loading && !listError && <LoadingLine>loading changes…</LoadingLine>}
       {changes && !changes.repository && <p className="tray-empty">This folder is not a git repository.</p>}
@@ -352,7 +352,7 @@ function FileRow(props: {
         </span>
       </div>
       {isOpen && f.binary && <BinaryLine onView={props.onView} />}
-      {isOpen && !f.binary && diff?.error && <LoadFailed onRetry={props.onRetry}>{`Couldn’t load the diff: ${diff.error}`}</LoadFailed>}
+      {isOpen && !f.binary && diff?.error && <LoadFailed onRetry={props.onRetry}>{`Couldn't load the diff: ${diff.error}`}</LoadFailed>}
       {isOpen && !f.binary && !diff?.error && diff?.text === undefined && <LoadingLine>loading diff…</LoadingLine>}
       {isOpen && !f.binary && !diff?.error && diff?.text !== undefined && <DiffView diff={diff.text} path={f.path} wrap={wrap} onView={props.onView} />}
     </li>

@@ -18,8 +18,8 @@ test('picks a session folder with the folder picker', async ({ page }) => {
   const picker = page.getByRole('dialog', { name: 'Choose a folder' })
   // Parallel projects share the server, so recent-folder chips may repeat names.
   const list = picker.locator('.folder-list')
-  await picker.getByLabel('filter folders').fill(root)
-  await picker.getByLabel('filter folders').press('Enter')
+  await picker.getByLabel('Filter folders').fill(root)
+  await picker.getByLabel('Filter folders').press('Enter')
 
   await expect(list.getByRole('button', { name: /^alpha/ })).toContainText('git')
   await expect(list.getByRole('button', { name: /secret/ })).toHaveCount(0)
@@ -32,7 +32,7 @@ test('picks a session folder with the folder picker', async ({ page }) => {
   await list.getByRole('button', { name: 'Select beta' }).click()
 
   await expect(picker).toHaveCount(0)
-  await expect(page.getByLabel('working directory')).toHaveValue(path.join(root, 'beta'))
+  await expect(page.getByLabel('Working directory')).toHaveValue(path.join(root, 'beta'))
   await page.getByRole('button', { name: 'New session', exact: true }).click()
   await showSessionDetails(page)
   await expect(page.locator('.chat-path', { hasText: path.join(root, 'beta') })).toBeVisible()

@@ -37,7 +37,7 @@ describe('Sidebar new session', () => {
     await userEvent.click(open)
     expect(open).toHaveAttribute('aria-expanded', 'true')
     expect(form).not.toHaveAttribute('data-folded')
-    await userEvent.type(screen.getByLabelText('working directory'), '/tmp')
+    await userEvent.type(screen.getByLabelText('Working directory'), '/tmp')
     await userEvent.click(screen.getByRole('button', { name: 'New session' }))
     await waitFor(() => expect(onCreate).toHaveBeenCalled())
     await waitFor(() => expect(form).toHaveAttribute('data-folded'))
@@ -45,7 +45,7 @@ describe('Sidebar new session', () => {
 
   it('unfolds by itself when the folder field takes focus', async () => {
     setup()
-    await userEvent.click(screen.getByLabelText('working directory'))
+    await userEvent.click(screen.getByLabelText('Working directory'))
     expect(document.querySelector('form.new-session')).not.toHaveAttribute('data-folded')
   })
 
@@ -53,7 +53,7 @@ describe('Sidebar new session', () => {
     const onCreate = setup()
     await userEvent.click(screen.getByRole('button', { name: 'New session' }))
     expect(onCreate).not.toHaveBeenCalled()
-    const field = screen.getByLabelText('working directory')
+    const field = screen.getByLabelText('Working directory')
     expect(field).toHaveFocus()
     expect(field).toHaveAttribute('aria-invalid', 'true')
     await userEvent.type(field, '/tmp')
@@ -62,18 +62,18 @@ describe('Sidebar new session', () => {
 
   it('asks for a branch when starting in a worktree', async () => {
     const onCreate = setup()
-    await userEvent.type(screen.getByLabelText('working directory'), '/repo')
+    await userEvent.type(screen.getByLabelText('Working directory'), '/repo')
     await userEvent.click(screen.getByLabelText('In a new worktree'))
     await userEvent.click(screen.getByRole('button', { name: 'New session' }))
     expect(onCreate).not.toHaveBeenCalled()
-    expect(screen.getByLabelText('branch name')).toHaveFocus()
-    expect(screen.getByLabelText('branch name')).toHaveAttribute('aria-invalid', 'true')
+    expect(screen.getByLabelText('Branch name')).toHaveFocus()
+    expect(screen.getByLabelText('Branch name')).toHaveAttribute('aria-invalid', 'true')
   })
 
   it('shows the start in progress and blocks a second start', async () => {
     let finish!: (ok: boolean) => void
     const onCreate = setup(vi.fn(() => new Promise<boolean>((r) => (finish = r))), [session])
-    await userEvent.type(screen.getByLabelText('working directory'), '/tmp')
+    await userEvent.type(screen.getByLabelText('Working directory'), '/tmp')
     await userEvent.click(screen.getByRole('button', { name: 'New session' }))
     const busy = screen.getByRole('button', { name: 'Starting…' })
     expect(busy).toHaveAttribute('aria-busy', 'true')
@@ -86,22 +86,22 @@ describe('Sidebar new session', () => {
 
   it('clears the branch after a worktree session starts', async () => {
     const onCreate = setup()
-    await userEvent.type(screen.getByLabelText('working directory'), '/repo')
+    await userEvent.type(screen.getByLabelText('Working directory'), '/repo')
     await userEvent.click(screen.getByLabelText('In a new worktree'))
-    await userEvent.type(screen.getByLabelText('branch name'), 'fix-it')
+    await userEvent.type(screen.getByLabelText('Branch name'), 'fix-it')
     await userEvent.click(screen.getByRole('button', { name: 'New session' }))
     expect(onCreate).toHaveBeenCalledWith('claude', '/repo', 'fix-it')
-    await waitFor(() => expect(screen.getByLabelText('branch name')).toHaveValue(''))
+    await waitFor(() => expect(screen.getByLabelText('Branch name')).toHaveValue(''))
   })
 
   it('keeps the branch when the start failed', async () => {
     setup(vi.fn(async () => false))
-    await userEvent.type(screen.getByLabelText('working directory'), '/repo')
+    await userEvent.type(screen.getByLabelText('Working directory'), '/repo')
     await userEvent.click(screen.getByLabelText('In a new worktree'))
-    await userEvent.type(screen.getByLabelText('branch name'), 'fix-it')
+    await userEvent.type(screen.getByLabelText('Branch name'), 'fix-it')
     await userEvent.click(screen.getByRole('button', { name: 'New session' }))
     await waitFor(() => expect(screen.getByRole('button', { name: 'New session' })).not.toHaveAttribute('aria-busy'))
-    expect(screen.getByLabelText('branch name')).toHaveValue('fix-it')
+    expect(screen.getByLabelText('Branch name')).toHaveValue('fix-it')
   })
 
   it('remembers the chosen agent', async () => {
@@ -140,12 +140,12 @@ describe('Sidebar folder', () => {
   it('starts in the open session\'s folder', () => {
     useSessionStore.setState({ activeId: 's1' })
     setup(undefined, [session])
-    expect(screen.getByLabelText('working directory')).toHaveValue('/src/app')
+    expect(screen.getByLabelText('Working directory')).toHaveValue('/src/app')
   })
 
   it('otherwise starts in the folder last used', async () => {
     const onCreate = setup()
-    await userEvent.type(screen.getByLabelText('working directory'), '/repo')
+    await userEvent.type(screen.getByLabelText('Working directory'), '/repo')
     await userEvent.click(screen.getByRole('button', { name: 'New session' }))
     expect(onCreate).toHaveBeenCalledWith('claude', '/repo', undefined)
     expect(localStorage.getItem('gc.lastFolder')).toBe('/repo')
@@ -154,7 +154,7 @@ describe('Sidebar folder', () => {
   it('reads the folder last used', () => {
     localStorage.setItem('gc.lastFolder', '/repo')
     setup()
-    expect(screen.getByLabelText('working directory')).toHaveValue('/repo')
+    expect(screen.getByLabelText('Working directory')).toHaveValue('/repo')
   })
 
   it('offers recent folders that pick at once', async () => {
@@ -162,7 +162,7 @@ describe('Sidebar folder', () => {
     setup(undefined, [session, other])
     const chips = screen.getByRole('group', { name: 'Recent folders' })
     await userEvent.click(within(chips).getByRole('button', { name: 'site' }))
-    expect(screen.getByLabelText('working directory')).toHaveValue('/src/site')
+    expect(screen.getByLabelText('Working directory')).toHaveValue('/src/site')
   })
 
   it('marks busy the "+" that started a session', async () => {

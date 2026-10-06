@@ -9,7 +9,7 @@ async function newSession(page: Page, agent: 'Claude' | 'Codex') {
   await showPane(page, 'Sessions')
   await openNewSession(page)
   await page.getByRole('radio', { name: agent }).click()
-  await page.getByLabel('working directory').fill(dir)
+  await page.getByLabel('Working directory').fill(dir)
   await page.getByRole('button', { name: 'New session', exact: true }).click()
   await expect(page.getByLabel('message')).toBeVisible()
 }

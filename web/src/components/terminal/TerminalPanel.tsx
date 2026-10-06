@@ -78,7 +78,7 @@ export default function TerminalPanel({ sessionId }: { sessionId: string | null 
       <OpenError />
       {loadError && (
         <LoadFailed onRetry={() => void load()}>
-          {loaded || terminals.length > 0 ? `Couldn’t refresh shells: ${loadError}` : `Couldn’t load shells: ${loadError}`}
+          {loaded || terminals.length > 0 ? `Couldn't refresh shells: ${loadError}` : `Couldn't load shells: ${loadError}`}
         </LoadFailed>
       )}
       {!loaded && terminals.length === 0 && !loadError && <LoadingLine>loading shells…</LoadingLine>}
@@ -120,7 +120,7 @@ function TerminalTab({ terminal: t, selected }: { terminal: Terminal; selected: 
       {draft !== null ? (
         <input
           className="title-input term-tab-input"
-          aria-label="terminal name"
+          aria-label="Terminal name"
           value={draft}
           maxLength={200}
           autoFocus
@@ -238,7 +238,7 @@ function NewTerminalButton({ sessionId }: { sessionId: string | null }) {
               if (dir) void openIn({ cwd: dir })
             }}
           >
-            <FolderField label="terminal directory" placeholder="another folder" value={cwd} onChange={setCwd} />
+            <FolderField label="Terminal directory" placeholder="another folder" value={cwd} onChange={setCwd} />
             <button type="submit" className="btn btn-xs" disabled={!cwd.trim()} aria-busy={busyFolder || undefined}>
               {busyFolder ? 'Opening…' : 'Open'}
             </button>

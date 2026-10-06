@@ -6,7 +6,7 @@ test('a reload keeps the open session and terminal, Back returns', async ({ page
   const text = `route ${info.project.name}`
   await page.goto(`/?token=${token}`)
   await openNewSession(page)
-  await page.getByLabel('working directory').fill('/tmp')
+  await page.getByLabel('Working directory').fill('/tmp')
   await page.getByRole('button', { name: 'New session', exact: true }).click()
   await page.getByLabel('message').fill(text)
   await page.getByRole('button', { name: 'Send' }).click()
@@ -20,7 +20,7 @@ test('a reload keeps the open session and terminal, Back returns', async ({ page
 
   await page.getByRole('radio', { name: /^Terminal/ }).click()
   const panel = page.getByRole('region', { name: 'Terminals' })
-  await panel.getByLabel('terminal directory').fill('/tmp')
+  await panel.getByLabel('Terminal directory').fill('/tmp')
   await panel.getByRole('button', { name: 'New terminal' }).click()
   await expect(page).toHaveURL(/\/t\/[^/]+$/)
   const terminalURL = page.url()

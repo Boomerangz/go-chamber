@@ -13,7 +13,7 @@ test('groups sessions by project and finds them by title', async ({ page }) => {
   for (const text of ['first topic', 'second topic']) {
     await showPane(page, 'Sessions')
     await openNewSession(page)
-    await page.getByLabel('working directory').fill(dir)
+    await page.getByLabel('Working directory').fill(dir)
     await page.getByRole('button', { name: 'New session', exact: true }).click()
     await page.getByLabel('message').fill(text)
     await page.getByRole('button', { name: 'Send' }).click()
@@ -35,13 +35,13 @@ test('groups sessions by project and finds them by title', async ({ page }) => {
   // The open session stays visible in a collapsed group.
   await expect(group.locator('.session-title')).toHaveText(['second topic'])
 
-  await page.getByLabel('search sessions').fill('first topic')
+  await page.getByLabel('Search sessions').fill('first topic')
   await expect(group.locator('.session-title')).toHaveText(['first topic'])
   await group.locator('.session').click()
   await expect(page.locator('.chat-header h2')).toHaveText('first topic')
 
   await showPane(page, 'Sessions')
-  await page.getByLabel('search sessions').fill(word.slice(0, -3))
+  await page.getByLabel('Search sessions').fill(word.slice(0, -3))
   const hits = page.getByRole('region', { name: 'Message matches' })
   await expect(hits.locator('.session-title')).toHaveText(['second topic'])
   await expect(hits.locator('mark').first()).toContainText(word)
