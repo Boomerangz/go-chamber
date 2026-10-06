@@ -403,10 +403,16 @@ export interface FileChange {
   path: string
   // status is git's letter (A, M, D, T) or '?' for an untracked file.
   status: string
+  // added and removed count changed lines; a binary file counts none.
+  added?: number
+  removed?: number
+  binary?: boolean
 }
 
 export interface Changes {
   repository: boolean
+  // root is the repository's top folder; file paths are relative to it.
+  root?: string
   base?: string
   files: FileChange[]
 }

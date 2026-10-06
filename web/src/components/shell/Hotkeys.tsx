@@ -22,6 +22,7 @@ const local: { keys: string; label: string }[] = [
   { keys: 'Esc', label: 'In an empty composer: stop the turn, or leave it' },
   { keys: 'A · S · D', label: 'Allow, allow for session, deny a request' },
   { keys: '↑ ↓', label: 'Move through requests in the tray' },
+  { keys: 'j · k', label: 'In Changes: next, previous file' },
 ]
 
 function rows(): HTMLButtonElement[] {
@@ -70,6 +71,7 @@ function buildShortcuts(setOverlay: SetOverlay): Shortcut[] {
     { combo: { key: 'r' }, label: 'Next session that needs you', run: nextWaiting },
     { combo: { key: 'f' }, label: 'Focus mode on or off', run: () => useLayoutStore.getState().toggleFocus() },
     { combo: { key: 't' }, label: 'Terminal dock on or off', run: () => useLayoutStore.getState().toggleDock('terminal') },
+    { combo: { key: 'd' }, label: 'Changes dock on or off', run: () => useLayoutStore.getState().toggleDock('changes') },
     ...modeKeys.map(([key, mode]) => ({
       combo: { key },
       label: `${mode[0]!.toUpperCase()}${mode.slice(1)}`,

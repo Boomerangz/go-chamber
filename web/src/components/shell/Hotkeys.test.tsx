@@ -63,4 +63,12 @@ describe('Hotkeys', () => {
     expect(useLayoutStore.getState().mode).toBe('agents')
     expect(useSessionStore.getState().activeId).toBe('b')
   })
+
+  it('opens and closes the changes dock with d', async () => {
+    render(<Hotkeys />)
+    await userEvent.keyboard('d')
+    expect(useLayoutStore.getState().dock).toBe('changes')
+    await userEvent.keyboard('d')
+    expect(useLayoutStore.getState().dock).toBeNull()
+  })
 })
