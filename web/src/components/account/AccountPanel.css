@@ -1,0 +1,8 @@
+.account .device-code { display: grid; gap: 4px; }
+.account .device-code p { margin: 0; display: flex; align-items: center; flex-wrap: wrap; gap: 4px; }
+.account .device-code a { overflow-wrap: anywhere; }
+.account .copy-code { width: 24px; height: 24px; }
+.account .copied, .account .device-code-wait { font-family: var(--font-mono); font-size: 11.5px; color: var(--ink-3); }
+.account .device-code-wait { gap: 8px; }
+.account .device-code-wait .btn { margin-left: auto; }
+.account .code-expired { display: flex; align-items: center; gap: 6px; font-family: var(--font-mono); font-size: 12px; color: var(--ink-2); }

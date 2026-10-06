@@ -112,7 +112,7 @@ export default function App() {
       {health === 'online' && mode === 'agents' && (
         <>
           <div className="layout" data-pane={pane} data-dock={dock ?? 'closed'} data-focus={focus ? 'on' : undefined}>
-            <Sidebar sessions={sessions} onCreate={(agent, cwd, branch) => void createSession(agent, cwd, branch)} />
+            <Sidebar sessions={sessions} onCreate={(agent, cwd, branch) => createSession(agent, cwd, branch)} />
             {activeId ? <Chat key={activeId} /> : <EmptyChat />}
             <div className="dock">
               {dock && (

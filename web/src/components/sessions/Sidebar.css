@@ -1,0 +1,2 @@
+.worktree-branch .field[aria-invalid='true'] { border-color: var(--bad); }
+.worktree-branch .field[aria-invalid='true']:focus { box-shadow: 0 0 0 1px var(--bad); }

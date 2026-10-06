@@ -73,4 +73,42 @@ describe('HistoryPanel', () => {
     await userEvent.click(screen.getByText('History'))
     expect(await screen.findByText(/codex is not installed/)).toBeInTheDocument()
   })
+
+  it('keeps a conversation that failed to open, with the reason under it', async () => {
+    vi.mocked(api.importHistory).mockRejectedValue(new Error('thread is gone'))
+    await open()
+    await userEvent.click(screen.getByRole('button', { name: /Tidy the README/ }))
+    expect(await screen.findByText(/Couldn't open the conversation/)).toHaveClass('error')
+    expect(screen.getByRole('button', { name: /Tidy the README/ })).toBeEnabled()
+  })
+
+  it('reloads the list each time it opens', async () => {
+    await open()
+    await userEvent.click(screen.getByText('History'))
+    vi.mocked(api.listHistory).mockResolvedValue([external[0]])
+    await userEvent.click(screen.getByText('History'))
+    await waitFor(() => expect(screen.queryByText('Tidy the README')).toBeNull())
+    expect(api.listHistory).toHaveBeenCalledTimes(2)
+  })
+
+  it('retries a failed load', async () => {
+    vi.mocked(api.listHistory).mockRejectedValueOnce(new Error('codex is not installed'))
+    render(<HistoryPanel />)
+    await userEvent.click(screen.getByText('History'))
+    await userEvent.click(await screen.findByRole('button', { name: 'Retry' }))
+    expect(await screen.findByText('Fix the flaky test')).toBeInTheDocument()
+  })
+
+  it('says when the filter matches nothing', async () => {
+    await open()
+    await userEvent.type(screen.getByLabelText('filter history'), 'zzz')
+    expect(screen.getByText('No matching conversations')).toBeInTheDocument()
+  })
+
+  it('labels the section like the rest of the sidebar, with a drawn chevron', () => {
+    render(<HistoryPanel />)
+    const summary = screen.getByText('History').closest('summary')!
+    expect(summary).toHaveClass('section-title')
+    expect(summary.querySelector('svg')).not.toBeNull()
+  })
 })

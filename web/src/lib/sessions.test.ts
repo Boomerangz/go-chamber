@@ -40,6 +40,22 @@ describe('groupSessions', () => {
   })
 })
 
+describe('group names', () => {
+  it('adds the parent folder when two groups share a folder name', () => {
+    const groups = groupSessions([
+      s('a', '/src/app/web', '2026-09-24T10:00:00Z'),
+      s('b', '/src/site/web', '2026-09-23T10:00:00Z'),
+      s('c', '/src/api', '2026-09-22T10:00:00Z'),
+    ])
+    expect(groups.map((g) => g.name)).toEqual(['app/web', 'site/web', 'api'])
+  })
+
+  it('keeps a plain name for a root-level folder that collides', () => {
+    const groups = groupSessions([s('a', '/web', '2026-09-24T10:00:00Z'), s('b', '/x/web', '2026-09-23T10:00:00Z')])
+    expect(groups.map((g) => g.name)).toEqual(['web', 'x/web'])
+  })
+})
+
 describe('visibleInGroup', () => {
   const group = groupSessions(
     Array.from({ length: 8 }, (_, i) => s(`s${i}`, '/p', `2026-09-2${i}T00:00:00Z`)),

@@ -1,0 +1,2 @@
+/* pressed reads as an ink frame, like the Focus toggle */
+.notify-toggle[aria-pressed='true'], .sound-toggle[aria-pressed='true'] { color: var(--ink); border-color: var(--ink); }

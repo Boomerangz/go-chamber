@@ -139,7 +139,7 @@ describe('App', () => {
   it('signs out with a form post', async () => {
     mockApi()
     render(<App />)
-    const button = await screen.findByRole('button', { name: 'Sign out' })
+    const button = (await screen.findAllByRole('button', { name: 'Sign out' }))[0]!
     const form = button.closest('form')!
     expect(form).toHaveAttribute('method', 'post')
     expect(form).toHaveAttribute('action', '/logout')
@@ -416,12 +416,12 @@ describe('App', () => {
 
     useSessionStore.getState().setQuery('beta')
     await vi.waitFor(() => expect(screen.queryByRole('region', { name: 'Project alpha' })).toBeNull())
-    expect(screen.getByText('beta task')).toBeInTheDocument()
+    expect(within(document.querySelector<HTMLElement>('.sidebar')!).getByText('beta task')).toBeInTheDocument()
     useSessionStore.getState().setQuery('zzz')
     expect(await screen.findByText('No matching sessions')).toBeInTheDocument()
     useSessionStore.getState().setQuery('')
 
-    ;(await screen.findByRole('button', { name: 'New session in alpha' })).click()
+    ;(await screen.findByRole('button', { name: 'New Claude session in /w/alpha' })).click()
     await vi.waitFor(() => expect(api.createSession).toHaveBeenCalledWith('claude', '/w/alpha', undefined))
   })
 

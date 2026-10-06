@@ -1,0 +1,4 @@
+.folder-loading { padding: 14px 8px; }
+.picker-error { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: 0; }
+/* touch screens that also report hover still get the Select buttons */
+@media (pointer: coarse) { .folder-item .pick { opacity: 1; } }

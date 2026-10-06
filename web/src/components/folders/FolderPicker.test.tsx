@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import * as api from '../../lib/api'
@@ -20,6 +20,7 @@ const listings: Record<string, api.FolderListing> = {
 }
 
 beforeEach(() => {
+  localStorage.clear()
   vi.mocked(api.listFolders).mockReset()
   vi.mocked(api.listFolders).mockImplementation(async (path = '') => {
     const l = listings[path || '/Users/me']
@@ -120,7 +121,98 @@ describe('FolderPicker', () => {
   })
 })
 
+describe('FolderPicker loading and keys', () => {
+  it('says it is loading before the first listing arrives', async () => {
+    let resolve!: (l: api.FolderListing) => void
+    vi.mocked(api.listFolders).mockReturnValueOnce(new Promise((r) => (resolve = r)))
+    setup()
+    expect(screen.getByText('loading…')).toBeInTheDocument()
+    await act(async () => resolve(listings['/Users/me']))
+    expect(screen.queryByText('loading…')).toBeNull()
+    expect(screen.getByRole('button', { name: 'dev' })).toBeInTheDocument()
+  })
+
+  it('shows the folder clicked last even when an earlier listing answers later', async () => {
+    setup()
+    await screen.findByRole('button', { name: 'dev' })
+    let slow!: (l: api.FolderListing) => void
+    vi.mocked(api.listFolders).mockReturnValueOnce(new Promise((r) => (slow = r)))
+    await userEvent.click(screen.getByRole('button', { name: 'dev' }))
+    await userEvent.click(screen.getByRole('button', { name: '..' }))
+    expect(await screen.findByRole('button', { name: 'me' })).toBeInTheDocument()
+    await act(async () => slow(listings['/Users/me/dev']))
+    expect(screen.getByRole('button', { name: 'me' })).toBeInTheDocument()
+    expect(screen.queryByText('No subfolders')).toBeNull()
+  })
+
+  it('offers to go home when the first listing fails', async () => {
+    vi.mocked(api.listFolders).mockRejectedValueOnce(new Error('down')).mockRejectedValueOnce(new Error('down'))
+    setup({ start: '/gone' })
+    await userEvent.click(await screen.findByRole('button', { name: 'Go home' }))
+    expect(await screen.findByRole('button', { name: 'dev' })).toBeInTheDocument()
+    expect(api.listFolders).toHaveBeenLastCalledWith('', false)
+  })
+
+  it('moves through folders with the arrow keys from the filter', async () => {
+    setup()
+    await screen.findByRole('button', { name: 'dev' })
+    await userEvent.keyboard('{ArrowDown}')
+    expect(screen.getByRole('button', { name: '..' })).toHaveFocus()
+    await userEvent.keyboard('{ArrowDown}')
+    expect(screen.getByRole('button', { name: 'dev' })).toHaveFocus()
+    await userEvent.keyboard('{ArrowUp}{ArrowUp}')
+    expect(screen.getByLabelText('filter folders')).toHaveFocus()
+  })
+
+  it('goes to the parent with Backspace in an empty filter', async () => {
+    setup({ start: '/Users/me/dev' })
+    await screen.findByText('No subfolders')
+    await userEvent.type(screen.getByLabelText('filter folders'), 'x{Backspace}')
+    expect(api.listFolders).toHaveBeenCalledTimes(1)
+    await userEvent.keyboard('{Backspace}')
+    expect(await screen.findByRole('button', { name: 'dev' })).toBeInTheDocument()
+    expect(api.listFolders).toHaveBeenLastCalledWith('/Users/me', false)
+  })
+
+  it('selects a folder on double click', async () => {
+    const { onPick } = setup()
+    await userEvent.dblClick(await screen.findByRole('button', { name: /^go-chamber/ }))
+    expect(onPick).toHaveBeenCalledWith('/Users/me/go-chamber')
+  })
+
+  it('keeps Tab inside the picker', async () => {
+    setup()
+    await screen.findByRole('button', { name: 'dev' })
+    const dialog = screen.getByRole('dialog')
+    screen.getByRole('button', { name: 'Use this folder' }).focus()
+    await userEvent.tab()
+    expect(dialog).toContainElement(document.activeElement as HTMLElement)
+    expect(screen.getByRole('button', { name: 'Close folder picker' })).toHaveFocus()
+    await userEvent.tab({ shift: true })
+    expect(screen.getByRole('button', { name: 'Use this folder' })).toHaveFocus()
+  })
+
+  it('remembers the Hidden choice', async () => {
+    setup()
+    await screen.findByRole('button', { name: 'dev' })
+    await userEvent.click(screen.getByLabelText('Hidden'))
+    cleanup()
+    setup()
+    await screen.findByRole('button', { name: 'dev' })
+    expect(screen.getByLabelText('Hidden')).toBeChecked()
+    expect(api.listFolders).toHaveBeenLastCalledWith('', true)
+  })
+})
+
 describe('FolderField', () => {
+  it('returns focus to Browse when the picker closes', async () => {
+    const { default: FolderField } = await import('./FolderField')
+    render(<FolderField label="dir" placeholder="p" value="" onChange={() => {}} />)
+    await userEvent.click(screen.getByRole('button', { name: 'Browse' }))
+    await userEvent.click(await screen.findByRole('button', { name: 'Cancel' }))
+    expect(screen.getByRole('button', { name: 'Browse' })).toHaveFocus()
+  })
+
   it('fills the input from the picker', async () => {
     const { default: FolderField } = await import('./FolderField')
     const onChange = vi.fn()

@@ -306,7 +306,8 @@ button.health { border: 0; background: none; padding: 0; }
 .session-search:focus-within { border-bottom-color: var(--act); }
 .session-search .icon { color: var(--ink-3); }
 .session-search input { flex: 1; min-width: 0; border: 0; outline: none; background: transparent; font-size: 13px; }
-.session-search input::-webkit-search-cancel-button { filter: grayscale(1); opacity: 0.6; }
+.session-search input::-webkit-search-cancel-button { display: none; }
+.session-search .search-clear { width: 24px; height: 24px; color: var(--ink-3); }
 
 .groups {
   flex: 1; min-height: 0; overflow: auto; display: grid; gap: 14px; align-content: start;
@@ -382,6 +383,18 @@ button.health { border: 0; background: none; padding: 0; }
 .snippet mark { background: var(--paper-3); color: var(--ink); box-shadow: inset 0 -1px 0 var(--ink); }
 
 .sidebar-footer { display: grid; gap: 10px; margin: 0; padding: 10px 14px 12px; border-top: 1px solid var(--rule); }
+/* Sign out lives in the topbar on wide screens; phones hide it there. */
+.sidebar-signout { display: none; }
+.sidebar-signout .btn { width: 100%; }
+
+/* phones: sidebar controls get a finger-sized target */
+@media (max-width: 720px) {
+  .sidebar-signout { display: block; }
+  .group-new { width: 40px; height: 40px; }
+  .group-more { min-height: 40px; }
+  .rename-btn { min-width: 36px; min-height: 36px; justify-content: center; }
+  .crumb button { min-height: 40px; }
+}
 
 .account { display: grid; gap: 8px; font-size: 12.5px; }
 .account .signed-in { color: var(--ink-2); }
@@ -952,11 +965,11 @@ button.health { border: 0; background: none; padding: 0; }
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }
 
-.editable-title { display: inline-flex; align-items: baseline; gap: 6px; min-width: 0; }
+.editable-title { display: inline-flex; align-items: center; gap: 6px; min-width: 0; }
 .editable-title > span, .editable-title > h2 { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.rename-btn { border: 0; background: none; padding: 0 2px; color: var(--ink-3); font-size: 0.85em; cursor: pointer; opacity: 0.55; }
+.rename-btn { display: inline-flex; align-items: center; vertical-align: middle; border: 0; background: none; padding: 0 2px; color: var(--ink-3); cursor: pointer; opacity: 0.55; }
 .editable-title:hover .rename-btn, .rename-btn:focus-visible { opacity: 1; color: var(--ink); }
-.title-input { font: inherit; color: inherit; background: var(--paper); border: 1px solid var(--rule-strong); border-radius: 4px; padding: 1px 6px; min-width: 12ch; width: 100%; max-width: 40ch; }
+.title-input { font: inherit; color: inherit; background: var(--paper); border: 1px solid var(--rule-strong); border-radius: var(--r); padding: 1px 6px; min-width: 12ch; width: 100%; max-width: 40ch; }
 
 .item-output { grid-column: 1 / -1; margin-top: 4px; }
 .item-output > summary { cursor: pointer; color: var(--ink-3); font-size: 12px; user-select: none; }
@@ -964,9 +977,9 @@ button.health { border: 0; background: none; padding: 0; }
 .item-output[open] > summary { margin-bottom: 4px; }
 
 .file-viewer { width: min(960px, calc(100vw - 32px)); max-height: calc(100vh - 48px); padding: 0; border: 1px solid var(--rule-strong); background: var(--paper); color: var(--ink); }
-.file-viewer::backdrop { background: rgb(0 0 0 / 0.45); }
+.file-viewer::backdrop { background: color-mix(in srgb, var(--paper) 55%, transparent); }
 .file-viewer-bar { position: sticky; top: 0; display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-bottom: 1px solid var(--rule); background: var(--paper); }
-.file-viewer-path { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--mono, ui-monospace, monospace); font-size: 13px; }
+.file-viewer-path { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--font-mono); font-size: 13px; }
 .file-viewer-body { padding: 12px 16px; overflow: auto; }
 .file-viewer-body img { display: block; max-width: 100%; margin: 0 auto; }
 .file-viewer-body pre.md-code { white-space: pre; overflow-x: auto; }

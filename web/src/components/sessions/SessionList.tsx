@@ -1,8 +1,8 @@
-import { ChevronDown, Plus, Search } from 'lucide-react'
+import { ChevronDown, Plus, Search, X } from 'lucide-react'
 import { motion, useReducedMotion } from 'motion/react'
 import { icon } from '../icon'
-import { Fragment, useEffect, useMemo } from 'react'
-import type { SearchHit, Session } from '../../lib/api'
+import { Fragment, useEffect, useMemo, useRef } from 'react'
+import type { AgentKind, SearchHit, Session } from '../../lib/api'
 import {
   bucketOf,
   groupSessions,
@@ -17,18 +17,26 @@ import {
 import type { SessionNode } from '../../lib/tree'
 import { settle } from '../../lib/motion'
 import { useJustFinished } from '../../lib/finished'
+import { useNow } from '../../lib/now'
 import { useSessionStore } from '../../stores/session'
+import { LoadFailed, LoadingLine, Skeleton } from '../ui/Loading'
 
 // RECENT is how many sessions an expanded project shows before "older".
 const RECENT = 5
 
+const agentName: Record<AgentKind, string> = { claude: 'Claude', codex: 'Codex' }
+
 export interface SessionListProps {
   onCreateIn: (cwd: string) => void
+  // agent is who a group's "+" starts; named on the button.
+  agent?: AgentKind
+  // creating disables the "+" buttons while a session is starting.
+  creating?: boolean
 }
 
 // SessionList shows sessions grouped by project folder. Each group is
 // collapsed, shows its recent sessions, or everything with time dividers.
-export default function SessionList({ onCreateIn }: SessionListProps) {
+export default function SessionList({ onCreateIn, agent = 'claude', creating = false }: SessionListProps) {
   const sessions = useSessionStore((s) => s.sessions)
   const activeId = useSessionStore((s) => s.activeId)
   const query = useSessionStore((s) => s.query)
@@ -39,6 +47,12 @@ export default function SessionList({ onCreateIn }: SessionListProps) {
   const selectSession = useSessionStore((s) => s.selectSession)
   const searchHits = useSessionStore((s) => s.searchHits)
   const searchMessages = useSessionStore((s) => s.searchMessages)
+  const status = useSessionStore((s) => s.sessionsStatus)
+  const loadSessions = useSessionStore((s) => s.loadSessions)
+  const searchingMessages = useSessionStore((s) => s.searching)
+  // Relative times ("4m ago") must not freeze.
+  const now = useNow(60_000)
+  const input = useRef<HTMLInputElement>(null)
 
   const searching = query.trim() !== ''
 
@@ -71,15 +85,40 @@ export default function SessionList({ onCreateIn }: SessionListProps) {
       <div className="session-search">
         <Search {...icon(14)} />
         <input
+          ref={input}
           type="search"
           aria-label="search sessions"
           placeholder="Search sessions"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          onKeyDown={(e) => e.key === 'Escape' && setQuery('')}
+          onKeyDown={(e) => {
+            if (e.key !== 'Escape') return
+            // The first Escape clears, the next one leaves the field.
+            e.preventDefault()
+            if (query) setQuery('')
+            else e.currentTarget.blur()
+          }}
         />
+        {query && (
+          <button
+            type="button"
+            className="btn btn-ghost btn-icon search-clear"
+            aria-label="Clear search"
+            title="Clear search"
+            onClick={() => {
+              setQuery('')
+              input.current?.focus()
+            }}
+          >
+            <X {...icon(14)} />
+          </button>
+        )}
       </div>
       <div className="groups">
+        {status === 'loading' && sessions.length === 0 && <Skeleton rows={4} label="loading sessions" />}
+        {status === 'error' && sessions.length === 0 && (
+          <LoadFailed onRetry={() => void loadSessions()}>Couldn't load sessions</LoadFailed>
+        )}
         {groups.map((g) => (
           <Group
             key={g.cwd}
@@ -91,8 +130,12 @@ export default function SessionList({ onCreateIn }: SessionListProps) {
             onMode={(mode) => setGroupMode(g.cwd, mode)}
             onSelect={(id) => void selectSession(id)}
             onCreateIn={onCreateIn}
+            agent={agent}
+            creating={creating}
+            now={now}
           />
         ))}
+        {searching && searchingMessages && <LoadingLine>searching messages…</LoadingLine>}
         {searching && (
           <MessageHits
             hits={searchHits}
@@ -101,7 +144,7 @@ export default function SessionList({ onCreateIn }: SessionListProps) {
             onSelect={(id) => void selectSession(id)}
           />
         )}
-        {groups.length === 0 && (!searching || searchHits.length === 0) && (
+        {status === 'ready' && groups.length === 0 && (!searching || (!searchingMessages && searchHits.length === 0)) && (
           <p className="sessions-empty">{searching ? 'No matching sessions' : 'No sessions yet'}</p>
         )}
       </div>
@@ -118,6 +161,9 @@ function Group(props: {
   onMode: (mode: GroupMode) => void
   onSelect: (id: string) => void
   onCreateIn: (cwd: string) => void
+  agent: AgentKind
+  creating: boolean
+  now: number
 }) {
   const { group, mode, activeId } = props
   const { shown, hidden } = visibleInGroup(group, mode, RECENT, activeId)
@@ -149,8 +195,9 @@ function Group(props: {
         </button>
         <button
           className="btn btn-ghost btn-icon group-new"
-          aria-label={`New session in ${group.name}`}
-          title={`New session in ${group.cwd}`}
+          aria-label={`New ${agentName[props.agent]} session in ${group.cwd}`}
+          title={`New ${agentName[props.agent]} session in ${group.cwd}`}
+          disabled={props.creating}
           onClick={() => props.onCreateIn(group.cwd)}
         >
           <Plus {...icon(15)} />
@@ -186,29 +233,46 @@ function pendingIn(node: SessionNode, bySession: Map<string, number>): number {
   return (bySession.get(node.session.id) ?? 0) + node.children.reduce((n, c) => n + pendingIn(c, bySession), 0)
 }
 
+// useScrolledIntoView keeps the open session's row on screen when the open
+// session changes from elsewhere (a link, a notification, the tray).
+function useScrolledIntoView(active: boolean) {
+  const ref = useRef<HTMLButtonElement>(null)
+  useEffect(() => {
+    if (active) ref.current?.scrollIntoView?.({ block: 'nearest' })
+  }, [active])
+  return ref
+}
+
 function SessionRow(props: {
   node: SessionNode
   depth: number
   activeId: string | null
   pendingBySession: Map<string, number>
   onSelect: (id: string) => void
+  now: number
 }) {
   const s = props.node.session
   const waiting = props.pendingBySession.get(s.id) ?? 0
   const reduced = useReducedMotion() ?? false
   const finished = useJustFinished(s.status)
+  const active = s.id === props.activeId
+  const ref = useScrolledIntoView(active)
+  const title = sessionTitle(s)
   return (
     <motion.li layout="position" transition={settle(reduced)} className={props.depth > 0 ? 'session-child' : undefined}>
       <button
-        className={s.id === props.activeId ? 'session active' : 'session'}
-        aria-current={s.id === props.activeId ? 'true' : undefined}
+        ref={ref}
+        className={active ? 'session active' : 'session'}
+        aria-current={active ? 'true' : undefined}
         onClick={() => props.onSelect(s.id)}
       >
         <span className={`avatar avatar-sm avatar-${s.agent}`} aria-hidden="true">
           {s.agent === 'claude' ? 'C' : 'X'}
         </span>
         <span className="session-text">
-          <span className="session-title">{sessionTitle(s)}</span>
+          <span className="session-title" title={title}>
+            {title}
+          </span>
           <span className="session-meta">
             {(s.status === 'running' || s.status === 'interrupted' || finished) && (
               <span className={`session-status session-status-${finished ? 'done' : s.status}`}>{finished ? 'done' : s.status}</span>
@@ -218,7 +282,7 @@ function SessionRow(props: {
                 fork
               </span>
             )}
-            <span className="session-time">{relativeTime(s.activeAt ?? s.createdAt)}</span>
+            <span className="session-time">{relativeTime(s.activeAt ?? s.createdAt, new Date(props.now))}</span>
           </span>
         </span>
         <span className="session-badge">{waiting > 0 && <span className="badge">{waiting}</span>}</span>
@@ -252,18 +316,21 @@ function MessageHits(props: {
           <li key={hit.sessionId}>
             <button
               className={session.id === props.activeId ? 'session hit active' : 'session hit'}
+              aria-current={session.id === props.activeId ? 'true' : undefined}
               onClick={() => props.onSelect(session.id)}
             >
               <span className={`avatar avatar-sm avatar-${session.agent}`} aria-hidden="true">
                 {session.agent === 'claude' ? 'C' : 'X'}
               </span>
               <span className="session-text">
-                <span className="session-title">{sessionTitle(session)}</span>
+                <span className="session-title" title={sessionTitle(session)}>
+                  {sessionTitle(session)}
+                </span>
                 <span className="snippet">
                   {snippetParts(hit.snippet).map((p, i) => (p.match ? <mark key={i}>{p.text}</mark> : p.text))}
                 </span>
                 <span className="session-meta">
-                  <span>{session.cwd.split('/').filter(Boolean).pop()}</span>
+                  <span title={session.cwd}>{session.cwd.split('/').filter(Boolean).pop()}</span>
                   {hit.matches > 1 && <span>· {hit.matches} messages</span>}
                 </span>
               </span>

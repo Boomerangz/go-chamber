@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import EditableTitle from './EditableTitle'
@@ -47,5 +47,49 @@ describe('EditableTitle', () => {
     await userEvent.type(screen.getByRole('textbox', { name: 'session name' }), '!')
     await userEvent.tab()
     expect(onRename).toHaveBeenCalledWith('Old name!')
+  })
+
+  it('shows the new name while the rename is on its way and keeps it on success', async () => {
+    let settle!: (ok: boolean) => void
+    const onRename = vi.fn(() => new Promise<boolean>((r) => (settle = r)))
+    const { rerender } = render(<EditableTitle value="Old name" label="session" onRename={onRename} />)
+    await userEvent.click(screen.getByRole('button', { name: 'Rename session' }))
+    await userEvent.clear(screen.getByRole('textbox'))
+    await userEvent.type(screen.getByRole('textbox'), 'New name{Enter}')
+    expect(screen.getByText('New name')).toBeInTheDocument()
+    rerender(<EditableTitle value="New name" label="session" onRename={onRename} />)
+    settle(true)
+    await waitFor(() => expect(screen.getByText('New name')).toBeInTheDocument())
+  })
+
+  it('goes back to the old name when the rename fails', async () => {
+    let settle!: (ok: boolean) => void
+    const onRename = vi.fn(() => new Promise<boolean>((r) => (settle = r)))
+    render(<EditableTitle value="Old name" label="session" onRename={onRename} />)
+    await userEvent.click(screen.getByRole('button', { name: 'Rename session' }))
+    await userEvent.clear(screen.getByRole('textbox'))
+    await userEvent.type(screen.getByRole('textbox'), 'New name{Enter}')
+    expect(screen.getByText('New name')).toBeInTheDocument()
+    settle(false)
+    expect(await screen.findByText('Old name')).toBeInTheDocument()
+    expect(screen.queryByText('New name')).toBeNull()
+  })
+
+  it('returns focus to the rename button after saving or cancelling', async () => {
+    setup()
+    const button = screen.getByRole('button', { name: 'Rename session' })
+    await userEvent.click(button)
+    await userEvent.type(screen.getByRole('textbox'), '{Escape}')
+    expect(screen.getByRole('button', { name: 'Rename session' })).toHaveFocus()
+    await userEvent.click(screen.getByRole('button', { name: 'Rename session' }))
+    await userEvent.type(screen.getByRole('textbox'), '!{Enter}')
+    expect(screen.getByRole('button', { name: 'Rename session' })).toHaveFocus()
+  })
+
+  it('draws a pencil icon', () => {
+    setup()
+    const button = screen.getByRole('button', { name: 'Rename session' })
+    expect(button.querySelector('svg')).not.toBeNull()
+    expect(button.textContent).toBe('')
   })
 })

@@ -45,7 +45,20 @@ export function groupSessions(sessions: Session[]): SessionGroup[] {
       activeAt: Math.max(...list.map(activity)),
     })
   }
-  return groups.sort((a, b) => b.activeAt - a.activeAt)
+  return disambiguate(groups).sort((a, b) => b.activeAt - a.activeAt)
+}
+
+// disambiguate names groups that share a folder name by their parent too
+// ("app/web", "site/web"), so two projects never look the same.
+function disambiguate(groups: SessionGroup[]): SessionGroup[] {
+  const count = new Map<string, number>()
+  for (const g of groups) count.set(g.name, (count.get(g.name) ?? 0) + 1)
+  for (const g of groups) {
+    if ((count.get(g.name) ?? 0) < 2) continue
+    const parts = g.cwd.split('/').filter(Boolean)
+    if (parts.length >= 2) g.name = parts.slice(-2).join('/')
+  }
+  return groups
 }
 
 function contains(node: SessionNode, id: string): boolean {

@@ -24,4 +24,12 @@ describe('SoundToggle', () => {
     expect(soundOn()).toBe(false)
     expect(play).toHaveBeenCalledTimes(1)
   })
+
+  it('draws an icon button, not an emoji', () => {
+    render(<SoundToggle />)
+    const button = screen.getByRole('button', { name: 'Sounds' })
+    expect(button).toHaveClass('btn-icon')
+    expect(button.querySelector('svg')).not.toBeNull()
+    expect(button.textContent).toBe('')
+  })
 })
