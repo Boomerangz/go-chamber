@@ -1,4 +1,7 @@
 import { render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { useNotices } from '../../stores/notices'
+import { useTerminalStore } from '../../stores/terminals'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { diagnostics } from '../../lib/diagnostics'
 import DiagnosticsPage from './DiagnosticsPage'
@@ -29,6 +32,38 @@ describe('DiagnosticsPage', () => {
     state({ error: 'HTTP 502', server })
     render(<DiagnosticsPage />)
     expect(screen.getByRole('alert')).toHaveTextContent('The last successful server snapshot is shown below.')
+  })
+
+  it('copies the report', async () => {
+    const writeText = vi.fn(() => Promise.resolve())
+    vi.stubGlobal('navigator', { ...navigator, clipboard: { writeText } })
+    state({ server })
+    render(<DiagnosticsPage />)
+    await userEvent.click(screen.getByRole('button', { name: 'Copy report' }))
+    expect(JSON.parse((writeText.mock.calls[0] as unknown as [string])[0])).toMatchObject({ server: { goroutines: 10 } })
+    expect(useNotices.getState().notices.at(-1)).toMatchObject({ kind: 'info', text: 'Copied the report' })
+    vi.unstubAllGlobals()
+  })
+
+  it('grades each metric and says what to try when it is not quiet', () => {
+    const client = diagnostics()
+    client.metrics.http = { ...client.metrics.http, p95: 900, count: 3, samples: 3 }
+    client.metrics.ws = { ...client.metrics.ws, p95: 10, count: 3, samples: 3 }
+    state({ client })
+    render(<DiagnosticsPage />)
+    const http = screen.getByRole('heading', { name: 'HTTP round trip' }).closest('article')!
+    expect(http).toHaveAttribute('data-level', 'bad')
+    expect(http).toHaveTextContent(/bad.*check the host/)
+    const ws = screen.getByRole('heading', { name: 'WebSocket round trip' }).closest('article')!
+    expect(ws).toHaveAttribute('data-level', 'quiet')
+  })
+
+  it('names terminals by title or folder, never by id, and labels their cells', () => {
+    useTerminalStore.setState({ terminals: [{ id: 'abc', title: '', cwd: '/srv/api', shell: 'sh', status: 'running', exitCode: 0, createdAt: '' }] })
+    state({ server: { ...server, terminals: [{ id: 'abc', queuedBytes: 0, outputBytes: 0, laggedClients: 0, clients: 1 }] } })
+    render(<DiagnosticsPage />)
+    const row = screen.getByRole('rowheader', { name: 'api' })
+    expect(row.closest('tr')!.querySelector('td[data-label="Clients"]')).toHaveTextContent('1')
   })
 
   it('shows uptime in hours and minutes and connection states as marks', () => {
