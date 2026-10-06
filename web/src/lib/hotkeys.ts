@@ -35,6 +35,31 @@ export function isTypingTarget(target: EventTarget | null): boolean {
   return false
 }
 
+const CONTROLS = 'button, a[href], summary, select, [role="button"], [role="tab"], [role="radio"], [role="menuitem"], [role="option"]'
+// Places whose own keys or the global ones belong together: j/k from a
+// session row, A/S/D in a request (handled there).
+const OWN_KEYS = '.sidebar button.session, .request, .tray-row'
+
+// clickedControl is the control a pointer press last landed on.
+let clickedControl: Element | null = null
+
+// notePointer remembers the control under a pointer press (Hotkeys listens
+// for every press), so a focus it leaves behind is told from the keyboard's.
+export function notePointer(target: EventTarget | null) {
+  clickedControl = target instanceof Element ? target.closest(CONTROLS) : null
+}
+
+// isStrayFocus is true for a control that a click left focused (a rail
+// button, a tab): typing a word there must not fire single-key shortcuts.
+// A control reached by the keyboard keeps them, and so do session rows and
+// requests.
+export function isStrayFocus(target: EventTarget | null, clicked: Element | null = clickedControl): boolean {
+  if (!(target instanceof HTMLElement) || target === document.body) return false
+  const control = target.closest<HTMLElement>(CONTROLS)
+  if (!control || target.closest(OWN_KEYS)) return false
+  return control === clicked
+}
+
 const glyphs: Record<string, string> = { ArrowUp: '↑', ArrowDown: '↓', ArrowLeft: '←', ArrowRight: '→', Enter: '↵', Escape: 'Esc' }
 
 export function formatCombo(combo: Combo, mac = isMac): string {

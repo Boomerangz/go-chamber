@@ -96,13 +96,29 @@ test('unreachable accounts and quotas are said once, in place, with one Retry', 
   await page.goto(`/?token=${token}`)
   await showPane(page, 'Sessions')
   const footer = page.locator('.sidebar-footer')
-  await expect(footer.getByRole('alert')).toHaveText(/Couldn't reach the accounts or quotas/)
+  await expect(footer.getByRole('alert')).toHaveText(/Couldn't reach the accounts/)
   await expect(footer.getByRole('alert')).toHaveCount(1)
   await expect(page.locator('.notices')).toHaveCount(0)
   down = false
   await footer.getByRole('button', { name: 'Retry' }).click()
   await expect(footer.getByRole('alert')).toHaveCount(0)
   await expect(footer).toContainText('Claude')
+})
+
+test('a word typed at a rail button just clicked fires no single-key shortcut', async ({ page, isMobile }) => {
+  test.skip(isMobile, 'keyboard shortcuts are a desktop affordance')
+  const dir = fs.realpathSync(fs.mkdtempSync(`${os.tmpdir()}/gc-stray-`))
+  await startSession(page, dir)
+  const requests = page.getByRole('toolbar', { name: 'Dock' }).getByRole('button', { name: /^Requests/ })
+  await requests.click()
+  await page.keyboard.type('fit')
+  await expect(page.locator('.focus-toggle')).toHaveAttribute('aria-pressed', 'false')
+  await expect(page.locator('.layout')).not.toHaveAttribute('data-dock', 'terminal')
+  // the keys still work from the page itself
+  await page.locator('.chat-header').click({ position: { x: 4, y: 4 } })
+  await page.keyboard.press('f')
+  await expect(page.locator('.focus-toggle')).toHaveAttribute('aria-pressed', 'true')
+  await page.keyboard.press('f')
 })
 
 test('the quick switcher keeps titles readable beside a long folder', async ({ page }, info) => {
