@@ -64,7 +64,7 @@ test('a worktree session sits in its repository’s group, by branch; recent fol
   const headers = { Authorization: `Bearer ${token}` }
   const branch = `group-${info.project.name}`
   const res = await page.request.post('/api/worktrees', { headers, data: { agent: 'claude', cwd: repo, branch } })
-  const { id } = (await res.json()) as { id: string }
+  const { id, worktree } = (await res.json()) as { id: string; worktree: { path: string } }
   await page.goto(`/s/${id}?token=${token}`)
   await showPane(page, 'Sessions')
   const row = page.locator('.groups button.session[aria-current="true"]')
@@ -77,7 +77,7 @@ test('a worktree session sits in its repository’s group, by branch; recent fol
   await openNewSession(page)
   const chips = page.getByRole('group', { name: 'Recent folders' })
   await expect(chips.locator(`button[title="${repo}"]`)).toHaveCount(1)
-  await expect(chips.locator('button[title*="/worktrees/"]')).toHaveCount(0)
+  await expect(chips.locator(`button[title="${worktree.path}"]`)).toHaveCount(0)
 })
 
 test('a worktree asks for its branch by name, and only a repository offers one', async ({ page }) => {
