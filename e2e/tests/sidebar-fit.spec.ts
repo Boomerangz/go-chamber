@@ -44,6 +44,38 @@ test('the folder field shows the end of a long path, also when the form unfolds 
   expect(await input.evaluate((e: HTMLInputElement) => e.scrollLeft)).toBeGreaterThan(0)
 })
 
+test('on a phone, the list moves as one block when the new-session form unfolds', async ({ page }, info) => {
+  test.skip(info.project.name !== 'mobile', 'the form folds on a phone only')
+  const dir = realpathSync(mkdtempSync(path.join(tmpdir(), 'gc-block-')))
+  const headers = { Authorization: `Bearer ${token}` }
+  for (let i = 0; i < 2; i++) await page.request.post('/api/sessions', { headers, data: { agent: 'claude', cwd: dir } })
+  await page.goto(`/?token=${token}`)
+  await showPane(page, 'Sessions')
+  const open = page.locator('.new-session-open')
+  await expect(open).toHaveAttribute('aria-expanded', 'false')
+  const group = page.locator('.group').first()
+  await expect(group.locator('.sessions > li').first()).toBeVisible()
+  // record the gap between the first group's header and its first row, every frame
+  await page.evaluate(() => {
+    const g = document.querySelector('.group')!
+    const gaps: number[] = []
+    ;(window as unknown as { gaps: number[] }).gaps = gaps
+    const t0 = performance.now()
+    const tick = () => {
+      const h = g.querySelector('.group-header')!.getBoundingClientRect().top
+      const r = g.querySelector('.sessions > li')!.getBoundingClientRect().top
+      gaps.push(Math.round(r - h))
+      if (performance.now() - t0 < 700) requestAnimationFrame(tick)
+    }
+    requestAnimationFrame(tick)
+  })
+  await open.click()
+  await page.waitForTimeout(800)
+  const gaps = await page.evaluate(() => (window as unknown as { gaps: number[] }).gaps)
+  expect(gaps.length).toBeGreaterThan(5)
+  expect(Math.max(...gaps) - Math.min(...gaps)).toBeLessThanOrEqual(1)
+})
+
 test('a quota window that reset says when, and the footer still fits', async ({ page }) => {
   const past = new Date(Date.now() - 16 * 86_400_000).toISOString()
   await page.route('**/api/quotas', (route) =>

@@ -256,7 +256,7 @@ function Group(props: {
                     {buckets[i]}
                   </li>
                 )}
-                <SessionRow node={node} depth={0} {...props} />
+                <SessionRow node={node} depth={0} place={i} {...props} />
               </Fragment>
             )
           })}
@@ -345,6 +345,8 @@ function scrollParent(el: HTMLElement): HTMLElement | null {
 function SessionRow(props: {
   node: SessionNode
   depth: number
+  // place is the row's index among its siblings.
+  place: number
   activeId: string | null
   pendingBySession: Map<string, number>
   seen: Visits
@@ -363,7 +365,15 @@ function SessionRow(props: {
   const title = sessionTitle(s)
   const unseen = !active && isUnseen(s, props.seen)
   return (
-    <motion.li layout="position" transition={settle(reduced)} className={props.depth > 0 ? 'session-child' : undefined}>
+    // A row slides only when its place in its list changes (a waiting one
+    // moving up); when the page above shifts it (the phone's form unfolding),
+    // it moves at once with its group's header instead of sliding after it.
+    <motion.li
+      layout="position"
+      layoutDependency={props.place}
+      transition={settle(reduced)}
+      className={props.depth > 0 ? 'session-child' : undefined}
+    >
       <button
         ref={ref}
         className={active ? 'session active' : 'session'}
@@ -414,8 +424,8 @@ function SessionRow(props: {
       <SessionMenu session={s} />
       {props.node.children.length > 0 && (
         <ul className="sessions">
-          {props.node.children.map((child) => (
-            <SessionRow key={child.session.id} {...props} node={child} depth={props.depth + 1} />
+          {props.node.children.map((child, i) => (
+            <SessionRow key={child.session.id} {...props} node={child} depth={props.depth + 1} place={i} />
           ))}
         </ul>
       )}
