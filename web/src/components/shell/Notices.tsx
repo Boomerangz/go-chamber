@@ -6,8 +6,9 @@ import { useNotices } from '../../stores/notices'
 import { useNoticePlace } from './noticePlace'
 
 // Notices stacks what failed (or a quiet confirmation) where it covers no
-// control: at the top of the transcript or the empty workspace, else clear
-// of the dock rail (desktop) or above the pane bar (phone). Escape dismisses
+// control: in the margin beside the transcript's column when a sheet fits
+// there, else at the transcript's end above the composer; with no transcript,
+// clear of the dock rail (desktop) or above the pane bar (phone). Escape dismisses
 // the newest one when nothing else wants the key.
 export default function Notices() {
   const notices = useNotices((s) => s.notices)

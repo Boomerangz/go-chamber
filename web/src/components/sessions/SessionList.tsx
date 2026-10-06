@@ -19,7 +19,7 @@ import {
 import type { SessionNode } from '../../lib/tree'
 import { settle } from '../../lib/motion'
 import { useJustFinished } from '../../lib/finished'
-import { shownStatus, statusWord } from '../../lib/status'
+import { owesAnswer, shownStatus, statusWord } from '../../lib/status'
 import { useNow } from '../../lib/now'
 import { isUnseen, useVisits, type Visits } from '../../lib/visits'
 import { useSessionStore } from '../../stores/session'
@@ -93,11 +93,14 @@ export default function SessionList({ onCreateIn, agent = 'claude', creating = f
   const archivedFound = useMemo(() => (searching ? matchingTree(archivedSessions(sessions), query).length : 0), [sessions, query, searching])
   const hits = searchHits.filter((h) => !shownIds.has(h.sessionId))
 
+  // A turn cut off while it asked (a restart, a crash) still owes the owner
+  // an answer: it counts as one waiting request until it is continued.
   const pendingBySession = useMemo(() => {
     const m = new Map<string, number>()
     for (const r of pending) m.set(r.sessionId, (m.get(r.sessionId) ?? 0) + 1)
+    for (const s of sessions) if (owesAnswer(s) && !m.has(s.id)) m.set(s.id, 1)
     return m
-  }, [pending])
+  }, [pending, sessions])
 
   return (
     <>

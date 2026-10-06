@@ -299,6 +299,19 @@ describe('state on the row', () => {
     expect(titles).toEqual(['Asks', 'Newest'])
     expect(screen.getByText('Asks').closest('button')).toHaveTextContent('waiting for you')
   })
+
+  it('still says waiting for you when a restart cut off a turn that was asking', () => {
+    useSessionStore.setState({
+      sessions: [
+        { ...session('s1', 'Newest'), activeAt: '2026-10-06T11:00:00Z' },
+        { ...session('s2', 'Was asking'), status: 'interrupted', nativeId: 'n2', interruption: { withRequest: true }, activeAt: '2026-10-01T11:00:00Z' },
+      ],
+    })
+    render(<SessionList onCreateIn={() => {}} />)
+    const titles = [...document.querySelectorAll('.session-title')].map((e) => e.textContent)
+    expect(titles).toEqual(['Was asking', 'Newest'])
+    expect(screen.getByText('Was asking').closest('button')).toHaveTextContent('waiting for you')
+  })
 })
 
 describe('search failures and busy buttons', () => {
