@@ -216,10 +216,15 @@ function useHealth(): [Health | null, () => Promise<void>] {
 function useAttentionTitle() {
   const pending = useSessionStore((s) => s.pendingRequests.length)
   const running = useSessionStore((s) => s.sessions.some((x) => x.status === 'running'))
-  const session = useSessionStore((s) => {
+  const sessionName = useSessionStore((s) => {
     const active = s.sessions.find((x) => x.id === s.activeId)
     return active ? sessionTitle(active) : undefined
   })
+  // Terminal and Diagnostics name themselves, not the session left behind.
+  const mode = useLayoutStore((s) => s.mode)
+  const terminalName = useTerminalStore((s) => s.terminals.find((t) => t.id === s.activeId)?.title)
+  const session =
+    mode === 'terminal' ? (terminalName ? `${terminalName} · Terminal` : 'Terminal') : mode === 'diagnostics' ? 'Diagnostics' : sessionName
   const visits = useVisits()
   const unseen = useSessionStore((s) => unseenCount(s.sessions, visits, s.activeId))
   useEffect(() => {

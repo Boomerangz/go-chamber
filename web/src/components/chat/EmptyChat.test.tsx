@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Session, SessionRequest } from '../../lib/api'
 import { resetStore, useSessionStore } from '../../stores/session'
 import EmptyChat from './EmptyChat'
+import { resetLayout, useLayoutStore } from '../../stores/layout'
 
 const s = (id: string, activeAt: string, title = id): Session => ({ id, agent: 'claude', cwd: '/p', status: 'idle', title, activeAt })
 const req = (sessionId: string, id = `r-${sessionId}`): SessionRequest => ({ id, sessionId, kind: 'permission', state: 'pending' })
@@ -11,6 +12,7 @@ const req = (sessionId: string, id = `r-${sessionId}`): SessionRequest => ({ id,
 beforeEach(() => {
   vi.stubGlobal('WebSocket', undefined)
   resetStore()
+  resetLayout()
 })
 
 describe('EmptyChat', () => {
@@ -27,6 +29,20 @@ describe('EmptyChat', () => {
     expect(links.map((b) => b.textContent)).toEqual(['a'])
     await userEvent.click(links[0]!)
     expect(selectSession).toHaveBeenCalledWith('a')
+  })
+
+  it('lists waiting sessions in a steady order, the longest waiting first, with how many more', async () => {
+    const days = ['01', '02', '03', '04', '05', '06', '07']
+    useSessionStore.setState({
+      sessions: days.map((d) => s(`s${d}`, `2026-10-${d}T10:00:00Z`)),
+      // the server's order of requests says nothing about who waited longest
+      pendingRequests: ['s05', 's02', 's07', 's01', 's03', 's06', 's04'].map((id) => req(id)),
+    })
+    render(<EmptyChat />)
+    const names = screen.getAllByRole('button').map((b) => b.textContent)
+    expect(names).toEqual(['s01', 's02', 's03', 's04', 's05', '+2 more'])
+    await userEvent.click(screen.getByRole('button', { name: '+2 more' }))
+    expect(useLayoutStore.getState().dock).toBe('requests')
   })
 
   it('otherwise offers the five most recent sessions', () => {
