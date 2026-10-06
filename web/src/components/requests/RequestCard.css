@@ -17,3 +17,32 @@
   background: var(--paper-2); border-left: 1px solid var(--rule-strong); color: var(--ink-2); font-size: 12px;
 }
 .request.question .submit-answer { margin-top: 0; }
+
+/* which of several open requests this is */
+.request-pos { font-family: var(--font-mono); font-size: 12px; font-weight: 400; color: var(--ink-3); }
+
+/* what the agent wants to run, as code; an edit as a diff; the raw input folded */
+.request-desc { margin: 0; color: var(--ink-2); font-size: 13px; }
+.request-command {
+  margin: 0; padding: 8px 12px; max-height: 220px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere;
+  background: var(--paper-2); border-left: 1px solid var(--rule-strong); font-size: 12.5px;
+}
+.request-command code { font-family: var(--font-mono); color: var(--ink); }
+.request-path { justify-self: start; font-family: var(--font-mono); font-size: 12.5px; color: var(--ink); overflow-wrap: anywhere; }
+.request .inline-diff { margin-top: 0; max-height: 220px; }
+.request .inline-diff.full { max-height: none; }
+.request-raw > summary {
+  cursor: pointer; list-style: none; font-family: var(--font-mono); font-size: 12px; color: var(--ink-3);
+}
+.request-raw > summary::-webkit-details-marker { display: none; }
+.request-raw > summary::before { content: '+ '; }
+.request-raw[open] > summary::before { content: '− '; }
+.request-raw > summary:hover { color: var(--ink); }
+.request-raw[open] > .request-input { margin-top: 4px; }
+
+/* what "Allow for session" adds */
+.request-grants { margin: 0; font-family: var(--font-mono); font-size: 12px; color: var(--ink-3); overflow-wrap: anywhere; }
+
+/* option numbers: the keys that pick them */
+.option-label kbd { margin-left: 8px; font-weight: 400; opacity: 0.6; }
+@media (hover: none), (pointer: coarse) { .option-label kbd { display: none; } }

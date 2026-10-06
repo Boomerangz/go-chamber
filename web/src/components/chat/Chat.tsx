@@ -223,7 +223,8 @@ export default function Chat() {
 
   const input = useRef<HTMLTextAreaElement>(null)
   useEffect(() => {
-    if (matches('(pointer: fine)')) input.current?.focus()
+    // A request card that took focus on arrival keeps it, so its keys answer.
+    if (matches('(pointer: fine)') && !document.activeElement?.closest('.request')) input.current?.focus()
   }, [])
 
   // Transcript hook-ups: runs of tool lines fold, a failed turn's message can
@@ -376,7 +377,7 @@ export default function Chat() {
         )}
         {busy && !streaming && <WorkingTail since={turnStart} waiting={Object.keys(chat.requests).length > 0} />}
         <AnimatePresence initial={false}>
-          {Object.values(chat.requests).map((request) => (
+          {Object.values(chat.requests).map((request, i, all) => (
             <motion.div
               key={request.id}
               className="request-slot"
@@ -384,7 +385,7 @@ export default function Chat() {
               exit={reduced ? { opacity: 0 } : resolve}
               ref={scrollOnMount}
             >
-              <RequestCard request={request} agent={session?.agent} onRespond={respond} />
+              <RequestCard request={request} agent={session?.agent} onRespond={respond} position={{ index: i + 1, count: all.length }} />
             </motion.div>
           ))}
         </AnimatePresence>

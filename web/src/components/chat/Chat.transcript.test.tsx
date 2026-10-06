@@ -90,6 +90,13 @@ describe('transcript hook-ups', () => {
     expect(box().value).toBe('draft\n\nfirst try')
   })
 
+  it('numbers open requests when there are several', () => {
+    const request = (id: string): api.SessionRequest => ({ id, sessionId: 's1', kind: 'permission', state: 'pending', title: id })
+    setup(chatOf([item('u', 'user_message')], { requests: { r1: request('r1'), r2: request('r2') } }))
+    expect(screen.getByText('· 1 of 2')).toBeInTheDocument()
+    expect(screen.getByText('· 2 of 2')).toBeInTheDocument()
+  })
+
   it('closes each finished turn with its usage', () => {
     const { container } = setup(chatOf([item('u', 'user_message'), item('m', 'assistant_message')], {
       turnResults: { m: { inputTokens: 100, outputTokens: 20 } },

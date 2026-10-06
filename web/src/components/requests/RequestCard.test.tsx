@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { fail, resetNotices } from '../../stores/notices'
 import RequestCard from './RequestCard'
 import type { RequestAnswerInput, SessionRequest } from '../../lib/api'
@@ -40,8 +40,8 @@ const question: SessionRequest = {
 
 function setup(request: SessionRequest) {
   const onRespond = vi.fn<(sessionId: string, requestId: string, answer: RequestAnswerInput) => void>()
-  render(<RequestCard request={request} onRespond={onRespond} />)
-  return { onRespond }
+  const { container } = render(<RequestCard request={request} onRespond={onRespond} />)
+  return { onRespond, container }
 }
 
 describe('RequestCard permission', () => {
@@ -355,5 +355,143 @@ describe('RequestCard question form', () => {
     expect(alpha).not.toBeChecked()
     await userEvent.click(alpha)
     expect(screen.getByLabelText('other Pick?')).toHaveValue('')
+  })
+})
+
+describe('RequestCard arrival', () => {
+  afterEach(() => vi.useRealTimers())
+
+  const withField = (value: string) => {
+    const field = document.createElement('textarea')
+    field.value = value
+    document.body.appendChild(field)
+    field.focus()
+    return field
+  }
+
+  it('takes focus when nothing is being written, so A answers at once', () => {
+    const { onRespond } = setup(permission)
+    expect(document.activeElement).toHaveClass('request')
+    fireEvent.keyDown(document.activeElement!, { key: 'a' })
+    expect(onRespond).toHaveBeenCalledWith('s1', 'r1', { behavior: 'allow' })
+  })
+
+  it('leaves focus in a field that holds text', () => {
+    const field = withField('half a sentence')
+    setup(permission)
+    expect(document.activeElement).toBe(field)
+    field.remove()
+  })
+
+  it('leaves focus in another card', () => {
+    setup(permission)
+    const first = document.activeElement
+    render(<RequestCard request={{ ...permission, id: 'r2' }} onRespond={vi.fn()} />)
+    expect(document.activeElement).toBe(first)
+  })
+
+  it('ignores the keys typed right after it took focus from an empty field', () => {
+    vi.useFakeTimers({ now: 1000, toFake: ['Date'] })
+    const field = withField('')
+    const { onRespond } = setup(permission)
+    expect(document.activeElement).toHaveClass('request')
+    fireEvent.keyDown(document.activeElement!, { key: 'a' })
+    expect(onRespond).not.toHaveBeenCalled()
+    vi.setSystemTime(1600)
+    fireEvent.keyDown(document.activeElement!, { key: 'a' })
+    expect(onRespond).toHaveBeenCalledTimes(1)
+    field.remove()
+  })
+
+  it('focuses the first option of a question; number keys pick options', async () => {
+    const { onRespond } = setup(question)
+    expect(document.activeElement).toBe(screen.getByRole('radio', { name: /Alpha/ }))
+    fireEvent.keyDown(document.activeElement!, { key: '2' })
+    const beta = screen.getByRole('radio', { name: /Beta/ })
+    expect(beta).toBeChecked()
+    expect(beta).toHaveFocus()
+    fireEvent.keyDown(beta, { key: '7' })
+    fireEvent.keyDown(beta, { key: '1', ctrlKey: true })
+    fireEvent.keyDown(beta, { key: 'x' })
+    expect(beta).toBeChecked()
+    await userEvent.click(screen.getByRole('button', { name: 'Submit' }))
+    expect(onRespond).toHaveBeenCalledWith('s1', 'q1', { behavior: 'allow', answers: { 'Pick?': ['Beta'] } })
+  })
+
+  it('picks within the question that has focus, and not while typing Other', () => {
+    setup({
+      ...question,
+      payload: {
+        input: {
+          questions: [
+            { question: 'One?', options: [{ label: 'A1' }, { label: 'A2' }] },
+            { question: 'Two?', multiSelect: true, options: [{ label: 'B1' }, { label: 'B2' }] },
+          ],
+        },
+      },
+    })
+    const b1 = screen.getByRole('checkbox', { name: /B1/ })
+    fireEvent.keyDown(b1, { key: '2' })
+    expect(screen.getByRole('checkbox', { name: /B2/ })).toBeChecked()
+    expect(screen.getByRole('radio', { name: /A2/ })).not.toBeChecked()
+    fireEvent.keyDown(screen.getByLabelText('other One?'), { key: '1' })
+    expect(screen.getByRole('radio', { name: /A1/ })).not.toBeChecked()
+  })
+})
+
+describe('RequestCard details', () => {
+  it('skips a question, answering it with a refusal', async () => {
+    const { onRespond } = setup(question)
+    await userEvent.click(screen.getByRole('button', { name: 'Skip' }))
+    expect(onRespond).toHaveBeenCalledWith('s1', 'q1', { behavior: 'deny' })
+  })
+
+  it('says which of several requests this is', () => {
+    render(<RequestCard request={permission} position={{ index: 2, count: 3 }} onRespond={vi.fn()} />)
+    expect(screen.getByText('· 2 of 3')).toHaveClass('request-pos')
+  })
+
+  it('says nothing of position for a single request', () => {
+    const { container } = render(<RequestCard request={question} position={{ index: 1, count: 1 }} onRespond={vi.fn()} />)
+    expect(container.querySelector('.request-pos')).toBeNull()
+  })
+
+  it('says what allowing for the session adds', () => {
+    setup({
+      ...permission,
+      payload: { ...permission.payload, suggestions: [{ type: 'addRules', rules: [{ toolName: 'Bash', ruleContent: 'npm test:*' }] }] },
+    })
+    const grants = screen.getByText('for session: adds rule: Bash(npm test:*)')
+    expect(screen.getByRole('button', { name: 'Allow for session' })).toHaveAttribute('aria-describedby', grants.id)
+  })
+
+  it('shows a command as code with its description, the raw input folded', () => {
+    const { container } = setup({ ...permission, payload: { toolName: 'Bash', input: { command: 'npm test', description: 'Run the tests' } } })
+    expect(container.querySelector('.request-command')).toHaveTextContent('npm test')
+    expect(screen.getByText('Run the tests')).toHaveClass('request-desc')
+    const raw = screen.getByText('Raw input').closest('details')!
+    expect(raw.querySelector('.request-input')!.textContent).toContain('"description": "Run the tests"')
+  })
+
+  it('shows an edit as a diff of its file', () => {
+    const { container } = setup({
+      ...permission,
+      payload: { toolName: 'Edit', input: { file_path: '/a.go', old_string: 'a', new_string: 'b' } },
+    })
+    expect(screen.getByRole('group', { name: 'diff of /a.go' })).toBeInTheDocument()
+    expect(container.querySelector('.idiff-del')).toHaveTextContent('a')
+    expect(container.querySelector('.idiff-add')).toHaveTextContent('b')
+    expect(screen.getByText('Raw input')).toBeInTheDocument()
+  })
+
+  it('names a diff without a path', () => {
+    setup({ ...permission, payload: { toolName: 'MultiEdit', input: { edits: [{ old_string: 'a', new_string: 'b' }] } } })
+    expect(screen.getByRole('group', { name: 'diff' })).toBeInTheDocument()
+  })
+
+  it('keeps other input as it came', () => {
+    const { container } = setup({ ...permission, payload: { toolName: 'WebFetch', input: { url: 'https://x' } } })
+    expect(container.querySelector('.request-input')!.textContent).toContain('"url": "https://x"')
+    expect(screen.queryByText('Raw input')).toBeNull()
   })
 })
