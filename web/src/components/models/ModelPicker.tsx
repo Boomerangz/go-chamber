@@ -55,6 +55,8 @@ export default function ModelPicker({ session }: { session: Session }) {
   }, [open])
 
   const list = models ?? []
+  // The model "Default" stands for, when the agent says; named there, once.
+  const defaultModel = list.find((m) => m.default)
   const model = pending ? pending.model ?? '' : session.model ?? ''
   const effort = pending ? pending.effort ?? '' : session.effort ?? ''
   const efforts = effortsFor(list, model)
@@ -105,7 +107,7 @@ export default function ModelPicker({ session }: { session: Session }) {
               checked={modelChecked('')}
               focusable={modelChecked('') || !anyModelChecked}
               name="Default"
-              description={`From ${agentConfig[session.agent]}`}
+              description={defaultModel ? `${defaultModel.name}, from ${agentConfig[session.agent]}` : `From ${agentConfig[session.agent]}`}
               onSelect={() => void choose('', effort)}
             />
             {list.map((m) => (
@@ -115,7 +117,6 @@ export default function ModelPicker({ session }: { session: Session }) {
                 focusable={modelChecked(m.id)}
                 name={m.name}
                 description={m.description}
-                tag={m.default ? 'default' : undefined}
                 onSelect={() => void choose(m.id, effort)}
               />
             ))}
@@ -172,7 +173,6 @@ function ModelOption(props: {
   focusable: boolean
   name: string
   description?: string
-  tag?: string
   onSelect: () => void
 }) {
   return (
@@ -188,7 +188,6 @@ function ModelOption(props: {
       <span className="model-text">
         <span className="model-option-name">
           {props.name}
-          {props.tag && <span className="model-tag">{props.tag}</span>}
         </span>
         {props.description && <span className="model-desc">{props.description}</span>}
       </span>

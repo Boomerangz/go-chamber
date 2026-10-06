@@ -57,3 +57,17 @@ test('chooses the Codex model and remembers it for new sessions', async ({ page 
   await expect(page.getByRole('button', { name: 'Model: Fake-small · low' })).toBeVisible()
   await ask(page, 'model: fake-small effort: low')
 })
+
+test('names the default model once', async ({ page }) => {
+  await page.goto(`/?token=${token}`)
+  await newSession(page, 'Codex')
+  await showSessionDetails(page)
+  await page.getByRole('button', { name: /^Model:/ }).click()
+  const menu = page.getByRole('dialog', { name: 'Choose model' })
+  await expect(menu.getByRole('radio', { name: /^Default/ })).toContainText('Fake-large, from Codex config')
+  await expect(menu.locator('.model-tag')).toHaveCount(0)
+  // Each effort word keeps clear of its segment's borders.
+  for (const radio of await menu.getByRole('radiogroup', { name: 'effort' }).getByRole('radio').all()) {
+    expect(await radio.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true)
+  }
+})

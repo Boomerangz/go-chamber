@@ -110,6 +110,14 @@ test('keeps Copy off the output on a touch screen', async ({ page, isMobile }) =
   expect(copy.y + copy.height).toBeLessThanOrEqual(pre.y + 1)
 })
 
+test('a plan tool line says "plan", the plan itself is in the card', async ({ page }) => {
+  await newSession(page)
+  await page.getByLabel('message').fill('make a plan')
+  await page.getByRole('button', { name: 'Send' }).click()
+  await expect(page.locator('.request-title', { hasText: 'Ready to code?' })).toBeVisible()
+  await expect(page.locator('.item.tool .item-summary')).toHaveText('plan')
+})
+
 test('brings sent messages back with ArrowUp', async ({ page }) => {
   await newSession(page)
   await say(page, 'first thing')

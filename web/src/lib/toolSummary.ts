@@ -8,6 +8,8 @@ const SHORT = 200
 // toolSummary is the one line shown after a tool's name: the file it reads,
 // the pattern it searches for, the command it runs.
 export function toolSummary(item: Item): string | undefined {
+  // A plan is read in its request card; on the line it is just a plan.
+  if (item.name === 'ExitPlanMode') return 'plan'
   const input = item.input
   if (!input || typeof input !== 'object' || Array.isArray(input)) return undefined
   const fields = input as Record<string, unknown>
@@ -16,6 +18,8 @@ export function toolSummary(item: Item): string | undefined {
     if (value) return value
   }
   for (const value of Object.values(fields)) {
+    // Text of several lines is content (a body, a plan), not a name.
+    if (typeof value === 'string' && value.trim().includes('\n')) continue
     const line = oneLine(value)
     if (line && line.length <= SHORT) return line
   }
