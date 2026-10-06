@@ -1,8 +1,8 @@
 /* request cards: pending answers, inline failures, key hints, question extras */
 .request:focus { outline: none; }
-.request:focus-visible { outline: 1px solid var(--act-ring); outline-offset: 2px; }
+.request:focus-visible { outline: 2px solid var(--act-ring); outline-offset: 2px; }
 .request-actions { align-items: center; }
-.request-actions kbd { margin-left: 4px; opacity: 0.6; }
+.request-actions kbd { margin-left: 4px; }
 .btn-primary kbd { border-color: currentColor; background: transparent; color: inherit; }
 .request-meta { font-family: var(--font-mono); font-size: 12px; color: var(--ink-3); }
 .request-error { margin: 0; }
@@ -44,6 +44,6 @@
 .request-grants { margin: 0; font-family: var(--font-mono); font-size: 12px; color: var(--ink-3); overflow-wrap: anywhere; }
 
 /* option numbers: the keys that pick them */
-.option-label kbd { margin-left: 8px; font-weight: 400; opacity: 0.6; }
+.option-label kbd { margin-left: 8px; font-weight: 400; }
 /* key hints mean nothing without a keyboard */
 @media (hover: none), (pointer: coarse) { .option-label kbd, .request-actions kbd { display: none; } }
