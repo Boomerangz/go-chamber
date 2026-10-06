@@ -180,7 +180,7 @@ test('says live updates paused when the socket drops, and reconnects', async ({ 
   await newSession(page)
   await expect(page.locator('.live-strip')).toHaveCount(0)
   drop()
-  const strip = page.getByRole('status', { name: 'live updates' })
+  const strip = page.getByRole('status', { name: 'Live updates' })
   await expect(strip).toContainText('live updates paused')
   await strip.getByRole('button', { name: 'Reconnect now' }).click()
   await expect(strip).toHaveCount(0)
@@ -228,4 +228,29 @@ test('folds the session header on a phone', async ({ page, isMobile }) => {
   await page.getByRole('button', { name: 'session details' }).click()
   await expect(page.getByLabel('permission mode')).toBeVisible()
   await expect(page.locator('.chat-path')).toBeVisible()
+})
+
+test('a stop sent while offline says so above the composer, not in its row', async ({ page }) => {
+  let dropped = false
+  let drop = () => {}
+  await page.routeWebSocket('**/api/ws', (ws) => {
+    if (dropped) return void ws.close()
+    const server = ws.connectToServer()
+    drop = () => {
+      dropped = true
+      void server.close()
+      void ws.close()
+    }
+  })
+  await newSession(page)
+  await page.getByLabel('message').fill('run a subagent')
+  await page.getByRole('button', { name: 'Send' }).click()
+  await expect(page.locator('.subagent')).toBeVisible()
+  const composer = page.locator('form.composer')
+  const height = (await composer.boundingBox())!.height
+  drop()
+  await expect(page.locator('.live-strip')).toContainText('live updates paused')
+  await composer.getByRole('button', { name: 'Stop' }).click()
+  await expect(page.locator('.live-strip')).toContainText('stop sent')
+  expect((await composer.boundingBox())!.height).toBe(height)
 })

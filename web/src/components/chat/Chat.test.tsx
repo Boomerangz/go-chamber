@@ -570,19 +570,19 @@ describe('live connection', () => {
   it('says live updates paused and reconnects on demand', async () => {
     const retryNow = vi.fn()
     setup({ chat: running([item('u1', 'user_message')]), connection: 'offline', nextRetryAt: Date.now() + 4500, retryNow })
-    expect(screen.getByRole('status', { name: 'live updates' })).toHaveTextContent(/live updates paused · reconnecting in [45]s/)
+    expect(screen.getByRole('status', { name: 'Live updates' })).toHaveTextContent(/live updates paused · reconnecting in [45]s/)
     await userEvent.click(screen.getByRole('button', { name: 'Reconnect now' }))
     expect(retryNow).toHaveBeenCalledTimes(1)
   })
 
   it('says it is reconnecting while a retry is on its way', () => {
     setup({ connection: 'connecting', nextRetryAt: Date.now() - 10 })
-    expect(screen.getByRole('status', { name: 'live updates' })).toHaveTextContent('reconnecting…')
+    expect(screen.getByRole('status', { name: 'Live updates' })).toHaveTextContent('reconnecting…')
   })
 
   it('stays quiet while the first connection opens', () => {
     setup({ connection: 'connecting', nextRetryAt: null })
-    expect(screen.queryByRole('status', { name: 'live updates' })).toBeNull()
+    expect(screen.queryByRole('status', { name: 'Live updates' })).toBeNull()
   })
 
   it('stops the turn clock: it cannot know the turn still runs', () => {
@@ -731,7 +731,8 @@ describe('stop when the agent is quiet', () => {
     expect(screen.getByRole('button', { name: 'Stopping…' })).toBeInTheDocument()
     act(() => vi.advanceTimersByTime(10_000))
     expect(screen.getByRole('button', { name: 'Stop' })).not.toHaveAttribute('aria-busy', 'true')
-    expect(screen.getByText('sent · waiting for agent')).toBeInTheDocument()
+    expect(document.querySelector('.live-strip')).toHaveTextContent('stop sent · waiting for the agent')
+    expect(document.querySelector('.composer .composer-note')).toBeNull()
   })
 
   it('lets go at once when the live connection drops', async () => {
@@ -740,6 +741,7 @@ describe('stop when the agent is quiet', () => {
     expect(screen.getByRole('button', { name: 'Stopping…' })).toBeInTheDocument()
     act(() => useSessionStore.setState({ connection: 'offline' }))
     expect(screen.getByRole('button', { name: 'Stop' })).toBeInTheDocument()
-    expect(screen.getByText('sent · waiting for agent')).toBeInTheDocument()
+    expect(document.querySelector('.live-strip')).toHaveTextContent('stop sent · waiting for the agent')
+    expect(document.querySelector('.composer .composer-note')).toBeNull()
   })
 })

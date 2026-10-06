@@ -498,7 +498,7 @@ export default function Chat() {
           onAutoContinue={(on) => setAutoContinue(session.id, on)}
         />
       )}
-      <LiveStrip />
+      <LiveStrip note={stopSent ? 'stop sent · waiting for the agent' : undefined} />
       {!notFound && (
       <form
         className={['composer', attachments.dragging && 'dragging', multiline && 'multiline'].filter(Boolean).join(' ')}
@@ -524,11 +524,6 @@ export default function Chat() {
         />
         <div className="composer-actions">
           <Attachments state={attachments} locked={busy} />
-          {stopSent && (
-            <span className="composer-note" role="status">
-              sent · waiting for agent
-            </span>
-          )}
           {busy && (
             <button
               type="button"

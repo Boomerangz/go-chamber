@@ -72,6 +72,8 @@
   font-family: var(--font-mono); font-size: 12px; color: var(--ink-2);
 }
 .live-strip .btn { margin-left: auto; }
+/* a stop sent that the agent hasn't answered: on the strip, not in the composer row */
+.live-note { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink-3); }
 .composer-note { align-self: center; font-family: var(--font-mono); font-size: 12px; color: var(--ink-3); white-space: nowrap; }
 /* the send shortcut, kept beside Send once the placeholder is gone */
 .composer-keys {
