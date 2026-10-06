@@ -181,6 +181,9 @@ select.field option { background: var(--paper); color: var(--ink); }
 /* the last turn failed: the word says so in ink; the transcript shows why */
 .status-failed, .session-status-failed { color: var(--ink); }
 .status-done::before, .session-status-done::before { animation: mark-land 450ms var(--ease-out); }
+/* the live socket dropped: the header's state is not settled (a dashed, breathing mark, the word in ink-3) */
+.chat-meta .status.unsettled { color: var(--ink-3); }
+.chat-meta .status.unsettled::before { background: none; border-style: dashed; animation: mark-breathe 1.2s ease-in-out infinite; }
 
 /* busy: the "not yet settled" form (a dashed square) that breathes while
    something is on its way. No spinners: state is form. */

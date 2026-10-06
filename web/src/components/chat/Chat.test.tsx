@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import * as api from '../../lib/api'
 import { initialChat, type ChatState } from '../../lib/events'
 import { resetDrafts } from '../../stores/drafts'
-import { useNotices } from '../../stores/notices'
+import { notify, useNotices } from '../../stores/notices'
 import { resetStore, useSessionStore } from '../../stores/session'
 import Chat from './Chat'
 
@@ -606,6 +606,32 @@ describe('live connection', () => {
     setup({ chat: running([item('u1', 'user_message')]), connection: 'offline', nextRetryAt: null })
     expect(screen.queryByText(/working · \d/)).toBeNull()
     expect(screen.getByText('working · paused')).toBeInTheDocument()
+  })
+
+  it("marks the header's state unsettled: the page can't see the turn now", () => {
+    setup({ chat: running([item('u1', 'user_message')]), connection: 'offline', nextRetryAt: Date.now() + 4000 })
+    expect(document.querySelector('.chat-meta .status')).toHaveClass('unsettled')
+    expect(document.querySelector('.chat-meta .status')).toHaveAttribute('title', 'May be out of date until the connection is back')
+    act(() => useSessionStore.setState({ connection: 'online', nextRetryAt: null }))
+    expect(document.querySelector('.chat-meta .status')).not.toHaveClass('unsettled')
+  })
+
+  it('holds a message sent while go-chamber is out of reach, and sends it once back', async () => {
+    setup({ chat: running([item('u1', 'user_message')]), connection: 'offline', nextRetryAt: Date.now() + 4000 })
+    await userEvent.type(box(), 'steer me{Enter}')
+    expect(fns.steer).not.toHaveBeenCalled()
+    expect(document.querySelector('.row-pending')).toHaveTextContent('steer me')
+    expect(document.querySelector('.row-pending .pending-label')).toHaveTextContent('waits for go-chamber')
+    await act(async () => useSessionStore.setState({ connection: 'online', nextRetryAt: null }))
+    await waitFor(() => expect(fns.steer).toHaveBeenCalledWith('steer me'))
+  })
+
+  it('clears a "not sent" notice once go-chamber is back', () => {
+    setup({ chat: running([item('u1', 'user_message')]), connection: 'offline', nextRetryAt: Date.now() + 4000 })
+    act(() => void notify({ kind: 'error', title: 'Steer not sent', text: 'go-chamber is not reachable', key: 'send' }))
+    expect(useNotices.getState().notices).toHaveLength(1)
+    act(() => useSessionStore.setState({ connection: 'online', nextRetryAt: null }))
+    expect(useNotices.getState().notices).toHaveLength(0)
   })
 
   it('says it once: the strip tells of the drop, the header keeps quiet', () => {

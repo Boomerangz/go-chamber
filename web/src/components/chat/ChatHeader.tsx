@@ -93,6 +93,8 @@ interface Props {
   session: Session | undefined
   // status is what the header shows (see lib/status).
   status: ShownStatus
+  // unsettled: the live socket dropped, so the state shown may be stale.
+  unsettled?: boolean
   // loading: the sessions list hasn't arrived, so the title isn't known yet.
   loading: boolean
   notFound: boolean
@@ -103,7 +105,7 @@ interface Props {
 // ChatHeader names the open session and holds its settings. On a phone it
 // folds to the title and one meta line; the folder, model, mode and fork
 // open behind "⋯" so the transcript keeps the screen.
-export default function ChatHeader({ session, status, loading, notFound, forking, onFork }: Props) {
+export default function ChatHeader({ session, status, unsettled, loading, notFound, forking, onFork }: Props) {
   const renameSession = useSessionStore((s) => s.renameSession)
   const [open, setOpen] = useState(false)
   const toolsId = useId()
@@ -140,7 +142,11 @@ export default function ChatHeader({ session, status, loading, notFound, forking
       )}
       <div className="chat-meta">
         {session && (
-          <span className={`status status-${status}`} role="status">
+          <span
+            className={`status status-${status}${unsettled ? ' unsettled' : ''}`}
+            role="status"
+            title={unsettled ? 'May be out of date until the connection is back' : undefined}
+          >
             {statusWord(status)}
           </span>
         )}

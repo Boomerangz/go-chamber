@@ -263,3 +263,32 @@ test('a running turn keeps its clock across a reload', async ({ page }) => {
   await page.reload()
   await expect(page.locator('.working-tail')).toContainText(/0:0[3-9]/)
 })
+
+// Without the live socket the header's state is unsettled, and a message
+// sent meanwhile waits instead of failing; it goes once the socket is back.
+test('a message sent while the connection is down waits for it', async ({ page }) => {
+  let dropped = false
+  let drop = () => {}
+  await page.routeWebSocket('**/api/ws', (ws) => {
+    if (dropped) return void ws.close()
+    const server = ws.connectToServer()
+    drop = () => {
+      dropped = true
+      void server.close()
+      void ws.close()
+    }
+  })
+  await newSession(page)
+  await say(page, 'before the outage')
+  drop()
+  await expect(page.locator('.live-strip')).toContainText('live updates paused')
+  await expect(page.locator('.chat-meta .status')).toHaveClass(/unsettled/)
+  await page.getByLabel('Message').fill('during the outage')
+  await page.getByRole('button', { name: 'Send' }).click()
+  await expect(page.locator('.row-pending', { hasText: 'during the outage' })).toContainText('waits for go-chamber')
+  await expect(page.locator('.toast-error')).toHaveCount(0)
+  dropped = false
+  await page.getByRole('button', { name: 'Reconnect now' }).click()
+  await expect(page.locator('.item.assistant', { hasText: 'echo: during the outage' })).toBeVisible()
+  await expect(page.locator('.chat-meta .status')).not.toHaveClass(/unsettled/)
+})
