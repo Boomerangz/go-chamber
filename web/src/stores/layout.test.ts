@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useSessionStore } from './session'
-import { DOCK_MAX, DOCK_MIN, loadLayout, resetLayout, SIDEBAR_MAX, SIDEBAR_MIN, sidebarShown, useLayoutStore, visibleDock } from './layout'
+import { DOCK_MAX, DOCK_MIN, loadLayout, resetLayout, SIDEBAR_MAX, SIDEBAR_MIN, settleRestoredDock, sidebarShown, useLayoutStore, visibleDock } from './layout'
 
 const store = () => useLayoutStore.getState()
 
@@ -108,6 +108,23 @@ describe('panel sizes', () => {
     expect(loadLayout().widths).toEqual({ terminal: 640, changes: DOCK_MIN, requests: DOCK_MAX })
     store().setDockWidth('terminal', null)
     expect(loadLayout().widths).toEqual({ changes: DOCK_MIN, requests: DOCK_MAX })
+  })
+
+  it('collapses a restored Requests dock once nothing turns out to be pending, only on load', () => {
+    localStorage.setItem('gc.layout', JSON.stringify({ dock: 'requests' }))
+    resetLayout()
+    settleRestoredDock(0)
+    expect(store().dock).toBeNull()
+    store().toggleDock('requests')
+    settleRestoredDock(0)
+    expect(store().dock).toBe('requests')
+  })
+
+  it('keeps a restored Requests dock while something waits', () => {
+    localStorage.setItem('gc.layout', JSON.stringify({ dock: 'requests' }))
+    resetLayout()
+    settleRestoredDock(2)
+    expect(store().dock).toBe('requests')
   })
 
   it('remembers the sidebar width and whether it is shown', () => {

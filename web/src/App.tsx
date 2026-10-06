@@ -23,7 +23,7 @@ import { usePending } from './lib/pending'
 import { sessionTitle } from './lib/sessions'
 import { attentionTitle } from './lib/title'
 import { endedTurns, markEnded, markVisited, unseenCount, useVisits } from './lib/visits'
-import { useLayoutStore, useLayoutVars, visibleDock } from './stores/layout'
+import { settleRestoredDock, useLayoutStore, useLayoutVars, visibleDock } from './stores/layout'
 import { useSessionStore } from './stores/session'
 import { useTerminalStore } from './stores/terminals'
 
@@ -54,7 +54,7 @@ export default function App() {
   useEffect(() => {
     if (health === 'online') {
       void loadSessions()
-      void loadRequests()
+      void loadRequests().then(() => settleRestoredDock(useSessionStore.getState().pendingRequests.length))
       void loadQuotas()
       void loadTerminals()
       connect()

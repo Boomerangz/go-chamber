@@ -153,6 +153,20 @@ export function useLayoutVars(dock: Dock): CSSProperties {
   return vars as CSSProperties
 }
 
+// settled is set once the first list of requests has been seen this page.
+let settled = false
+
+// settleRestoredDock runs once, when the first list of requests arrives: a
+// Requests dock restored from the last visit collapses to its rail when
+// nothing waits, rather than opening on an empty tray.
+export function settleRestoredDock(pending: number) {
+  if (settled) return
+  settled = true
+  const layout = useLayoutStore.getState()
+  if (layout.dock === 'requests' && pending === 0) useLayoutStore.setState({ dock: null })
+}
+
 export function resetLayout() {
+  settled = false
   useLayoutStore.setState(loadLayout())
 }
