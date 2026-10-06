@@ -39,12 +39,18 @@ test('sends a failed turn again with Retry', async ({ page }) => {
   await expect(page.locator('.item.user', { hasText: 'fail this turn' })).toHaveCount(2)
 })
 
-test('takes a sent message back into the composer', async ({ page }) => {
+test('takes a sent message back into the composer', async ({ page }, info) => {
   await newSession(page)
   await say(page, 'hello there')
   const message = page.locator('.item.user', { hasText: 'hello there' })
   await expect(page.locator('.item.assistant', { hasText: 'echo: hello there' })).toBeVisible()
-  await message.hover()
+  if (info.project.name === 'mobile') {
+    // No hover on a phone: the actions stay out of the way until a tap on the message.
+    await expect(message.getByRole('button', { name: 'Edit' })).toBeHidden()
+    await message.locator('.user-text').click()
+  } else {
+    await message.hover()
+  }
   await message.getByRole('button', { name: 'Edit' }).click()
   await expect(page.getByLabel('message')).toHaveValue('hello there')
 })
