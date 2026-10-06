@@ -79,4 +79,35 @@ describe('useRouteSync', () => {
     })
     expect(useSessionStore.getState().pane).toBe('chat')
   })
+
+  it('Back from the first session opened at / closes it on desktop', async () => {
+    phone(false)
+    renderHook(() => useRouteSync(true))
+    select('a')
+    expect(location.pathname).toBe('/s/a')
+    await back()
+    expect(location.pathname).toBe('/')
+    expect(useSessionStore.getState().activeId).toBeNull()
+    // A later store change must not bring the session's URL back.
+    act(() => useSessionStore.setState({ query: 'x' }))
+    expect(location.pathname).toBe('/')
+  })
+
+  it('on a phone, Back from the first chat opened at / returns to the list and stays there', async () => {
+    phone(true)
+    renderHook(() => useRouteSync(true))
+    expect(history.state).toEqual({ pane: 'sessions' })
+    select('a')
+    await back()
+    expect(useSessionStore.getState().pane).toBe('sessions')
+    const length = history.length
+    act(() => useSessionStore.setState({ query: 'x' }))
+    expect(history.length).toBe(length)
+    await act(async () => {
+      history.forward()
+      await new Promise((r) => window.addEventListener('popstate', r, { once: true }))
+    })
+    expect(useSessionStore.getState().pane).toBe('chat')
+    expect(useSessionStore.getState().activeId).toBe('a')
+  })
 })

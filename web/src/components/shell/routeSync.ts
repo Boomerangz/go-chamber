@@ -70,7 +70,9 @@ export function useRouteSync(online: boolean): void {
     }
     apply()
     lastPane = pane()
-    if (current() !== '/' && current() !== location.pathname) history.replaceState({ pane: pane() }, '', current() + location.search)
+    // Stamp the first entry with its pane, so Back to it knows what it showed.
+    const first = current() !== '/' && current() !== location.pathname ? current() : location.pathname
+    history.replaceState({ pane: pane() }, '', first + location.search)
     const unsubscribe = [useLayoutStore.subscribe(follow), useSessionStore.subscribe(follow), useTerminalStore.subscribe(follow)]
     const onPop = (e: PopStateEvent) => {
       navigating = true
@@ -82,8 +84,17 @@ export function useRouteSync(online: boolean): void {
           useSessionStore.getState().setPane('sessions')
           const path = current()
           if (path !== location.pathname) history.replaceState({ pane: 'sessions' }, '', path + location.search)
-        } else if (location.pathname === '/') useLayoutStore.getState().setMode('agents')
-        else {
+        } else if (parseRoute(location.pathname).kind === 'none') {
+          // Back to the page as it opened, before any session: on a phone
+          // the list (the chat stays open behind it, as above); on a desktop
+          // the empty workspace.
+          useLayoutStore.getState().setMode('agents')
+          if (narrow()) {
+            useSessionStore.getState().setPane('sessions')
+            const path = current()
+            if (path !== location.pathname) history.replaceState({ pane: 'sessions' }, '', path + location.search)
+          } else if (useSessionStore.getState().activeId) useSessionStore.getState().closeSession()
+        } else {
           apply()
           if (narrow() && entry.pane && parseRoute(location.pathname).kind === 'session') useSessionStore.getState().setPane(entry.pane)
         }
