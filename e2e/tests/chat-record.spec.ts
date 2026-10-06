@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test'
 import { token } from '../playwright.config'
-import { showPane } from './pane'
+import { openNewSession, showPane } from './pane'
 
 // What the transcript keeps of requests and crashes, and the one text column
 // everything in a session shares.
@@ -8,6 +8,7 @@ import { showPane } from './pane'
 async function newSession(page: import('@playwright/test').Page) {
   await page.goto(`/?token=${token}`)
   await showPane(page, 'Sessions')
+  await openNewSession(page)
   await page.getByRole('radio', { name: 'Claude' }).click()
   await page.getByLabel('working directory').fill('/tmp')
   await page.getByRole('button', { name: 'New session', exact: true }).click()
