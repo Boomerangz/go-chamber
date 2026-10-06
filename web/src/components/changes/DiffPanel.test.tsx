@@ -85,7 +85,11 @@ describe('DiffPanel', () => {
     expect(screen.getByText(/2 commits to merge/)).toBeInTheDocument()
     await userEvent.click(screen.getByRole('button', { name: 'Remove worktree' }))
     expect(api.removeWorktree).not.toHaveBeenCalled()
-    expect(screen.getByText(/remove folder \/wt\/app\/fix\? branch chamber\/fix is kept/)).toBeInTheDocument()
+    const ask = screen.getByRole('group', { name: 'Remove worktree?' })
+    expect(ask).toHaveTextContent(/^Remove the worktree folder .*fix\?/)
+    expect(ask.querySelector('.path-text')).toHaveAttribute('title', '/wt/app/fix')
+    expect(ask).toHaveTextContent('Branch chamber/fix is kept, with its 2 commits.')
+    expect(ask).not.toHaveTextContent(/lost/)
     await userEvent.click(screen.getByRole('button', { name: 'Remove' }))
     expect(api.removeWorktree).toHaveBeenCalledWith('s1', false)
     await waitFor(() => expect(useSessionStore.getState().sessions[0].worktree).toBeUndefined())
@@ -148,10 +152,22 @@ describe('DiffPanel', () => {
     render(<DiffPanel sessionId="s1" />)
     await screen.findByText('a')
     await userEvent.click(screen.getByRole('button', { name: 'Remove worktree' }))
-    expect(screen.getByText(/uncommitted changes will be lost/)).toBeInTheDocument()
+    // no commits on the branch yet: every listed change is uncommitted
+    expect(screen.getByText('1 uncommitted change will be lost.')).toBeInTheDocument()
     await userEvent.click(screen.getByRole('button', { name: 'Remove anyway' }))
     expect(api.removeWorktree).toHaveBeenCalledTimes(1)
     expect(api.removeWorktree).toHaveBeenLastCalledWith('s1', true)
+  })
+
+  it('with commits on the branch, says only what isn’t committed is lost', async () => {
+    vi.mocked(api.getChanges).mockResolvedValue({ repository: true, base: 'abc', files: [{ path: 'a', status: 'M' }, { path: 'b', status: '?' }], commits: 3 })
+    useSessionStore.setState({ sessions: [{ id: 's1', agent: 'claude', cwd: worktree.path, status: 'idle', worktree }] })
+    render(<DiffPanel sessionId="s1" />)
+    await screen.findByText('a')
+    await userEvent.click(screen.getByRole('button', { name: 'Remove worktree' }))
+    const ask = screen.getByRole('group', { name: 'Remove worktree?' })
+    expect(ask).toHaveTextContent('Changes not yet committed will be lost.')
+    expect(ask).toHaveTextContent('Branch chamber/fix is kept, with its 3 commits.')
   })
 
   it('offers a forced removal when the server finds changes', async () => {
@@ -165,6 +181,16 @@ describe('DiffPanel', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Remove' }))
     await userEvent.click(await screen.findByRole('button', { name: 'Remove anyway' }))
     expect(api.removeWorktree).toHaveBeenLastCalledWith('s1', true)
+  })
+
+  it('says the server found uncommitted changes the list didn’t show', async () => {
+    vi.mocked(api.getChanges).mockResolvedValue({ repository: true, base: 'abc', files: [] })
+    vi.mocked(api.removeWorktree).mockRejectedValueOnce(new Error('{"error":"worktree has uncommitted changes"}'))
+    useSessionStore.setState({ sessions: [{ id: 's1', agent: 'claude', cwd: worktree.path, status: 'idle', worktree }] })
+    render(<DiffPanel sessionId="s1" />)
+    await userEvent.click(await screen.findByRole('button', { name: 'Remove worktree' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Remove' }))
+    expect(await screen.findByText('It has uncommitted changes: they will be lost.')).toBeInTheDocument()
   })
 
   it('says it is loading the list and the diff, and when it last updated', async () => {
