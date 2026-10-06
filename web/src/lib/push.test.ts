@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { decodeKey, disablePush, enablePush, pushEnabled, pushSupported } from './push'
+import { decodeKey, disablePush, enablePush, pushEnabled, pushSupported, WorkerUnavailable } from './push'
 
 function install({ permission = 'granted', existing = null as null | { endpoint: string } } = {}) {
   const sub = { endpoint: 'https://push.example/1', toJSON: () => ({ endpoint: 'https://push.example/1', keys: { p256dh: 'k', auth: 'a' } }), unsubscribe: vi.fn(async () => true) }
@@ -56,4 +56,18 @@ describe('push', () => {
     expect(init.method).toBe('DELETE')
     expect(sub.unsubscribe).toHaveBeenCalled()
   })
+
+  it('gives up on a service worker that never becomes ready', async () => {
+    install()
+    vi.stubGlobal('navigator', { serviceWorker: { ready: new Promise(() => {}), register: vi.fn() } })
+    vi.useFakeTimers()
+    try {
+      const check = pushEnabled().catch((e: unknown) => e)
+      await vi.advanceTimersByTimeAsync(3000)
+      expect(await check).toBeInstanceOf(WorkerUnavailable)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
 })
+
