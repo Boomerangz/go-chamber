@@ -90,8 +90,8 @@ function ChatPath({ cwd }: { cwd: string }) {
 
 interface Props {
   session: Session | undefined
-  // status is the word the header shows: running, idle, done…
-  status: SessionStatus | 'done'
+  // status is the word the header shows: running, idle, done, failed…
+  status: SessionStatus | 'done' | 'failed'
   // loading: the sessions list hasn't arrived, so the title isn't known yet.
   loading: boolean
   notFound: boolean

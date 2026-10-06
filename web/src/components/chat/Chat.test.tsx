@@ -109,7 +109,9 @@ describe('transcript loading', () => {
     expect(document.querySelector('.chat-meta .status')).toHaveTextContent('done')
     act(() => useSessionStore.setState({ chat: running([item('u1', 'user_message')], { lastSeq: 6 }) }))
     act(() => useSessionStore.setState({ chat: chatOf([item('u1', 'user_message')], { lastSeq: 7, lastTurnFailed: true }) }))
-    expect(document.querySelector('.chat-meta .status')).toHaveTextContent('idle')
+    // The header says what the transcript shows: the turn failed.
+    expect(document.querySelector('.chat-meta .status')).toHaveTextContent('failed')
+    expect(document.querySelector('.chat-meta .status')).toHaveClass('status-failed')
   })
 })
 

@@ -93,9 +93,11 @@ export default function Chat() {
     textRef.current = text
   }, [text])
   const status = displayStatus(chat, session)
-  const finished = useJustFinished(status)
-  // The transcript owner marks a failed turn; a failure doesn't flash "done".
-  const shownStatus = finished && !chat.lastTurnFailed ? 'done' : status
+  const failedTurn = !!chat.lastTurnFailed && status === 'idle'
+  const finished = useJustFinished(status, failedTurn)
+  // A failed turn doesn't flash "done"; until the next turn the header says
+  // it failed, as the transcript does.
+  const shownStatus = failedTurn ? 'failed' : finished ? 'done' : status
   const running = status === 'running'
   const reduced = useReducedMotion() ?? false
   const narrow = useMedia('(max-width: 720px)')
