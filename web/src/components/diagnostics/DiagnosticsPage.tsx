@@ -4,7 +4,8 @@ import { rtcEnabled, setRTCEnabled } from '../../lib/transport'
 import { useSessionStore } from '../../stores/session'
 import { useTerminalStore } from '../../stores/terminals'
 import { useDiagnostics } from './useDiagnostics'
-import { formatUptime, linkMark } from './format'
+import { formatUptime, linkMark, metricLevel, terminalName } from './format'
+import { fail, notify } from '../../stores/notices'
 import './DiagnosticsPage.css'
 
 const metrics: { key: MetricKey; label: string; description: string }[] = [
@@ -26,9 +27,17 @@ export default function DiagnosticsPage() {
   const connection = useSessionStore((s) => s.connection)
   const terminalNames = useTerminalStore((s) => s.terminals)
   const ids = [...new Set([...client.terminals.map((t) => t.id), ...(server?.terminals.map((t) => t.id) ?? [])])]
+  const report = () => JSON.stringify({ generatedAt: new Date().toISOString(), client: diagnostics(), server }, null, 2)
+  const copyReport = async () => {
+    try {
+      await navigator.clipboard.writeText(report())
+      notify({ kind: 'info', text: 'Copied the report', key: 'copy-report' })
+    } catch (err) {
+      fail('Copy failed', err)
+    }
+  }
   const download = () => {
-    const report = { generatedAt: new Date().toISOString(), client: diagnostics(), server }
-    const url = URL.createObjectURL(new Blob([JSON.stringify(report, null, 2)], { type: 'application/json' }))
+    const url = URL.createObjectURL(new Blob([report()], { type: 'application/json' }))
     const link = document.createElement('a')
     link.href = url
     link.download = 'go-chamber-diagnostics.json'
@@ -46,6 +55,7 @@ export default function DiagnosticsPage() {
         <div className="diagnostics-actions">
           <button className="btn" onClick={() => setEnabled((value) => !value)}>{enabled ? 'Pause probes' : 'Resume probes'}</button>
           <button className="btn" onClick={resetDiagnostics}>Reset browser samples</button>
+          <button className="btn" onClick={() => void copyReport()}>Copy report</button>
           <button className="btn btn-primary" onClick={download}>Download report</button>
         </div>
       </header>
@@ -64,10 +74,12 @@ export default function DiagnosticsPage() {
       <div className="diagnostics-grid">
         {metrics.map(({ key, label, description }) => {
           const metric = client.metrics[key]
+          const { level, remedy } = metricLevel(key, metric.p95)
           return (
-            <article className="panel diagnostic-metric" key={key}>
+            <article className="panel diagnostic-metric" key={key} data-level={level}>
               <h3>{label}</h3>
-              <div className="diagnostic-value">{ms(metric.p95)} <span>p95</span></div>
+              <div className="diagnostic-value">{ms(metric.p95)} <span>p95</span>{level !== 'none' && <span className="diagnostic-level">{level}</span>}</div>
+              {remedy && <p className="diagnostic-remedy">{remedy}</p>}
               <dl><div><dt>Latest</dt><dd>{ms(metric.last)}</dd></div><div><dt>Median</dt><dd>{ms(metric.p50)}</dd></div><div><dt>Maximum</dt><dd>{ms(metric.max)}</dd></div><div><dt>Samples</dt><dd>{metric.samples} / {metric.count}</dd></div></dl>
               <p>{metric.count ? description : `Waiting for samples. ${description}`}</p>
             </article>
@@ -106,7 +118,20 @@ export default function DiagnosticsPage() {
             <tbody>{ids.map((id) => {
               const local = client.terminals.find((t) => t.id === id)
               const remote = server?.terminals.find((t) => t.id === id)
-              return <tr key={id}><th>{terminalNames.find((t) => t.id === id)?.title ?? id}</th><td>{local?.transport ?? '—'}</td><td>{local?.transport === 'webrtc' ? `${local.route ?? 'unknown'} · ${local.protocol ?? 'unknown'}` : local?.transport === 'websocket' ? 'HTTP server' : '—'}</td><td>{local?.rtcAttempt ? `${local.rtcAttempt.stage}${local.rtcAttempt.error ? ` · ${local.rtcAttempt.error}` : ''}${local.rtcAttempt.httpStatus ? ` · HTTP ${local.rtcAttempt.httpStatus}` : ''} · ${ms(local.rtcAttempt.elapsedMs)}` : '—'}</td><td>{local?.transport === 'webrtc' ? ms(local.rtcRTTMs) : '—'}</td><td>{local ? bytes(local.pendingBytes) : '—'}</td><td>{local ? bytes(local.peakPendingBytes) : '—'}</td><td>{local?.reconnects ?? '—'}</td><td>{remote ? bytes(remote.queuedBytes) : '—'}</td><td>{remote?.laggedClients ?? '—'}</td><td>{remote?.clients ?? '—'}</td></tr>
+              const cells: [string, React.ReactNode][] = [
+                ['Connection', local?.transport ?? '—'],
+                ['Route', local?.transport === 'webrtc' ? `${local.route ?? 'unknown'} · ${local.protocol ?? 'unknown'}` : local?.transport === 'websocket' ? 'HTTP server' : '—'],
+                ['WebRTC attempt', local?.rtcAttempt ? `${local.rtcAttempt.stage}${local.rtcAttempt.error ? ` · ${local.rtcAttempt.error}` : ''}${local.rtcAttempt.httpStatus ? ` · HTTP ${local.rtcAttempt.httpStatus}` : ''} · ${ms(local.rtcAttempt.elapsedMs)}` : '—'],
+                ['WebRTC RTT', local?.transport === 'webrtc' ? ms(local.rtcRTTMs) : '—'],
+                ['Browser pending', local ? bytes(local.pendingBytes) : '—'],
+                ['Browser peak', local ? bytes(local.peakPendingBytes) : '—'],
+                ['Reconnects', local?.reconnects ?? '—'],
+                ['Server queued', remote ? bytes(remote.queuedBytes) : '—'],
+                ['Lag disconnects', remote?.laggedClients ?? '—'],
+                ['Clients', remote?.clients ?? '—'],
+              ]
+              // data-label names each cell when a narrow screen lays rows out as cards.
+              return <tr key={id}><th scope="row">{terminalName(id, terminalNames.find((t) => t.id === id))}</th>{cells.map(([label, value]) => <td key={label} data-label={label}>{value}</td>)}</tr>
             })}</tbody>
           </table></div>
         ) : <p>Open a terminal to collect output and queue measurements.</p>}

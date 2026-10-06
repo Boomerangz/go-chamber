@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test'
 import { token } from '../playwright.config'
+import { showShells } from './pane'
 
 test('names a session and a terminal', async ({ page }, info) => {
   const name = `Release notes ${info.project.name}`
@@ -25,5 +26,6 @@ test('names a session and a terminal', async ({ page }, info) => {
   await page.getByRole('button', { name: 'Rename terminal' }).click()
   await page.getByRole('textbox', { name: 'terminal name' }).fill(`logs ${info.project.name}`)
   await page.keyboard.press('Enter')
+  await showShells(page)
   await expect(panel.getByRole('tab', { selected: true })).toContainText(`logs ${info.project.name}`)
 })

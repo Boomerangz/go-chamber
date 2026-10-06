@@ -62,7 +62,7 @@ export function ctrlChar(ch: string): string | null {
   return null
 }
 
-export type SpecialKey = 'esc' | 'tab' | 'up' | 'down' | 'left' | 'right' | 'interrupt'
+export type SpecialKey = 'esc' | 'tab' | 'up' | 'down' | 'left' | 'right' | 'interrupt' | 'eof' | 'home' | 'end' | 'pgup' | 'pgdn'
 
 const KEYS: Record<SpecialKey, string> = {
   esc: '\x1b',
@@ -72,6 +72,11 @@ const KEYS: Record<SpecialKey, string> = {
   right: '\x1b[C',
   left: '\x1b[D',
   interrupt: '\x03',
+  eof: '\x04',
+  home: '\x1b[H',
+  end: '\x1b[F',
+  pgup: '\x1b[5~',
+  pgdn: '\x1b[6~',
 }
 
 export function keySequence(key: SpecialKey): string {

@@ -1,10 +1,16 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { Copy, RefreshCw } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type ReactNode } from 'react'
+import type { ThemedToken } from 'shiki/core'
+import { ChevronsDownUp, ChevronsUpDown, Copy, Eye, RefreshCw, WrapText } from 'lucide-react'
 import * as api from '../../lib/api'
+import { parseDiff, SIGNS, totals, type DiffStat as Counts, type DiffLine } from '../../lib/diff'
+import { langOf } from '../../lib/files'
+import { isTypingTarget } from '../../lib/hotkeys'
 import { usePending } from '../../lib/pending'
+import { useLayoutStore } from '../../stores/layout'
 import { describeError, fail, notify } from '../../stores/notices'
 import { useSessionStore } from '../../stores/session'
 import { icon } from '../icon'
+import { FileViewer } from '../markdown/FileLink'
 import { LoadFailed, LoadingLine } from '../ui/Loading'
 import './DiffPanel.css'
 
@@ -16,21 +22,13 @@ const statusMark: Record<string, string> = { A: 'solid', M: 'hollow', T: 'hollow
 // A diff longer than this shows its head until asked for the rest: React
 // renders every line as an element.
 const DIFF_LINE_LIMIT = 2000
-
-interface Counts {
-  added: number
-  removed: number
-}
+// While a turn runs the list is checked this often, so the panel follows
+// the agent's edits instead of waiting for the turn to end.
+export const POLL_MS = 5000
 
 // countLines counts the added and removed lines of a unified diff.
 function countLines(diff: string): Counts {
-  let added = 0
-  let removed = 0
-  for (const line of diff.split('\n')) {
-    if (line.startsWith('+') && !line.startsWith('+++')) added++
-    else if (line.startsWith('-') && !line.startsWith('---')) removed++
-  }
-  return { added, removed }
+  return totals(parseDiff(diff).map((l) => ({ added: l.kind === 'add' ? 1 : 0, removed: l.kind === 'del' ? 1 : 0 })))
 }
 
 const clock = (d: Date) => `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
@@ -40,13 +38,23 @@ function splitPath(path: string): { base: string; dir: string } {
   return cut < 0 ? { base: path, dir: '' } : { base: path.slice(cut + 1), dir: path.slice(0, cut + 1) }
 }
 
-const copy = async (text: string, what: string) => {
+const copy = async (text: string, what: string, key: string) => {
   try {
     await navigator.clipboard.writeText(text)
-    notify({ kind: 'info', text: `Copied the ${what}`, key: 'copy-merge' })
+    notify({ kind: 'info', text: `Copied the ${what}`, key })
   } catch (err) {
     fail('Copy failed', err)
   }
+}
+
+// signature changes when a file's listed change does; a poll refetches an
+// open diff only then.
+const signature = (f: api.FileChange) => `${f.status}:${f.added ?? ''}:${f.removed ?? ''}`
+
+interface FileDiff {
+  loading: boolean
+  text?: string
+  error?: string
 }
 
 // DiffPanel shows what the session's folder changed: against the commit a
@@ -57,57 +65,73 @@ export default function DiffPanel({ sessionId }: { sessionId: string | null }) {
 
 function SessionDiffPanel({ sessionId }: { sessionId: string | null }) {
   const session = useSessionStore((s) => s.sessions.find((x) => x.id === sessionId))
+  const wrap = useLayoutStore((s) => s.wrap)
+  const toggleWrap = useLayoutStore((s) => s.toggleWrap)
   const [changes, setChanges] = useState<api.Changes | null>(null)
   const [listError, setListError] = useState<string | null>(null)
   // settled names the last reload that finished; a different key means a
   // reload is on its way.
   const [settled, setSettled] = useState<string | null>(null)
   const [updatedAt, setUpdatedAt] = useState<Date | null>(null)
-  const [open, setOpen] = useState<string | null>(null)
-  const [diff, setDiff] = useState<{ path: string; text: string } | null>(null)
-  const [diffError, setDiffError] = useState<string | null>(null)
-  const [diffLoading, setDiffLoading] = useState(false)
+  // open lists the expanded files; diffs holds what each one loaded.
+  const [open, setOpen] = useState<string[]>([])
+  const [diffs, setDiffs] = useState<Record<string, FileDiff>>({})
   const [counts, setCounts] = useState<Record<string, Counts>>({})
-  const diffRequest = useRef(0)
+  const [viewing, setViewing] = useState<string | null>(null)
+  const requests = useRef<Record<string, number>>({})
+  const signatures = useRef<Record<string, string>>({})
+  const polled = useRef(false)
   const openRef = useRef(open)
   useEffect(() => {
     openRef.current = open
   }, [open])
   useEffect(() => {
-    const requests = diffRequest
-    return () => { requests.current++ }
+    const pending = requests
+    return () => {
+      for (const path of Object.keys(pending.current)) pending.current[path]++
+    }
   }, [])
   const status = session?.status
   const [tick, setTick] = useState(0)
-  const reloadKey = `${status}:${tick}`
+  const [poll, setPoll] = useState(0)
+  const reloadKey = `${status}:${tick}:${poll}`
   const loading = settled !== reloadKey
 
   const fetchDiff = useCallback(async (path: string) => {
     if (!sessionId) return
-    const request = ++diffRequest.current
-    setDiffLoading(true)
-    setDiffError(null)
-    // A refetch of the open file keeps showing the old diff until the new
-    // one lands; another file starts empty.
-    setDiff((d) => (d?.path === path ? d : null))
+    const request = (requests.current[path] = (requests.current[path] ?? 0) + 1)
+    // A refetch keeps showing the old diff until the new one lands.
+    setDiffs((d) => ({ ...d, [path]: { text: d[path]?.text, loading: true } }))
     try {
       const result = await api.getFileDiff(sessionId, path)
-      if (request !== diffRequest.current) return
-      setDiff({ path, text: result.diff })
+      if (request !== requests.current[path]) return
+      setDiffs((d) => ({ ...d, [path]: { text: result.diff, loading: false } }))
       setCounts((c) => ({ ...c, [path]: countLines(result.diff) }))
     } catch (err) {
-      if (request === diffRequest.current) setDiffError(describeError(err))
-    } finally {
-      if (request === diffRequest.current) setDiffLoading(false)
+      if (request === requests.current[path]) setDiffs((d) => ({ ...d, [path]: { text: d[path]?.text, loading: false, error: describeError(err) } }))
     }
   }, [sessionId])
 
-  // Reload on open, on Refresh and whenever the session changes status: a
-  // finished turn is when files have changed. The open file follows.
+  const forget = useCallback((paths: string[]) => {
+    if (paths.length === 0) return
+    for (const path of paths) requests.current[path] = (requests.current[path] ?? 0) + 1
+    setDiffs((d) => {
+      const next = { ...d }
+      for (const path of paths) delete next[path]
+      return next
+    })
+  }, [])
+
+  // Reload on open, on Refresh, whenever the session changes status (a
+  // finished turn is when files have changed) and on each poll while it
+  // runs. Open files follow: all of them on a reload, only those whose
+  // listed change moved on a poll.
   useEffect(() => {
     if (!sessionId) return
     let alive = true
-    const key = `${status}:${tick}`
+    const key = `${status}:${tick}:${poll}`
+    const quiet = polled.current
+    polled.current = false
     api.getChanges(sessionId).then(
       (c) => {
         if (!alive) return
@@ -115,13 +139,16 @@ function SessionDiffPanel({ sessionId }: { sessionId: string | null }) {
         setListError(null)
         setSettled(key)
         setUpdatedAt(new Date())
-        const current = openRef.current
-        if (!current) return
-        if (c.files.some((f) => f.path === current)) void fetchDiff(current)
-        else {
-          diffRequest.current++
-          setOpen(null)
-          setDiff(null)
+        const before = signatures.current
+        signatures.current = Object.fromEntries(c.files.map((f) => [f.path, signature(f)]))
+        const listed = new Set(c.files.map((f) => f.path))
+        const gone = openRef.current.filter((p) => !listed.has(p))
+        if (gone.length) {
+          setOpen((o) => o.filter((p) => listed.has(p)))
+          forget(gone)
+        }
+        for (const path of openRef.current) {
+          if (listed.has(path) && (!quiet || before[path] !== signatures.current[path])) void fetchDiff(path)
         }
       },
       (err: unknown) => {
@@ -133,111 +160,239 @@ function SessionDiffPanel({ sessionId }: { sessionId: string | null }) {
     return () => {
       alive = false
     }
-  }, [sessionId, status, tick, fetchDiff])
+  }, [sessionId, status, tick, poll, fetchDiff, forget])
+
+  // Poll while a turn runs and the page is in view.
+  const running = status === 'running'
+  const loadingRef = useRef(loading)
+  useEffect(() => {
+    loadingRef.current = loading
+  }, [loading])
+  useEffect(() => {
+    if (!sessionId || !running) return
+    const timer = setInterval(() => {
+      if (loadingRef.current || document.visibilityState === 'hidden') return
+      polled.current = true
+      setPoll((p) => p + 1)
+    }, POLL_MS)
+    return () => clearInterval(timer)
+  }, [sessionId, running])
 
   const toggle = (path: string) => {
-    if (open === path) {
-      diffRequest.current++
-      setOpen(null)
-      setDiff(null)
-      setDiffError(null)
-      setDiffLoading(false)
+    if (open.includes(path)) {
+      setOpen((o) => o.filter((p) => p !== path))
+      forget([path])
       return
     }
-    setOpen(path)
+    setOpen((o) => [...o, path])
     void fetchDiff(path)
+  }
+  const files = changes?.files ?? []
+  const allOpen = files.length > 0 && files.every((f) => open.includes(f.path))
+  const expandAll = () => {
+    const closed = files.map((f) => f.path).filter((p) => !open.includes(p))
+    setOpen((o) => [...o, ...closed])
+    for (const path of closed) void fetchDiff(path)
+  }
+  const collapseAll = () => {
+    forget(open)
+    setOpen([])
   }
   const refresh = () => {
     if (!loading) setTick((t) => t + 1)
   }
 
+  // j / k move between files while the panel has focus.
+  const onKey = (e: KeyboardEvent<HTMLElement>) => {
+    if (e.defaultPrevented || e.metaKey || e.ctrlKey || e.altKey || isTypingTarget(e.target)) return
+    if (e.key !== 'j' && e.key !== 'k') return
+    const heads = [...e.currentTarget.querySelectorAll<HTMLButtonElement>('.diff-file-toggle')]
+    if (heads.length === 0) return
+    const current = heads.findIndex((b) => b.closest('li')?.contains(e.target as Node))
+    const next = current < 0 ? (e.key === 'j' ? 0 : heads.length - 1) : Math.min(heads.length - 1, Math.max(0, current + (e.key === 'j' ? 1 : -1)))
+    e.preventDefault()
+    heads[next]!.focus()
+    heads[next]!.scrollIntoView?.({ block: 'nearest' })
+  }
+
+  const total = totals(files)
+  const counted = files.every((f) => f.added !== undefined || f.binary)
+  const root = changes?.root
+
   if (!sessionId) return <p className="tray-empty">Open a session to see its changes</p>
   return (
-    <section className="diff-panel" aria-label="Changes">
+    <section className="diff-panel" aria-label="Changes" onKeyDown={onKey}>
       <header className="diff-head">
         <h2 className="section-title">Changes</h2>
-        {updatedAt && <span className="diff-updated">updated {clock(updatedAt)}</span>}
-        <button
-          type="button"
-          className="btn btn-icon"
-          aria-label="Refresh changes"
-          title={loading ? 'Refreshing…' : 'Refresh'}
-          aria-busy={loading || undefined}
-          onClick={refresh}
-        >
-          <RefreshCw {...icon(14)} />
-        </button>
+        {changes?.repository && files.length > 0 && counted && (
+          <span className="diff-total" aria-label={`${files.length} ${files.length === 1 ? 'file' : 'files'}, ${total.added} added, ${total.removed} removed lines`}>
+            {files.length} {files.length === 1 ? 'file' : 'files'} <span>+{total.added}</span> <span>−{total.removed}</span>
+          </span>
+        )}
+        <span className="diff-updated">{loading && changes ? 'refreshing…' : updatedAt ? `updated ${clock(updatedAt)}` : ''}</span>
+        <span className="diff-actions">
+          <button type="button" className="btn btn-ghost btn-icon" aria-label="Wrap long lines" title="Wrap long lines" aria-pressed={wrap} onClick={toggleWrap}>
+            <WrapText {...icon(14)} />
+          </button>
+          {files.length > 1 && (
+            <button
+              type="button"
+              className="btn btn-ghost btn-icon"
+              aria-label={allOpen ? 'Collapse all' : 'Expand all'}
+              title={allOpen ? 'Collapse all' : 'Expand all'}
+              onClick={allOpen ? collapseAll : expandAll}
+            >
+              {allOpen ? <ChevronsDownUp {...icon(14)} /> : <ChevronsUpDown {...icon(14)} />}
+            </button>
+          )}
+          <button
+            type="button"
+            className="btn btn-icon"
+            aria-label="Refresh changes"
+            title={loading ? 'Refreshing…' : 'Refresh'}
+            aria-busy={loading || undefined}
+            onClick={refresh}
+          >
+            <RefreshCw {...icon(14)} />
+          </button>
+        </span>
       </header>
       {session?.worktree && (
-        <WorktreeBar session={session} worktree={session.worktree} changed={changes?.files.length ?? 0} />
+        <WorktreeBar session={session} worktree={session.worktree} changed={files.length} />
       )}
       {listError && (
         <LoadFailed onRetry={refresh}>{`Couldn’t load changes: ${listError}`}</LoadFailed>
       )}
       {!changes && loading && !listError && <LoadingLine>loading changes…</LoadingLine>}
       {changes && !changes.repository && <p className="tray-empty">This folder is not a git repository.</p>}
-      {changes?.repository && changes.files.length === 0 && <p className="tray-empty">No changes</p>}
-      {changes?.repository && changes.files.length > 0 && (
+      {changes?.repository && files.length === 0 && <p className="tray-empty">No changes</p>}
+      {changes?.repository && files.length > 0 && (
         <ul className="diff-files">
-          {changes.files.map((f) => {
-            const { base, dir } = splitPath(f.path)
-            const label = statusLabel[f.status] ?? f.status
-            const count = counts[f.path]
-            const isOpen = open === f.path
-            return (
-              <li key={f.path}>
-                <button type="button" aria-expanded={isOpen} title={f.path} onClick={() => toggle(f.path)}>
-                  <span className="diff-status" data-mark={statusMark[f.status] ?? 'hollow'}>
-                    {label}
-                  </span>
-                  <span className="diff-path">
-                    {dir && <span className="diff-dir">{dir}</span>}
-                    <span className="diff-base">{base}</span>
-                  </span>
-                  {count && (
-                    <span className="diff-counts">
-                      <span>+{count.added}</span>
-                      <span>−{count.removed}</span>
-                    </span>
-                  )}
-                </button>
-                {isOpen && diffError && (
-                  <p className="diff-error" role="alert">
-                    {diffError}
-                  </p>
-                )}
-                {isOpen && !diffError && diff?.path !== f.path && diffLoading && <LoadingLine>loading diff…</LoadingLine>}
-                {isOpen && diff?.path === f.path && <DiffView diff={diff.text} />}
-              </li>
-            )
-          })}
+          {files.map((f) => (
+            <FileRow
+              key={f.path}
+              file={f}
+              counts={f.added !== undefined || f.binary ? { added: f.added ?? 0, removed: f.removed ?? 0 } : counts[f.path]}
+              isOpen={open.includes(f.path)}
+              diff={diffs[f.path]}
+              wrap={wrap}
+              onToggle={() => toggle(f.path)}
+              onRetry={() => void fetchDiff(f.path)}
+              onView={f.status === 'D' ? undefined : () => setViewing(f.path)}
+            />
+          ))}
         </ul>
+      )}
+      {viewing && (
+        <FileViewer sessionId={sessionId} path={root ? `${root.replace(/\/$/, '')}/${viewing}` : viewing} label={viewing} onClose={() => setViewing(null)} />
       )}
     </section>
   )
 }
 
-function lineClass(line: string): string {
-  if (line.startsWith('@@')) return 'diff-hunk'
-  if (line.startsWith('+++') || line.startsWith('---') || line.startsWith('diff ') || line.startsWith('index ')) return 'diff-meta'
-  if (line.startsWith('+')) return 'diff-add'
-  if (line.startsWith('-')) return 'diff-del'
-  return 'diff-ctx'
+function FileRow(props: {
+  file: api.FileChange
+  counts?: Counts
+  isOpen: boolean
+  diff?: FileDiff
+  wrap: boolean
+  onToggle: () => void
+  onRetry: () => void
+  onView?: () => void
+}) {
+  const { file: f, counts, isOpen, diff, wrap } = props
+  const { base, dir } = splitPath(f.path)
+  const label = statusLabel[f.status] ?? f.status
+  const busy = Boolean(diff?.loading)
+  return (
+    <li className="diff-file" aria-busy={busy || undefined}>
+      <div className="diff-file-head">
+        <button type="button" className="diff-file-toggle" aria-expanded={isOpen} title={f.path} onClick={props.onToggle}>
+          <span className="diff-status" data-mark={statusMark[f.status] ?? 'hollow'}>
+            {label}
+          </span>
+          <span className="diff-path">
+            {dir && <span className="diff-dir">{dir}</span>}
+            <span className="diff-base">{base}</span>
+          </span>
+          {busy && diff?.text !== undefined && <span className="busy-mark" aria-hidden="true" />}
+          {f.binary ? (
+            <span className="diff-counts">binary</span>
+          ) : (
+            counts && (
+              <span className="diff-counts">
+                <span>+{counts.added}</span>
+                <span>−{counts.removed}</span>
+              </span>
+            )
+          )}
+        </button>
+        <span className="diff-file-actions">
+          <button type="button" className="btn btn-ghost btn-icon" aria-label="Copy path" title="Copy path" onClick={() => void copy(f.path, 'path', 'copy-path')}>
+            <Copy {...icon(13)} />
+          </button>
+          {props.onView && (
+            <button type="button" className="btn btn-ghost btn-icon" aria-label="View file" title="View file" onClick={props.onView}>
+              <Eye {...icon(13)} />
+            </button>
+          )}
+        </span>
+      </div>
+      {isOpen && diff?.error && <LoadFailed onRetry={props.onRetry}>{`Couldn’t load the diff: ${diff.error}`}</LoadFailed>}
+      {isOpen && !diff?.error && diff?.text === undefined && <LoadingLine>loading diff…</LoadingLine>}
+      {isOpen && !diff?.error && diff?.text !== undefined && <DiffView diff={diff.text} path={f.path} wrap={wrap} />}
+    </li>
+  )
 }
 
-// DiffView renders a unified diff line by line, the first DIFF_LINE_LIMIT
-// lines until asked for all.
-export function DiffView({ diff }: { diff: string }) {
+// useTokens colours the code of a diff's lines in the file's language once
+// its grammar loads; until then (or for an unknown language) lines stay ink.
+function useTokens(lines: DiffLine[], lang: string | undefined): (ThemedToken[] | undefined)[] | undefined {
+  const code = useMemo(() => lines.filter((l) => l.kind !== 'meta' && l.kind !== 'hunk').map((l) => l.text).join('\n'), [lines])
+  const [result, setResult] = useState<{ code: string; tokens: ThemedToken[][] }>()
+  useEffect(() => {
+    if (!lang || !code) return
+    let live = true
+    import('../../lib/highlight')
+      .then(({ tokenize }) => tokenize(code, lang))
+      .then((t) => live && t && setResult({ code, tokens: t }))
+      .catch(() => {})
+    return () => {
+      live = false
+    }
+  }, [code, lang])
+  return useMemo(() => {
+    if (result?.code !== code) return undefined
+    let i = 0
+    return lines.map((l) => (l.kind === 'meta' || l.kind === 'hunk' ? undefined : result.tokens[i++]))
+  }, [lines, result, code])
+}
+
+// DiffView renders a unified diff with old and new line numbers and a sign
+// column, the first DIFF_LINE_LIMIT lines until asked for all.
+export function DiffView({ diff, path = '', wrap = false }: { diff: string; path?: string; wrap?: boolean }) {
   const [all, setAll] = useState(false)
+  const lines = useMemo(() => parseDiff(diff), [diff])
+  const shown = useMemo(() => (all ? lines : lines.slice(0, DIFF_LINE_LIMIT)), [all, lines])
+  const tokens = useTokens(shown, langOf(path))
   if (!diff) return <p className="diff-none">No textual difference</p>
-  const lines = diff.replace(/\n$/, '').split('\n')
-  const shown = all ? lines : lines.slice(0, DIFF_LINE_LIMIT)
+  const widest = shown.reduce((n, l) => Math.max(n, l.old ?? 0, l.new ?? 0), 0)
+  const style = { '--ln': `${Math.max(2, String(widest).length)}ch` } as CSSProperties
   return (
     <>
-      <pre className="diff-view">
+      <pre className="diff-view" data-wrap={wrap || undefined} style={style}>
         {shown.map((line, i) => (
-          <div key={i} className={lineClass(line)}>
-            {line}
+          <div key={i} className={`diff-${line.kind === 'meta' ? 'meta' : line.kind === 'hunk' ? 'hunk' : line.kind}`}>
+            {line.kind === 'meta' || line.kind === 'hunk' ? (
+              <span className="diff-code diff-wide">{line.text}</span>
+            ) : (
+              <>
+                <span className="diff-ln" aria-hidden="true">{line.old ?? ''}</span>
+                <span className="diff-ln" aria-hidden="true">{line.new ?? ''}</span>
+                <span className="diff-sign">{SIGNS[line.kind]}</span>
+                <span className="diff-code">{colour(line.text, tokens?.[i])}</span>
+              </>
+            )}
           </div>
         ))}
       </pre>
@@ -248,6 +403,15 @@ export function DiffView({ diff }: { diff: string }) {
       )}
     </>
   )
+}
+
+function colour(text: string, tokens: ThemedToken[] | undefined): ReactNode {
+  if (!tokens) return text
+  return tokens.map((t, j) => (
+    <span key={j} style={t.htmlStyle as CSSProperties}>
+      {t.content}
+    </span>
+  ))
 }
 
 function WorktreeBar({ session, worktree, changed }: { session: api.Session; worktree: api.Worktree; changed: number }) {
@@ -282,7 +446,7 @@ function WorktreeBar({ session, worktree, changed }: { session: api.Session; wor
       </p>
       <div className="merge-row">
         <code className="merge-hint">{merge}</code>
-        <button type="button" className="btn btn-ghost btn-icon" aria-label="Copy merge command" title="Copy merge command" onClick={() => void copy(merge, 'merge command')}>
+        <button type="button" className="btn btn-ghost btn-icon" aria-label="Copy merge command" title="Copy merge command" onClick={() => void copy(merge, 'merge command', 'copy-merge')}>
           <Copy {...icon(14)} />
         </button>
       </div>

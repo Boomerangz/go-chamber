@@ -10,7 +10,7 @@ vi.mock('../lib/terminal', () => ({
 
 import * as api from '../lib/terminal'
 import { lastError, useNotices } from './notices'
-import { resetTerminals, useTerminalStore } from './terminals'
+import { FONT_MAX, FONT_MIN, openKey, resetTerminals, useTerminalStore } from './terminals'
 
 const store = () => useTerminalStore.getState()
 
@@ -182,12 +182,12 @@ describe('terminal store', () => {
     let release: (v: Terminal) => void = () => {}
     ;(api.openTerminal as Mock).mockReturnValueOnce(new Promise((r) => (release = r)))
     const first = store().open({ cwd: '/h' })
-    expect(store().opening).toBe(true)
-    expect(await store().open({ cwd: '/x' })).toBe(false)
+    expect(store().opening).toEqual({ 'cwd:/h': true })
+    expect(await store().open({ cwd: '/h' })).toBe(false)
     expect(api.openTerminal).toHaveBeenCalledTimes(1)
     release(term())
     expect(await first).toBe(true)
-    expect(store().opening).toBe(false)
+    expect(store().opening).toEqual({})
   })
 
   it('marks a terminal closing until the close returns', async () => {
@@ -295,6 +295,104 @@ describe('terminal store', () => {
     ;(api.openTerminal as Mock).mockResolvedValue(term())
     await store().open({})
     expect(store().openError).toBeNull()
+  })
+
+  it('opens in two places at once, each busy on its own', async () => {
+    let release: (v: Terminal) => void = () => {}
+    ;(api.openTerminal as Mock).mockReturnValueOnce(new Promise((r) => (release = r))).mockResolvedValueOnce(term({ id: 't2' }))
+    const first = store().open({ cwd: '/h' })
+    expect(await store().open({ sessionId: 's1' })).toBe(true)
+    expect(store().opening).toEqual({ 'cwd:/h': true })
+    expect(openKey({})).toBe('home')
+    expect(openKey({ sessionId: 's1' })).toBe('session:s1')
+    release(term())
+    await first
+    expect(store().terminals.map((t) => t.id)).toEqual(['t2', 't1'])
+  })
+
+  it('renames at once and puts the old title back when the server refuses', async () => {
+    useTerminalStore.setState({ terminals: [term()] })
+    let refuse: (e: Error) => void = () => {}
+    ;(api.renameTerminal as Mock).mockReturnValueOnce(new Promise((_, r) => (refuse = r)))
+    const pending = store().rename('t1', 'logs')
+    expect(store().terminals[0]!.title).toBe('logs')
+    refuse(new Error('denied'))
+    expect(await pending).toBe(false)
+    expect(store().terminals[0]!.title).toBe('h')
+  })
+
+  it('replaces an exited shell in place with a new one under the same title', async () => {
+    useTerminalStore.setState({
+      terminals: [term({ id: 'a' }), term({ id: 't1', title: 'logs', status: 'exited', exitCode: 1 }), term({ id: 'c' })],
+      activeId: 't1',
+    })
+    ;(api.openTerminal as Mock).mockResolvedValue(term({ id: 'n', title: 'h' }))
+    ;(api.renameTerminal as Mock).mockResolvedValue(term({ id: 'n', title: 'logs' }))
+    ;(api.closeTerminal as Mock).mockResolvedValue(undefined)
+    expect(await store().reopen('t1')).toBe(true)
+    expect(api.openTerminal).toHaveBeenCalledWith({ cwd: '/h' })
+    expect(api.renameTerminal).toHaveBeenCalledWith('n', 'logs')
+    expect(api.closeTerminal).toHaveBeenCalledWith('t1')
+    expect(store().terminals.map((t) => [t.id, t.title])).toEqual([['a', 'h'], ['n', 'logs'], ['c', 'h']])
+    expect(store().activeId).toBe('n')
+    expect(store().opening).toEqual({})
+  })
+
+  it('keeps the exited shell when the new one fails to open', async () => {
+    useTerminalStore.setState({ terminals: [term({ status: 'exited' })], activeId: 't1' })
+    ;(api.openTerminal as Mock).mockRejectedValue(new Error('no shell'))
+    expect(await store().reopen('t1')).toBe(false)
+    expect(store().terminals.map((t) => t.id)).toEqual(['t1'])
+    expect(store().openError).toBe('no shell')
+    expect(api.closeTerminal).not.toHaveBeenCalled()
+    expect(await store().reopen('missing')).toBe(false)
+  })
+
+  it('keeps the new shell when the old one can no longer be closed', async () => {
+    useTerminalStore.setState({ terminals: [term({ status: 'exited' })], activeId: 't1' })
+    ;(api.openTerminal as Mock).mockResolvedValue(term({ id: 'n' }))
+    ;(api.closeTerminal as Mock).mockRejectedValue(new Error('gone'))
+    expect(await store().reopen('t1')).toBe(true)
+    expect(store().terminals.map((t) => t.id)).toEqual(['n'])
+    expect(api.renameTerminal).not.toHaveBeenCalled()
+  })
+
+  it('remembers the font size, within bounds', () => {
+    expect(store().fontSize).toBe(13)
+    store().setFontSize(16)
+    expect(store().fontSize).toBe(16)
+    expect(localStorage.getItem('gc.terminal.fontSize')).toBe('16')
+    store().setFontSize(100)
+    expect(store().fontSize).toBe(FONT_MAX)
+    store().setFontSize(1)
+    expect(store().fontSize).toBe(FONT_MIN)
+    store().setFontSize(null)
+    expect(store().fontSize).toBe(13)
+    expect(localStorage.getItem('gc.terminal.fontSize')).toBeNull()
+  })
+
+  it('reads a stored font size on reset', () => {
+    localStorage.setItem('gc.terminal.fontSize', '15')
+    resetTerminals()
+    expect(store().fontSize).toBe(15)
+    localStorage.setItem('gc.terminal.fontSize', 'big')
+    resetTerminals()
+    expect(store().fontSize).toBe(13)
+    localStorage.removeItem('gc.terminal.fontSize')
+  })
+
+  it('opens the find bar of one terminal and tracks unseen output', () => {
+    store().setFinding('t1', true)
+    expect(store().finding).toBe('t1')
+    store().setFinding('t2', false)
+    expect(store().finding).toBe('t1')
+    store().setFinding('t1', false)
+    expect(store().finding).toBeNull()
+    store().setUnseen('t1', true)
+    expect(store().unseen).toEqual({ t1: true })
+    store().setUnseen('t1', true)
+    store().setUnseen('t1', false)
+    expect(store().unseen).toEqual({})
   })
 
   it('focuses the next terminal after a close', async () => {

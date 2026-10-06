@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import type { DiffLine } from '../../lib/diff'
+import { SIGNS, type DiffLine } from '../../lib/diff'
 import ShowAll from '../markdown/ShowAll'
 import { useClip } from '../markdown/useClip'
 import './InlineDiff.css'
@@ -8,7 +8,7 @@ import './InlineDiff.css'
 // renders every line as an element.
 const LINE_LIMIT = 400
 
-const sign: Record<DiffLine['kind'], string> = { add: '+', del: '-', ctx: ' ', hunk: '', meta: '' }
+const sign = SIGNS
 const spoken: Partial<Record<DiffLine['kind'], string>> = { add: 'added', del: 'removed' }
 
 // InlineDiff draws a diff in the transcript: removed lines on a red wash,

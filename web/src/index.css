@@ -165,7 +165,7 @@ select.field option { background: var(--paper); color: var(--ink); }
 
 /* busy: the "not yet settled" form (a dashed square) that breathes while
    something is on its way. No spinners: state is form. */
-.busy-mark, .loading-line::before, .btn[aria-busy='true']::before {
+.busy-mark, .loading-line::before, .btn[aria-busy='true']::before, .chip[aria-busy='true']::before {
   content: ''; flex: none; display: inline-block; width: 8px; height: 8px;
   border: 1px dashed currentColor; border-radius: 1px;
   animation: mark-breathe 1.2s ease-in-out infinite;
@@ -245,16 +245,23 @@ button.health { border: 0; background: none; padding: 0; }
 .notice p { color: var(--ink-2); }
 
 .layout {
-  display: grid; min-height: 0;
-  grid-template-columns: 300px minmax(0, 1fr) auto;
+  --sb: var(--sidebar-w, 300px);
+  position: relative; display: grid; min-height: 0;
+  grid-template-columns: var(--sb) minmax(0, 1fr) auto;
 }
-.layout[data-dock='requests'] { grid-template-columns: 300px minmax(0, 1fr) minmax(300px, 26%); }
-.layout[data-dock='terminal'] { grid-template-columns: 300px minmax(0, 1fr) minmax(420px, 38%); }
+/* --dock-w is a dragged dock width; without one each dock takes its default */
+.layout[data-dock='requests'] { grid-template-columns: var(--sb) minmax(0, 1fr) var(--dock-w, minmax(300px, 26%)); }
+.layout[data-dock='terminal'] { grid-template-columns: var(--sb) minmax(0, 1fr) var(--dock-w, minmax(420px, 38%)); }
+@media (min-width: 721px) {
+  .layout[data-sidebar='off'] { --sb: 0px; }
+  .layout[data-sidebar='off'] > .sidebar { visibility: hidden; overflow: hidden; border: 0; }
+}
 .requests-pane { display: none; }
 /* focus: only the chat, until a request waits; then the tray opens beside it */
 @media (min-width: 721px) {
   .layout[data-focus='on'] { grid-template-columns: minmax(0, 1fr); }
-  .layout[data-focus='on'][data-dock='requests'] { grid-template-columns: minmax(0, 1fr) minmax(300px, 26%); }
+  .layout[data-focus='on'][data-dock='requests'] { grid-template-columns: minmax(0, 1fr) var(--dock-w, minmax(300px, 26%)); }
+  .layout[data-focus='on'] > .splitter { display: none; }
   .layout[data-focus='on'] > .sidebar, .layout[data-focus='on'] .dock-rail { display: none; }
   .layout[data-focus='on'][data-dock='closed'] > .dock { display: none; }
 }
@@ -715,7 +722,7 @@ button.health { border: 0; background: none; padding: 0; }
 .tray-empty { display: none; }
 
 /* ---------- dock ---------- */
-.dock { display: flex; min-height: 0; min-width: 0; border-left: 1px solid var(--rule); }
+.dock { position: relative; display: flex; min-height: 0; min-width: 0; border-left: 1px solid var(--rule); }
 .dock-body { flex: 1; display: flex; flex-direction: column; min-width: 0; min-height: 0; border-right: 1px solid var(--rule); }
 .dock-body .request-tray { max-height: none; flex: 1; }
 .dock-body .tray-empty { display: block; padding: 14px; color: var(--ink-3); font-size: 13px; }
@@ -737,6 +744,22 @@ button.health { border: 0; background: none; padding: 0; }
 }
 .rail-requests .rail-count { background: var(--req-mark); }
 .rail-collapse { margin-top: auto; }
+
+/* splitters: a 4px handle on a column edge; the hairline under it turns
+   ink while hovered, dragged or focused */
+.splitter-anchor { display: contents; }
+.splitter {
+  position: absolute; top: 0; bottom: 0; z-index: 4; width: 4px; padding: 0;
+  border: 0; background: transparent; cursor: col-resize; touch-action: none;
+}
+.splitter:hover, .splitter:active, .splitter:focus-visible { background: var(--rule-strong); outline: none; }
+.splitter-dock { left: -3px; }
+.splitter-sidebar { left: calc(var(--sb) - 2px); }
+.sidebar-show {
+  left: 0; width: 14px; display: grid; place-items: center; cursor: pointer;
+  color: var(--ink-3); border-right: 1px solid var(--rule);
+}
+.sidebar-show:hover { color: var(--ink); background: var(--paper-2); }
 
 /* ---------- terminals ---------- */
 .terminals { display: flex; flex-direction: column; gap: 10px; flex: 1; min-height: 0; padding: 12px 14px 14px; }
@@ -907,8 +930,8 @@ button.health { border: 0; background: none; padding: 0; }
 .panebar { display: none; }
 
 @media (max-width: 1100px) {
-  .layout { grid-template-columns: 260px minmax(0, 1fr) auto; }
-  .layout[data-dock='requests'], .layout[data-dock='terminal'] { grid-template-columns: 260px minmax(0, 1fr) minmax(300px, 40%); }
+  .layout { --sb: var(--sidebar-w, 260px); }
+  .layout[data-dock='requests'], .layout[data-dock='terminal'] { grid-template-columns: var(--sb) minmax(0, 1fr) var(--dock-w, minmax(300px, 40%)); }
   .term-workspace { grid-template-columns: 240px minmax(0, 1fr); }
 }
 
@@ -979,7 +1002,7 @@ button.health { border: 0; background: none; padding: 0; }
 .item-output > summary:hover { color: var(--ink); }
 .item-output[open] > summary { margin-bottom: 4px; }
 
-.file-viewer { width: min(960px, calc(100vw - 32px)); max-height: calc(100vh - 48px); padding: 0; border: 1px solid var(--rule-strong); background: var(--paper); color: var(--ink); }
+.file-viewer { width: min(960px, calc(100vw - 32px)); max-height: calc(100vh - 48px); max-height: calc(100dvh - 48px); padding: 0; border: 1px solid var(--rule-strong); background: var(--paper); color: var(--ink); }
 .file-viewer::backdrop { background: color-mix(in srgb, var(--paper) 55%, transparent); }
 .file-viewer-bar { position: sticky; top: 0; display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-bottom: 1px solid var(--rule); background: var(--paper); }
 .file-viewer-path { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--font-mono); font-size: 13px; }
@@ -987,3 +1010,7 @@ button.health { border: 0; background: none; padding: 0; }
 .file-viewer-body img { display: block; max-width: 100%; margin: 0 auto; }
 .file-viewer-body pre.md-code { white-space: pre; overflow-x: auto; }
 .file-viewer-note { color: var(--ink-3); }
+.file-viewer[data-wrap] .file-viewer-body pre.md-code { white-space: pre-wrap; overflow-wrap: anywhere; }
+.file-viewer-body img[data-loading] { visibility: hidden; height: 0; }
+.file-viewer-cut { margin: 0 0 8px; font-family: var(--font-mono); font-size: 12px; }
+.file-viewer-note a { color: var(--act); }

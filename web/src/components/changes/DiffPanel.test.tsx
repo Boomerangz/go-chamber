@@ -1,7 +1,8 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import DiffPanel from './DiffPanel'
+import DiffPanel, { POLL_MS } from './DiffPanel'
+import { resetLayout, useLayoutStore } from '../../stores/layout'
 import * as api from '../../lib/api'
 import { resetStore, useSessionStore } from '../../stores/session'
 import { useNotices } from '../../stores/notices'
@@ -11,6 +12,7 @@ vi.mock('../../lib/api', () => ({
   getFileDiff: vi.fn(),
   removeWorktree: vi.fn(),
 }))
+vi.mock('../../lib/highlight', () => ({ tokenize: vi.fn(async () => undefined) }))
 
 const worktree = { repo: '/src/app', path: '/wt/app/fix', branch: 'chamber/fix', base: 'abc' }
 
@@ -47,9 +49,9 @@ describe('DiffPanel', () => {
     render(<DiffPanel sessionId="s1" />)
     await userEvent.click(await screen.findByRole('button', { name: /src\/a\.go/ }))
     expect(api.getFileDiff).toHaveBeenCalledWith('s1', 'src/a.go')
-    expect(await screen.findByText('+new')).toHaveClass('diff-add')
-    expect(screen.getByText('-old')).toHaveClass('diff-del')
-    expect(screen.getByText('@@ -1 +1 @@')).toHaveClass('diff-hunk')
+    expect((await screen.findByText('new')).parentElement).toHaveClass('diff-add')
+    expect(screen.getByText('old').parentElement).toHaveClass('diff-del')
+    expect(screen.getByText('@@ -1 +1 @@').parentElement).toHaveClass('diff-hunk')
     expect(screen.getByText('untracked')).toBeInTheDocument()
   })
 
@@ -182,15 +184,15 @@ describe('DiffPanel', () => {
     render(<DiffPanel sessionId="s1" />)
     const file = await screen.findByRole('button', { name: /a\.go/ })
     await userEvent.click(file)
-    expect(await screen.findByText('+one')).toBeInTheDocument()
+    expect(await screen.findByText('one')).toBeInTheDocument()
     expect(file).toHaveAttribute('aria-expanded', 'true')
     await userEvent.click(screen.getByRole('button', { name: 'Refresh changes' }))
-    expect(await screen.findByText('+two')).toBeInTheDocument()
+    expect(await screen.findByText('two')).toBeInTheDocument()
     expect(screen.getByText('+1')).toBeInTheDocument()
     expect(screen.getByText('−1')).toBeInTheDocument()
     await userEvent.click(file)
     expect(file).toHaveAttribute('aria-expanded', 'false')
-    expect(screen.queryByText('+two')).toBeNull()
+    expect(screen.queryByText('two')).toBeNull()
   })
 
   it('keeps the list when one diff fails', async () => {
@@ -208,10 +210,10 @@ describe('DiffPanel', () => {
     vi.mocked(api.getFileDiff).mockResolvedValue({ diff })
     render(<DiffPanel sessionId="s1" />)
     await userEvent.click(await screen.findByRole('button', { name: /big\.txt/ }))
-    expect(await screen.findByText('+line 1999')).toBeInTheDocument()
-    expect(screen.queryByText('+line 2000')).toBeNull()
+    expect(await screen.findByText('line 1999')).toBeInTheDocument()
+    expect(screen.queryByText('line 2000')).toBeNull()
     await userEvent.click(screen.getByRole('button', { name: 'show all 2500 lines' }))
-    expect(screen.getByText('+line 2499')).toBeInTheDocument()
+    expect(screen.getByText('line 2499')).toBeInTheDocument()
   })
 
   it('shows a load error with a retry', async () => {
@@ -224,6 +226,163 @@ describe('DiffPanel', () => {
   })
 })
 
+describe('DiffPanel reading', () => {
+  const two = {
+    repository: true,
+    root: '/src/app',
+    files: [
+      { path: 'src/a.go', status: 'M', added: 3, removed: 1 },
+      { path: 'b.txt', status: '?', added: 1, removed: 0 },
+      { path: 'gone.go', status: 'D', added: 0, removed: 7 },
+    ],
+  }
+  beforeEach(() => {
+    localStorage.clear()
+    resetLayout()
+  })
+
+  it('shows each file’s counts before it is opened, and the total', async () => {
+    vi.mocked(api.getChanges).mockResolvedValue(two)
+    render(<DiffPanel sessionId="s1" />)
+    const row = await screen.findByRole('button', { name: /src\/a\.go/ })
+    expect(row).toHaveTextContent('+3−1')
+    expect(screen.getByLabelText('3 files, 4 added, 8 removed lines')).toHaveTextContent('3 files +4 −8')
+    expect(api.getFileDiff).not.toHaveBeenCalled()
+  })
+
+  it('says a binary file is binary instead of counting it', async () => {
+    vi.mocked(api.getChanges).mockResolvedValue({ repository: true, files: [{ path: 'logo.png', status: 'M', binary: true }] })
+    render(<DiffPanel sessionId="s1" />)
+    expect(await screen.findByRole('button', { name: /logo\.png/ })).toHaveTextContent('binary')
+  })
+
+  it('keeps several files open, and expands or collapses them all', async () => {
+    vi.mocked(api.getChanges).mockResolvedValue(two)
+    vi.mocked(api.getFileDiff).mockImplementation(async (_s, p) => ({ diff: `@@ -1 +1 @@\n+in ${p}\n` }))
+    render(<DiffPanel sessionId="s1" />)
+    await userEvent.click(await screen.findByRole('button', { name: /src\/a\.go/ }))
+    await userEvent.click(screen.getByRole('button', { name: /b\.txt/ }))
+    expect(await screen.findByText('in src/a.go')).toBeInTheDocument()
+    expect(await screen.findByText('in b.txt')).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Expand all' }))
+    expect(await screen.findByText('in gone.go')).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Collapse all' }))
+    expect(screen.queryByText(/^in /)).toBeNull()
+    expect(screen.getByRole('button', { name: 'Expand all' })).toBeInTheDocument()
+  })
+
+  it('numbers old and new lines and wraps them on request', async () => {
+    vi.mocked(api.getChanges).mockResolvedValue(two)
+    vi.mocked(api.getFileDiff).mockResolvedValue({ diff: '@@ -9,2 +9,2 @@\n keep\n-old\n+new\n' })
+    render(<DiffPanel sessionId="s1" />)
+    await userEvent.click(await screen.findByRole('button', { name: /src\/a\.go/ }))
+    const added = (await screen.findByText('new')).parentElement!
+    expect([...added.querySelectorAll('.diff-ln')].map((n) => n.textContent)).toEqual(['', '10'])
+    expect(added.querySelector('.diff-sign')).toHaveTextContent('+')
+    const kept = screen.getByText('keep').parentElement!
+    expect([...kept.querySelectorAll('.diff-ln')].map((n) => n.textContent)).toEqual(['9', '9'])
+    const view = added.closest('.diff-view')!
+    expect(view).not.toHaveAttribute('data-wrap')
+    await userEvent.click(screen.getByRole('button', { name: 'Wrap long lines' }))
+    expect(view).toHaveAttribute('data-wrap', 'true')
+    expect(useLayoutStore.getState().wrap).toBe(true)
+  })
+
+  it('colours code in the file’s language and leaves headers alone', async () => {
+    const { tokenize } = await import('../../lib/highlight')
+    vi.mocked(tokenize).mockResolvedValueOnce([
+      [{ content: 'keep', offset: 0, htmlStyle: { '--shiki-light': '#111' } }],
+      [{ content: 'ne', offset: 0 }, { content: 'w', offset: 2, htmlStyle: { '--shiki-light': '#222' } }],
+    ])
+    vi.mocked(api.getChanges).mockResolvedValue(two)
+    vi.mocked(api.getFileDiff).mockResolvedValue({ diff: '@@ -1 +1,2 @@\n keep\n+new\n' })
+    render(<DiffPanel sessionId="s1" />)
+    await userEvent.click(await screen.findByRole('button', { name: /src\/a\.go/ }))
+    expect(await screen.findByText('w')).toHaveStyle({ '--shiki-light': '#222' })
+    expect(tokenize).toHaveBeenCalledWith('keep\nnew', 'go')
+    expect(screen.getByText('@@ -1 +1,2 @@')).toBeInTheDocument()
+  })
+
+  it('moves between files with j and k', async () => {
+    vi.mocked(api.getChanges).mockResolvedValue(two)
+    render(<DiffPanel sessionId="s1" />)
+    const first = await screen.findByRole('button', { name: /src\/a\.go/ })
+    first.focus()
+    await userEvent.keyboard('j')
+    expect(screen.getByRole('button', { name: /b\.txt/ })).toHaveFocus()
+    await userEvent.keyboard('j')
+    await userEvent.keyboard('j')
+    expect(screen.getByRole('button', { name: /gone\.go/ })).toHaveFocus()
+    await userEvent.keyboard('k')
+    expect(screen.getByRole('button', { name: /b\.txt/ })).toHaveFocus()
+    screen.getByRole('region', { name: 'Changes' }).focus()
+    fireEvent.keyDown(screen.getByRole('region', { name: 'Changes' }), { key: 'k' })
+    expect(screen.getByRole('button', { name: /gone\.go/ })).toHaveFocus()
+  })
+
+  it('copies a file’s path and opens it in the viewer from the repository root', async () => {
+    const writeText = vi.fn(() => Promise.resolve())
+    vi.stubGlobal('navigator', { ...navigator, clipboard: { writeText } })
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('package a')))
+    vi.mocked(api.getChanges).mockResolvedValue(two)
+    render(<DiffPanel sessionId="s1" />)
+    await screen.findByRole('button', { name: /src\/a\.go/ })
+    const [copyA] = screen.getAllByRole('button', { name: 'Copy path' })
+    await userEvent.click(copyA!)
+    expect(writeText).toHaveBeenCalledWith('src/a.go')
+    // A deleted file has nothing to view.
+    expect(screen.getAllByRole('button', { name: 'View file' })).toHaveLength(2)
+    await userEvent.click(screen.getAllByRole('button', { name: 'View file' })[0]!)
+    expect(await screen.findByText('package a')).toBeInTheDocument()
+    expect(fetch).toHaveBeenCalledWith('/api/sessions/s1/file?path=%2Fsrc%2Fapp%2Fsrc%2Fa.go', expect.anything())
+    vi.unstubAllGlobals()
+  })
+
+  it('offers a retry when a diff fails, and marks a file being reloaded', async () => {
+    vi.mocked(api.getChanges).mockResolvedValue(two)
+    vi.mocked(api.getFileDiff).mockRejectedValueOnce(new Error('too big')).mockResolvedValueOnce({ diff: '+fine\n' })
+    render(<DiffPanel sessionId="s1" />)
+    await userEvent.click(await screen.findByRole('button', { name: /src\/a\.go/ }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('Couldn’t load the diff: too big')
+    await userEvent.click(screen.getByRole('button', { name: 'Retry' }))
+    expect(await screen.findByText('fine')).toBeInTheDocument()
+    vi.mocked(api.getFileDiff).mockReturnValueOnce(new Promise(() => {}))
+    await userEvent.click(screen.getByRole('button', { name: 'Refresh changes' }))
+    await waitFor(() => expect(screen.getByText('fine').closest('li')).toHaveAttribute('aria-busy', 'true'))
+    expect(screen.getByText('fine').closest('li')!.querySelector('.busy-mark')).not.toBeNull()
+  })
+
+  it('follows a running turn: polls the list and refetches only diffs that moved', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    try {
+      vi.mocked(api.getChanges).mockResolvedValue(two)
+      vi.mocked(api.getFileDiff).mockResolvedValue({ diff: '+x\n' })
+      useSessionStore.setState({ sessions: [{ id: 's1', agent: 'claude', cwd: '/src/app', status: 'running' }] })
+      render(<DiffPanel sessionId="s1" />)
+      await userEvent.click(await screen.findByRole('button', { name: /src\/a\.go/ }))
+      await userEvent.click(screen.getByRole('button', { name: /b\.txt/ }))
+      await waitFor(() => expect(api.getFileDiff).toHaveBeenCalledTimes(2))
+      expect(api.getChanges).toHaveBeenCalledTimes(1)
+      let list!: (c: api.Changes) => void
+      vi.mocked(api.getChanges).mockReturnValueOnce(new Promise((r) => { list = r }))
+      await act(async () => vi.advanceTimersByTime(POLL_MS))
+      expect(api.getChanges).toHaveBeenCalledTimes(2)
+      expect(screen.getByText('refreshing…')).toBeInTheDocument()
+      await act(async () => list({ ...two, files: [{ ...two.files[0]!, added: 5 }, two.files[1]!, two.files[2]!] }))
+      await waitFor(() => expect(api.getFileDiff).toHaveBeenCalledTimes(3))
+      expect(vi.mocked(api.getFileDiff).mock.calls[2]).toEqual(['s1', 'src/a.go'])
+      expect(screen.getByText(/^updated \d\d:\d\d$/)).toBeInTheDocument()
+      act(() => useSessionStore.setState({ sessions: [{ id: 's1', agent: 'claude', cwd: '/src/app', status: 'idle' }] }))
+      await waitFor(() => expect(api.getChanges).toHaveBeenCalledTimes(3))
+      const calls = vi.mocked(api.getChanges).mock.calls.length
+      await act(async () => vi.advanceTimersByTime(POLL_MS * 2))
+      expect(api.getChanges).toHaveBeenCalledTimes(calls)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+})
+
 it('late diff must not replace the selected file',async()=>{
  vi.mocked(api.getChanges).mockResolvedValue({repository:true,files:[{path:'a.go',status:'M'},{path:'b.go',status:'M'}]})
  let finishA!:(v:{diff:string})=>void
@@ -233,8 +392,8 @@ it('late diff must not replace the selected file',async()=>{
  fireEvent.click(await screen.findByRole('button',{name:/a.go/}))
  fireEvent.click(screen.getByRole('button',{name:/b.go/}))
  await act(async()=>finishB({diff:'+B'}))
- expect(screen.getByText('+B')).toBeInTheDocument()
+ expect(screen.getByText('B')).toBeInTheDocument()
  await act(async()=>finishA({diff:'+A'}))
- expect(screen.getByText('+B')).toBeInTheDocument()
+ expect(screen.getByText('B')).toBeInTheDocument()
 },20000)
 

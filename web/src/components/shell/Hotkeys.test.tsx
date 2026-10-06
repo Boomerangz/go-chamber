@@ -11,6 +11,7 @@ vi.mock('../../lib/api', async (orig) => ({
 import Hotkeys from './Hotkeys'
 import { resetStore, useSessionStore } from '../../stores/session'
 import { useLayoutStore } from '../../stores/layout'
+import { isMac } from '../../lib/hotkeys'
 
 const session = (id: string, title: string): Session =>
   ({ id, agent: 'claude', cwd: `/w/${id}`, status: 'idle', title, createdAt: '2026-01-01T00:00:00Z' }) as Session
@@ -62,5 +63,22 @@ describe('Hotkeys', () => {
     await userEvent.keyboard('r')
     expect(useLayoutStore.getState().mode).toBe('agents')
     expect(useSessionStore.getState().activeId).toBe('b')
+  })
+
+  it('opens and closes the changes dock with d', async () => {
+    render(<Hotkeys />)
+    await userEvent.keyboard('d')
+    expect(useLayoutStore.getState().dock).toBe('changes')
+    await userEvent.keyboard('d')
+    expect(useLayoutStore.getState().dock).toBeNull()
+  })
+
+  it('hides and shows the sessions list with the mod key and B', async () => {
+    useLayoutStore.setState({ sidebar: true })
+    render(<Hotkeys />)
+    await userEvent.keyboard(isMac ? '{Meta>}b{/Meta}' : '{Control>}b{/Control}')
+    expect(useLayoutStore.getState().sidebar).toBe(false)
+    await userEvent.keyboard(isMac ? '{Meta>}b{/Meta}' : '{Control>}b{/Control}')
+    expect(useLayoutStore.getState().sidebar).toBe(true)
   })
 })

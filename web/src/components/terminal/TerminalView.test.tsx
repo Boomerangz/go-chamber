@@ -4,8 +4,12 @@ import { connectTerminal } from '../../lib/terminal'
 import { diagnostics, resetDiagnostics } from '../../lib/diagnostics'
 import { resetTerminals, useTerminalStore } from '../../stores/terminals'
 import { WebLinksAddon } from '@xterm/addon-web-links'
+import * as addonSearch from '@xterm/addon-search'
 import TerminalView from './TerminalView'
-import { sendKeys, setStickyCtrl } from './live'
+import { endFind, findInTerminal, onFindResults, scrollToBottom, sendKeys, setStickyCtrl } from './live'
+import { STEP_EVENT } from './steps'
+
+vi.mock('../../lib/hotkeys', async (original) => ({ ...(await original<typeof import('../../lib/hotkeys')>()), isMac: false }))
 
 const xterms: {
   dispose: ReturnType<typeof vi.fn>
@@ -37,12 +41,23 @@ vi.mock('@xterm/xterm', () => ({
       },
       paste: vi.fn(),
       dispose: vi.fn(),
+      attachCustomKeyEventHandler: vi.fn(),
+      onScroll: vi.fn(() => ({ dispose: vi.fn() })),
+      buffer: { active: { viewportY: 0, baseY: 0 } },
+      scrollToBottom: vi.fn(),
+      getSelection: vi.fn(() => ''),
+      clearSelection: vi.fn(),
     }
     xterms.push(t)
     return t
   }),
 }))
 vi.mock('@xterm/addon-fit', () => ({ FitAddon: vi.fn(function () { return { fit: vi.fn() } }) }))
+vi.mock('@xterm/addon-search', () => ({
+  SearchAddon: vi.fn(function () {
+    return { findNext: vi.fn(() => true), findPrevious: vi.fn(() => false), clearDecorations: vi.fn(), onDidChangeResults: vi.fn(() => ({ dispose: vi.fn() })) }
+  }),
+}))
 vi.mock('@xterm/addon-unicode11', () => ({ Unicode11Addon: vi.fn(function () { return {} }) }))
 vi.mock('@xterm/addon-web-links', () => ({ WebLinksAddon: vi.fn(function (handler: unknown) { return { handler } }) }))
 vi.mock('../../lib/terminal', () => ({
@@ -234,5 +249,117 @@ describe('TerminalView', () => {
     expect(released).toHaveBeenCalled()
     input('c')
     expect(conn().send).toHaveBeenLastCalledWith('c')
+  })
+})
+
+describe('terminal keys, find and new output', () => {
+  type Mock = ReturnType<typeof vi.fn>
+  type Extra = { attachCustomKeyEventHandler: Mock; onScroll: Mock; buffer: { active: { viewportY: number; baseY: number } }; scrollToBottom: Mock; getSelection: Mock; clearSelection: Mock }
+  const xt = () => xterms[0] as unknown as (typeof xterms)[number] & Extra
+  const press = (over: Partial<KeyboardEventInit> & { code?: string }) => {
+    const e = new KeyboardEvent('keydown', { cancelable: true, ...over })
+    const handler = xt().attachCustomKeyEventHandler.mock.calls[0]![0] as (e: KeyboardEvent) => boolean
+    return { passed: handler(e), prevented: e.defaultPrevented }
+  }
+
+  beforeEach(() => {
+    vi.stubGlobal('matchMedia', () => ({ matches: false }))
+    vi.stubGlobal('ResizeObserver', class { observe() {} disconnect() {} })
+    xterms.length = 0
+    vi.mocked(connectTerminal).mockClear()
+    localStorage.clear()
+    resetTerminals()
+    useTerminalStore.setState({ terminals: [shell('t1')] })
+  })
+  afterEach(() => {
+    useTerminalStore.setState({ terminals: [] })
+    vi.unstubAllGlobals()
+  })
+
+  it('leaves ordinary keys and Ctrl+C to the shell', () => {
+    render(<TerminalView id="t1" {...props} />)
+    expect(press({ key: 'a', code: 'KeyA' })).toEqual({ passed: true, prevented: false })
+    expect(press({ key: 'c', code: 'KeyC', ctrlKey: true })).toEqual({ passed: true, prevented: false })
+  })
+
+  it('opens find, copies the selection and lets the browser paste', async () => {
+    const writeText = vi.fn(() => Promise.resolve())
+    vi.stubGlobal('navigator', { ...navigator, clipboard: { writeText } })
+    render(<TerminalView id="t1" {...props} />)
+    expect(press({ key: 'F', code: 'KeyF', ctrlKey: true, shiftKey: true })).toEqual({ passed: false, prevented: true })
+    expect(useTerminalStore.getState().finding).toBe('t1')
+    press({ key: 'C', code: 'KeyC', ctrlKey: true, shiftKey: true })
+    expect(writeText).not.toHaveBeenCalled()
+    xt().getSelection.mockReturnValue('abc')
+    press({ key: 'C', code: 'KeyC', ctrlKey: true, shiftKey: true })
+    expect(writeText).toHaveBeenCalledWith('abc')
+    expect(press({ key: 'V', code: 'KeyV', ctrlKey: true, shiftKey: true })).toEqual({ passed: false, prevented: false })
+  })
+
+  it('sizes the font of every screen and remembers it', () => {
+    render(<TerminalView id="t1" {...props} />)
+    expect(xt().options.fontSize).toBe(13)
+    act(() => void press({ key: '=', code: 'Equal', ctrlKey: true }))
+    act(() => void press({ key: '=', code: 'Equal', ctrlKey: true }))
+    expect(xt().options.fontSize).toBe(15)
+    act(() => void press({ key: '-', code: 'Minus', ctrlKey: true }))
+    expect(xt().options.fontSize).toBe(14)
+    expect(localStorage.getItem('gc.terminal.fontSize')).toBe('14')
+    act(() => void press({ key: '0', code: 'Digit0', ctrlKey: true }))
+    expect(xt().options.fontSize).toBe(13)
+  })
+
+  it('asks the tab list to step with Alt+[ and Alt+]', () => {
+    const steps: number[] = []
+    const listen = (e: Event) => steps.push((e as CustomEvent<number>).detail)
+    window.addEventListener(STEP_EVENT, listen)
+    render(<TerminalView id="t1" {...props} />)
+    press({ key: '[', code: 'BracketLeft', altKey: true })
+    press({ key: ']', code: 'BracketRight', altKey: true })
+    window.removeEventListener(STEP_EVENT, listen)
+    expect(steps).toEqual([-1, 1])
+  })
+
+  it('marks output that lands below while scrolled up, until back at the bottom', () => {
+    render(<TerminalView id="t1" {...props} />)
+    const out = vi.mocked(connectTerminal).mock.calls[0]![1]
+    out.onOutput(new Uint8Array([1]))
+    act(() => (xt().write.mock.calls.at(-1)![1] as () => void)())
+    expect(useTerminalStore.getState().unseen).toEqual({})
+    xt().buffer.active = { viewportY: 3, baseY: 40 }
+    out.onOutput(new Uint8Array([2]))
+    act(() => (xt().write.mock.calls.at(-1)![1] as () => void)())
+    expect(useTerminalStore.getState().unseen).toEqual({ t1: true })
+    const onScroll = xt().onScroll.mock.calls[0]![0] as () => void
+    act(() => onScroll())
+    expect(useTerminalStore.getState().unseen).toEqual({ t1: true })
+    xt().buffer.active = { viewportY: 40, baseY: 40 }
+    act(() => onScroll())
+    expect(useTerminalStore.getState().unseen).toEqual({})
+    act(() => useTerminalStore.getState().setUnseen('t1', true))
+    act(() => scrollToBottom('t1'))
+    expect(xt().scrollToBottom).toHaveBeenCalled()
+    expect(useTerminalStore.getState().unseen).toEqual({})
+  })
+
+  it('searches the scrollback forwards and back, and clears the marks when done', () => {
+    render(<TerminalView id="t1" {...props} />)
+    const { SearchAddon } = vi.mocked(addonSearch)
+    const search = vi.mocked(SearchAddon).mock.results.at(-1)!.value as { findNext: Mock; findPrevious: Mock; clearDecorations: Mock; onDidChangeResults: Mock }
+    expect(findInTerminal('t1', 'err')).toBe(true)
+    expect(search.findNext).toHaveBeenCalledWith('err', expect.objectContaining({ decorations: expect.objectContaining({ activeMatchBorder: '#2433d6' }) }))
+    expect(findInTerminal('t1', 'err', { backwards: true })).toBe(false)
+    expect(search.findPrevious).toHaveBeenCalled()
+    expect(findInTerminal('t1', '')).toBe(false)
+    expect(search.clearDecorations).toHaveBeenCalledTimes(1)
+    const results = vi.fn()
+    const stop = onFindResults('t1', results)
+    ;(search.onDidChangeResults.mock.calls[0]![0] as (r: { resultIndex: number; resultCount: number }) => void)({ resultIndex: 1, resultCount: 4 })
+    expect(results).toHaveBeenCalledWith({ index: 1, count: 4 })
+    stop()
+    endFind('t1')
+    expect(search.clearDecorations).toHaveBeenCalledTimes(2)
+    expect(xt().focus).toHaveBeenCalled()
+    expect(findInTerminal('nope', 'x')).toBe(false)
   })
 })

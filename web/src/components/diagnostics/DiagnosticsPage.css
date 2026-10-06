@@ -29,3 +29,27 @@
 .diag-state[data-mark='solid']::before { background: currentColor; }
 .diag-state[data-mark='dashed']::before { border-style: dashed; }
 .diag-state[data-mark='struck']::before { background: linear-gradient(to top right, transparent 45%, currentColor 45% 60%, transparent 60%); }
+
+/* a grade next to the p95: quiet stays quiet, elevated reads in ink,
+   bad is a failure and turns red; past quiet one line says what to try */
+.diagnostic-level {
+  display: inline-flex; align-items: center; gap: 6px; margin-left: 10px;
+  font-size: 12px; letter-spacing: 0; color: var(--ink-3); text-transform: lowercase; vertical-align: middle;
+}
+.diagnostic-level::before { content: ''; width: 7px; height: 7px; border: 1px solid currentColor; border-radius: 1px; }
+.diagnostic-metric[data-level='elevated'] .diagnostic-level { color: var(--ink); }
+.diagnostic-metric[data-level='elevated'] .diagnostic-level::before { border-style: dashed; }
+.diagnostic-metric[data-level='bad'] .diagnostic-level { color: var(--bad); }
+.diagnostic-metric[data-level='bad'] .diagnostic-level::before { background: currentColor; }
+.diagnostic-metric[data-level='bad'] { border-color: var(--bad); }
+.diagnostics-page .diagnostic-remedy { margin: 8px 0 0; color: var(--ink); font-size: 13px; }
+
+/* on a phone each terminal is a card of labelled lines */
+@media (max-width: 600px) {
+  .diagnostics-page table, .diagnostics-page tbody, .diagnostics-page tr { display: block; }
+  .diagnostics-page thead { display: none; }
+  .diagnostics-page tr { padding: 8px 0; border-bottom: 1px solid var(--rule); }
+  .diagnostics-page tbody th { display: block; padding: 0 0 4px; border: 0; font-family: var(--font-mono); font-size: 12.5px; }
+  .diagnostics-page td { display: flex; justify-content: space-between; gap: 12px; padding: 2px 0; border: 0; white-space: normal; overflow-wrap: anywhere; }
+  .diagnostics-page td::before { content: attr(data-label); flex: none; color: var(--ink-3); font-family: var(--font-ui); }
+}

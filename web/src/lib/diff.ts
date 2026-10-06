@@ -1,35 +1,79 @@
-// Diffs as the transcript shows them: a unified diff from the agent (Codex
-// file changes) or one made here from an edit's old and new text (Claude's
-// Edit, MultiEdit and Write inputs).
+// Diffs as go-chamber shows them: a unified diff from git or the agent
+// (Codex file changes), read line by line with the old and new line numbers
+// each hunk header gives, or one made here from an edit's old and new text
+// (Claude's Edit, MultiEdit and Write inputs).
 
 export type DiffKind = 'add' | 'del' | 'ctx' | 'hunk' | 'meta'
 
 // DiffLine is one line of a diff; text has no +/- sign, which the view
-// draws in its own gutter.
+// draws in its own gutter (see SIGNS). old and new are line numbers, known
+// only for lines read from a hunk.
 export interface DiffLine {
   kind: DiffKind
   text: string
+  old?: number
+  new?: number
 }
+
+// SIGNS is the diff's own first column for each kind of line.
+export const SIGNS: Record<DiffKind, string> = { add: '+', del: '-', ctx: ' ', hunk: '', meta: '' }
 
 export interface DiffStat {
   added: number
   removed: number
 }
 
-const META = /^(diff |index |--- |\+\+\+ |new file|deleted file|similarity |rename |old mode|new mode|\\ )/
+const HUNK = /^@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@/
 
-// parseUnified reads a unified diff. Text without a hunk header is not a
+// parseDiff reads a unified diff; + and - lines before the first hunk are
+// file headers.
+export function parseDiff(diff: string): DiffLine[] {
+  if (!diff) return []
+  const out: DiffLine[] = []
+  let oldNo = 0
+  let newNo = 0
+  let inHunk = !diff.startsWith('diff ') && !diff.startsWith('--- ')
+  for (const line of diff.replace(/\n$/, '').split('\n')) {
+    const hunk = HUNK.exec(line)
+    if (hunk) {
+      oldNo = Number(hunk[1])
+      newNo = Number(hunk[2])
+      inHunk = true
+      out.push({ kind: 'hunk', text: line })
+    } else if (!inHunk || line.startsWith('\\') || line.startsWith('diff ')) {
+      if (line.startsWith('diff ')) inHunk = false
+      out.push({ kind: 'meta', text: line })
+    } else if (line.startsWith('+')) {
+      out.push({ kind: 'add', text: line.slice(1), new: newNo++ })
+    } else if (line.startsWith('-')) {
+      out.push({ kind: 'del', text: line.slice(1), old: oldNo++ })
+    } else {
+      out.push({ kind: 'ctx', text: line.slice(1), old: oldNo++, new: newNo++ })
+    }
+  }
+  return out
+}
+
+// parseUnified reads an agent's diff. Text without a hunk header is not a
 // diff (Codex sends a new file's content as is) and stays plain context.
 export function parseUnified(diff: string): DiffLine[] {
   const lines = diff.replace(/\n$/, '').split('\n')
-  if (!lines.some((line) => line.startsWith('@@'))) return lines.map((text) => ({ kind: 'ctx', text }))
-  return lines.map((line): DiffLine => {
-    if (line.startsWith('@@')) return { kind: 'hunk', text: line }
-    if (META.test(line)) return { kind: 'meta', text: line }
-    if (line.startsWith('+')) return { kind: 'add', text: line.slice(1) }
-    if (line.startsWith('-')) return { kind: 'del', text: line.slice(1) }
-    return { kind: 'ctx', text: line.startsWith(' ') ? line.slice(1) : line }
-  })
+  const first = lines.findIndex((line) => line.startsWith('@@'))
+  if (first < 0) return lines.map((text) => ({ kind: 'ctx', text }))
+  // Everything before the first hunk is a header, whatever it starts with.
+  const head = lines.slice(0, first).map((text): DiffLine => ({ kind: 'meta', text }))
+  return [...head, ...parseDiff(lines.slice(first).join('\n'))]
+}
+
+// totals adds up the line counts of a list of files.
+export function totals(files: { added?: number; removed?: number }[]): DiffStat {
+  let added = 0
+  let removed = 0
+  for (const f of files) {
+    added += f.added ?? 0
+    removed += f.removed ?? 0
+  }
+  return { added, removed }
 }
 
 export function diffStat(lines: DiffLine[]): DiffStat {
@@ -42,11 +86,9 @@ export function diffStat(lines: DiffLine[]): DiffStat {
   return { added, removed }
 }
 
-const signs: Record<DiffKind, string> = { add: '+', del: '-', ctx: ' ', hunk: '', meta: '' }
-
 // diffText writes lines back as unified-diff text, for copying.
 export function diffText(lines: DiffLine[]): string {
-  return lines.map((line) => signs[line.kind] + line.text).join('\n')
+  return lines.map((line) => SIGNS[line.kind] + line.text).join('\n')
 }
 
 // formatStat prints a stat the way a diff summary reads: "+12 −3".

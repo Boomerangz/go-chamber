@@ -98,6 +98,67 @@ describe('file links', () => {
     expect(document.querySelectorAll('.file-viewer .md-line-mark')).toHaveLength(1)
   })
 
+  it('previews a Makefile instead of downloading it', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('all:\n\tgo build')))
+    inSession('[make](build/Makefile)')
+    fireEvent.click(screen.getByRole('link', { name: 'make' }))
+    expect(await screen.findByText(/go build/)).toBeInTheDocument()
+  })
+
+  it('says a file is binary and offers the download', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(new Uint8Array([1, 0, 2]))))
+    inSession('[tool](bin/tool)')
+    fireEvent.click(screen.getByRole('link', { name: 'tool' }))
+    expect(await screen.findByText(/This file is binary/)).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Download it' })).toHaveAttribute('href', '/api/sessions/s1/file?path=bin%2Ftool&download=1')
+  })
+
+  it('shows the head of a large file with a way to get all of it', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('a'.repeat(600 * 1024))))
+    inSession('[log](run.log)')
+    fireEvent.click(screen.getByRole('link', { name: 'log' }))
+    expect(await screen.findByText(/Showing the first 512 KB of 600 KB/)).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Download full file' })).toHaveAttribute('download')
+  })
+
+  it('says when an image is loading and when it fails', () => {
+    inSession('[shot](/work/shot.png)')
+    fireEvent.click(screen.getByRole('link', { name: 'shot' }))
+    expect(screen.getByText('loading image…')).toBeInTheDocument()
+    fireEvent.error(screen.getByRole('img'))
+    expect(screen.getByRole('alert')).toHaveTextContent('Couldn’t load the image')
+  })
+
+  it('stops saying loading once the image arrives', () => {
+    inSession('[shot](/work/shot.png)')
+    fireEvent.click(screen.getByRole('link', { name: 'shot' }))
+    fireEvent.load(screen.getByRole('img'))
+    expect(screen.queryByText('loading image…')).toBeNull()
+  })
+
+  it('closes on a click on the backdrop, not inside', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('hello there')))
+    inSession('[notes](notes.txt)')
+    fireEvent.click(screen.getByRole('link', { name: 'notes' }))
+    await screen.findByText('hello there')
+    fireEvent.mouseDown(screen.getByText('hello there'))
+    expect(document.querySelector('.file-viewer')).not.toBeNull()
+    fireEvent.mouseDown(document.querySelector('.file-viewer')!)
+    expect(document.querySelector('.file-viewer')).toBeNull()
+  })
+
+  it('wraps long lines on request', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('text')))
+    inSession('[notes](notes.txt)')
+    fireEvent.click(screen.getByRole('link', { name: 'notes' }))
+    const wrap = screen.getByRole('button', { name: 'Wrap long lines' })
+    expect(wrap).toHaveAttribute('aria-pressed', 'false')
+    fireEvent.click(wrap)
+    expect(wrap).toHaveAttribute('aria-pressed', 'true')
+    expect(document.querySelector('.file-viewer')).toHaveAttribute('data-wrap', 'true')
+    fireEvent.click(wrap)
+  })
+
   it('copies the path from the viewer', async () => {
     const writeText = vi.fn(async () => {})
     Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true })

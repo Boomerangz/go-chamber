@@ -1,4 +1,5 @@
 import { FitAddon } from '@xterm/addon-fit'
+import { SearchAddon, type ISearchOptions } from '@xterm/addon-search'
 import { Unicode11Addon } from '@xterm/addon-unicode11'
 import { WebLinksAddon } from '@xterm/addon-web-links'
 import { Terminal as XTerm } from '@xterm/xterm'
@@ -7,8 +8,12 @@ import { recordTerminalOutput, completeTerminalOutput, recordTerminalReconnect, 
 import { answerVersionQuery } from '../../lib/xtversion'
 import { connectTerminal, type TerminalConnection } from '../../lib/terminal'
 import { ctrlChar, InputQueue, parseOsc52 } from '../../lib/terminal-input'
+import { terminalAction } from '../../lib/terminal-keys'
+import { isMac } from '../../lib/hotkeys'
+import { fail } from '../../stores/notices'
 import { terminalTheme } from '../../lib/theme'
 import { useTerminalStore } from '../../stores/terminals'
+import { stepTerminal } from './steps'
 
 export interface Callbacks {
   onExit: (code: number) => void
@@ -23,6 +28,7 @@ export interface Live {
   el: HTMLDivElement
   xterm: XTerm
   fit: FitAddon
+  search: SearchAddon
   conn: TerminalConnection
   input: InputQueue
   callbacks: Callbacks
@@ -46,15 +52,30 @@ const FONT_WAIT_MS = 1500
 // elsewhere would otherwise be retried for as long as the tab is open.
 const RECHECK_EVERY = 5
 
-// A screen goes once its terminal is closed.
+// A screen goes once its terminal is closed; every screen follows the
+// chosen font size.
 useTerminalStore.subscribe((s) => {
   for (const [id, live] of lives) {
     if (!s.terminals.some((t) => t.id === id)) {
-      live.dispose()
       lives.delete(id)
+      live.dispose()
+    } else if (live.xterm.options.fontSize !== s.fontSize) {
+      live.xterm.options.fontSize = s.fontSize
+      live.refit?.()
     }
   }
 })
+
+// Search matches are marked in the sheet's quiet tones; the current one
+// gets the focus colour's border.
+function searchDecorations(dark: boolean): ISearchOptions['decorations'] {
+  return dark
+    ? { matchBackground: '#2a2c30', matchOverviewRuler: '#46484e', activeMatchBackground: '#46484e', activeMatchBorder: '#8c98ff', activeMatchColorOverviewRuler: '#8c98ff' }
+    : { matchBackground: '#dfdfda', matchOverviewRuler: '#a6a6a0', activeMatchBackground: '#c9c9c3', activeMatchBorder: '#2433d6', activeMatchColorOverviewRuler: '#2433d6' }
+}
+
+// atBottom is true while the screen shows the newest output.
+const atBottom = (xterm: XTerm) => xterm.buffer.active.viewportY >= xterm.buffer.active.baseY
 
 // fontReady resolves once PT Mono is loaded (or after a short wait): xterm
 // measures its cell size when it opens, and a fallback font measured first
@@ -89,7 +110,7 @@ export function liveFor(id: string, host: HTMLElement, callbacks: Callbacks): Li
   const scheme = window.matchMedia('(prefers-color-scheme: dark)')
   const xterm = new XTerm({
     fontFamily: FONT,
-    fontSize: 13,
+    fontSize: useTerminalStore.getState().fontSize,
     lineHeight: 1.2,
     cursorBlink: true,
     scrollback: 10000,
@@ -102,6 +123,8 @@ export function liveFor(id: string, host: HTMLElement, callbacks: Callbacks): Li
   scheme.addEventListener?.('change', onScheme)
   const fit = new FitAddon()
   xterm.loadAddon(fit)
+  const search = new SearchAddon()
+  xterm.loadAddon(search)
   xterm.loadAddon(new Unicode11Addon())
   xterm.loadAddon(new WebLinksAddon((_event, uri) => window.open(uri, '_blank', 'noopener,noreferrer')))
   xterm.unicode.activeVersion = '11'
@@ -121,7 +144,7 @@ export function liveFor(id: string, host: HTMLElement, callbacks: Callbacks): Li
   let replayGeneration = 0
   let disposed = false
   const live: Live = {
-    el, xterm, fit, callbacks,
+    el, xterm, fit, search, callbacks,
     conn: undefined as unknown as TerminalConnection,
     input: new InputQueue((data) => live.conn.send(data)),
     opened: false, wantFocus: false, size: null, ctrl: null, refit: null,
@@ -148,7 +171,11 @@ export function liveFor(id: string, host: HTMLElement, callbacks: Callbacks): Li
     onOutput: (data) => {
       const start = performance.now()
       recordTerminalOutput(id, data.byteLength)
-      xterm.write(data, () => completeTerminalOutput(id, data.byteLength, performance.now() - start))
+      xterm.write(data, () => {
+        completeTerminalOutput(id, data.byteLength, performance.now() - start)
+        // Output landed below while the owner reads further up.
+        if (!atBottom(xterm)) useTerminalStore.getState().setUnseen(id, true)
+      })
     },
     onReady: () => {
       const mine = replayGeneration
@@ -192,11 +219,31 @@ export function liveFor(id: string, host: HTMLElement, callbacks: Callbacks): Li
     live.input.push(data)
   })
   const version = answerVersionQuery(xterm, () => ready, (data) => live.conn.send(data))
+  const scrolled = xterm.onScroll(() => {
+    if (atBottom(xterm)) useTerminalStore.getState().setUnseen(id, false)
+  })
+  xterm.attachCustomKeyEventHandler((e) => {
+    const action = terminalAction(e, isMac)
+    if (!action) return true
+    // Paste goes on to the browser, which hands xterm the clipboard.
+    if (action === 'paste') return false
+    e.preventDefault()
+    const store = useTerminalStore.getState()
+    if (action === 'find') store.setFinding(id, true)
+    else if (action === 'copy') copySelection(xterm)
+    else if (action === 'font-up') store.setFontSize(store.fontSize + 1)
+    else if (action === 'font-down') store.setFontSize(store.fontSize - 1)
+    else if (action === 'font-reset') store.setFontSize(null)
+    else stepTerminal(action === 'prev-tab' ? -1 : 1)
+    return false
+  })
   live.dispose = () => {
     disposed = true
     forgetTerminal(id)
     scheme.removeEventListener?.('change', onScheme)
     document.fonts?.removeEventListener?.('loadingdone', onFonts)
+    useTerminalStore.getState().setUnseen(id, false)
+    scrolled.dispose()
     input.dispose()
     version.dispose()
     clipboard.dispose()
@@ -206,6 +253,57 @@ export function liveFor(id: string, host: HTMLElement, callbacks: Callbacks): Li
   }
   lives.set(id, live)
   return live
+}
+
+// copySelection puts the terminal's selected text on the clipboard.
+function copySelection(xterm: XTerm): void {
+  const text = xterm.getSelection()
+  if (!text) return
+  void navigator.clipboard?.writeText(text).catch((err: unknown) => fail('Copy failed', err))
+}
+
+export interface FindResult {
+  index: number
+  count: number
+}
+
+// findInTerminal moves to the next (or previous) match of term in the
+// scrollback and marks every match; incremental keeps the current one
+// while the term is still being typed.
+export function findInTerminal(id: string, term: string, opts: { backwards?: boolean; incremental?: boolean } = {}): boolean {
+  const live = lives.get(id)
+  if (!live) return false
+  if (!term) {
+    live.search.clearDecorations()
+    return false
+  }
+  const dark = window.matchMedia?.('(prefers-color-scheme: dark)').matches ?? false
+  const options: ISearchOptions = { incremental: opts.incremental, decorations: searchDecorations(dark) }
+  return opts.backwards ? live.search.findPrevious(term, options) : live.search.findNext(term, options)
+}
+
+// onFindResults reports how many matches the last search found and which
+// one is current.
+export function onFindResults(id: string, listener: (result: FindResult) => void): () => void {
+  const sub = lives.get(id)?.search.onDidChangeResults((r) => listener({ index: r.resultIndex, count: r.resultCount }))
+  return () => sub?.dispose()
+}
+
+// endFind clears the marks and gives the keyboard back to the terminal.
+export function endFind(id: string): void {
+  const live = lives.get(id)
+  if (!live) return
+  live.search.clearDecorations()
+  live.xterm.clearSelection()
+  live.xterm.focus()
+}
+
+// scrollToBottom shows the newest output again.
+export function scrollToBottom(id: string): void {
+  const live = lives.get(id)
+  live?.xterm.scrollToBottom()
+  useTerminalStore.getState().setUnseen(id, false)
+  live?.xterm.focus()
 }
 
 // reconnectTerminal tries the terminal's connection again now.
