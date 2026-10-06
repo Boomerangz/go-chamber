@@ -33,6 +33,18 @@ export default function Notices() {
             {n.title && <span className="toast-title">{n.title}</span>}
             <span className="toast-text">{n.text}</span>
           </div>
+          {n.action && (
+            <button
+              type="button"
+              className="btn btn-ghost btn-xs toast-action"
+              onClick={() => {
+                dismiss(n.id)
+                n.action!.run()
+              }}
+            >
+              {n.action.label}
+            </button>
+          )}
           <button type="button" className="btn btn-ghost btn-icon toast-close" aria-label="Dismiss" title="Dismiss" onClick={() => dismiss(n.id)}>
             <X {...icon(14)} />
           </button>

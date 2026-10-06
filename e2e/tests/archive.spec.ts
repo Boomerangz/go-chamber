@@ -68,3 +68,29 @@ test('archives, unarchives and deletes a session, live in another tab', async ({
   await showPane(page, 'Sessions')
   await expect(page.locator('.groups')).not.toContainText(name)
 })
+
+test('archiving a session that waits for you keeps the request in sight, with an Undo', async ({ page }, info) => {
+  const name = `Waits ${info.project.name} ${info.repeatEachIndex} ${Date.now()}`
+  await page.goto(`/?token=${token}`)
+  await openNewSession(page)
+  await page.getByLabel('Working directory').fill('/tmp')
+  await page.getByRole('button', { name: 'New session', exact: true }).click()
+  await page.getByRole('button', { name: 'Rename session' }).click()
+  await page.getByRole('textbox', { name: 'Session name' }).fill(name)
+  await page.keyboard.press('Enter')
+  await page.getByLabel('message').fill('please permission')
+  await page.getByRole('button', { name: 'Send' }).click()
+  await expect(page.locator('.request-title', { hasText: 'Run command' })).toBeVisible()
+
+  await (await menuFor(page, name)).getByRole('menuitem', { name: 'Archive' }).click()
+  const archived = page.locator('details.archived')
+  const row = archived.getByRole('button', { name: new RegExp(`^${name}`) })
+  await expect(row).toContainText('waiting for you')
+  await expect(archived.locator('summary .badge')).toBeVisible()
+
+  const notice = page.getByRole('status').filter({ hasText: `Archived ${name}` })
+  await notice.getByRole('button', { name: 'Undo' }).click()
+  await expect(page.locator('.groups').getByRole('button', { name: new RegExp(`^${name}`) })).toBeVisible()
+  await showPane(page, 'Chat')
+  await page.getByRole('button', { name: 'Allow', exact: true }).click()
+})

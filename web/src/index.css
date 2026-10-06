@@ -1002,6 +1002,7 @@ button.health { border: 0; background: none; padding: 0; }
 .toast-error .toast-title { color: var(--bad); }
 .toast-text { font-size: 13px; color: var(--ink); overflow-wrap: anywhere; }
 .toast-close { flex: none; }
+.toast-action { flex: none; align-self: center; color: var(--act); }
 @keyframes toast-in { from { opacity: 0; transform: translateY(-4px); } }
 .elicitation .field-row { display: grid; gap: 4px; margin: 8px 0; }
 
