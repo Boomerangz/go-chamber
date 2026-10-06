@@ -44,8 +44,11 @@ type Mapper struct {
 	items           map[domain.ItemID]*domain.Item
 	inputBuf        map[string]*strings.Builder
 	pending         map[domain.RequestID]pendingRequest
-	tasks           map[string]domain.ItemID
-	hooks           map[string]domain.ItemID
+	// denied holds tool uses the owner refused; their results say so, but
+	// the tool never ran.
+	denied map[string]bool
+	tasks  map[string]domain.ItemID
+	hooks  map[string]domain.ItemID
 }
 
 func NewMapper(session domain.SessionID) *Mapper {
@@ -60,6 +63,7 @@ func NewMapper(session domain.SessionID) *Mapper {
 		items:           map[domain.ItemID]*domain.Item{},
 		inputBuf:        map[string]*strings.Builder{},
 		pending:         map[domain.RequestID]pendingRequest{},
+		denied:          map[string]bool{},
 		tasks:           map[string]domain.ItemID{},
 		hooks:           map[string]domain.ItemID{},
 	}
@@ -72,6 +76,18 @@ func (m *Mapper) TakePending(id domain.RequestID) (pendingRequest, bool) {
 	p, ok := m.pending[id]
 	delete(m.pending, id)
 	return p, ok
+}
+
+// Deny forgets a can_use_tool request the owner refused and remembers its
+// tool use, whose error result then means "not run" rather than a failure.
+func (m *Mapper) Deny(id domain.RequestID) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	p, ok := m.pending[id]
+	delete(m.pending, id)
+	if ok && p.toolUseID != "" {
+		m.denied[p.toolUseID] = true
+	}
 }
 
 // SetTurn sets the turn id stamped on items produced from now on.
@@ -426,6 +442,13 @@ func (m *Mapper) mapUser(raw *rawMessage) []domain.Event {
 		item.Text = textFromToolResult(block.Content)
 		if item.Kind == domain.ItemSubagent && !block.IsError && (m.background[item.ID] || inputBool(item.Input, "run_in_background")) {
 			// The launch acknowledgement; task_notification brings the outcome.
+			events = append(events, m.updated(item)...)
+			continue
+		}
+		if block.IsError && m.denied[block.ToolUseID] {
+			// Refused before it ran: no exit code, nothing failed.
+			delete(m.denied, block.ToolUseID)
+			_ = item.SetStatus(domain.ItemCompleted)
 			events = append(events, m.updated(item)...)
 			continue
 		}
