@@ -5,7 +5,8 @@ import ModelPicker from '../models/ModelPicker'
 import PermissionModeSelect from '../models/PermissionModeSelect'
 import EditableTitle from '../title/EditableTitle'
 import { icon } from '../icon'
-import type { ApprovalReviewer, Session, SessionStatus } from '../../lib/api'
+import type { ApprovalReviewer, Session } from '../../lib/api'
+import { statusWord, type ShownStatus } from '../../lib/status'
 import { isDangerousMode } from '../../lib/models'
 import { sessionTitle } from '../../lib/sessions'
 import { notify } from '../../stores/notices'
@@ -90,8 +91,8 @@ function ChatPath({ cwd }: { cwd: string }) {
 
 interface Props {
   session: Session | undefined
-  // status is the word the header shows: running, idle, done, failed…
-  status: SessionStatus | 'done' | 'failed'
+  // status is what the header shows (see lib/status).
+  status: ShownStatus
   // loading: the sessions list hasn't arrived, so the title isn't known yet.
   loading: boolean
   notFound: boolean
@@ -138,7 +139,7 @@ export default function ChatHeader({ session, status, loading, notFound, forking
       <div className="chat-meta">
         {session && (
           <span className={`status status-${status}`} role="status">
-            {status}
+            {statusWord(status)}
           </span>
         )}
         {unguarded && (

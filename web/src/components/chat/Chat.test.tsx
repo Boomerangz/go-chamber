@@ -115,6 +115,22 @@ describe('transcript loading', () => {
   })
 })
 
+describe('header status', () => {
+  const statusEl = () => document.querySelector('.chat-meta .status')
+
+  it('says the session waits for the owner while a request is open, as the list does', () => {
+    const request: api.SessionRequest = { id: 'r1', sessionId: 's1', kind: 'permission', state: 'pending', title: 'Run' }
+    setup({ chat: running([item('u1', 'user_message')], { requests: { r1: request } }) })
+    expect(statusEl()).toHaveTextContent('waiting for you')
+    expect(statusEl()).toHaveClass('status-waiting')
+  })
+
+  it('calls a session that never ran idle, not detached', () => {
+    setup({ sessions: [{ ...session, status: 'detached', nativeId: undefined }], chat: initialChat() })
+    expect(statusEl()).toHaveTextContent('idle')
+  })
+})
+
 describe('working tail', () => {
   it('shows the turn clock while the agent works and nothing streams', () => {
     vi.useFakeTimers()
@@ -132,7 +148,8 @@ describe('working tail', () => {
   it('says the turn waits for the owner when a request is open', () => {
     const request: api.SessionRequest = { id: 'r1', sessionId: 's1', kind: 'permission', state: 'pending', title: 'Run' }
     setup({ chat: running([item('u1', 'user_message')], { requests: { r1: request } }) })
-    expect(screen.getByText('waiting for you')).toBeInTheDocument()
+    expect(document.querySelector('.working-tail')).toHaveTextContent('waiting for you')
+    expect(document.querySelector('.working-tail')).toHaveClass('waiting')
     expect(screen.queryByText(/working ·/)).toBeNull()
   })
 })

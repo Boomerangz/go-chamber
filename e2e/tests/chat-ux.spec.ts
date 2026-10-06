@@ -52,6 +52,19 @@ test('sends messages typed in quick succession one by one, in order', async ({ p
   await expect(users).toHaveText(['rapid 1', 'rapid 2', 'rapid 3'])
 })
 
+test('the header and the sessions list show one status', async ({ page, isMobile }) => {
+  test.skip(isMobile, 'the list is another pane on a phone')
+  await newSession(page)
+  // A session that never ran is idle, not detached.
+  await expect(page.locator('.chat-meta .status')).toHaveText('idle')
+  await expect(page.locator('.session.active .session-status-detached')).toHaveCount(0)
+  await page.getByLabel('message').fill('please permission')
+  await page.getByRole('button', { name: 'Send' }).click()
+  await expect(page.locator('.chat-meta .status')).toHaveText('waiting for you')
+  await expect(page.locator('.chat-meta .status')).toHaveClass(/status-waiting/)
+  await expect(page.locator('.session.active .session-status-waiting')).toHaveText('waiting for you')
+})
+
 test('brings sent messages back with ArrowUp', async ({ page }) => {
   await newSession(page)
   await say(page, 'first thing')

@@ -17,7 +17,9 @@
   content: ''; flex: none; width: 8px; height: 8px; border: 1px solid var(--ink); border-radius: 1px;
   background: var(--ink); animation: mark-breathe 2.4s ease-in-out infinite;
 }
-.working-tail.waiting::before { animation: none; }
+/* waiting for the owner: the needs-you amber, as in the header and the sessions list */
+.working-tail.waiting { color: var(--req); }
+.working-tail.waiting::before { border-color: var(--req-mark); background: var(--req-mark); animation: none; }
 
 /* "latest ↓ N": rides the bottom edge of the transcript while scrolled up */
 .jump-latest {

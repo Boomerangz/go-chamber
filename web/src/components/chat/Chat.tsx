@@ -23,6 +23,7 @@ import { displayStatus } from '../../lib/format'
 import { enter } from '../../lib/motion'
 import { useJustFinished } from '../../lib/finished'
 import { useNow } from '../../lib/now'
+import { shownStatus } from '../../lib/status'
 import { usePending } from '../../lib/pending'
 import { useUnseen } from '../../lib/seen'
 import { isBlank, itemTree, withoutAnsweredQuestions } from '../../lib/tree'
@@ -101,11 +102,13 @@ export default function Chat() {
     textRef.current = text
   }, [text])
   const status = displayStatus(chat, session)
-  const failedTurn = !!chat.lastTurnFailed && status === 'idle'
+  const failedTurn = !!chat.lastTurnFailed && (status === 'idle' || status === 'detached')
   const finished = useJustFinished(status, failedTurn)
-  // A failed turn doesn't flash "done"; until the next turn the header says
-  // it failed, as the transcript does.
-  const shownStatus = failedTurn ? 'failed' : finished ? 'done' : status
+  // The header shows what the sessions list shows: a waiting request first;
+  // a failed turn doesn't flash "done", it says it failed until the next turn.
+  const shown = shownStatus({
+    status, started: !!session?.nativeId, waiting: Object.keys(chat.requests).length, failed: failedTurn, finished,
+  })
   const running = status === 'running'
   const reduced = useReducedMotion() ?? false
   const narrow = useMedia('(max-width: 720px)')
@@ -391,7 +394,7 @@ export default function Chat() {
     <section className="chat panel">
       <ChatHeader
         session={session}
-        status={shownStatus}
+        status={shown}
         loading={!session && sessionsStatus === 'loading'}
         notFound={notFound}
         forking={forking}
