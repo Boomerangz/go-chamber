@@ -37,6 +37,8 @@ type ManagerConfig struct {
 	// IdleTimeout closes a Claude process idle this long; the session becomes
 	// detached and resumes on the next message. Zero keeps processes alive.
 	IdleTimeout time.Duration
+	// Eraser optionally removes deleted sessions' records.
+	Eraser SessionEraser
 }
 
 // EventHistory replays a session's published events.

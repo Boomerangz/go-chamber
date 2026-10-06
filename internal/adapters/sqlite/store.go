@@ -45,6 +45,27 @@ func (s *Store) Sessions() app.SessionRepo { return sessionRepo{s.db} }
 
 func (s *Store) Quotas() app.QuotaRepo { return quotaRepo{s.db} }
 
+// EraseSession deletes the session with its events and search entries in
+// one transaction.
+func (s *Store) EraseSession(ctx context.Context, id domain.SessionID) error {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback() //nolint:errcheck // no-op after Commit
+	for _, q := range []string{
+		`DELETE FROM messages_fts WHERE rowid IN (SELECT id FROM message_keys WHERE session_id = ?)`,
+		`DELETE FROM message_keys WHERE session_id = ?`,
+		`DELETE FROM events WHERE session_id = ?`,
+		`DELETE FROM sessions WHERE id = ?`,
+	} {
+		if _, err := tx.ExecContext(ctx, q, id); err != nil {
+			return err
+		}
+	}
+	return tx.Commit()
+}
+
 // migrate applies migrations/*.sql from fsys that are newer than the schema
 // version. Each file runs in its own transaction together with the version bump.
 func migrate(db *sql.DB, fsys fs.FS) error {
@@ -83,19 +104,20 @@ func applyMigration(db *sql.DB, fsys fs.FS, name string, version int) error {
 
 type sessionRepo struct{ db *sql.DB }
 
-const sessionCols = "id, agent, cwd, native_id, parent_id, status, title, interruption_reason, resume_after, approval_reviewer, created_at, active_at, model, effort, permission_mode, fork_of, auto_continue, worktree"
+const sessionCols = "id, agent, cwd, native_id, parent_id, status, title, interruption_reason, resume_after, approval_reviewer, created_at, active_at, model, effort, permission_mode, fork_of, auto_continue, worktree, archived_at"
 
 func (r sessionRepo) Save(ctx context.Context, s domain.SessionSnapshot) error {
-	_, err := r.db.ExecContext(ctx, `INSERT INTO sessions (`+sessionCols+`) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+	_, err := r.db.ExecContext(ctx, `INSERT INTO sessions (`+sessionCols+`) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
 		ON CONFLICT(id) DO UPDATE SET agent=excluded.agent, cwd=excluded.cwd, native_id=excluded.native_id,
 		parent_id=excluded.parent_id, status=excluded.status, title=excluded.title,
 		interruption_reason=excluded.interruption_reason, resume_after=excluded.resume_after,
 		approval_reviewer=excluded.approval_reviewer, created_at=excluded.created_at, active_at=excluded.active_at,
 		model=excluded.model, effort=excluded.effort, permission_mode=excluded.permission_mode,
-		fork_of=excluded.fork_of, auto_continue=excluded.auto_continue, worktree=excluded.worktree`,
+		fork_of=excluded.fork_of, auto_continue=excluded.auto_continue, worktree=excluded.worktree,
+		archived_at=excluded.archived_at`,
 		s.ID, s.Agent, s.Cwd, s.NativeID, s.ParentID, s.Status, s.Title, s.Interruption.Reason,
 		formatTime(s.Interruption.ResumeAfter), s.ApprovalReviewer, formatTime(s.CreatedAt), formatTime(s.ActiveAt), s.Model, s.Effort,
-		s.PermissionMode, s.ForkOf, s.AutoContinue, encodeWorktree(s.Worktree))
+		s.PermissionMode, s.ForkOf, s.AutoContinue, encodeWorktree(s.Worktree), formatTime(s.ArchivedAt))
 	return err
 }
 
@@ -137,10 +159,10 @@ type scanner interface{ Scan(dest ...any) error }
 
 func scanSession(row scanner) (domain.SessionSnapshot, error) {
 	var s domain.SessionSnapshot
-	var resume, created, active, worktree string
+	var resume, created, active, worktree, archived string
 	err := row.Scan(&s.ID, &s.Agent, &s.Cwd, &s.NativeID, &s.ParentID, &s.Status, &s.Title,
 		&s.Interruption.Reason, &resume, &s.ApprovalReviewer, &created, &active, &s.Model, &s.Effort,
-		&s.PermissionMode, &s.ForkOf, &s.AutoContinue, &worktree)
+		&s.PermissionMode, &s.ForkOf, &s.AutoContinue, &worktree, &archived)
 	if err != nil {
 		return domain.SessionSnapshot{}, err
 	}
@@ -158,6 +180,7 @@ func scanSession(row scanner) (domain.SessionSnapshot, error) {
 		{"resume_after", resume, &s.Interruption.ResumeAfter},
 		{"created_at", created, &s.CreatedAt},
 		{"active_at", active, &s.ActiveAt},
+		{"archived_at", archived, &s.ArchivedAt},
 	} {
 		if *f.dst, err = parseTime(f.raw); err != nil {
 			return domain.SessionSnapshot{}, fmt.Errorf("session %s: bad %s: %w", s.ID, f.name, err)
