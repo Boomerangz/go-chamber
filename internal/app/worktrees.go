@@ -35,9 +35,11 @@ type FileChange struct {
 // Changes is what the session's folder changed against Base.
 type Changes struct {
 	// Repository is false when the folder is not in a git repository.
-	Repository bool         `json:"repository"`
-	Base       string       `json:"base,omitempty"`
-	Files      []FileChange `json:"files"`
+	Repository bool `json:"repository"`
+	// Root is the repository's top folder; file paths are relative to it.
+	Root  string       `json:"root,omitempty"`
+	Base  string       `json:"base,omitempty"`
+	Files []FileChange `json:"files"`
 }
 
 // GitRepo is the git operations worktree sessions and the diff panel need.
@@ -138,7 +140,11 @@ func (w *Worktrees) Changes(ctx context.Context, id domain.SessionID) (Changes, 
 	if files == nil {
 		files = []FileChange{}
 	}
-	return Changes{Repository: true, Base: base, Files: files}, nil
+	root, err := w.cfg.Git.Toplevel(ctx, snap.Cwd)
+	if err != nil {
+		return Changes{}, err
+	}
+	return Changes{Repository: true, Root: root, Base: base, Files: files}, nil
 }
 
 // FileDiff is the unified diff of one changed file of the session folder.

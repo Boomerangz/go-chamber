@@ -154,7 +154,7 @@ func TestChangesUseTheWorktreeBaseOrHEAD(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !ch.Repository || ch.Base != "base1" || git.gotDir != wtSnap.Cwd || len(ch.Files) != 1 {
+	if !ch.Repository || ch.Base != "base1" || git.gotDir != wtSnap.Cwd || len(ch.Files) != 1 || ch.Root != "/src/app" {
 		t.Fatalf("changes = %+v dir = %s", ch, git.gotDir)
 	}
 	plain, _ := m.CreateSession(ctx, domain.AgentClaude, "/src/app")
@@ -172,6 +172,11 @@ func TestChangesUseTheWorktreeBaseOrHEAD(t *testing.T) {
 	if _, err := w.Changes(ctx, plain.ID); err == nil {
 		t.Fatal("git failure not reported")
 	}
+	git.chErr, git.topErr = nil, errors.New("top")
+	if _, err := w.Changes(ctx, plain.ID); err == nil {
+		t.Fatal("toplevel failure not reported")
+	}
+	git.topErr = nil
 	if _, err := w.Changes(ctx, "missing"); !errors.Is(err, ErrSessionNotFound) {
 		t.Fatalf("missing: err = %v", err)
 	}
