@@ -1,5 +1,5 @@
 .folder-loading { padding: 14px 8px; }
-.picker-error { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: 0; }
+.picker-failed { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
 .recent-folder { display: inline-flex; align-items: center; min-width: 0; max-width: 100%; }
 /* a long recent name stays one line in its chip; the title has the path */
 .recent-folder .chip { max-width: 24ch; }
