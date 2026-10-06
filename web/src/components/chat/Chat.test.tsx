@@ -227,6 +227,14 @@ describe('stopping', () => {
     expect(fns.interrupt).toHaveBeenCalledTimes(1)
   })
 
+  it('leaves an empty idle composer with Escape, so single-key shortcuts work', async () => {
+    setup({})
+    box().focus()
+    await userEvent.keyboard('{Escape}')
+    expect(box()).not.toHaveFocus()
+    expect(fns.interrupt).not.toHaveBeenCalled()
+  })
+
   it('does not stop with Escape while there is text', async () => {
     setup({ chat: running() })
     await userEvent.type(box(), 'wait')

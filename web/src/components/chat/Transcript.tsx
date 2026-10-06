@@ -188,7 +188,7 @@ function AssistantMessage({ item }: { item: Item }) {
   return (
     <div className={`item assistant${streaming ? ' streaming' : ''}`}>
       <Markdown text={text} />
-      {!streaming && text.trim() && <CopyButton text={text} label="Copy message" iconOnly className="msg-copy" />}
+      {!streaming && text.trim() && <CopyButton text={text} label="Copy reply" iconOnly className="msg-copy" />}
     </div>
   )
 }

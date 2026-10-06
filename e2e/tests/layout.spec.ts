@@ -13,6 +13,6 @@ test('long session paths do not overflow the viewport', async ({ page }, info) =
   await expect(page.locator('.chat-path', { hasText: cwd })).toBeVisible()
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width)
   await showPane(page, 'Sessions')
-  await expect(page.getByRole('button', { name: new RegExp(cwd) })).toBeVisible()
+  await expect(page.locator(`.group-toggle[title="${cwd}"]`)).toBeVisible()
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width)
 })

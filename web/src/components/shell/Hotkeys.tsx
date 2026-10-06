@@ -18,7 +18,8 @@ interface Shortcut {
 // Shortcuts handled elsewhere, listed in the help so it is complete.
 const local: { keys: string; label: string }[] = [
   { keys: formatCombo({ key: 'Enter', mod: true }), label: 'Send the message' },
-  { keys: `Esc · ${formatCombo({ key: '.', mod: true })}`, label: 'Stop the running turn' },
+  { keys: formatCombo({ key: '.', mod: true }), label: 'Stop the running turn' },
+  { keys: 'Esc', label: 'In an empty composer: stop the turn, or leave it' },
   { keys: 'A · S · D', label: 'Allow, allow for session, deny a request' },
   { keys: '↑ ↓', label: 'Move through requests in the tray' },
 ]

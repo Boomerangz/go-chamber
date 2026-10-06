@@ -262,6 +262,9 @@ export default function Chat() {
   useEffect(() => {
     stopRef.current = () => {
       if (busy && !stopping) void stop()
+      // Nothing to stop: Escape leaves the composer, so single-key
+      // shortcuts (j/k, ?, r) answer again.
+      else if (!busy) (document.activeElement as HTMLElement | null)?.blur()
     }
   })
   // ⌘. / Ctrl+. stops the turn from anywhere but a terminal.

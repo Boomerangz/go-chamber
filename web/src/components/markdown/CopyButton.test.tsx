@@ -24,8 +24,8 @@ it('copies and says so for a moment', async () => {
 })
 
 it('names an icon-only button', async () => {
-  render(<CopyButton text="x" label="Copy message" iconOnly />)
-  await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Copy message' })))
+  render(<CopyButton text="x" label="Copy reply" iconOnly />)
+  await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Copy reply' })))
   expect(screen.getByRole('button', { name: 'Copied' })).toBeInTheDocument()
 })
 

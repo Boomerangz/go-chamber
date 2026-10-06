@@ -107,7 +107,7 @@ describe('messages', () => {
   it('marks a streaming answer so it shows a caret', () => {
     const { container, rerender, props } = show(item({ kind: 'assistant_message', status: 'streaming', text: 'Hel' }))
     expect(container.querySelector('.item.assistant')).toHaveClass('streaming')
-    expect(screen.queryByRole('button', { name: 'Copy message' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Copy reply' })).toBeNull()
     const done = item({ kind: 'assistant_message', status: 'completed', text: 'Hello **there**' })
     rerender(<ol><Row {...props} node={{ item: done, children: [] }} /></ol>)
     expect(container.querySelector('.item.assistant')).not.toHaveClass('streaming')
@@ -115,7 +115,7 @@ describe('messages', () => {
 
   it('copies a whole answer as markdown', async () => {
     show(item({ kind: 'assistant_message', text: 'Hello **there**' }))
-    await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Copy message' })))
+    await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Copy reply' })))
     expect(writeText).toHaveBeenCalledWith('Hello **there**')
   })
 
