@@ -2,7 +2,7 @@ import { expect, test, type Locator } from '@playwright/test'
 import fs from 'node:fs'
 import os from 'node:os'
 import { token } from '../playwright.config'
-import { openNewSession } from './pane'
+import { openNewSession, showPane } from './pane'
 
 // Long names in the shell around the chat: they shorten on one line inside
 // their own box and never push past it.
@@ -65,6 +65,27 @@ test('the dock lists every shell under ▾ and attaches the one picked', async (
     await panel.getByRole('button', { name: `Close terminal ${t}`, exact: true }).click()
     await panel.getByRole('group', { name: /^Close terminal / }).getByRole('button', { name: 'Close', exact: true }).click()
   }
+})
+
+test('a session opened by its link is in view in the list, also on a phone', async ({ page }) => {
+  const dir = fs.realpathSync(fs.mkdtempSync(`${os.tmpdir()}/gc-link-`))
+  const headers = { Authorization: `Bearer ${token}` }
+  const create = async (cwd: string) => {
+    fs.mkdirSync(cwd, { recursive: true })
+    const r = await page.request.post('/api/sessions', { headers, data: { agent: 'claude', cwd } })
+    return ((await r.json()) as { id: string }).id
+  }
+  // the oldest of a full group, below a long list of other folders
+  const target = await create(`${dir}/zz-target`)
+  for (let i = 0; i < 7; i++) await create(`${dir}/zz-target`)
+  for (let i = 0; i < 24; i++) await create(`${dir}/other-${i}`)
+  await page.goto(`/?token=${token}`)
+  await page.goto(`/s/${target}`)
+  await showPane(page, 'Sessions')
+  const row = page.locator('.sidebar button.session[aria-current="true"]')
+  await expect(row).toBeInViewport({ ratio: 0.9 })
+  const bar = page.getByRole('navigation', { name: 'Views' })
+  if (await bar.isVisible()) expect((await box(row)).y + (await box(row)).height).toBeLessThanOrEqual((await box(bar)).y + 1)
 })
 
 test('the quick switcher keeps titles readable beside a long folder', async ({ page }, info) => {

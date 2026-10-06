@@ -1,4 +1,4 @@
-import { act, render, screen } from '@testing-library/react'
+import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Session } from '../../lib/api'
@@ -129,12 +129,34 @@ describe('session rows', () => {
     expect(screen.getByText('A very long title that will not fit')).toHaveAttribute('title', 'A very long title that will not fit')
   })
 
-  it('scrolls the open session into view when it changes', () => {
+  it('scrolls the open session into view when it changes', async () => {
     useSessionStore.setState({ sessions: [session('s1', 'One'), session('s2', 'Two')], activeId: 's1' })
     render(<SessionList onCreateIn={() => {}} />)
     vi.mocked(Element.prototype.scrollIntoView).mockClear()
     act(() => useSessionStore.setState({ activeId: 's2' }))
-    expect(Element.prototype.scrollIntoView).toHaveBeenCalledWith({ block: 'nearest' })
+    await waitFor(() => expect(Element.prototype.scrollIntoView).toHaveBeenCalledWith({ block: 'nearest' }))
+  })
+
+  it('scrolls a session opened while the list was hidden once its pane shows', async () => {
+    let visible = false
+    const proto = Element.prototype as { checkVisibility?: () => boolean }
+    proto.checkVisibility = () => visible
+    try {
+      useSessionStore.setState({ sessions: [session('s1', 'One'), session('s2', 'Two')], activeId: 's2', pane: 'chat' })
+      render(<SessionList onCreateIn={() => {}} />)
+      await new Promise((r) => requestAnimationFrame(r))
+      vi.mocked(Element.prototype.scrollIntoView).mockClear()
+      visible = true
+      act(() => useSessionStore.setState({ pane: 'sessions' }))
+      await waitFor(() => expect(Element.prototype.scrollIntoView).toHaveBeenCalledTimes(1))
+      // once there, switching panes leaves the list where the owner put it
+      act(() => useSessionStore.setState({ pane: 'chat' }))
+      act(() => useSessionStore.setState({ pane: 'sessions' }))
+      await new Promise((r) => requestAnimationFrame(r))
+      expect(Element.prototype.scrollIntoView).toHaveBeenCalledTimes(1)
+    } finally {
+      delete proto.checkVisibility
+    }
   })
 
   it('names the agent and folder on the group "+" button', async () => {
