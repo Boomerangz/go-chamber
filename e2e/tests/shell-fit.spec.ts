@@ -88,6 +88,23 @@ test('a session opened by its link is in view in the list, also on a phone', asy
   if (await bar.isVisible()) expect((await box(row)).y + (await box(row)).height).toBeLessThanOrEqual((await box(bar)).y + 1)
 })
 
+test('unreachable accounts and quotas are said once, in place, with one Retry', async ({ page }) => {
+  let down = true
+  const fail = (route: import('@playwright/test').Route) => (down ? route.fulfill({ status: 500, body: 'down' }) : route.fallback())
+  await page.route('**/api/account?*', fail)
+  await page.route('**/api/quotas', fail)
+  await page.goto(`/?token=${token}`)
+  await showPane(page, 'Sessions')
+  const footer = page.locator('.sidebar-footer')
+  await expect(footer.getByRole('alert')).toHaveText(/Couldn't reach the accounts or quotas/)
+  await expect(footer.getByRole('alert')).toHaveCount(1)
+  await expect(page.locator('.notices')).toHaveCount(0)
+  down = false
+  await footer.getByRole('button', { name: 'Retry' }).click()
+  await expect(footer.getByRole('alert')).toHaveCount(0)
+  await expect(footer).toContainText('Claude')
+})
+
 test('the quick switcher keeps titles readable beside a long folder', async ({ page }, info) => {
   test.skip(info.project.name === 'mobile', '⌘K is a keyboard matter')
   const dir = fs.realpathSync(fs.mkdtempSync(`${os.tmpdir()}/gc-fit-`))

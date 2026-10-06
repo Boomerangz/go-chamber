@@ -722,12 +722,15 @@ describe('request handling', () => {
     ;(api.getQuotas as Mock).mockRejectedValueOnce(new Error('down'))
     await store().loadQuotas()
     expect(store().quotasStatus).toBe('error')
+    // the sidebar says so in place: no notice on top
+    expect(useNotices.getState().notices).toEqual([])
     ;(api.getQuotas as Mock).mockResolvedValueOnce([])
     await store().loadQuotas()
     expect(store().quotasStatus).toBe('ready')
     ;(api.getQuotas as Mock).mockRejectedValueOnce(new Error('down'))
     await store().loadQuotas()
     expect(store().quotasStatus).toBe('ready')
+    expect(useNotices.getState().notices).toMatchObject([{ title: "Couldn't load quotas" }])
   })
 
   it('upserts quotas from live events', () => {
