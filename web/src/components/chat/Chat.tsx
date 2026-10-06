@@ -26,6 +26,7 @@ import { useNow } from '../../lib/now'
 import { usePending } from '../../lib/pending'
 import { useUnseen } from '../../lib/seen'
 import { isBlank, itemTree } from '../../lib/tree'
+import { groupTools, lastItemId } from '../../lib/group'
 import { turnNumbers } from '../../lib/turns'
 import { loadDraft, saveDraft } from '../../stores/drafts'
 import { notify } from '../../stores/notices'
@@ -225,6 +226,27 @@ export default function Chat() {
     if (matches('(pointer: fine)')) input.current?.focus()
   }, [])
 
+  // Transcript hook-ups: runs of tool lines fold, a failed turn's message can
+  // be sent again, a message of the owner's can be taken back to the composer.
+  const rows = useMemo(() => groupTools(nodes, unseen), [nodes, unseen])
+  const lastUser = useMemo(() => {
+    for (let i = chat.order.length - 1; i >= 0; i--) {
+      const item = chat.items[chat.order[i]!]
+      if (item?.kind === 'user_message' && !item.parentItemId) return item
+    }
+    return undefined
+  }, [chat.order, chat.items])
+  const stickToEnd = stick.stick
+  const retry = useCallback(async () => {
+    const ok = lastUser ? await send(lastUser.text ?? '', lastUser.images ?? []) : false
+    if (ok) stickToEnd()
+    return ok
+  }, [lastUser, send, stickToEnd])
+  const editMessage = useCallback((message: string) => {
+    setText(textRef.current.trim() ? `${textRef.current}\n\n${message}` : message)
+    input.current?.focus()
+  }, [setText])
+
   const doSubmit = async (): Promise<boolean> => {
     const value = text.trim()
     const images = attachments.ids
@@ -325,7 +347,7 @@ export default function Chat() {
         ) : (
           <SessionFiles.Provider value={sessionId}>
             <ol className="items" role="log" aria-live="polite" aria-relevant="additions" aria-busy={streaming}>
-              {nodes.map((node) => (
+              {rows.map((node, i) => (
                 <Row
                   key={node.item.id}
                   node={node}
@@ -334,6 +356,9 @@ export default function Chat() {
                   reduced={reduced}
                   animateIn={listedFor === sessionId}
                   onStopTask={stopTask}
+                  onRetry={i === rows.length - 1 && node.item.kind === 'error' && !busy ? retry : undefined}
+                  onEdit={editMessage}
+                  result={chat.turnResults?.[lastItemId(node)]}
                 />
               ))}
             </ol>

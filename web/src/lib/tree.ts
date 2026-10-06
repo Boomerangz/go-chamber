@@ -3,6 +3,8 @@ import type { Item } from './api'
 export interface ItemNode {
   item: Item
   children: ItemNode[]
+  // group holds the tool lines folded into this one row (see groupTools).
+  group?: ItemNode[]
 }
 
 // itemTree nests items by parentItemId, preserving order. Items whose parent
@@ -50,7 +52,9 @@ export function sessionTree(sessions: Session[]): SessionNode[] {
 // rebuilt by itemTree can skip rendering when nothing in it changed.
 export function sameNode(a: ItemNode, b: ItemNode): boolean {
   return a.item === b.item && a.children.length === b.children.length &&
-    a.children.every((child, i) => sameNode(child, b.children[i]!))
+    a.children.every((child, i) => sameNode(child, b.children[i]!)) &&
+    a.group?.length === b.group?.length &&
+    (a.group ?? []).every((member, i) => sameNode(member, b.group![i]!))
 }
 
 // isBlank hides finished assistant messages without text (Codex sends

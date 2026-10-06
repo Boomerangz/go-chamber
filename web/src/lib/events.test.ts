@@ -168,3 +168,39 @@ describe('failed turns', () => {
     expect(applyEvents(once, events)).toBe(once)
   })
 })
+
+describe('turn results', () => {
+  it('keeps each turn result under the last item the turn shows', () => {
+    const first = { inputTokens: 10, outputTokens: 5, costUsd: 0.01 }
+    const second = { inputTokens: 20 }
+    const state = applyEvents(initialChat(), [
+      ev({ seq: 1, item: item({ id: 'u1', kind: 'user_message' }) }),
+      ev({ seq: 2, item: item({ id: 'a1' }) }),
+      ev({ seq: 3, item: item({ id: 'child', kind: 'tool_call', parentItemId: 'a1' }) }),
+      ev({ seq: 4, type: 'turn.ended', result: first }),
+      ev({ seq: 5, item: item({ id: 'u2', kind: 'user_message' }) }),
+      ev({ seq: 6, item: item({ id: 'a2' }) }),
+      ev({ seq: 7, item: item({ id: 'blank', status: 'completed', text: '' }) }),
+      ev({ seq: 8, type: 'turn.ended', result: second }),
+    ])
+    expect(state.turnResults).toEqual({ a1: first, a2: second })
+    expect(state.result).toBe(second)
+  })
+
+  it('puts a failed turn result on its error line', () => {
+    const state = applyEvents(initialChat(), [
+      ev({ seq: 1, item: item({ id: 'u1', kind: 'user_message' }) }),
+      ev({ seq: 2, type: 'turn.ended', result: { isError: true, error: 'boom', inputTokens: 3 } }),
+    ])
+    const error = state.order[1]!
+    expect(state.turnResults?.[error]).toMatchObject({ inputTokens: 3 })
+  })
+
+  it('keeps nothing for a turn without a result or without items', () => {
+    let state = applyEvent(initialChat(), ev({ seq: 1, type: 'turn.ended', result: { inputTokens: 1 } }))
+    expect(state.turnResults).toBeUndefined()
+    state = applyEvent(state, ev({ seq: 2, item: item({ id: 'a' }) }))
+    state = applyEvent(state, ev({ seq: 3, type: 'turn.ended' }))
+    expect(state.turnResults).toBeUndefined()
+  })
+})
