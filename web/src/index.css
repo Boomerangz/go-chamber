@@ -599,7 +599,7 @@ button.health { border: 0; background: none; padding: 0; }
 .item.hook[open] .hook-preview { display: none; }
 .item.hook.outcome-blocked .hook-name, .item.hook.outcome-error .hook-name { color: var(--ink); }
 
-/* the REQUIRES block, after the fact: one struck-through line of record */
+/* the REQUIRES block, after the fact: one line of record (struck through when denied) */
 .item.decision {
   display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px;
   font-size: 13px; white-space: normal; color: var(--ink-2);
@@ -607,7 +607,8 @@ button.health { border: 0; background: none; padding: 0; }
 .decision-kw {
   font-family: var(--font-mono); font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink);
 }
-.decision-name { text-decoration: line-through; text-decoration-thickness: 1px; text-decoration-color: var(--ink-3); }
+.decision-name { color: var(--ink-3); }
+.decision-name.struck { text-decoration: line-through; text-decoration-thickness: 1px; text-decoration-color: var(--ink-3); }
 .decision-text { flex-basis: 100%; white-space: pre-wrap; color: var(--ink-3); font-size: 12.5px; }
 .decision-denied .decision-kw { color: var(--bad); }
 .subagent-head { display: flex; align-items: center; gap: 8px; font-family: var(--font-mono); font-size: 12.5px; color: var(--ink-2); }

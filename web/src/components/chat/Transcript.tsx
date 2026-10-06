@@ -325,8 +325,10 @@ const GENERIC_REQUESTS = new Set(['', 'Question', 'Request', 'AskUserQuestion'])
 const QUESTIONS = new Set(['Question', 'AskUserQuestion'])
 
 // DecisionView is the one-line record an answered request leaves: the
-// outcome keyword and the request struck through, its detail beneath. A
-// question has no name worth striking; its record is the answer, read plainly.
+// outcome keyword and the request's name, its detail beneath. Only a denied
+// request is struck through (an approved one struck would read as
+// cancelled). A question has no name worth naming; its record is the
+// answer, read plainly.
 function DecisionView({ item }: { item: Item }) {
   const name = item.name?.trim() ?? ''
   const skipped = item.decision === 'denied' && QUESTIONS.has(name)
@@ -336,7 +338,9 @@ function DecisionView({ item }: { item: Item }) {
   return (
     <div className={`item decision decision-${decision}${answer ? ' decision-answer' : ''}`}>
       <span className="decision-kw">{decision}</span>
-      {!answer && !skipped && <span className="decision-name">{item.name || 'Request'}</span>}
+      {!answer && !skipped && (
+        <span className={`decision-name${decision === 'denied' ? ' struck' : ''}`}>{item.name || 'Request'}</span>
+      )}
       {item.text && <span className="decision-text">{item.text}</span>}
     </div>
   )

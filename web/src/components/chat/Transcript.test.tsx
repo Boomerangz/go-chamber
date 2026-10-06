@@ -445,7 +445,15 @@ describe('decision records', () => {
     const { container } = show(item({ kind: 'decision', decision: 'denied', name: 'Run command', text: 'not now' }))
     expect(container.querySelector('.decision-kw')).toHaveTextContent('denied')
     expect(container.querySelector('.decision-name')).toHaveTextContent('Run command')
+    expect(container.querySelector('.decision-name')).toHaveClass('struck')
     expect(container.querySelector('.decision-text')).toHaveTextContent('not now')
+  })
+
+  it('names an approved request plainly: struck through it would read as cancelled', () => {
+    const { container } = show(item({ kind: 'decision', decision: 'approved', name: 'Run command' }))
+    expect(container.querySelector('.decision-kw')).toHaveTextContent('approved')
+    expect(container.querySelector('.decision-name')).toHaveTextContent('Run command')
+    expect(container.querySelector('.decision-name')).not.toHaveClass('struck')
   })
 
   it('records an answered question by its answer, nothing struck', () => {

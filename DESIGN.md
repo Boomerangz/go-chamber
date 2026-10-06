@@ -304,7 +304,7 @@ Plain typed commands on paper.
 The only amber object on screen. A 2px-cornered paper block with a 1px amber border and a 3px amber rule across its top. The title line pairs the keyword `REQUIRES APPROVAL` (PT Mono uppercase, `req`) with the request name in 15px/600, then the prompt, `tool: Name`, the input in an output block, and Allow (primary), Allow for session (default), Deny (danger). A question is the same block in ink-blue with `REQUIRES ANSWER` and bordered option rows that take `act-wash` when checked. It enters from the left margin and scrolls itself into view.
 
 ### Decision Record (signature)
-When a request is answered, the block strikes a 1px ink line across its title, fades and collapses, and a single line is written into the transcript: the outcome keyword (PT Mono uppercase, ink; red for DENIED) followed by the request name struck through in `ink-3`, with any answer text beneath. The transcript keeps what was decided.
+When a request is answered, the block strikes a 1px ink line across its title, fades and collapses, and a single line is written into the transcript: the outcome keyword (PT Mono uppercase, ink; red for DENIED) followed by the request name in `ink-3`, struck through only when denied (an approved name struck through reads as cancelled), with any answer text beneath. A skipped question and an answered one name nothing; the answer is the record. The transcript keeps what was decided.
 
 ### Unseen Mark
 "new since you left": a PT Mono uppercase label in ink followed by a dashed ink rule running to the column edge, placed before the first unseen item.
