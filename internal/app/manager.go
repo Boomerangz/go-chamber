@@ -817,8 +817,27 @@ func (m *Manager) recordDecision(req *domain.Request, answer RequestAnswer) {
 	item.Name = req.Title
 	item.Decision = domain.DecisionFor(req.Kind, answer.Allow)
 	item.Text = decisionText(answer)
+	if item.Text == "" && req.Kind == domain.RequestQuestion && !answer.Allow {
+		// A skipped question says what it asked.
+		item.Text = firstQuestion(req.Payload)
+	}
 	_ = item.SetStatus(domain.ItemCompleted)
 	m.cfg.Bus.Publish(domain.Event{SessionID: req.SessionID, Type: domain.EventItemUpdated, Item: item})
+}
+
+// firstQuestion reads the first question a question request asked.
+func firstQuestion(payload json.RawMessage) string {
+	var p struct {
+		Input struct {
+			Questions []struct {
+				Question string `json:"question"`
+			} `json:"questions"`
+		} `json:"input"`
+	}
+	if json.Unmarshal(payload, &p) != nil || len(p.Input.Questions) == 0 {
+		return ""
+	}
+	return p.Input.Questions[0].Question
 }
 
 // decisionText is the detail shown after a decision: the deny reason, the

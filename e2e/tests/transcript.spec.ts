@@ -103,4 +103,6 @@ test('skips a question', async ({ page }) => {
   await say(page, 'ask me something')
   await page.getByRole('button', { name: 'Skip' }).click()
   await expect(page.locator('.request')).toHaveCount(0)
+  // The record says what was skipped.
+  await expect(page.locator('.item.decision-skipped .decision-text')).toHaveText('Which option should we use?')
 })
