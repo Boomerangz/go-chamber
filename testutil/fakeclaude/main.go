@@ -129,6 +129,12 @@ func main() {
 				_ = enc.Encode(map[string]any{"type": "control_response", "response": map[string]any{
 					"subtype": "success", "request_id": env.RequestID, "response": map[string]any{},
 				}})
+				// Like the real CLI: a stopped turn ends with its result; a
+				// background task outlives it.
+				if taskTurnOpen {
+					taskTurnOpen = false
+					_ = enc.Encode(result(sessionID, ""))
+				}
 				_ = out.Flush()
 			case "stop_task":
 				stopTask(enc, out, sessionID, env.RequestID, env.Request.TaskID)
@@ -371,9 +377,22 @@ func emitQuestion(enc *json.Encoder, out *bufio.Writer, sessionID, prompt string
 		})
 }
 
-// emitTaskTurn starts a background subagent task and leaves the turn running
-// until the host sends a stop_task control_request.
+// taskTurnOpen is set while a subagent turn runs.
+var taskTurnOpen bool
+
+// emitTaskTurn starts a subagent task (in the background unless the prompt
+// says "foreground") and leaves the turn running until the host stops the
+// task or the turn.
 func emitTaskTurn(enc *json.Encoder, out *bufio.Writer, sessionID, prompt string) {
+	taskTurnOpen = true
+	started := map[string]any{
+		"type": "system", "subtype": "task_started", "session_id": sessionID,
+		"task_id": "task-1", "description": "work: " + prompt,
+		"subagent_type": "general-purpose", "task_type": "local_agent",
+	}
+	if !strings.Contains(strings.ToLower(prompt), "foreground") {
+		started["is_backgrounded"] = true
+	}
 	msgID := "msg_" + strconv.Itoa(nextSeq())
 	toolUseID := "toolu_task_" + strconv.Itoa(nextSeq())
 	_ = enc.Encode(map[string]any{
@@ -391,16 +410,14 @@ func emitTaskTurn(enc *json.Encoder, out *bufio.Writer, sessionID, prompt string
 			map[string]any{"type": "tool_use", "id": toolUseID, "name": "Task", "input": map[string]any{"description": "work: " + prompt}},
 		}},
 	})
-	_ = enc.Encode(map[string]any{
-		"type": "system", "subtype": "task_started", "session_id": sessionID,
-		"task_id": "task-1", "tool_use_id": toolUseID, "description": "work: " + prompt,
-		"subagent_type": "general-purpose", "task_type": "local_agent", "is_backgrounded": true,
-	})
+	started["tool_use_id"] = toolUseID
+	_ = enc.Encode(started)
 	_ = out.Flush()
 }
 
 // stopTask answers a stop_task control request and ends the background task.
 func stopTask(enc *json.Encoder, out *bufio.Writer, sessionID, requestID, taskID string) {
+	taskTurnOpen = false
 	if taskID == "" {
 		taskID = "task-1"
 	}

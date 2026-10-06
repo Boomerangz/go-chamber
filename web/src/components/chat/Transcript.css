@@ -155,3 +155,4 @@
   .row .item .msg-copy { display: none; }
   .row .item.actions-shown .msg-copy { display: flex; }
 }
+.item.subagent.state-stopped .subagent-items { border-left-style: solid; }

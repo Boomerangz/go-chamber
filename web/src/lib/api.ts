@@ -59,7 +59,7 @@ export type ItemKind =
   | 'hook'
   | 'decision'
 
-export type ItemStatus = 'pending' | 'streaming' | 'completed' | 'failed'
+export type ItemStatus = 'pending' | 'streaming' | 'completed' | 'failed' | 'stopped'
 
 export interface Item {
   id: string

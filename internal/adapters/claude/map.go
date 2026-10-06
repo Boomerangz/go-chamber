@@ -3,6 +3,7 @@ package claude
 import (
 	"encoding/json"
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -628,9 +629,12 @@ func (m *Mapper) mapTaskNotification(raw *rawMessage) []domain.Event {
 		item.Text = raw.Summary
 	}
 	if !item.Status.Terminal() {
-		if raw.Status == "completed" {
+		switch raw.Status {
+		case "completed":
 			_ = item.SetStatus(domain.ItemCompleted)
-		} else {
+		case "stopped":
+			_ = item.SetStatus(domain.ItemStopped)
+		default:
 			_ = item.SetStatus(domain.ItemFailed)
 		}
 	}
@@ -653,7 +657,42 @@ func (m *Mapper) mapResult(raw *rawMessage) []domain.Event {
 		res.InputTokens = raw.Usage.InputTokens
 		res.OutputTokens = raw.Usage.OutputTokens
 	}
-	return []domain.Event{{SessionID: m.session, Type: domain.EventTurnEnded, Result: res}}
+	events := m.stopUnfinished()
+	return append(events, domain.Event{SessionID: m.session, Type: domain.EventTurnEnded, Result: res})
+}
+
+// stopUnfinished stops what the ending turn left open (a turn the owner
+// stopped leaves its tools and subagents without a result). A background
+// task outlives the turn, and so do its steps.
+func (m *Mapper) stopUnfinished() []domain.Event {
+	ids := make([]domain.ItemID, 0, len(m.items))
+	for id, item := range m.items {
+		if !item.Status.Terminal() && !m.outlivesTurn(item) {
+			ids = append(ids, id)
+		}
+	}
+	slices.Sort(ids)
+	var events []domain.Event
+	for _, id := range ids {
+		item := m.items[id]
+		_ = item.SetStatus(domain.ItemStopped)
+		events = append(events, m.updated(item)...)
+	}
+	return events
+}
+
+// outlivesTurn tells a background task, or a step of one.
+func (m *Mapper) outlivesTurn(item *domain.Item) bool {
+	for seen := 0; item != nil && seen < len(m.items); seen++ {
+		if item.Kind == domain.ItemSubagent && (m.background[item.ID] || inputBool(item.Input, "run_in_background")) {
+			return true
+		}
+		if item.ParentItemID == "" {
+			return false
+		}
+		item = m.items[item.ParentItemID]
+	}
+	return false
 }
 
 func toolKind(name string) domain.ItemKind {

@@ -440,8 +440,43 @@ func TestMapBackgroundTaskLifecycle(t *testing.T) {
 	if sub == nil {
 		t.Fatalf("no subagent in %+v", evs)
 	}
-	if sub.AgentID != "task-1" || sub.Text != "stopped by user" || sub.Status != domain.ItemFailed {
+	if sub.AgentID != "task-1" || sub.Text != "stopped by user" || sub.Status != domain.ItemStopped {
 		t.Fatalf("subagent = %+v", sub)
+	}
+}
+
+// A turn that ends (stopped by the owner) under an unfinished tool or
+// subagent leaves nothing reading "running": they are stopped. A background
+// task outlives the turn and stays open, with its steps.
+func TestMapResultStopsWhatTheTurnLeftOpen(t *testing.T) {
+	m := NewMapper("s1")
+	m.SetTurn("t1")
+	feed(t, m,
+		`{"type":"assistant","session_id":"s1","parent_tool_use_id":null,"message":{"id":"msg_1","content":[{"type":"tool_use","id":"toolu_fg","name":"Task","input":{"description":"fg"}},{"type":"tool_use","id":"toolu_bg","name":"Task","input":{"description":"bg","run_in_background":true}}]}}`,
+		`{"type":"system","subtype":"task_started","session_id":"s1","task_id":"task-fg","tool_use_id":"toolu_fg"}`,
+		`{"type":"assistant","session_id":"s1","parent_tool_use_id":"toolu_fg","message":{"id":"msg_2","content":[{"type":"tool_use","id":"toolu_sh","name":"Bash","input":{"command":"sleep 9"}}]}}`,
+		`{"type":"assistant","session_id":"s1","parent_tool_use_id":"toolu_bg","message":{"id":"msg_3","content":[{"type":"tool_use","id":"toolu_bgsh","name":"Bash","input":{"command":"sleep 9"}}]}}`,
+		`{"type":"user","session_id":"s1","parent_tool_use_id":null,"message":{"content":[{"type":"tool_result","tool_use_id":"toolu_bg","content":"Async agent launched"}]}}`,
+	)
+	evs := feed(t, m, `{"type":"result","subtype":"error_during_execution","is_error":true,"session_id":"s1"}`)
+	if evs[len(evs)-1].Type != domain.EventTurnEnded {
+		t.Fatalf("last event = %+v", evs[len(evs)-1])
+	}
+	stopped := map[domain.ItemKind]int{}
+	for _, ev := range evs {
+		if ev.Item != nil {
+			if ev.Item.Status != domain.ItemStopped {
+				t.Fatalf("item %+v not stopped", ev.Item)
+			}
+			stopped[ev.Item.Kind]++
+		}
+	}
+	if len(stopped) != 2 || stopped[domain.ItemSubagent] != 1 || stopped[domain.ItemCommand] != 1 {
+		t.Fatalf("stopped = %v (events %+v)", stopped, evs)
+	}
+	// Nothing is stopped twice.
+	if again := feed(t, m, `{"type":"result","subtype":"success","session_id":"s1"}`); len(again) != 1 {
+		t.Fatalf("second result = %+v", again)
 	}
 }
 

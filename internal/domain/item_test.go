@@ -149,3 +149,17 @@ func TestDecisionValid(t *testing.T) {
 		t.Error("unknown decision must be invalid")
 	}
 }
+
+func TestItemStoppedIsTerminal(t *testing.T) {
+	it, _ := NewItem("i1", "s1", "t1", "", ItemSubagent)
+	_ = it.SetStatus(ItemStreaming)
+	if err := it.SetStatus(ItemStopped); err != nil {
+		t.Fatalf("streaming->stopped: %v", err)
+	}
+	if !it.Status.Terminal() {
+		t.Fatal("stopped must be terminal")
+	}
+	if err := it.SetStatus(ItemCompleted); !errors.Is(err, ErrInvalidItemTransition) {
+		t.Fatalf("stopped->completed: want ErrInvalidItemTransition, got %v", err)
+	}
+}

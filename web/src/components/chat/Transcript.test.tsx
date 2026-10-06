@@ -359,6 +359,16 @@ describe('finished subagents', () => {
     expect(fold.querySelector('.item-output-preview')).toHaveTextContent('last: Found two.')
   })
 
+  it('says a subagent its turn left unfinished was stopped, and offers no Stop', () => {
+    const { container } = show(item({ id: 'p', kind: 'subagent', name: 'Task', status: 'stopped', agentId: 'task-1' }), {}, [
+      item({ id: 'c', kind: 'command', status: 'stopped', parentItemId: 'p', input: { command: 'sleep 9' } }),
+    ])
+    expect(screen.queryByRole('button', { name: 'Stop' })).toBeNull()
+    expect(container.querySelector('.subagent-head .stop-tag')).toHaveTextContent('stopped')
+    expect(container.querySelector('details.subagent-steps')).not.toBeNull()
+    expect(container.querySelector('.item.command .stop-tag')).toHaveTextContent('stopped')
+  })
+
   it('keeps the steps of a running subagent open', () => {
     const { container } = show(item({ id: 'p', kind: 'subagent', name: 'Task', status: 'streaming' }), {}, steps)
     expect(container.querySelector('details.subagent-steps')).toBeNull()
