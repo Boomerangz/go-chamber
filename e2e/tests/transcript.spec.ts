@@ -47,12 +47,12 @@ test('takes a sent message back into the composer', async ({ page }, info) => {
   await expect(page.locator('.item.assistant', { hasText: 'echo: hello there' })).toBeVisible()
   if (info.project.name === 'mobile') {
     // No hover on a phone: the actions stay out of the way until a tap on the message.
-    await expect(message.getByRole('button', { name: 'Edit' })).toBeHidden()
+    await expect(message.getByRole('button', { name: 'Reuse' })).toBeHidden()
     await message.locator('.user-text').click()
   } else {
     await message.hover()
   }
-  await message.getByRole('button', { name: 'Edit' }).click()
+  await message.getByRole('button', { name: 'Reuse' }).click()
   await expect(page.getByLabel('Message')).toHaveValue('hello there')
 })
 

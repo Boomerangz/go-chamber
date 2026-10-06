@@ -31,7 +31,8 @@ export interface RowProps {
   // onRetry sends the failed turn's message again; given only to the error
   // that ends the transcript.
   onRetry?: () => Promise<unknown> | void
-  // onEdit puts a message of the owner's back into the composer.
+  // onEdit puts a message of the owner's into the composer to send again
+  // ("Reuse"): ahead of nothing, or after the draft already there.
   onEdit?: (text: string) => void
   // result is the turn result when this row ends a finished turn.
   result?: TurnResult
@@ -272,8 +273,13 @@ function UserMessage({ item, onEdit }: { item: Item; onEdit?: (text: string) => 
         <div className="msg-actions">
           <CopyButton text={text} label="Copy" className="msg-action" />
           {onEdit && (
-            <button type="button" className="btn btn-ghost btn-xs msg-action" onClick={() => onEdit(text)}>
-              Edit
+            <button
+              type="button"
+              className="btn btn-ghost btn-xs msg-action"
+              title="Put this message in the composer"
+              onClick={() => onEdit(text)}
+            >
+              Reuse
             </button>
           )}
         </div>

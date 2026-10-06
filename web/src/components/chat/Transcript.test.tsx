@@ -134,7 +134,7 @@ describe('messages', () => {
     fireEvent.click(screen.getByText('hello'))
     expect(msg).toHaveClass('actions-shown')
     // A tap on an action does its job and leaves the row as it is.
-    fireEvent.click(screen.getByRole('button', { name: 'Edit' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Reuse' }))
     expect(msg).toHaveClass('actions-shown')
     fireEvent.click(screen.getByText('hello'))
     expect(msg).not.toHaveClass('actions-shown')
@@ -180,13 +180,15 @@ describe('messages', () => {
     show(item({ kind: 'user_message', text: 'fix the bug' }), { onEdit })
     await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Copy' })))
     expect(writeText).toHaveBeenCalledWith('fix the bug')
-    fireEvent.click(screen.getByRole('button', { name: 'Edit' }))
+    // It puts the message in the composer to send again; it edits nothing.
+    expect(screen.getByRole('button', { name: 'Reuse' })).toHaveAttribute('title', 'Put this message in the composer')
+    fireEvent.click(screen.getByRole('button', { name: 'Reuse' }))
     expect(onEdit).toHaveBeenCalledWith('fix the bug')
   })
 
   it('offers no edit without a composer and no actions for an empty message', () => {
     const { container, rerender, props } = show(item({ kind: 'user_message', text: 'hi' }))
-    expect(screen.queryByRole('button', { name: 'Edit' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Reuse' })).toBeNull()
     rerender(<ol><Row {...props} onEdit={vi.fn()} node={{ item: item({ kind: 'user_message', text: '  ', images: ['img1'] }), children: [] }} /></ol>)
     expect(container.querySelector('.msg-actions')).toBeNull()
   })

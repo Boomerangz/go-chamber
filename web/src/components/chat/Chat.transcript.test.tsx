@@ -92,11 +92,11 @@ describe('transcript hook-ups', () => {
 
   it('takes a message back into the composer, after a draft already there', () => {
     setup(chatOf([item('u', 'user_message', { text: 'first try' })]))
-    fireEvent.click(screen.getByRole('button', { name: 'Edit' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Reuse' }))
     expect(box().value).toBe('first try')
     expect(box()).toHaveFocus()
     fireEvent.change(box(), { target: { value: 'draft' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Edit' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Reuse' }))
     expect(box().value).toBe('draft\n\nfirst try')
   })
 
