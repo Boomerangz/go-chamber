@@ -14,6 +14,7 @@ import { Row } from './Transcript'
 import { isMac, matches, useMedia } from './useMedia'
 import { useAnnouncement } from './useAnnouncement'
 import { useStickToBottom } from './useStickToBottom'
+import { SENT_HOLD_MS, useLiveDropped } from './useLiveDropped'
 import { beginAgentView, endAgentView, recordAgentCommit } from '../../lib/diagnostics'
 import { SessionFiles } from '../../lib/files'
 import type { RequestAnswerInput, SessionStatus, TurnResult } from '../../lib/api'
@@ -36,9 +37,6 @@ const STARTING_MS = 8000
 // A sent message waits for the agent to record it; past this, stop showing
 // it as on its way (the turn's own events tell what happened).
 const ECHO_MS = 30_000
-// A stop the agent hasn't answered in this long stops looking busy, so it
-// can be pressed again.
-const STOP_HOLD_MS = 10_000
 // Past this many lines the composer says how long the message is.
 const LONG_DRAFT_LINES = 20
 
@@ -71,7 +69,7 @@ export default function Chat() {
   const history = useSessionStore((s) => s.history)
   const session = useSessionStore((s) => s.sessions.find((x) => x.id === s.activeId))
   const sessionsStatus = useSessionStore((s) => s.sessionsStatus)
-  const connection = useSessionStore((s) => s.connection)
+  const dropped = useLiveDropped()
   const send = useSessionStore((s) => s.send)
   const steer = useSessionStore((s) => s.steer)
   const interrupt = useSessionStore((s) => s.interrupt)
@@ -226,7 +224,7 @@ export default function Chat() {
   const [stopSent, setStopSent] = useState<TurnMark | null>(null)
   if (stopHeld && !sameMark(stopHeld, mark)) setStopHeld(null)
   if (stopSent && !sameMark(stopSent, mark)) setStopSent(null)
-  if (stopHeld && sameMark(stopHeld, mark) && connection !== 'online') {
+  if (stopHeld && sameMark(stopHeld, mark) && dropped) {
     setStopSent(stopHeld)
     setStopHeld(null)
   }
@@ -235,7 +233,7 @@ export default function Chat() {
     const timer = setTimeout(() => {
       setStopSent(stopHeld)
       setStopHeld(null)
-    }, STOP_HOLD_MS)
+    }, SENT_HOLD_MS)
     return () => clearTimeout(timer)
   }, [stopHeld])
   const [stop, stopPending] = usePending(async () => {
@@ -360,7 +358,7 @@ export default function Chat() {
             since={turnStart}
             waiting={Object.keys(chat.requests).length > 0}
             streaming={streaming}
-            live={connection === 'online'}
+            live={!dropped}
           />
         )}
         <AnimatePresence initial={false}>

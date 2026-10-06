@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { Session } from '../../lib/api'
 import { usePending } from '../../lib/pending'
+import { SENT_HOLD_MS, useLiveDropped } from './useLiveDropped'
 
 const interruptionText: Record<string, string> = {
   crashed: 'the agent process exited unexpectedly',
@@ -22,8 +23,31 @@ export default function InterruptedBanner({
   const reason = session.interruption?.reason
   const after = session.interruption?.resumeAfter
   const resets = after && !after.startsWith('0001') ? new Date(after) : undefined
-  // A continued turn makes the banner go; until then the button stays busy.
-  const [resume, continuing] = usePending(onContinue, { holdOnSuccess: true })
+  // A continued turn makes the banner go; until then the button stays busy,
+  // but not forever: with the agent quiet or the live socket down it lets go
+  // and says the continue was sent.
+  const [resume, continuing] = usePending(onContinue)
+  const [held, setHeld] = useState(false)
+  const [sent, setSent] = useState(false)
+  const dropped = useLiveDropped()
+  if (held && dropped) {
+    setHeld(false)
+    setSent(true)
+  }
+  useEffect(() => {
+    if (!held) return
+    const timer = setTimeout(() => {
+      setHeld(false)
+      setSent(true)
+    }, SENT_HOLD_MS)
+    return () => clearTimeout(timer)
+  }, [held])
+  const busy = continuing || held
+  const run = async () => {
+    if (busy) return
+    setSent(false)
+    if (await resume()) setHeld(true)
+  }
   // The checkbox shows the owner's choice at once and reverts if it isn't saved.
   const [saving, setSaving] = useState<boolean | null>(null)
   const autoContinue = saving ?? !!session.autoContinue
@@ -58,8 +82,9 @@ export default function InterruptedBanner({
               continue after reset
             </label>
           )}
-          <button type="button" className="btn" aria-busy={continuing} onClick={() => void resume()}>
-            {continuing ? 'Continuing…' : 'Continue'}
+          {sent && <span className="composer-note">sent · waiting for agent</span>}
+          <button type="button" className="btn" aria-busy={busy} onClick={() => void run()}>
+            {busy ? 'Continuing…' : 'Continue'}
           </button>
         </span>
       )}

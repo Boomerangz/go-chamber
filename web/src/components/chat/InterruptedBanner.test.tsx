@@ -1,8 +1,19 @@
 import { act, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import InterruptedBanner from './InterruptedBanner'
 import type { Session } from '../../lib/api'
+import { resetStore, useSessionStore } from '../../stores/session'
+
+beforeEach(() => {
+  vi.stubGlobal('WebSocket', undefined)
+  resetStore()
+  useSessionStore.setState({ connection: 'online' })
+})
+afterEach(() => {
+  vi.useRealTimers()
+  vi.unstubAllGlobals()
+})
 
 const base: Session = { id: 's1', agent: 'claude', cwd: '/p', status: 'interrupted', nativeId: 'n1' }
 
@@ -77,5 +88,23 @@ describe('InterruptedBanner', () => {
     await act(async () => done(false))
     expect(toggle).not.toBeChecked()
     expect(toggle).not.toHaveAttribute('aria-busy')
+  })
+
+  it('lets go of "Continuing…" when the agent stays quiet, saying it was sent', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    setup({ ...base, interruption: { reason: 'crashed' } })
+    await userEvent.click(screen.getByRole('button', { name: 'Continue' }))
+    expect(screen.getByRole('button', { name: 'Continuing…' })).toBeInTheDocument()
+    act(() => vi.advanceTimersByTime(10_000))
+    expect(screen.getByRole('button', { name: 'Continue' })).not.toHaveAttribute('aria-busy', 'true')
+    expect(screen.getByText('sent · waiting for agent')).toBeInTheDocument()
+  })
+
+  it('lets go at once when the live connection drops', async () => {
+    setup({ ...base, interruption: { reason: 'crashed' } })
+    await userEvent.click(screen.getByRole('button', { name: 'Continue' }))
+    act(() => useSessionStore.setState({ connection: 'offline' }))
+    expect(screen.getByRole('button', { name: 'Continue' })).toBeInTheDocument()
+    expect(screen.getByText('sent · waiting for agent')).toBeInTheDocument()
   })
 })

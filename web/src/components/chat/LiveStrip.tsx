@@ -1,5 +1,6 @@
 import { useNow } from '../../lib/now'
 import { useSessionStore } from '../../stores/session'
+import { useLiveDropped } from './useLiveDropped'
 
 // LiveStrip sits above the composer while the live socket is down: what the
 // transcript shows may be stale, when the next attempt is, and a way to try
@@ -7,7 +8,7 @@ import { useSessionStore } from '../../stores/session'
 export default function LiveStrip() {
   const connection = useSessionStore((s) => s.connection)
   const nextRetryAt = useSessionStore((s) => s.nextRetryAt)
-  const dropped = connection === 'offline' || (connection === 'connecting' && nextRetryAt !== null)
+  const dropped = useLiveDropped()
   if (!dropped) return null
   return <Dropped retryAt={connection === 'offline' ? nextRetryAt : null} />
 }
