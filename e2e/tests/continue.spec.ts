@@ -50,6 +50,8 @@ test('keeps Claude answers after restarting its runtime', async ({ page }) => {
   await expect(page.locator('.chat-meta .status', { hasText: 'idle' })).toBeVisible()
 
   await page.getByLabel('permission mode').selectOption('bypassPermissions')
+  await page.getByRole('group', { name: /^confirm/ }).getByRole('button', { name: 'Switch' }).click()
+  await expect(page.locator('.chat-meta .no-approvals')).toBeVisible()
   await page.getByLabel('message').fill('after runtime restart')
   await page.getByRole('button', { name: 'Send' }).click()
   await expect(page.getByText('echo: after runtime restart')).toBeVisible()

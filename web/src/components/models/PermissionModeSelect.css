@@ -2,3 +2,6 @@
 .field.mode-danger { color: var(--bad); border-color: var(--bad); }
 .field.mode-danger option { color: var(--ink); }
 .reviewer .field[aria-busy='true'] { cursor: progress; }
+.mode-select { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+/* switching to a mode that never asks is confirmed in place */
+.mode-confirm { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 12.5px; color: var(--ink-2); }
