@@ -100,6 +100,7 @@
   .chat-tools .model-picker, .chat-tools .model-button { width: 100%; }
   .chat-tools .field-sm, .chat-tools .model-button { height: 36px; font-size: 16px; }
   .chat-tools .model-button { justify-content: space-between; }
+  .chat-tools .model-name { max-width: none; }
   .chat-tools .chat-fork { align-self: flex-start; margin-left: 74px; }
   .chat-heading-skeleton { height: 26px; gap: 0; }
   .chat-heading-skeleton .skeleton-line + .skeleton-line { display: none; }
