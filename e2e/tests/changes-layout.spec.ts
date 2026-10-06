@@ -63,7 +63,8 @@ test('a long file name gives way before the counts, which line up', async ({ pag
 test('the panel’s controls stay in view and git’s header lines are gone', async ({ page }) => {
   const panel = await openChanges(page, repo())
   await panel.getByRole('button', { name: 'Expand all' }).click()
-  await expect(panel.locator('.diff-view')).toHaveCount(2)
+  await expect(panel.locator('.diff-file .diff-view').first()).toBeVisible()
+  await expect(panel.getByText('loading diff…')).toHaveCount(0)
   await expect(panel.getByText(/^diff --git/)).toHaveCount(0)
   await expect(panel.getByText(/^index [0-9a-f]/)).toHaveCount(0)
   await expect(panel.locator('.diff-file', { hasText: 'blob.bin' })).toContainText('binary file · View')

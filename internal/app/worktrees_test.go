@@ -21,6 +21,10 @@ type fakeGit struct {
 	gotDir   string
 	gotBase  string
 	gotPath  string
+
+	commits    int
+	commitsErr error
+	gotCommits string
 }
 
 func (g *fakeGit) Toplevel(_ context.Context, dir string) (string, error) {
@@ -53,6 +57,11 @@ func (g *fakeGit) RemoveWorktree(_ context.Context, wt domain.Worktree, force bo
 func (g *fakeGit) Changes(_ context.Context, dir, base string) ([]FileChange, error) {
 	g.gotDir, g.gotBase = dir, base
 	return g.changes, g.chErr
+}
+
+func (g *fakeGit) Commits(_ context.Context, dir, base string) (int, error) {
+	g.gotCommits = dir + "|" + base
+	return g.commits, g.commitsErr
 }
 
 func (g *fakeGit) FileDiff(_ context.Context, dir, base, path string) (string, error) {

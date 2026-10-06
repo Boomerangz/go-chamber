@@ -268,7 +268,7 @@ function SessionDiffPanel({ sessionId }: { sessionId: string | null }) {
         </span>
       </header>
       {session?.worktree && (
-        <WorktreeBar session={session} worktree={session.worktree} changed={files.length} />
+        <WorktreeBar session={session} worktree={session.worktree} changed={files.length} commits={changes?.commits ?? 0} />
       )}
       {listError && (
         <LoadFailed onRetry={refresh}>{`Couldn’t load changes: ${listError}`}</LoadFailed>
@@ -467,7 +467,7 @@ function colour(text: string, tokens: ThemedToken[] | undefined): ReactNode {
   ))
 }
 
-function WorktreeBar({ session, worktree, changed }: { session: api.Session; worktree: api.Worktree; changed: number }) {
+function WorktreeBar({ session, worktree, changed, commits }: { session: api.Session; worktree: api.Worktree; changed: number; commits: number }) {
   const [confirming, setConfirming] = useState(false)
   // dirty: the server refused because of uncommitted changes the list
   // didn't show yet.
@@ -494,15 +494,23 @@ function WorktreeBar({ session, worktree, changed }: { session: api.Session; wor
   const losing = dirty || changed > 0
   return (
     <div className="worktree-bar">
-      <p>
-        Worktree on branch <code>{worktree.branch}</code>. Merge it with
-      </p>
-      <div className="merge-row">
-        <code className="merge-hint">{merge}</code>
-        <button type="button" className="btn btn-ghost btn-icon" aria-label="Copy merge command" title="Copy merge command" onClick={() => void copy(merge, 'merge command', 'copy-merge')}>
-          <Copy {...icon(14)} />
-        </button>
-      </div>
+      {commits > 0 ? (
+        <>
+          <p>
+            Branch <code>{worktree.branch}</code> · {commits} {commits === 1 ? 'commit' : 'commits'} to merge
+          </p>
+          <div className="merge-row">
+            <code className="merge-hint" title={merge}>{merge}</code>
+            <button type="button" className="btn btn-ghost btn-icon" aria-label="Copy merge command" title="Copy merge command" onClick={() => void copy(merge, 'merge command', 'copy-merge')}>
+              <Copy {...icon(14)} />
+            </button>
+          </div>
+        </>
+      ) : (
+        <p>
+          Worktree on branch <code>{worktree.branch}</code>, no commits yet: once it has some, they can be merged back.
+        </p>
+      )}
       {confirming || dirty ? (
         <div className="worktree-confirm" role="group" aria-label="Remove worktree?">
           <p className={losing ? 'worktree-dirty' : undefined}>

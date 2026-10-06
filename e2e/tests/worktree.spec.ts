@@ -36,8 +36,16 @@ test('works in a new worktree and shows its changes', async ({ page }, info) => 
   if (await bar.isVisible()) await bar.getByRole('button', { name: /^Changes/ }).click()
   else await page.getByRole('toolbar', { name: 'Dock' }).getByRole('button', { name: 'Changes' }).click()
   const panel = page.getByRole('region', { name: 'Changes' })
-  await expect(panel.getByText(`git -C ${repo} merge chamber/${branch}`)).toBeVisible()
+  // Nothing to merge until the branch has a commit.
+  await expect(panel.getByText(/no commits yet/)).toBeVisible()
+  await expect(panel.getByText(`git -C ${repo} merge chamber/${branch}`)).toHaveCount(0)
   await expect(panel.getByText('No changes')).toBeVisible()
+  writeFileSync(path.join(wt.path, 'first.txt'), 'one\n')
+  execFileSync('git', ['add', '.'], { cwd: wt.path, env })
+  execFileSync('git', ['commit', '-q', '-m', 'first'], { cwd: wt.path, env })
+  await panel.getByRole('button', { name: 'Refresh changes' }).click()
+  await expect(panel.getByText(`git -C ${repo} merge chamber/${branch}`)).toBeVisible()
+  await expect(panel.getByText(/1 commit to merge/)).toBeVisible()
 
   writeFileSync(path.join(wt.path, 'agent.txt'), 'from the agent\n')
   await panel.getByRole('button', { name: 'Refresh changes' }).click()

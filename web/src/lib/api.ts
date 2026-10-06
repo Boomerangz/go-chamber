@@ -503,6 +503,8 @@ export interface Changes {
   root?: string
   base?: string
   files: FileChange[]
+  // commits counts a worktree branch's commits since base.
+  commits?: number
 }
 
 export function createWorktreeSession(agent: AgentKind, cwd: string, branch: string, choice?: ModelChoice): Promise<Session> {

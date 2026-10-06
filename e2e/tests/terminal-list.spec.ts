@@ -43,6 +43,7 @@ test('diagnostics fit the terminal table on a laptop and fold idle shells into a
   const dir = fs.realpathSync(fs.mkdtempSync(`${os.tmpdir()}/gc-diag-`))
   await page.goto(`/?token=${token}`)
   const idle = await open(page, dir)
+  await page.reload()
   await page.getByRole('radio', { name: /^Terminal/ }).click()
   const panel = page.getByRole('region', { name: 'Terminals' })
   await panel.getByLabel('terminal directory').fill(dir)

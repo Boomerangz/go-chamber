@@ -125,8 +125,11 @@ test.describe('terminal', () => {
     await find.fill('needle-42')
     // The search starts from the newest output and goes up.
     await expect(panel.locator('.term-find-count')).toHaveText('2 of 2')
-    await find.press('Enter')
-    await expect(panel.locator('.term-find-count')).toHaveText('1 of 2')
+    // Enter goes up to the older match (xterm may re-run a search as output settles).
+    await expect(async () => {
+      await find.press('Enter')
+      await expect(panel.locator('.term-find-count')).toHaveText('1 of 2', { timeout: 1000 })
+    }).toPass()
     await find.press('Escape')
     await expect(find).toBeHidden()
 

@@ -40,6 +40,9 @@ type Changes struct {
 	Root  string       `json:"root,omitempty"`
 	Base  string       `json:"base,omitempty"`
 	Files []FileChange `json:"files"`
+	// Commits counts a worktree branch's commits since Base: until there is
+	// one, the branch has nothing to merge.
+	Commits int `json:"commits"`
 }
 
 // GitRepo is the git operations worktree sessions and the diff panel need.
@@ -54,6 +57,8 @@ type GitRepo interface {
 	Changes(ctx context.Context, dir, base string) ([]FileChange, error)
 	// FileDiff is the unified diff of one file in dir against base.
 	FileDiff(ctx context.Context, dir, base, path string) (string, error)
+	// Commits counts the commits on dir's HEAD since base.
+	Commits(ctx context.Context, dir, base string) (int, error)
 }
 
 // WorktreeSessions is the session manager subset worktrees need.
@@ -144,7 +149,13 @@ func (w *Worktrees) Changes(ctx context.Context, id domain.SessionID) (Changes, 
 	if err != nil {
 		return Changes{}, err
 	}
-	return Changes{Repository: true, Root: root, Base: base, Files: files}, nil
+	commits := 0
+	if snap.Worktree != nil {
+		if commits, err = w.cfg.Git.Commits(ctx, snap.Cwd, base); err != nil {
+			return Changes{}, err
+		}
+	}
+	return Changes{Repository: true, Root: root, Base: base, Files: files, Commits: commits}, nil
 }
 
 // FileDiff is the unified diff of one changed file of the session folder.

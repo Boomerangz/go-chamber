@@ -67,12 +67,22 @@ describe('DiffPanel', () => {
     await waitFor(() => expect(api.getChanges).toHaveBeenCalledTimes(2))
   })
 
+  it('says a branch without commits has nothing to merge yet', async () => {
+    vi.mocked(api.getChanges).mockResolvedValue({ repository: true, base: 'abc', files: [], commits: 0 })
+    useSessionStore.setState({ sessions: [{ id: 's1', agent: 'claude', cwd: worktree.path, status: 'idle', worktree }] })
+    render(<DiffPanel sessionId="s1" />)
+    expect(await screen.findByText(/no commits yet/)).toBeInTheDocument()
+    expect(screen.queryByText(/git -C/)).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Copy merge command' })).toBeNull()
+  })
+
   it('shows the merge hint and removes a clean worktree', async () => {
-    vi.mocked(api.getChanges).mockResolvedValue({ repository: true, base: 'abc', files: [] })
+    vi.mocked(api.getChanges).mockResolvedValue({ repository: true, base: 'abc', files: [], commits: 2 })
     vi.mocked(api.removeWorktree).mockResolvedValue({ id: 's1', agent: 'claude', cwd: worktree.path, status: 'idle' })
     useSessionStore.setState({ sessions: [{ id: 's1', agent: 'claude', cwd: worktree.path, status: 'idle', worktree }] })
     render(<DiffPanel sessionId="s1" />)
-    expect(await screen.findByText('git -C /src/app merge chamber/fix')).toBeInTheDocument()
+    expect(await screen.findByText('git -C /src/app merge chamber/fix')).toHaveAttribute('title', 'git -C /src/app merge chamber/fix')
+    expect(screen.getByText(/2 commits to merge/)).toBeInTheDocument()
     await userEvent.click(screen.getByRole('button', { name: 'Remove worktree' }))
     expect(api.removeWorktree).not.toHaveBeenCalled()
     expect(screen.getByText(/remove folder \/wt\/app\/fix\? branch chamber\/fix is kept/)).toBeInTheDocument()
@@ -105,7 +115,7 @@ describe('DiffPanel', () => {
   it('copies the merge command', async () => {
     const writeText = vi.fn(() => Promise.resolve())
     vi.stubGlobal('navigator', { ...navigator, clipboard: { writeText } })
-    vi.mocked(api.getChanges).mockResolvedValue({ repository: true, base: 'abc', files: [] })
+    vi.mocked(api.getChanges).mockResolvedValue({ repository: true, base: 'abc', files: [], commits: 1 })
     useSessionStore.setState({ sessions: [{ id: 's1', agent: 'claude', cwd: worktree.path, status: 'idle', worktree }] })
     render(<DiffPanel sessionId="s1" />)
     await userEvent.click(await screen.findByRole('button', { name: 'Copy merge command' }))
