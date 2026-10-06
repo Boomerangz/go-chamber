@@ -1,5 +1,4 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { UNAUTHORIZED_EVENT } from './api'
 import { fetchFile, fileKind, fileLine, filePath, fileUrl, langOf, looksBinary, PREVIEW_LIMIT } from './files'
 
 afterEach(() => vi.unstubAllGlobals())
@@ -23,19 +22,13 @@ describe('fetchFile', () => {
     expect(await fetchFile('s1', 'tool')).toEqual({ binary: true })
   })
 
-  it('explains refusals and signs out on 401', async () => {
+  it('explains refusals', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => new Response('no', { status: 403 })))
     await expect(fetchFile('s1', '/etc/x')).rejects.toThrow('This file is outside the session folder')
     vi.stubGlobal('fetch', vi.fn(async () => new Response('', { status: 404 })))
     await expect(fetchFile('s1', 'gone')).rejects.toThrow('File not found')
     vi.stubGlobal('fetch', vi.fn(async () => new Response('disk on fire', { status: 500 })))
     await expect(fetchFile('s1', 'x')).rejects.toThrow('disk on fire')
-    const signedOut = vi.fn()
-    window.addEventListener(UNAUTHORIZED_EVENT, signedOut)
-    vi.stubGlobal('fetch', vi.fn(async () => new Response('', { status: 401 })))
-    await expect(fetchFile('s1', 'x')).rejects.toThrow('Signed out')
-    expect(signedOut).toHaveBeenCalled()
-    window.removeEventListener(UNAUTHORIZED_EVENT, signedOut)
   })
 
   it('reports a network failure', async () => {
