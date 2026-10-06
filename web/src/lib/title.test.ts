@@ -14,4 +14,9 @@ describe('attentionTitle', () => {
     expect(attentionTitle({ pending: 2, running: true, session: 'fix login' })).toBe('(2) ● fix login · go-chamber')
     expect(attentionTitle({ pending: 0, running: true })).toBe('● go-chamber')
   })
+
+  it('counts sessions that changed while the owner was away', () => {
+    expect(attentionTitle({ pending: 1, running: false, unseen: 2, session: 'fix login' })).toBe('(1) 2 new · fix login · go-chamber')
+    expect(attentionTitle({ pending: 0, running: true, unseen: 1 })).toBe('● 1 new · go-chamber')
+  })
 })

@@ -11,7 +11,7 @@ test('the app is installable and its service worker runs', async ({ page, reques
   }
 
   await page.goto(`/?token=${token}`)
-  await expect(page.getByText('online')).toBeVisible()
+  await expect(page.getByRole('status', { name: 'online' })).toBeVisible()
   const scope = await page.evaluate(async () => (await navigator.serviceWorker.ready).scope)
   expect(scope).toMatch(/\/$/)
   await expect(page.getByRole('button', { name: 'Notifications' })).toBeVisible()

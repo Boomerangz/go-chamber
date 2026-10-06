@@ -6,6 +6,7 @@ import { resetNotices, useNotices } from '../../stores/notices'
 import NotifyToggle from './NotifyToggle'
 
 vi.mock('../../lib/push', () => ({
+  WorkerUnavailable: class WorkerUnavailable extends Error {},
   pushSupported: vi.fn(() => true),
   pushEnabled: vi.fn(async () => false),
   enablePush: vi.fn(async () => {}),
@@ -22,6 +23,15 @@ describe('NotifyToggle', () => {
     vi.mocked(push.pushSupported).mockReturnValueOnce(false)
     const { container } = render(<NotifyToggle />)
     expect(container).toBeEmptyDOMElement()
+  })
+
+  it('stays off and says why when the service worker never started', async () => {
+    vi.mocked(push.pushEnabled).mockRejectedValueOnce(new push.WorkerUnavailable())
+    render(<NotifyToggle />)
+    const button = await screen.findByRole('button', { name: 'Notifications' })
+    await waitFor(() => expect(button).toHaveAttribute('title', 'Notifications unavailable'))
+    expect(button).toHaveAttribute('aria-pressed', 'false')
+    expect(button).toBeDisabled()
   })
 
   it('turns notifications on and off', async () => {

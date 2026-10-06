@@ -15,8 +15,36 @@ export function decodeKey(key: string): Uint8Array<ArrayBuffer> {
   return Uint8Array.from(atob(b64), (c) => c.charCodeAt(0))
 }
 
+// WorkerUnavailable means the service worker never started (its
+// registration failed), so this browser can't receive pushes here.
+export class WorkerUnavailable extends Error {
+  constructor() {
+    super("Notifications are unavailable: the service worker didn't start")
+  }
+}
+
+const READY_MS = 3000
+
+// ready is the active service worker, or WorkerUnavailable after a wait:
+// serviceWorker.ready never settles when registration failed.
+function ready(): Promise<ServiceWorkerRegistration> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new WorkerUnavailable()), READY_MS)
+    navigator.serviceWorker.ready.then(
+      (reg) => {
+        clearTimeout(timer)
+        resolve(reg)
+      },
+      (err: unknown) => {
+        clearTimeout(timer)
+        reject(err instanceof Error ? err : new Error(String(err)))
+      },
+    )
+  })
+}
+
 async function subscription(): Promise<PushSubscription | null> {
-  const reg = await navigator.serviceWorker.ready
+  const reg = await ready()
   return reg.pushManager.getSubscription()
 }
 
@@ -38,7 +66,7 @@ async function call(method: string, path: string, body?: unknown): Promise<Respo
 export async function enablePush(): Promise<void> {
   if ((await Notification.requestPermission()) !== 'granted') throw new Error('Notifications are not allowed in this browser')
   const { key } = (await (await call('GET', '/api/push/key')).json()) as { key: string }
-  const reg = await navigator.serviceWorker.ready
+  const reg = await ready()
   const sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: decodeKey(key) })
   await call('POST', '/api/push/subscriptions', sub.toJSON())
 }

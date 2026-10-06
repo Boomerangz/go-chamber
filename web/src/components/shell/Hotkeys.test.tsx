@@ -9,6 +9,7 @@ vi.mock('../../lib/api', async (orig) => ({
 }))
 
 import Hotkeys from './Hotkeys'
+import { openShortcuts } from './overlay'
 import { resetStore, useSessionStore } from '../../stores/session'
 import { useLayoutStore } from '../../stores/layout'
 import { isMac } from '../../lib/hotkeys'
@@ -81,4 +82,62 @@ describe('Hotkeys', () => {
     await userEvent.keyboard(isMac ? '{Meta>}b{/Meta}' : '{Control>}b{/Control}')
     expect(useLayoutStore.getState().sidebar).toBe(true)
   })
+
+  it('leaves Focus first when / or n targets the hidden sidebar', async () => {
+    useLayoutStore.setState({ focus: true })
+    render(<Hotkeys />)
+    await userEvent.keyboard('/')
+    expect(useLayoutStore.getState().focus).toBe(false)
+    useLayoutStore.setState({ focus: true })
+    await userEvent.keyboard('n')
+    expect(useLayoutStore.getState().focus).toBe(false)
+  })
+
+  it('keeps Focus when c targets the composer', async () => {
+    useLayoutStore.setState({ focus: true })
+    render(<Hotkeys />)
+    await userEvent.keyboard('c')
+    expect(useLayoutStore.getState().focus).toBe(true)
+  })
+
+  it('opens the shortcut list from the top bar button', () => {
+    render(<Hotkeys />)
+    act(() => openShortcuts())
+    expect(screen.getByRole('dialog', { name: 'Keyboard shortcuts' })).toBeInTheDocument()
+  })
 })
+
+describe('QuickSwitcher', () => {
+  async function openSwitcher() {
+    render(<Hotkeys />)
+    await userEvent.keyboard('{Control>}k{/Control}')
+    return screen.getByRole('combobox', { name: 'Go to' })
+  }
+
+  it('marks the matched letters and tags the open session', async () => {
+    useSessionStore.setState({ activeId: 'a' })
+    const input = await openSwitcher()
+    await userEvent.type(input, 'aph')
+    const option = screen.getAllByRole('option')[0]!
+    expect([...option.querySelectorAll('.switcher-title mark')].map((m) => m.textContent)).toEqual(['a', 'ph'])
+    expect(option).toHaveTextContent('current')
+  })
+
+  it('starts a new session in a folder from the list', async () => {
+    const createSession = vi.fn(async () => true)
+    useSessionStore.setState({ createSession })
+    const input = await openSwitcher()
+    await userEvent.type(input, 'new codex')
+    await userEvent.click(screen.getByRole('option', { name: /New Codex session in b/ }))
+    expect(createSession).toHaveBeenCalledWith('codex', '/w/b')
+  })
+
+  it('says sessions are loading, then that there are none', async () => {
+    useSessionStore.setState({ sessions: [], sessionsStatus: 'loading' })
+    await openSwitcher()
+    expect(screen.getByText('loading sessions…')).toBeInTheDocument()
+    act(() => useSessionStore.setState({ sessionsStatus: 'ready' }))
+    expect(screen.getByText('No sessions yet')).toBeInTheDocument()
+  })
+})
+

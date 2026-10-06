@@ -2,3 +2,8 @@
 .picker-error { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: 0; }
 /* touch screens that also report hover still get the Select buttons */
 @media (pointer: coarse) { .folder-item .pick { opacity: 1; } }
+.recent-folder { display: inline-flex; align-items: center; }
+.recent-folder .recent-open { width: 24px; height: 24px; color: var(--ink-3); }
+.picker-note { margin: 0; font-family: var(--font-mono); font-size: 12px; color: var(--ink-3); }
+.folder-row[aria-busy='true'] .folder-name::after { content: ' …'; color: var(--ink-3); }
+@media (max-width: 720px) { .recent-folder .recent-open { width: 36px; height: 36px; } }

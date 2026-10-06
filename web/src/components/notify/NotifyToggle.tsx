@@ -1,6 +1,6 @@
 import { Bell, BellOff } from 'lucide-react'
 import { useEffect, useState } from 'react'
-import { disablePush, enablePush, pushEnabled, pushSupported } from '../../lib/push'
+import { disablePush, enablePush, pushEnabled, pushSupported, WorkerUnavailable } from '../../lib/push'
 import { fail } from '../../stores/notices'
 import { icon } from '../icon'
 import './toggles.css'
@@ -13,9 +13,15 @@ export default function NotifyToggle() {
   // showing "off" first and flipping to "on" reads as a glitch.
   const [on, setOn] = useState<boolean | null>(null)
   const [busy, setBusy] = useState(false)
+  // unavailable is set when the service worker never started.
+  const [unavailable, setUnavailable] = useState(false)
 
   useEffect(() => {
-    if (supported) void pushEnabled().then(setOn, () => setOn(false))
+    if (!supported) return
+    void pushEnabled().then(setOn, (err: unknown) => {
+      setOn(false)
+      if (err instanceof WorkerUnavailable) setUnavailable(true)
+    })
   }, [supported])
 
   if (!supported) return null
@@ -25,6 +31,7 @@ export default function NotifyToggle() {
       await (on ? disablePush() : enablePush())
       setOn(!on)
     } catch (err) {
+      if (err instanceof WorkerUnavailable) setUnavailable(true)
       fail(on ? "Couldn't turn notifications off" : "Couldn't turn notifications on", err, 'notify-toggle')
     } finally {
       setBusy(false)
@@ -37,8 +44,8 @@ export default function NotifyToggle() {
       aria-label="Notifications"
       aria-pressed={on === true}
       aria-busy={busy || undefined}
-      title={on ? 'Notifications are on' : 'Notify me when an agent needs me'}
-      disabled={busy || on === null}
+      title={unavailable ? 'Notifications unavailable' : on ? 'Notifications are on' : 'Notify me when an agent needs me'}
+      disabled={busy || on === null || unavailable}
       onClick={() => void toggle()}
     >
       {on ? <Bell {...icon(16)} /> : <BellOff {...icon(16)} />}

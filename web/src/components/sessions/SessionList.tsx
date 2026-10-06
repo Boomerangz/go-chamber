@@ -18,6 +18,7 @@ import type { SessionNode } from '../../lib/tree'
 import { settle } from '../../lib/motion'
 import { useJustFinished } from '../../lib/finished'
 import { useNow } from '../../lib/now'
+import { isUnseen, useVisits, type Visits } from '../../lib/visits'
 import { useSessionStore } from '../../stores/session'
 import { LoadFailed, LoadingLine, Skeleton } from '../ui/Loading'
 import SessionMenu from './SessionMenu'
@@ -33,11 +34,13 @@ export interface SessionListProps {
   agent?: AgentKind
   // creating disables the "+" buttons while a session is starting.
   creating?: boolean
+  // creatingIn is the folder whose "+" started it, marked busy.
+  creatingIn?: string | null
 }
 
 // SessionList shows sessions grouped by project folder. Each group is
 // collapsed, shows its recent sessions, or everything with time dividers.
-export default function SessionList({ onCreateIn, agent = 'claude', creating = false }: SessionListProps) {
+export default function SessionList({ onCreateIn, agent = 'claude', creating = false, creatingIn = null }: SessionListProps) {
   const sessions = useSessionStore((s) => s.sessions)
   const activeId = useSessionStore((s) => s.activeId)
   const query = useSessionStore((s) => s.query)
@@ -51,6 +54,8 @@ export default function SessionList({ onCreateIn, agent = 'claude', creating = f
   const status = useSessionStore((s) => s.sessionsStatus)
   const loadSessions = useSessionStore((s) => s.loadSessions)
   const searchingMessages = useSessionStore((s) => s.searching)
+  const searchError = useSessionStore((s) => s.searchError)
+  const seen = useVisits()
   // Relative times ("4m ago") must not freeze.
   const now = useNow(60_000)
   const input = useRef<HTMLInputElement>(null)
@@ -90,6 +95,7 @@ export default function SessionList({ onCreateIn, agent = 'claude', creating = f
           type="search"
           aria-label="search sessions"
           placeholder="Search sessions"
+          title="Search sessions (/)"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={(e) => {
@@ -133,10 +139,15 @@ export default function SessionList({ onCreateIn, agent = 'claude', creating = f
             onCreateIn={onCreateIn}
             agent={agent}
             creating={creating}
+            creatingIn={creatingIn}
+            seen={seen}
             now={now}
           />
         ))}
         {searching && searchingMessages && <LoadingLine>searching messages…</LoadingLine>}
+        {searching && !searchingMessages && searchError && (
+          <LoadFailed onRetry={() => void searchMessages(query)}>{`Couldn't search messages: ${searchError}`}</LoadFailed>
+        )}
         {searching && (
           <MessageHits
             hits={searchHits}
@@ -145,7 +156,7 @@ export default function SessionList({ onCreateIn, agent = 'claude', creating = f
             onSelect={(id) => void selectSession(id)}
           />
         )}
-        {status === 'ready' && groups.length === 0 && (!searching || (!searchingMessages && searchHits.length === 0)) && (
+        {status === 'ready' && groups.length === 0 && (!searching || (!searchingMessages && !searchError && searchHits.length === 0)) && (
           <p className="sessions-empty">{searching ? 'No matching sessions' : 'No sessions yet'}</p>
         )}
       </div>
@@ -164,11 +175,19 @@ function Group(props: {
   onCreateIn: (cwd: string) => void
   agent: AgentKind
   creating: boolean
+  creatingIn: string | null
+  seen: Visits
   now: number
 }) {
-  const { group, mode, activeId } = props
+  const { mode, activeId } = props
+  // What waits for the owner leads its group, then the most recent.
+  const group = useMemo(() => {
+    const waits = (n: SessionNode) => (pendingIn(n, props.pendingBySession) > 0 ? 0 : 1)
+    return { ...props.group, nodes: [...props.group.nodes].sort((a, b) => waits(a) - waits(b)) }
+  }, [props.group, props.pendingBySession])
   const { shown, hidden } = visibleInGroup(group, mode, RECENT, activeId)
   const waiting = group.nodes.reduce((n, node) => n + pendingIn(node, props.pendingBySession), 0)
+  const unseen = group.nodes.reduce((n, node) => n + unseenIn(node, props.seen, activeId), 0)
   const open = mode !== 'collapsed'
   const buckets = shown.map((n) => bucketOf(n.session.activeAt ?? n.session.createdAt))
   const dividers = mode === 'all' && !props.searching && group.count > RECENT
@@ -188,6 +207,11 @@ function Group(props: {
           <span className="sr-only"> {group.cwd}</span>
           <span className="group-count">{group.count}</span>
           {group.running && <span className="live-dot" title="A session is running" />}
+          {unseen > 0 && (
+            <span className="group-unseen" title={`${unseen} changed since you last looked`}>
+              {unseen} new
+            </span>
+          )}
           {waiting > 0 && (
             <span className="badge" title="Waiting for you">
               {waiting}
@@ -199,6 +223,7 @@ function Group(props: {
           aria-label={`New ${agentName[props.agent]} session in ${group.cwd}`}
           title={`New ${agentName[props.agent]} session in ${group.cwd}`}
           disabled={props.creating}
+          aria-busy={(props.creating && props.creatingIn === group.cwd) || undefined}
           onClick={() => props.onCreateIn(group.cwd)}
         >
           <Plus {...icon(15)} />
@@ -234,6 +259,11 @@ function pendingIn(node: SessionNode, bySession: Map<string, number>): number {
   return (bySession.get(node.session.id) ?? 0) + node.children.reduce((n, c) => n + pendingIn(c, bySession), 0)
 }
 
+function unseenIn(node: SessionNode, seen: Visits, activeId: string | null): number {
+  const own = node.session.id !== activeId && isUnseen(node.session, seen) ? 1 : 0
+  return own + node.children.reduce((n, c) => n + unseenIn(c, seen, activeId), 0)
+}
+
 // useScrolledIntoView keeps the open session's row on screen when the open
 // session changes from elsewhere (a link, a notification, the tray).
 function useScrolledIntoView(active: boolean) {
@@ -249,6 +279,7 @@ function SessionRow(props: {
   depth: number
   activeId: string | null
   pendingBySession: Map<string, number>
+  seen: Visits
   onSelect: (id: string) => void
   now: number
 }) {
@@ -259,6 +290,7 @@ function SessionRow(props: {
   const active = s.id === props.activeId
   const ref = useScrolledIntoView(active)
   const title = sessionTitle(s)
+  const unseen = !active && isUnseen(s, props.seen)
   return (
     <motion.li layout="position" transition={settle(reduced)} className={props.depth > 0 ? 'session-child' : undefined}>
       <button
@@ -275,8 +307,21 @@ function SessionRow(props: {
             {title}
           </span>
           <span className="session-meta">
-            {(s.status === 'running' || s.status === 'interrupted' || finished) && (
-              <span className={`session-status session-status-${finished ? 'done' : s.status}`}>{finished ? 'done' : s.status}</span>
+            {waiting > 0 ? (
+              <span className="session-status session-status-waiting">waiting for you</span>
+            ) : (
+              (s.status === 'running' || s.status === 'interrupted' || finished) && (
+                <span className={`session-status session-status-${finished ? 'done' : s.status}`}>{finished ? 'done' : s.status}</span>
+              )
+            )}
+            {s.status === 'detached' && !finished && waiting === 0 && (
+              // Most sessions rest detached; the dashed mark alone says so.
+              <span className="session-status session-status-detached" role="img" aria-label="detached" title="detached · resumes when you write" />
+            )}
+            {unseen && (
+              <span className="session-unseen" title="Changed since you last opened it">
+                new
+              </span>
             )}
             {s.forkOf && (
               <span className="session-fork" title="Forked from another session">

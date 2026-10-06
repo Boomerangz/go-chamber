@@ -91,6 +91,18 @@ describe('HistoryPanel', () => {
     expect(api.listHistory).toHaveBeenCalledTimes(2)
   })
 
+  it('says it is refreshing when reopened over an old list', async () => {
+    await open()
+    await userEvent.click(screen.getByText('History'))
+    let finish: (l: api.ExternalSession[]) => void = () => {}
+    vi.mocked(api.listHistory).mockImplementationOnce(() => new Promise((r) => (finish = r)))
+    await userEvent.click(screen.getByText('History'))
+    expect(screen.getByText('refreshing…')).toBeInTheDocument()
+    expect(screen.getByText('Fix the flaky test')).toBeInTheDocument()
+    finish(external)
+    await waitFor(() => expect(screen.queryByText('refreshing…')).toBeNull())
+  })
+
   it('retries a failed load', async () => {
     vi.mocked(api.listHistory).mockRejectedValueOnce(new Error('codex is not installed'))
     render(<HistoryPanel />)

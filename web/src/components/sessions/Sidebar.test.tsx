@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { resetStore, useSessionStore } from '../../stores/session'
@@ -109,9 +109,54 @@ describe('Sidebar new session', () => {
   })
 })
 
-describe('Sidebar footer', () => {
-  it('has a sign-out form for phones, where the topbar hides it', () => {
+describe('Sidebar folder', () => {
+  it('says why nothing started when no folder is chosen', async () => {
     setup()
+    await userEvent.click(screen.getByRole('button', { name: 'New session' }))
+    expect(screen.getByText('Choose a folder first')).toBeInTheDocument()
+  })
+
+  it('starts in the open session\'s folder', () => {
+    useSessionStore.setState({ activeId: 's1' })
+    setup(undefined, [session])
+    expect(screen.getByLabelText('working directory')).toHaveValue('/src/app')
+  })
+
+  it('otherwise starts in the folder last used', async () => {
+    const onCreate = setup()
+    await userEvent.type(screen.getByLabelText('working directory'), '/repo')
+    await userEvent.click(screen.getByRole('button', { name: 'New session' }))
+    expect(onCreate).toHaveBeenCalledWith('claude', '/repo', undefined)
+    expect(localStorage.getItem('gc.lastFolder')).toBe('/repo')
+  })
+
+  it('reads the folder last used', () => {
+    localStorage.setItem('gc.lastFolder', '/repo')
+    setup()
+    expect(screen.getByLabelText('working directory')).toHaveValue('/repo')
+  })
+
+  it('offers recent folders that pick at once', async () => {
+    const other: Session = { ...session, id: 's2', cwd: '/src/site', activeAt: '2026-10-01T00:00:00Z' }
+    setup(undefined, [session, other])
+    const chips = screen.getByRole('group', { name: 'Recent folders' })
+    await userEvent.click(within(chips).getByRole('button', { name: 'site' }))
+    expect(screen.getByLabelText('working directory')).toHaveValue('/src/site')
+  })
+
+  it('marks busy the "+" that started a session', async () => {
+    let finish!: (ok: boolean) => void
+    setup(vi.fn(() => new Promise<boolean>((r) => (finish = r))), [session])
+    await userEvent.click(screen.getByRole('button', { name: 'New Claude session in /src/app' }))
+    expect(screen.getByRole('button', { name: 'New Claude session in /src/app' })).toHaveAttribute('aria-busy', 'true')
+    finish(true)
+  })
+})
+
+describe('Sidebar footer', () => {
+  it('has a sign-out form for phones, where the topbar hides it', async () => {
+    setup()
+    await userEvent.click(screen.getByRole('button', { name: 'Sign out' }))
     const button = screen.getByRole('button', { name: 'Sign out' })
     const form = button.closest('form')!
     expect(form).toHaveAttribute('action', '/logout')

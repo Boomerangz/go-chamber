@@ -127,6 +127,20 @@ describe('ModelPicker', () => {
     expect(screen.getByRole('radio', { name: /Default/ })).toBeInTheDocument()
   })
 
+  it('says the listing failed, with a retry that shows it loading again', async () => {
+    vi.mocked(api.listModels).mockRejectedValueOnce(new Error('codex stopped')).mockRejectedValueOnce(new Error('codex stopped'))
+    render(<ModelPicker session={session()} />)
+    await userEvent.click(screen.getByRole('button', { name: /Model:/ }))
+    expect(await screen.findByText("Couldn't load models")).toBeInTheDocument()
+    expect(screen.queryByText("this agent doesn't list models")).toBeNull()
+    let finish: (m: api.ModelInfo[]) => void = () => {}
+    vi.mocked(api.listModels).mockImplementationOnce(() => new Promise((r) => (finish = r)))
+    await userEvent.click(screen.getByRole('button', { name: 'Retry' }))
+    expect(screen.getByText('loading models…')).toBeInTheDocument()
+    finish(catalog)
+    expect(await screen.findByRole('radio', { name: /Fast/ })).toBeInTheDocument()
+  })
+
   it('moves focus into the menu, walks it with arrows and returns it on Escape', async () => {
     render(<ModelPicker session={session({ model: 'fast', effort: 'low' })} />)
     const button = await screen.findByRole('button', { name: /Model:/ })

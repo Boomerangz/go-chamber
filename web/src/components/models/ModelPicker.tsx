@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, type KeyboardEvent } from 'react'
 import type { ModelChoice, Session } from '../../lib/api'
 import { effortsFor, modelLabel } from '../../lib/models'
 import { useSessionStore } from '../../stores/session'
-import { LoadingLine } from '../ui/Loading'
+import { LoadFailed, LoadingLine } from '../ui/Loading'
 import './ModelPicker.css'
 
 const agentConfig = { claude: 'Claude settings', codex: 'Codex config' } as const
@@ -14,6 +14,7 @@ const agentConfig = { claude: 'Claude settings', codex: 'Codex config' } as cons
 // goes back if it refuses.
 export default function ModelPicker({ session }: { session: Session }) {
   const models = useSessionStore((s) => s.models[session.agent])
+  const status = useSessionStore((s) => s.modelsStatus[session.agent])
   const loadModels = useSessionStore((s) => s.loadModels)
   const setModel = useSessionStore((s) => s.setModel)
   const [open, setOpen] = useState(false)
@@ -118,8 +119,11 @@ export default function ModelPicker({ session }: { session: Session }) {
                 onSelect={() => void choose(m.id, effort)}
               />
             ))}
-            {models === undefined && <LoadingLine>loading models…</LoadingLine>}
-            {models?.length === 0 && <p className="model-none">this agent doesn't list models</p>}
+            {(status === 'loading' || (status === undefined && models === undefined)) && <LoadingLine>loading models…</LoadingLine>}
+            {status === 'error' && (
+              <LoadFailed onRetry={() => void loadModels(session.agent)}>Couldn't load models</LoadFailed>
+            )}
+            {status === 'ready' && models?.length === 0 && <p className="model-none">this agent doesn't list models</p>}
           </div>
           {efforts.length > 0 && (
             <div className="effort">

@@ -350,8 +350,19 @@ describe('session store', () => {
     ;(api.listModels as Mock).mockRejectedValueOnce(new Error('no')).mockResolvedValueOnce([{ id: 'm' }])
     await store().loadModels('claude')
     expect(store().models.claude).toEqual([])
-    await store().loadModels('claude')
+    expect(store().modelsStatus.claude).toBe('error')
+    const again = store().loadModels('claude')
+    expect(store().modelsStatus.claude).toBe('loading')
+    await again
     expect(store().models.claude).toEqual([{ id: 'm' }])
+    expect(store().modelsStatus.claude).toBe('ready')
+  })
+
+  it('takes an agent that lists no models as an answer, not a failure', async () => {
+    ;(api.listModels as Mock).mockRejectedValueOnce(new Error('{"error":"agent model listing is not supported"}'))
+    await store().loadModels('codex')
+    expect(store().modelsStatus.codex).toBe('ready')
+    expect(store().models.codex).toEqual([])
   })
 
   it('records load errors', async () => {
@@ -407,6 +418,10 @@ describe('session store', () => {
     useSessionStore.setState({ searchHits: [{ sessionId: 's', itemId: 'i', snippet: '', matches: 1 }] })
     await store().searchMessages('query')
     expect(store().searchHits).toEqual([])
+    expect(store().searchError).toBe('down')
+    ;(api.searchMessages as Mock).mockResolvedValue([])
+    await store().searchMessages('query')
+    expect(store().searchError).toBeNull()
   })
 
   it('loads models once per agent', async () => {
@@ -682,9 +697,23 @@ describe('request handling', () => {
   })
 
   it('loads quotas', async () => {
+    expect(store().quotasStatus).toBe('loading')
     ;(api.getQuotas as Mock).mockResolvedValue([{ agent: 'codex', windows: [] }])
     await store().loadQuotas()
     expect(store().quotas.map((q) => q.agent)).toEqual(['codex'])
+    expect(store().quotasStatus).toBe('ready')
+  })
+
+  it('tells failed quotas from none, until a load succeeds', async () => {
+    ;(api.getQuotas as Mock).mockRejectedValueOnce(new Error('down'))
+    await store().loadQuotas()
+    expect(store().quotasStatus).toBe('error')
+    ;(api.getQuotas as Mock).mockResolvedValueOnce([])
+    await store().loadQuotas()
+    expect(store().quotasStatus).toBe('ready')
+    ;(api.getQuotas as Mock).mockRejectedValueOnce(new Error('down'))
+    await store().loadQuotas()
+    expect(store().quotasStatus).toBe('ready')
   })
 
   it('upserts quotas from live events', () => {

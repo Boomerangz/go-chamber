@@ -38,6 +38,8 @@ export interface SessionStore {
   searchHits: api.SearchHit[]
   // models caches each agent's model catalog; empty when unsupported.
   models: Partial<Record<api.AgentKind, api.ModelInfo[]>>
+  // modelsStatus tells a catalog loading or failed from an empty one.
+  modelsStatus: Partial<Record<api.AgentKind, LoadStatus>>
   // sessionsStatus tells a list still loading (or failed) from an empty one.
   sessionsStatus: LoadStatus
   // history is the state of the open chat's transcript fetch.
@@ -49,6 +51,10 @@ export interface SessionStore {
   requestsStatus: LoadStatus
   // searching is true while the server searches messages for the query.
   searching: boolean
+  // searchError is why the last message search failed; null when it didn't.
+  searchError: string | null
+  // quotasStatus tells quotas still loading (or failed) from none reported.
+  quotasStatus: LoadStatus
   // nextRetryAt is when the live socket tries again after a drop (ms epoch).
   nextRetryAt: number | null
 
@@ -227,11 +233,14 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
   query: '',
   searchHits: [],
   models: {},
+  modelsStatus: {},
   sessionsStatus: 'loading',
   history: 'ready',
   historyError: null,
   requestsStatus: 'loading',
   searching: false,
+  searchError: null,
+  quotasStatus: 'loading',
   nextRetryAt: null,
 
   setConnection: (connection) => set({ connection }),
@@ -251,15 +260,22 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
 
   async loadModels(agent) {
     if (get().models[agent] && !modelsFailed.has(agent)) return
+    if (get().modelsStatus[agent] === 'loading') return
+    set({ modelsStatus: { ...get().modelsStatus, [agent]: 'loading' } })
     try {
       const list = await api.listModels(agent)
       modelsFailed.delete(agent)
-      set({ models: { ...get().models, [agent]: list } })
-    } catch {
-      // The agent can't list models now: the picker offers only its default
-      // and asks again next time it opens.
-      modelsFailed.add(agent)
-      set({ models: { ...get().models, [agent]: [] } })
+      set({ models: { ...get().models, [agent]: list }, modelsStatus: { ...get().modelsStatus, [agent]: 'ready' } })
+    } catch (err) {
+      // An agent without a catalog says so: that is an answer. Anything else
+      // failed: the picker offers only the default and a retry, and asks
+      // again next time it opens.
+      const unsupported = /not supported/i.test(describeError(err))
+      if (!unsupported) modelsFailed.add(agent)
+      set({
+        models: { ...get().models, [agent]: [] },
+        modelsStatus: { ...get().modelsStatus, [agent]: unsupported ? 'ready' : 'error' },
+      })
     }
   },
 
@@ -289,15 +305,15 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
   async searchMessages(query) {
     const mine = ++searchGeneration
     if (query.trim().length < 2) {
-      set({ searchHits: [], searching: false })
+      set({ searchHits: [], searching: false, searchError: null })
       return
     }
-    set({ searching: true })
+    set({ searching: true, searchError: null })
     try {
       const hits = await api.searchMessages(query.trim())
       if (mine === searchGeneration) set({ searchHits: hits, searching: false })
-    } catch {
-      if (mine === searchGeneration) set({ searchHits: [], searching: false })
+    } catch (err) {
+      if (mine === searchGeneration) set({ searchHits: [], searching: false, searchError: describeError(err) })
     }
   },
 
@@ -337,8 +353,9 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
   async loadQuotas() {
     try {
       const quotas = await quotaLists.load(api.getQuotas)
-      if (quotas) set({ quotas })
+      if (quotas) set({ quotas, quotasStatus: 'ready' })
     } catch (err) {
+      if (get().quotasStatus !== 'ready') set({ quotasStatus: 'error' })
       fail("Couldn't load quotas", err, 'load-quotas')
     }
   },
@@ -828,11 +845,14 @@ export function resetStore(): void {
     query: '',
     searchHits: [],
     models: {},
+    modelsStatus: {},
     sessionsStatus: 'loading',
     history: 'ready',
     historyError: null,
     requestsStatus: 'loading',
     searching: false,
+    searchError: null,
+    quotasStatus: 'loading',
     nextRetryAt: null,
   })
 }

@@ -10,7 +10,7 @@ test('token login shows the app online and drops token from URL', async ({ page 
   await page.goto(`/?token=${token}`)
   await expect(page).toHaveURL(/\/$/)
   await expect(page.getByRole('heading', { name: 'go-chamber' })).toBeVisible()
-  await expect(page.getByText('online')).toBeVisible()
+  await expect(page.getByRole('status', { name: 'online' })).toBeVisible()
 })
 
 test('client-side routes fall back to the app after login', async ({ page }) => {
@@ -27,7 +27,7 @@ test('signs in with the login form, returns to the page, and signs out', async (
   await page.getByLabel('Access token').fill(token)
   await page.getByRole('button', { name: 'Sign in' }).click()
   await expect(page).toHaveURL(/\/sessions\/anything$/)
-  await expect(page.getByText('online')).toBeVisible()
+  await expect(page.getByRole('status', { name: 'online' })).toBeVisible()
 
   const cookie = (await page.context().cookies()).find((c) => c.name === 'gc_token')!
   expect(cookie.expires).toBeGreaterThan(Date.now() / 1000 + 300 * 24 * 3600)
@@ -35,6 +35,7 @@ test('signs in with the login form, returns to the page, and signs out', async (
   const signOut = page.getByRole('button', { name: 'Sign out' })
   if (await signOut.isVisible()) {
     await signOut.click()
+    await page.getByRole('button', { name: 'Sign out' }).filter({ visible: true }).click()
     await expect(page.getByLabel('Access token')).toBeVisible()
   }
 })

@@ -17,6 +17,7 @@ vi.mock('./lib/api', () => ({
   listRequests: vi.fn(),
   getQuotas: vi.fn(),
   refreshQuota: vi.fn(),
+  getAccount: vi.fn(),
   createSession: vi.fn(),
   getSession: vi.fn(),
   sendMessage: vi.fn(),
@@ -52,13 +53,14 @@ function mockApi() {
   vi.mocked(api.listSessions).mockResolvedValue([])
   vi.mocked(api.listRequests).mockResolvedValue([])
   vi.mocked(api.getQuotas).mockResolvedValue([])
+  vi.mocked(api.getAccount).mockImplementation(async (agent) => ({ agent, loggedIn: true, authMode: 'cli' }))
 }
 
 describe('App', () => {
   it('dismisses the error toast', async () => {
     mockApi()
     render(<App />)
-    await screen.findByText('online')
+    await screen.findByRole('status', { name: 'online' })
     await new Promise((r) => setTimeout(r, 0))
     act(() => { notify({ kind: 'error', title: 'Fork failed', text: 'boom' }) })
     expect(await screen.findByText('boom')).toBeInTheDocument()
@@ -70,7 +72,7 @@ describe('App', () => {
     mockApi()
     useLayoutStore.setState({ dock: 'changes', widths: { terminal: 520 }, sidebar: false })
     const { container } = render(<App />)
-    await screen.findByText('online')
+    await screen.findByRole('status', { name: 'online' })
     const layout = container.querySelector('.layout')!
     expect(layout).toHaveAttribute('data-dock', 'closed')
     expect(screen.queryByText('Open a session to see its changes')).toBeNull()
@@ -85,7 +87,7 @@ describe('App', () => {
   it('in focus hides the side columns until a request waits', async () => {
     mockApi()
     const { container } = render(<App />)
-    await screen.findByText('online')
+    await screen.findByRole('status', { name: 'online' })
     const layout = () => container.querySelector('.layout')!
     await userEvent.click(screen.getByRole('button', { name: 'Focus' }))
     expect(screen.getByRole('button', { name: 'Focus' })).toHaveAttribute('aria-pressed', 'true')
@@ -108,7 +110,7 @@ describe('App', () => {
     mockApi()
     render(<App />)
     expect(screen.getByRole('heading', { name: 'go-chamber' })).toBeInTheDocument()
-    expect(await screen.findByText('online')).toBeInTheDocument()
+    expect(await screen.findByRole('status', { name: 'online' })).toBeInTheDocument()
   })
 
   it('links to the sign-in page when the session expired', async () => {
@@ -126,7 +128,7 @@ describe('App', () => {
       render(<App />)
       expect(await screen.findByText("go-chamber isn't reachable")).toBeInTheDocument()
       await act(async () => { await vi.advanceTimersByTimeAsync(1100) })
-      expect(await screen.findByText('online')).toBeInTheDocument()
+      expect(await screen.findByRole('status', { name: 'online' })).toBeInTheDocument()
       expect(screen.queryByText("go-chamber isn't reachable")).toBeNull()
     } finally {
       vi.useRealTimers()
@@ -136,7 +138,7 @@ describe('App', () => {
   it('shows Signed out when the API rejects the login mid-session', async () => {
     mockApi()
     render(<App />)
-    await screen.findByText('online')
+    await screen.findByRole('status', { name: 'online' })
     act(() => { window.dispatchEvent(new Event(api.UNAUTHORIZED_EVENT)) })
     expect(await screen.findByText('Signed out')).toBeInTheDocument()
   })
@@ -146,19 +148,61 @@ describe('App', () => {
     vi.mocked(api.listSessions).mockResolvedValue([{ id: 's1', agent: 'claude', cwd: '/p', status: 'idle', title: 'fix login' } as never])
     vi.mocked(api.listRequests).mockResolvedValue([{ id: 'r', sessionId: 's1' } as never])
     render(<App />)
-    await screen.findByText('online')
+    await screen.findByRole('status', { name: 'online' })
     await waitFor(() => expect(document.title).toBe('(1) go-chamber'))
     act(() => useSessionStore.setState({ activeId: 's1' }))
     await waitFor(() => expect(document.title).toBe('(1) fix login · go-chamber'))
   })
 
-  it('signs out with a form post', async () => {
+  it('signs out with a form post, after asking', async () => {
     mockApi()
     render(<App />)
-    const button = (await screen.findAllByRole('button', { name: 'Sign out' }))[0]!
-    const form = button.closest('form')!
+    await userEvent.click((await screen.findAllByRole('button', { name: 'Sign out' }))[0]!)
+    expect(screen.getByText("Sign out? You'll need the access token again.")).toBeInTheDocument()
+    const confirm = screen.getAllByRole('button', { name: 'Sign out' }).find((b) => b.getAttribute('type') === 'submit')!
+    const form = confirm.closest('form')!
     expect(form).toHaveAttribute('method', 'post')
     expect(form).toHaveAttribute('action', '/logout')
+  })
+
+  it('says it is connecting before the first health answer', async () => {
+    let answer: (h: api.Health) => void = () => {}
+    mockApi()
+    vi.mocked(api.fetchHealth).mockReturnValueOnce(new Promise((r) => (answer = r)))
+    render(<App />)
+    expect(screen.getByText('connecting to go-chamber…')).toBeInTheDocument()
+    await act(async () => answer('online'))
+    expect(screen.queryByText('connecting to go-chamber…')).toBeNull()
+  })
+
+  it('shows Try now as trying while it asks', async () => {
+    mockApi()
+    vi.mocked(api.fetchHealth).mockResolvedValueOnce('offline')
+    render(<App />)
+    await screen.findByText("go-chamber isn't reachable")
+    let answer: (h: api.Health) => void = () => {}
+    vi.mocked(api.fetchHealth).mockReturnValueOnce(new Promise((r) => (answer = r)))
+    await userEvent.click(screen.getByRole('button', { name: 'Try now' }))
+    expect(screen.getByRole('button', { name: 'Trying…' })).toHaveAttribute('aria-busy', 'true')
+    await act(async () => answer('online'))
+    expect(await screen.findByRole('status', { name: 'online' })).toBeInTheDocument()
+  })
+
+  it('marks the tab icon while requests wait', async () => {
+    document.head.innerHTML = '<link rel="icon" href="/icon.svg" />'
+    mockApi()
+    vi.mocked(api.listRequests).mockResolvedValue([{ id: 'r', sessionId: 's1' } as never])
+    render(<App />)
+    await waitFor(() => expect(document.querySelector('link[rel="icon"]')!.getAttribute('href')).toMatch(/^data:image\/svg/))
+    act(() => useSessionStore.setState({ pendingRequests: [] }))
+    expect(document.querySelector('link[rel="icon"]')).toHaveAttribute('href', '/icon.svg')
+  })
+
+  it('opens the shortcut list from the top bar', async () => {
+    mockApi()
+    render(<App />)
+    await userEvent.click(await screen.findByRole('button', { name: 'Keyboard shortcuts' }))
+    expect(screen.getByRole('dialog', { name: 'Keyboard shortcuts' })).toBeInTheDocument()
   })
 
   it('renders sessions and streamed items', async () => {
@@ -243,7 +287,7 @@ describe('App', () => {
   it('does not rescan completed tool output during streaming or composer typing', async () => {
     mockApi()
     render(<App />)
-    await screen.findByText('online')
+    await screen.findByRole('status', { name: 'online' })
     const output = Array.from({ length: 2000 }, () => 'unchanged completed output').join('\n')
     act(() => useSessionStore.setState({
       activeId: 's1', sessions: [{ id: 's1', agent: 'claude', cwd: '/p', status: 'running' }],
