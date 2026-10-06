@@ -21,11 +21,20 @@ export interface NoticeStore {
 const MAX = 3
 const INFO_MS = 4000
 let nextId = 1
+// quiet holds failures a caller shows in place instead of as a notice; only
+// their reason is kept, for lastError.
+let quiet: Notice[] = []
 
 export const useNotices = create<NoticeStore>((set, get) => ({
   notices: [],
-  dismiss: (id) => set({ notices: get().notices.filter((n) => n.id !== id) }),
-  dismissKey: (key) => set({ notices: get().notices.filter((n) => n.key !== key) }),
+  dismiss: (id) => {
+    quiet = quiet.filter((n) => n.id !== id)
+    set({ notices: get().notices.filter((n) => n.id !== id) })
+  },
+  dismissKey: (key) => {
+    quiet = quiet.filter((n) => n.key !== key)
+    set({ notices: get().notices.filter((n) => n.key !== key) })
+  },
 }))
 
 export function notify(notice: Omit<Notice, 'id'>): number {
@@ -36,15 +45,24 @@ export function notify(notice: Omit<Notice, 'id'>): number {
   return id
 }
 
-// fail reports a failed action: "<title>: <reason>".
-export function fail(title: string, err: unknown, key = title): void {
-  notify({ kind: 'error', title, text: describeError(err), key })
+// fail reports a failed action: "<title>: <reason>". With quiet, the
+// caller shows the failure in place (an inline error, a Retry), so no
+// notice is raised; the reason is still kept for lastError.
+export function fail(title: string, err: unknown, key = title, { quiet: inPlace = false } = {}): void {
+  const text = describeError(err)
+  if (!inPlace) {
+    notify({ kind: 'error', title, text, key })
+    return
+  }
+  quiet = [...quiet.filter((n) => n.key !== key), { id: nextId++, kind: 'error' as const, title, text, key }].slice(-MAX)
 }
 
-// lastError is the newest error text; used by tests.
+// lastError is the newest error text, shown or quiet: an inline error line
+// takes its reason from here when the store only said "false".
 export function lastError(): string | null {
-  const errors = useNotices.getState().notices.filter((n) => n.kind === 'error')
-  return errors.length ? errors[errors.length - 1]!.text : null
+  const errors = [...useNotices.getState().notices.filter((n) => n.kind === 'error'), ...quiet]
+  if (errors.length === 0) return null
+  return errors.reduce((a, b) => (b.id > a.id ? b : a)).text
 }
 
 const MAX_TEXT = 240
@@ -64,5 +82,6 @@ export function describeError(err: unknown): string {
 }
 
 export function resetNotices(): void {
+  quiet = []
   useNotices.setState({ notices: [] })
 }

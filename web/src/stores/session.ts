@@ -5,11 +5,19 @@ import { applyEvents, initialChat, type ChatState } from '../lib/events'
 import type { GroupMode } from '../lib/sessions'
 import { LiveList } from '../lib/live-list'
 import { chimeOnEvent } from '../lib/chime'
-import { fail, useNotices } from './notices'
+import { describeError, fail, useNotices } from './notices'
 
 export type Connection = 'connecting' | 'online' | 'offline'
 
 export type LoadStatus = 'loading' | 'ready' | 'error'
+
+// HistoryError says why the open chat's transcript didn't load: the
+// server doesn't know the session (not_found: retrying won't help), or the
+// fetch failed (failed: worth a Retry). reason is the readable cause.
+export interface HistoryError {
+  kind: 'not_found' | 'failed'
+  reason: string
+}
 
 // Pane is the view shown on narrow screens, where only one fits at a time.
 export type Pane = 'sessions' | 'chat' | 'requests' | 'changes'
@@ -33,6 +41,11 @@ export interface SessionStore {
   sessionsStatus: LoadStatus
   // history is the state of the open chat's transcript fetch.
   history: LoadStatus
+  // historyError is set while history is 'error'.
+  historyError: HistoryError | null
+  // requestsStatus tells a request inbox still loading (or failed) from an
+  // empty one.
+  requestsStatus: LoadStatus
   // searching is true while the server searches messages for the query.
   searching: boolean
   // nextRetryAt is when the live socket tries again after a drop (ms epoch).
@@ -209,6 +222,8 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
   models: {},
   sessionsStatus: 'loading',
   history: 'ready',
+  historyError: null,
+  requestsStatus: 'loading',
   searching: false,
   nextRetryAt: null,
 
@@ -289,17 +304,26 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
         useNotices.getState().dismissKey('load-sessions')
       }
     } catch (err) {
-      if (get().sessionsStatus !== 'ready') set({ sessionsStatus: 'error' })
-      fail("Couldn't load sessions", err, 'load-sessions')
+      // Before the list ever loaded, the sidebar says so with a Retry; a
+      // failed refresh of a shown list can only be told as a notice.
+      const shown = get().sessionsStatus === 'ready'
+      if (!shown) set({ sessionsStatus: 'error' })
+      fail("Couldn't load sessions", err, 'load-sessions', { quiet: !shown })
     }
   },
 
   async loadRequests() {
     try {
       const pendingRequests = await requestLists.load(api.listRequests)
-      if (pendingRequests) set({ pendingRequests })
+      if (pendingRequests) {
+        set({ pendingRequests, requestsStatus: 'ready' })
+        useNotices.getState().dismissKey('load-requests')
+      }
     } catch (err) {
-      fail("Couldn't load requests", err, 'load-requests')
+      // As with sessions: the tray shows a first failure in place.
+      const shown = get().requestsStatus === 'ready'
+      if (!shown) set({ requestsStatus: 'error' })
+      fail("Couldn't load requests", err, 'load-requests', { quiet: !shown })
     }
   },
 
@@ -334,7 +358,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     }
     buffered = null
     dropQueued()
-    set({ activeId: id, chat: initialChat(), pane: 'chat', history: 'loading' })
+    set({ activeId: id, chat: initialChat(), pane: 'chat', history: 'loading', historyError: null })
     connect(get, set)
     await resync(get, set, id)
   },
@@ -471,7 +495,8 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       await get().selectSession(imported.id)
       return true
     } catch (err) {
-      fail("Couldn't open the conversation", err)
+      // The history panel says so under the conversation (reason: lastError).
+      fail("Couldn't open the conversation", err, undefined, { quiet: true })
       return false
     }
   },
@@ -481,7 +506,8 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       await api.respondRequest(sessionId, requestId, answer)
       return true
     } catch (err) {
-      fail('Answer not sent', err)
+      // The request's card or tray line says so in place (reason: lastError).
+      fail('Answer not sent', err, undefined, { quiet: true })
       return false
     }
   },
@@ -630,7 +656,7 @@ async function resync(
     const history = await api.fetchEvents(id, get().chat.lastSeq)
     if (mine !== generation) return
     const chat = applyEvents(get().chat, [...history, ...live])
-    set({ chat, history: 'ready' })
+    set({ chat, history: 'ready', historyError: null })
     useNotices.getState().dismissKey('history')
   } catch (err) {
     if (mine === generation) {
@@ -645,9 +671,13 @@ async function resync(
       const chat = applyEvents(initial, contiguous)
       // Keep events beyond a missing prefix for the next history fetch;
       // advancing lastSeq over that gap would make replay discard it.
-      retry = live.some((ev) => ev.seq > chat.lastSeq)
-      set({ chat, history: 'error' })
-      fail("Couldn't load the transcript", err, 'history')
+      // A session the server doesn't know won't turn up by asking again.
+      const notFound = (err as { status?: unknown } | null)?.status === 404
+      retry = !notFound && live.some((ev) => ev.seq > chat.lastSeq)
+      const historyError: HistoryError = { kind: notFound ? 'not_found' : 'failed', reason: describeError(err) }
+      set({ chat, history: 'error', historyError })
+      // The chat shows the failure in place (historyError), with a Retry.
+      fail("Couldn't load the transcript", err, 'history', { quiet: true })
       if (retry) resyncTimer = setTimeout(() => void resync(get, set, id), 1000)
     }
   } finally {
@@ -717,6 +747,8 @@ export function resetStore(): void {
     models: {},
     sessionsStatus: 'loading',
     history: 'ready',
+    historyError: null,
+    requestsStatus: 'loading',
     searching: false,
     nextRetryAt: null,
   })

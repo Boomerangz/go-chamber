@@ -78,7 +78,7 @@ describe('HistoryPanel', () => {
     vi.mocked(api.importHistory).mockRejectedValue(new Error('thread is gone'))
     await open()
     await userEvent.click(screen.getByRole('button', { name: /Tidy the README/ }))
-    expect(await screen.findByText(/Couldn't open the conversation/)).toHaveClass('error')
+    expect(await screen.findByText("Couldn't open the conversation: thread is gone")).toHaveClass('error')
     expect(screen.getByRole('button', { name: /Tidy the README/ })).toBeEnabled()
   })
 
