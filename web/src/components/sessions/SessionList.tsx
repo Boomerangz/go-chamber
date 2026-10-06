@@ -94,6 +94,7 @@ export default function SessionList({ onCreateIn, agent = 'claude', creating = f
           type="search"
           aria-label="search sessions"
           placeholder="Search sessions"
+          title="Search sessions (/)"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={(e) => {

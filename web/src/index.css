@@ -409,6 +409,7 @@ button.health { border: 0; background: none; padding: 0; }
   .group-toggle { height: 40px; }
   .session-search { height: 40px; }
   .session-search .search-clear, .quota .refresh, .account .copy-code { width: 40px; height: 40px; }
+  .folder-chips .chip { height: 36px; line-height: 34px; }
   .rename-btn { min-width: 36px; min-height: 36px; justify-content: center; }
   .crumb button { min-height: 40px; }
 }
@@ -853,6 +854,10 @@ button.health { border: 0; background: none; padding: 0; }
   background: var(--paper); color: var(--ink-2); font-family: var(--font-mono); font-size: 12px;
 }
 .chip:hover { border-color: var(--ink); color: var(--ink); }
+.chip[aria-pressed='true'] { border-color: var(--ink); color: var(--ink); }
+.folder-chips { gap: 4px 6px; }
+.folder-chips .chip { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: inline-block; line-height: 22px; }
+.field-hint { margin: -4px 0 0; color: var(--bad); font-size: 12.5px; }
 
 .folder-list {
   flex: 1; min-height: 0; overflow: auto; list-style: none; margin: 0; padding: 0;
