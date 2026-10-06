@@ -28,6 +28,25 @@ test('approves a codex command execution', async ({ page }) => {
   await expect(page.locator('.item.assistant', { hasText: 'approved: please permission' })).toBeVisible()
 })
 
+// Stop ends a codex turn waiting on an approval: the request leaves, the
+// command it held reads stopped and the turn says it was stopped.
+test('stops a codex turn that waits for an approval', async ({ page }) => {
+  await newCodexSession(page)
+  await page.getByLabel('Message').fill('please permission to stop')
+  await page.getByRole('button', { name: 'Send' }).click()
+  await expect(page.locator('.request-title', { hasText: 'please permission to stop' })).toBeVisible()
+  const composer = page.locator('form.composer')
+  await composer.getByRole('button', { name: 'Stop' }).click()
+  await expect(composer.getByRole('button', { name: /^Stop/ })).toHaveCount(0)
+  await expect(page.locator('.request-title')).toHaveCount(0)
+  await expect(page.locator('.turn-foot .stop-kw')).toHaveText('turn stopped')
+  await expect(page.locator('.item .stop-tag').first()).toHaveText('stopped')
+  // The next turn starts clean, with its own reply.
+  await page.getByLabel('Message').fill('hello again')
+  await page.getByRole('button', { name: 'Send' }).click()
+  await expect(page.locator('.item.assistant', { hasText: 'echo: hello again' })).toBeVisible()
+})
+
 test('answers a codex requestUserInput question', async ({ page }) => {
   await newCodexSession(page)
   await page.getByLabel('Message').fill('ask me')

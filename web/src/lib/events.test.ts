@@ -120,6 +120,14 @@ describe('failed turns', () => {
     expect(state.lastTurnFailed).toBe(false)
   })
 
+  it('does not call a turn the owner stopped failed', () => {
+    let state = applyEvent(initialChat(), ev({ seq: 1, item: user('u1') }))
+    state = applyEvent(state, ev({ seq: 2, type: 'turn.ended', result: { isError: true, stopped: true, error: 'interrupted' } }))
+    expect(state.lastTurnFailed).toBe(false)
+    expect(state.order).toEqual(['u1'])
+    expect(state.turnResults?.u1).toMatchObject({ stopped: true })
+  })
+
   it('falls back to the result text, then to a plain sentence', () => {
     let state = applyEvent(initialChat(), ev({ seq: 1, type: 'turn.ended', result: { isError: true, text: 'Prompt is too long' } }))
     expect(state.items[state.order[0]!]!.text).toBe('Prompt is too long')

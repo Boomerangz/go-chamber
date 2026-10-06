@@ -3,7 +3,6 @@ package claude
 import (
 	"encoding/json"
 	"fmt"
-	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -225,6 +224,7 @@ func (m *Mapper) create(kind domain.ItemKind, parentToolID string) *domain.Item 
 }
 
 func (m *Mapper) updated(item *domain.Item) []domain.Event {
+	item.OutlivesTurn = item.Kind == domain.ItemSubagent && (m.background[item.ID] || inputBool(item.Input, "run_in_background"))
 	return []domain.Event{{SessionID: m.session, Type: domain.EventItemUpdated, Item: item}}
 }
 
@@ -657,42 +657,9 @@ func (m *Mapper) mapResult(raw *rawMessage) []domain.Event {
 		res.InputTokens = raw.Usage.InputTokens
 		res.OutputTokens = raw.Usage.OutputTokens
 	}
-	events := m.stopUnfinished()
-	return append(events, domain.Event{SessionID: m.session, Type: domain.EventTurnEnded, Result: res})
-}
-
-// stopUnfinished stops what the ending turn left open (a turn the owner
-// stopped leaves its tools and subagents without a result). A background
-// task outlives the turn, and so do its steps.
-func (m *Mapper) stopUnfinished() []domain.Event {
-	ids := make([]domain.ItemID, 0, len(m.items))
-	for id, item := range m.items {
-		if !item.Status.Terminal() && !m.outlivesTurn(item) {
-			ids = append(ids, id)
-		}
-	}
-	slices.Sort(ids)
-	var events []domain.Event
-	for _, id := range ids {
-		item := m.items[id]
-		_ = item.SetStatus(domain.ItemStopped)
-		events = append(events, m.updated(item)...)
-	}
-	return events
-}
-
-// outlivesTurn tells a background task, or a step of one.
-func (m *Mapper) outlivesTurn(item *domain.Item) bool {
-	for seen := 0; item != nil && seen < len(m.items); seen++ {
-		if item.Kind == domain.ItemSubagent && (m.background[item.ID] || inputBool(item.Input, "run_in_background")) {
-			return true
-		}
-		if item.ParentItemID == "" {
-			return false
-		}
-		item = m.items[item.ParentItemID]
-	}
-	return false
+	// What the turn left unfinished is stopped by the app, which sees
+	// every way a turn ends.
+	return []domain.Event{{SessionID: m.session, Type: domain.EventTurnEnded, Result: res}}
 }
 
 func toolKind(name string) domain.ItemKind {

@@ -4,7 +4,7 @@ import { mkdtempSync, realpathSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { token } from '../playwright.config'
-import { openNewSession, showPane } from './pane'
+import { openNewSession, showPane, showSessionDetails } from './pane'
 
 const env = { ...process.env, GIT_AUTHOR_NAME: 't', GIT_AUTHOR_EMAIL: 't@t', GIT_COMMITTER_NAME: 't', GIT_COMMITTER_EMAIL: 't@t' }
 
@@ -32,6 +32,10 @@ test('works in a new worktree and shows its changes', async ({ page }, info) => 
   const sessions: { worktree?: { path: string; branch: string; repo: string } }[] = await (await page.request.get('/api/sessions')).json()
   const wt = sessions.find((s) => s.worktree?.repo === repo)!.worktree!
   expect(wt.branch).toBe(`chamber/${branch}`)
+  // The header reads as the repository, with the branch beside it.
+  await showSessionDetails(page)
+  await expect(page.locator('.chat-header .chat-path')).toHaveAttribute('title', repo)
+  await expect(page.locator('.chat-header .session-branch')).toHaveText(branch)
 
   const bar = page.getByRole('navigation', { name: 'Views' })
   if (await bar.isVisible()) await bar.getByRole('button', { name: /^Changes/ }).click()

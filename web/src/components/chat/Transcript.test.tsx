@@ -134,7 +134,7 @@ describe('messages', () => {
     fireEvent.click(screen.getByText('hello'))
     expect(msg).toHaveClass('actions-shown')
     // A tap on an action does its job and leaves the row as it is.
-    fireEvent.click(screen.getByRole('button', { name: 'Edit' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Reuse' }))
     expect(msg).toHaveClass('actions-shown')
     fireEvent.click(screen.getByText('hello'))
     expect(msg).not.toHaveClass('actions-shown')
@@ -180,13 +180,15 @@ describe('messages', () => {
     show(item({ kind: 'user_message', text: 'fix the bug' }), { onEdit })
     await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Copy' })))
     expect(writeText).toHaveBeenCalledWith('fix the bug')
-    fireEvent.click(screen.getByRole('button', { name: 'Edit' }))
+    // It puts the message in the composer to send again; it edits nothing.
+    expect(screen.getByRole('button', { name: 'Reuse' })).toHaveAttribute('title', 'Put this message in the composer')
+    fireEvent.click(screen.getByRole('button', { name: 'Reuse' }))
     expect(onEdit).toHaveBeenCalledWith('fix the bug')
   })
 
   it('offers no edit without a composer and no actions for an empty message', () => {
     const { container, rerender, props } = show(item({ kind: 'user_message', text: 'hi' }))
-    expect(screen.queryByRole('button', { name: 'Edit' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Reuse' })).toBeNull()
     rerender(<ol><Row {...props} onEdit={vi.fn()} node={{ item: item({ kind: 'user_message', text: '  ', images: ['img1'] }), children: [] }} /></ol>)
     expect(container.querySelector('.msg-actions')).toBeNull()
   })
@@ -443,7 +445,15 @@ describe('decision records', () => {
     const { container } = show(item({ kind: 'decision', decision: 'denied', name: 'Run command', text: 'not now' }))
     expect(container.querySelector('.decision-kw')).toHaveTextContent('denied')
     expect(container.querySelector('.decision-name')).toHaveTextContent('Run command')
+    expect(container.querySelector('.decision-name')).toHaveClass('struck')
     expect(container.querySelector('.decision-text')).toHaveTextContent('not now')
+  })
+
+  it('names an approved request plainly: struck through it would read as cancelled', () => {
+    const { container } = show(item({ kind: 'decision', decision: 'approved', name: 'Run command' }))
+    expect(container.querySelector('.decision-kw')).toHaveTextContent('approved')
+    expect(container.querySelector('.decision-name')).toHaveTextContent('Run command')
+    expect(container.querySelector('.decision-name')).not.toHaveClass('struck')
   })
 
   it('records an answered question by its answer, nothing struck', () => {
@@ -479,5 +489,14 @@ describe('turn footer', () => {
     expect(container.querySelector('.turn-foot')).toHaveTextContent(/^5 out$/)
     rerender(<ol><Row {...props} result={{ text: 'done' }} /></ol>)
     expect(container.querySelector('.turn-foot')).toBeNull()
+  })
+
+  it('records a turn the owner stopped, in ink', () => {
+    const { container, rerender, props } = show(item({ kind: 'assistant_message', text: 'half' }), { result: { stopped: true } })
+    const foot = container.querySelector('.turn-foot')!
+    expect(foot).toHaveTextContent(/^turn stopped$/)
+    expect(foot.querySelector('.stop-kw')).toHaveTextContent('turn stopped')
+    rerender(<ol><Row {...props} result={{ stopped: true, outputTokens: 5 }} /></ol>)
+    expect(container.querySelector('.turn-foot')).toHaveTextContent('turn stopped · 5 out')
   })
 })

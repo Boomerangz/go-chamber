@@ -529,7 +529,7 @@ func outputText(raw json.RawMessage) string {
 }
 
 func turnResult(turn rpcTurn) *domain.TurnResult {
-	res := &domain.TurnResult{IsError: turn.Status == "failed"}
+	res := &domain.TurnResult{IsError: turn.Status == "failed", Stopped: turn.Status == "interrupted"}
 	if turn.Error != nil {
 		res.IsError = true
 		res.Error = turn.Error.Message

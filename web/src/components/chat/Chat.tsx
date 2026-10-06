@@ -14,7 +14,7 @@ import { Row } from './Transcript'
 import { isMac, matches, useMedia } from './useMedia'
 import { useAnnouncement } from './useAnnouncement'
 import { useStickToBottom } from './useStickToBottom'
-import { SENT_HOLD_MS, useLiveDropped } from './useLiveDropped'
+import { SENT_HOLD_MS, untilBack, useLiveDropped } from './useLiveDropped'
 import { beginAgentView, endAgentView, recordAgentCommit } from '../../lib/diagnostics'
 import { SessionFiles } from '../../lib/files'
 import type { RequestAnswerInput, SessionStatus, TurnResult } from '../../lib/api'
@@ -23,7 +23,7 @@ import { displayStatus } from '../../lib/format'
 import { enter } from '../../lib/motion'
 import { useJustFinished } from '../../lib/finished'
 import { useNow } from '../../lib/now'
-import { shownStatus } from '../../lib/status'
+import { owesAnswer, shownStatus } from '../../lib/status'
 import { usePending } from '../../lib/pending'
 import { useUnseen } from '../../lib/seen'
 import { isBlank, itemTree, withoutAnsweredQuestions } from '../../lib/tree'
@@ -31,6 +31,7 @@ import { groupTools, lastItemId } from '../../lib/group'
 import { turnNumbers } from '../../lib/turns'
 import { loadDraft, saveDraft } from '../../stores/drafts'
 import { useSessionStore } from '../../stores/session'
+import { useNotices } from '../../stores/notices'
 import './Chat.css'
 
 // An accepted message makes the chat behave as running until the turn shows
@@ -108,6 +109,7 @@ export default function Chat() {
   // a failed turn doesn't flash "done", it says it failed until the next turn.
   const shown = shownStatus({
     status, started: !!session?.nativeId, waiting: Object.keys(chat.requests).length, failed: failedTurn, finished,
+    owed: !!session && owesAnswer({ status, interruption: session.interruption }),
   })
   const running = status === 'running'
   const reduced = useReducedMotion() ?? false
@@ -134,6 +136,9 @@ export default function Chat() {
   })
   const lastItem = chat.order.length ? chat.items[chat.order[chat.order.length - 1]!] : undefined
   const streaming = lastItem?.status === 'streaming'
+  // Words on their way speak for themselves; a running tool or subagent
+  // shows none, so the tail still says the turn is working.
+  const wording = streaming && lastItem?.kind === 'assistant_message'
   // The owner's messages, oldest first: ArrowUp walks back through them.
   const sent = useMemo(() => {
     const texts: string[] = []
@@ -293,6 +298,9 @@ export default function Chat() {
     try {
       while (queue.current.length) {
         const out = queue.current[0]!
+        // With go-chamber out of reach the message would only fail: it waits,
+        // shown as on its way, and goes once the connection is back.
+        await untilBack()
         const ok = await dispatch(out)
         queue.current.shift()
         if (ok) continue
@@ -375,6 +383,13 @@ export default function Chat() {
     return () => window.removeEventListener('keydown', onKey)
   }, [])
 
+  // Back in touch: a "not sent" from the outage is stale, what waited goes.
+  const wasDropped = useRef(dropped)
+  useEffect(() => {
+    if (wasDropped.current && !dropped) useNotices.getState().dismissKey('send')
+    wasDropped.current = dropped
+  }, [dropped])
+
   const [fork, forking] = usePending(() => forkSession(sessionId!), { holdOnSuccess: true })
 
   // An answer that went through moves focus on: to the next request waiting,
@@ -408,6 +423,7 @@ export default function Chat() {
       <ChatHeader
         session={session}
         status={shown}
+        unsettled={dropped}
         loading={!session && sessionsStatus === 'loading'}
         notFound={notFound}
         forking={forking}
@@ -442,7 +458,9 @@ export default function Chat() {
                 <li key={p.key} className="row row-user_message row-pending">
                   <div className="item user pending">
                     <div className="user-text">{p.text}</div>
-                    <span className="pending-label">{p.state === 'sending' ? 'sending…' : p.state}</span>
+                    <span className="pending-label">
+                      {p.state === 'sending' ? 'sending…' : p.state === 'queued' && dropped ? 'queued · waits for go-chamber' : p.state}
+                    </span>
                   </div>
                 </li>
               ))}
@@ -475,7 +493,7 @@ export default function Chat() {
           <WorkingTail
             since={turnStart}
             waiting={Object.keys(chat.requests).length > 0}
-            streaming={streaming}
+            streaming={wording}
             live={!dropped}
           />
         )}

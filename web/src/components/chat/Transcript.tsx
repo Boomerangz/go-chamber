@@ -31,7 +31,8 @@ export interface RowProps {
   // onRetry sends the failed turn's message again; given only to the error
   // that ends the transcript.
   onRetry?: () => Promise<unknown> | void
-  // onEdit puts a message of the owner's back into the composer.
+  // onEdit puts a message of the owner's into the composer to send again
+  // ("Reuse"): ahead of nothing, or after the draft already there.
   onEdit?: (text: string) => void
   // result is the turn result when this row ends a finished turn.
   result?: TurnResult
@@ -272,8 +273,13 @@ function UserMessage({ item, onEdit }: { item: Item; onEdit?: (text: string) => 
         <div className="msg-actions">
           <CopyButton text={text} label="Copy" className="msg-action" />
           {onEdit && (
-            <button type="button" className="btn btn-ghost btn-xs msg-action" onClick={() => onEdit(text)}>
-              Edit
+            <button
+              type="button"
+              className="btn btn-ghost btn-xs msg-action"
+              title="Put this message in the composer"
+              onClick={() => onEdit(text)}
+            >
+              Reuse
             </button>
           )}
         </div>
@@ -319,8 +325,10 @@ const GENERIC_REQUESTS = new Set(['', 'Question', 'Request', 'AskUserQuestion'])
 const QUESTIONS = new Set(['Question', 'AskUserQuestion'])
 
 // DecisionView is the one-line record an answered request leaves: the
-// outcome keyword and the request struck through, its detail beneath. A
-// question has no name worth striking; its record is the answer, read plainly.
+// outcome keyword and the request's name, its detail beneath. Only a denied
+// request is struck through (an approved one struck would read as
+// cancelled). A question has no name worth naming; its record is the
+// answer, read plainly.
 function DecisionView({ item }: { item: Item }) {
   const name = item.name?.trim() ?? ''
   const skipped = item.decision === 'denied' && QUESTIONS.has(name)
@@ -330,7 +338,9 @@ function DecisionView({ item }: { item: Item }) {
   return (
     <div className={`item decision decision-${decision}${answer ? ' decision-answer' : ''}`}>
       <span className="decision-kw">{decision}</span>
-      {!answer && !skipped && <span className="decision-name">{item.name || 'Request'}</span>}
+      {!answer && !skipped && (
+        <span className={`decision-name${decision === 'denied' ? ' struck' : ''}`}>{item.name || 'Request'}</span>
+      )}
       {item.text && <span className="decision-text">{item.text}</span>}
     </div>
   )
@@ -450,15 +460,18 @@ function GroupView({ nodes, onStopTask }: { nodes: ItemNode[]; onStopTask: StopT
 
 const numberFormat = new Intl.NumberFormat('en-US')
 
-// TurnFoot closes a finished turn with what its result says it cost.
+// TurnFoot closes a finished turn with what its result says it cost, and
+// records a turn the owner stopped (in ink: nothing failed).
 function TurnFoot({ result }: { result: TurnResult }) {
   const parts: string[] = []
   if (result.inputTokens) parts.push(`${numberFormat.format(result.inputTokens)} in`)
   if (result.outputTokens) parts.push(`${numberFormat.format(result.outputTokens)} out`)
   if (result.costUsd) parts.push(`$${result.costUsd.toFixed(4)}`)
-  if (parts.length === 0) return null
+  if (parts.length === 0 && !result.stopped) return null
   return (
-    <li className="turn-foot" aria-label="Turn usage">
+    <li className="turn-foot" aria-label={result.stopped ? 'Turn stopped' : 'Turn usage'}>
+      {result.stopped && <span className="stop-kw">turn stopped</span>}
+      {result.stopped && parts.length > 0 && ' · '}
       {parts.join(' · ')}
     </li>
   )

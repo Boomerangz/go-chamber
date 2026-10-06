@@ -56,6 +56,8 @@ type TurnResult struct {
 	InputTokens        int64      `json:"inputTokens,omitempty"`
 	OutputTokens       int64      `json:"outputTokens,omitempty"`
 	PermissionDenials  int        `json:"permissionDenials,omitempty"`
+	// Stopped is set when the owner stopped the turn.
+	Stopped bool `json:"stopped,omitempty"`
 }
 
 // Valid checks the event envelope and its payload.

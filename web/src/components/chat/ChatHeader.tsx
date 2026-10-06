@@ -6,7 +6,7 @@ import PermissionModeSelect from '../models/PermissionModeSelect'
 import EditableTitle from '../title/EditableTitle'
 import PathText from '../ui/PathText'
 import { icon } from '../icon'
-import type { ApprovalReviewer, Session } from '../../lib/api'
+import type { ApprovalReviewer, Session, Worktree } from '../../lib/api'
 import { statusWord, type ShownStatus } from '../../lib/status'
 import { isDangerousMode } from '../../lib/models'
 import { sessionTitle } from '../../lib/sessions'
@@ -31,10 +31,13 @@ function ApprovalReviewerSelect({ session }: { session: Session }) {
   }
   return (
     <label className="reviewer">
-      Approvals
+      <span className="tool-label" aria-hidden="true">
+        Approvals
+      </span>
       <select
         className="field field-sm"
         aria-label="Approval reviewer"
+        title="Who reviews approvals · default: as the Codex config sets it"
         aria-busy={saving !== null || undefined}
         value={saving ?? session.approvalReviewer ?? ''}
         onChange={(e) => {
@@ -42,9 +45,9 @@ function ApprovalReviewerSelect({ session }: { session: Session }) {
         }}
       >
         <option value="" disabled>
-          from Codex config
+          Default approvals
         </option>
-        <option value="user">ask me</option>
+        <option value="user">ask me to approve</option>
         <option value="auto_review">auto-review</option>
       </select>
       {saving !== null && <span className="busy-mark" aria-hidden="true" />}
@@ -69,8 +72,10 @@ function SessionUsage() {
   )
 }
 
-// ChatPath shows the session folder, whole on hover, with a copy button.
-function ChatPath({ cwd }: { cwd: string }) {
+// ChatPath shows the session folder, whole on hover, with a copy button. A
+// session in a worktree reads as its repository with the branch beside it
+// (as in the sessions list); the copy is still the folder the agent runs in.
+function ChatPath({ cwd, worktree }: { cwd: string; worktree?: Worktree }) {
   const copy = async () => {
     try {
       await navigator.clipboard.writeText(cwd)
@@ -81,7 +86,12 @@ function ChatPath({ cwd }: { cwd: string }) {
   }
   return (
     <span className="chat-path-line">
-      <PathText path={cwd} className="chat-path" />
+      <PathText path={worktree?.repo ?? cwd} className="chat-path" />
+      {worktree && (
+        <span className="session-branch" title={`In a worktree on ${worktree.branch} · ${worktree.path}`}>
+          {worktree.branch.replace(/^chamber\//, '')}
+        </span>
+      )}
       <button type="button" className="btn btn-ghost btn-icon chat-path-copy" aria-label="Copy path" title="Copy path" onClick={() => void copy()}>
         <Copy {...icon(12)} />
       </button>
@@ -93,6 +103,8 @@ interface Props {
   session: Session | undefined
   // status is what the header shows (see lib/status).
   status: ShownStatus
+  // unsettled: the live socket dropped, so the state shown may be stale.
+  unsettled?: boolean
   // loading: the sessions list hasn't arrived, so the title isn't known yet.
   loading: boolean
   notFound: boolean
@@ -103,7 +115,7 @@ interface Props {
 // ChatHeader names the open session and holds its settings. On a phone it
 // folds to the title and one meta line; the folder, model, mode and fork
 // open behind "⋯" so the transcript keeps the screen.
-export default function ChatHeader({ session, status, loading, notFound, forking, onFork }: Props) {
+export default function ChatHeader({ session, status, unsettled, loading, notFound, forking, onFork }: Props) {
   const renameSession = useSessionStore((s) => s.renameSession)
   const [open, setOpen] = useState(false)
   const toolsId = useId()
@@ -124,7 +136,7 @@ export default function ChatHeader({ session, status, loading, notFound, forking
         ) : (
           <h2>{notFound ? 'Session not found' : 'Session'}</h2>
         )}
-        {session && <ChatPath cwd={session.cwd} />}
+        {session && <ChatPath cwd={session.cwd} worktree={session.worktree} />}
       </div>
       {session && (
         <button
@@ -140,7 +152,11 @@ export default function ChatHeader({ session, status, loading, notFound, forking
       )}
       <div className="chat-meta">
         {session && (
-          <span className={`status status-${status}`} role="status">
+          <span
+            className={`status status-${status}${unsettled ? ' unsettled' : ''}`}
+            role="status"
+            title={unsettled ? 'May be out of date until the connection is back' : undefined}
+          >
             {statusWord(status)}
           </span>
         )}

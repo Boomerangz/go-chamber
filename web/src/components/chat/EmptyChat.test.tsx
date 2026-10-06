@@ -31,6 +31,14 @@ describe('EmptyChat', () => {
     expect(selectSession).toHaveBeenCalledWith('a')
   })
 
+  it('counts a turn cut off with a question open as waiting', () => {
+    const cut: Session = { ...s('c', '2026-10-01T10:00:00Z'), status: 'interrupted', interruption: { reason: 'server_restart', withRequest: true } }
+    useSessionStore.setState({ sessions: [s('b', '2026-10-02T10:00:00Z'), cut] })
+    render(<EmptyChat />)
+    expect(screen.getByRole('heading', { name: 'Waiting for you' })).toBeInTheDocument()
+    expect(screen.getAllByRole('button').map((b) => b.textContent)).toEqual(['c'])
+  })
+
   it('lists waiting sessions in a steady order, the longest waiting first, with how many more', async () => {
     const days = ['01', '02', '03', '04', '05', '06', '07']
     useSessionStore.setState({

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 )
 
@@ -132,6 +133,38 @@ type Item struct {
 	Decision Decision `json:"decision,omitempty"`
 	// Images are the ids of pictures attached to a user message.
 	Images []string `json:"images,omitempty"`
+	// OutlivesTurn marks work that keeps running after its turn ends (a
+	// background task); its steps inherit it through ParentItemID.
+	OutlivesTurn bool `json:"outlivesTurn,omitempty"`
+}
+
+// LeftByTurn returns, stopped and sorted by id, the open items a turn left
+// unfinished when it ended; work that outlives the turn keeps running.
+func LeftByTurn(open map[ItemID]Item) []Item {
+	var out []Item
+	for _, item := range open {
+		if item.Status.Terminal() || outlives(open, item) {
+			continue
+		}
+		_ = item.SetStatus(ItemStopped)
+		out = append(out, item)
+	}
+	slices.SortFunc(out, func(a, b Item) int { return strings.Compare(string(a.ID), string(b.ID)) })
+	return out
+}
+
+func outlives(open map[ItemID]Item, item Item) bool {
+	for seen := 0; seen <= len(open); seen++ {
+		if item.OutlivesTurn {
+			return true
+		}
+		parent, ok := open[item.ParentItemID]
+		if !ok {
+			return false
+		}
+		item = parent
+	}
+	return false
 }
 
 func NewItem(id ItemID, session SessionID, turn TurnID, parent ItemID, kind ItemKind) (*Item, error) {

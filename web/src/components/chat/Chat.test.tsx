@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import * as api from '../../lib/api'
 import { initialChat, type ChatState } from '../../lib/events'
 import { resetDrafts } from '../../stores/drafts'
-import { useNotices } from '../../stores/notices'
+import { notify, useNotices } from '../../stores/notices'
 import { resetStore, useSessionStore } from '../../stores/session'
 import Chat from './Chat'
 
@@ -129,6 +129,19 @@ describe('header status', () => {
     expect(useNotices.getState().notices.at(-1)?.text).toBe('Path copied')
   })
 
+  it('reads a worktree session by its repository and branch, and copies the worktree', async () => {
+    const writeText = vi.fn(async () => {})
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true })
+    const worktree = { repo: '/home/me/project', path: '/home/me/.go-chamber/worktrees/project/fix-readme', branch: 'chamber/fix-readme', base: 'abc' }
+    setup({ sessions: [{ ...session, cwd: worktree.path, worktree }] })
+    expect(document.querySelector('.chat-path')).toHaveTextContent('~/project')
+    const branch = document.querySelector('.chat-path-line .session-branch')!
+    expect(branch).toHaveTextContent('fix-readme')
+    expect(branch).toHaveAttribute('title', `In a worktree on chamber/fix-readme · ${worktree.path}`)
+    await userEvent.click(screen.getByRole('button', { name: 'Copy path' }))
+    expect(writeText).toHaveBeenCalledWith(worktree.path)
+  })
+
   const statusEl = () => document.querySelector('.chat-meta .status')
 
   it('says the session waits for the owner while a request is open, as the list does', () => {
@@ -136,6 +149,12 @@ describe('header status', () => {
     setup({ chat: running([item('u1', 'user_message')], { requests: { r1: request } }) })
     expect(statusEl()).toHaveTextContent('waiting for you')
     expect(statusEl()).toHaveClass('status-waiting')
+  })
+
+  it('still waits for the owner after a restart cut off a turn with a question open', () => {
+    const owed = { ...session, status: 'interrupted' as const, interruption: { reason: 'server_restart', withRequest: true } }
+    setup({ sessions: [owed], chat: chatOf([item('u1', 'user_message')], { status: 'interrupted' }) })
+    expect(statusEl()).toHaveTextContent('waiting for you')
   })
 
   it('calls a session that never ran idle, not detached', () => {
@@ -424,6 +443,14 @@ describe('header', () => {
     expect(fns.forkSession).toHaveBeenCalledTimes(1)
   })
 
+  it('names who reviews approvals in the choice itself', () => {
+    setup({ sessions: [{ ...session, agent: 'codex' }] })
+    const select = screen.getByLabelText('Approval reviewer')
+    expect([...select.querySelectorAll('option')].map((o) => o.textContent)).toEqual(['Default approvals', 'ask me to approve', 'auto-review'])
+    expect(select).toHaveAttribute('title', 'Who reviews approvals · default: as the Codex config sets it')
+    expect(screen.getByText('Approvals')).toHaveClass('tool-label')
+  })
+
   it('shows the reviewer choice at once and reverts a refused one', async () => {
     let done: (ok: boolean) => void = () => {}
     setup({ sessions: [{ ...session, agent: 'codex', approvalReviewer: 'user' }] })
@@ -602,6 +629,32 @@ describe('live connection', () => {
     expect(screen.getByText('working · paused')).toBeInTheDocument()
   })
 
+  it("marks the header's state unsettled: the page can't see the turn now", () => {
+    setup({ chat: running([item('u1', 'user_message')]), connection: 'offline', nextRetryAt: Date.now() + 4000 })
+    expect(document.querySelector('.chat-meta .status')).toHaveClass('unsettled')
+    expect(document.querySelector('.chat-meta .status')).toHaveAttribute('title', 'May be out of date until the connection is back')
+    act(() => useSessionStore.setState({ connection: 'online', nextRetryAt: null }))
+    expect(document.querySelector('.chat-meta .status')).not.toHaveClass('unsettled')
+  })
+
+  it('holds a message sent while go-chamber is out of reach, and sends it once back', async () => {
+    setup({ chat: running([item('u1', 'user_message')]), connection: 'offline', nextRetryAt: Date.now() + 4000 })
+    await userEvent.type(box(), 'steer me{Enter}')
+    expect(fns.steer).not.toHaveBeenCalled()
+    expect(document.querySelector('.row-pending')).toHaveTextContent('steer me')
+    expect(document.querySelector('.row-pending .pending-label')).toHaveTextContent('waits for go-chamber')
+    await act(async () => useSessionStore.setState({ connection: 'online', nextRetryAt: null }))
+    await waitFor(() => expect(fns.steer).toHaveBeenCalledWith('steer me'))
+  })
+
+  it('clears a "not sent" notice once go-chamber is back', () => {
+    setup({ chat: running([item('u1', 'user_message')]), connection: 'offline', nextRetryAt: Date.now() + 4000 })
+    act(() => void notify({ kind: 'error', title: 'Steer not sent', text: 'go-chamber is not reachable', key: 'send' }))
+    expect(useNotices.getState().notices).toHaveLength(1)
+    act(() => useSessionStore.setState({ connection: 'online', nextRetryAt: null }))
+    expect(useNotices.getState().notices).toHaveLength(0)
+  })
+
   it('says it once: the strip tells of the drop, the header keeps quiet', () => {
     const { container } = setup({ chat: running([item('u1', 'user_message')]), connection: 'offline', nextRetryAt: null })
     expect(container.querySelector('.chat-header')).not.toHaveTextContent('offline')
@@ -685,6 +738,14 @@ describe('working tail while text streams', () => {
     setup({ chat: running([item('a1', 'assistant_message', { status: 'streaming' })]) })
     expect(screen.queryByText(/working/)).toBeNull()
     expect(document.querySelector('.working-tail')).toHaveTextContent('0:00')
+  })
+
+  it('says working while a tool or subagent runs, which shows no words', () => {
+    for (const kind of ['command', 'subagent'] as const) {
+      const view = setup({ chat: running([item('t1', kind, { status: 'streaming' })]) })
+      expect(document.querySelector('.working-tail')).toHaveTextContent('working · 0:00')
+      view.unmount()
+    }
   })
 })
 

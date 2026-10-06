@@ -79,6 +79,9 @@ const (
 type Interruption struct {
 	Reason      ExitReason `json:"reason,omitempty"`
 	ResumeAfter time.Time  `json:"resumeAfter,omitzero"`
+	// WithRequest is set when the turn was cut off while it waited for the
+	// owner (a question or a permission was open): the owner still owes it.
+	WithRequest bool `json:"withRequest,omitempty"`
 }
 
 // Session is the aggregate for a conversation with one agent. The agent
@@ -291,6 +294,14 @@ func (s *Session) TurnInterrupted(reason ExitReason) error {
 	s.status = StatusInterrupted
 	s.interruption = Interruption{Reason: reason}
 	return nil
+}
+
+// InterruptedWithRequest notes that the interrupted turn was waiting for
+// the owner when it was cut off.
+func (s *Session) InterruptedWithRequest() {
+	if s.status == StatusInterrupted {
+		s.interruption.WithRequest = true
+	}
 }
 
 // QuotaExhausted marks the running turn as stopped by a subscription limit.

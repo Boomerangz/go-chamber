@@ -65,6 +65,7 @@ export default function InterruptedBanner({
       <span>
         {reason ? interruptionText[reason] ?? reason : 'the turn ended abnormally'}.
         {resets && ` The limit resets at ${resets.toLocaleTimeString()}.`}
+        {session.interruption?.withRequest && ' It was waiting for your answer; Continue and the agent asks again.'}
       </span>
       {session.nativeId && (
         <span className="banner-actions">

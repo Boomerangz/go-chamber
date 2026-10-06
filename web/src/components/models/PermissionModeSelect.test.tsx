@@ -24,6 +24,14 @@ describe('PermissionModeSelect', () => {
     expect(api.setPermissionMode).toHaveBeenCalledWith('s', 'acceptEdits')
   })
 
+  it('names its default plainly and says where it comes from, the word "Mode" only where settings stack', () => {
+    render(<PermissionModeSelect session={{ id: 's', agent: 'claude', cwd: '/p', status: 'idle' }} />)
+    const select = screen.getByLabelText('Permission mode')
+    expect(select.querySelector('option[value=""]')).toHaveTextContent(/^Default mode$/)
+    expect(select).toHaveAttribute('title', 'Permission mode · default: as the Claude config sets it')
+    expect(screen.getByText('Mode')).toHaveClass('tool-label')
+  })
+
   it('offers the Codex presets', () => {
     render(<PermissionModeSelect session={{ id: 's', agent: 'codex', cwd: '/p', status: 'idle' }} />)
     expect(screen.getByLabelText('Permission mode')).toHaveValue('')
@@ -89,6 +97,6 @@ describe('PermissionModeSelect', () => {
     expect(select).toHaveClass('mode-danger')
     rerender(<PermissionModeSelect session={{ id: 's', agent: 'codex', cwd: '/p', status: 'idle', permissionMode: 'auto' }} />)
     expect(select).not.toHaveClass('mode-danger')
-    expect(select).not.toHaveAttribute('title')
+    expect(select.getAttribute('title')).not.toMatch(/won't ask/)
   })
 })

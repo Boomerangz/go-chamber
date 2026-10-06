@@ -5,7 +5,8 @@
 //
 //	auto       (default) pick a scenario from the prompt text: "permission" ->
 //	           can_use_tool prompt, "ask" -> AskUserQuestion, "bash" -> tool
-//	           call, "crash" -> exit mid-turn, otherwise stream "echo: <prompt>" back
+//	           call, "crash" -> exit mid-turn, "crash while asking" -> exit while
+//	           a permission waits, otherwise stream "echo: <prompt>" back
 //	echo       always stream "echo: <prompt>" back
 //	tool       always run a fake Bash tool call, then answer
 //	permission always prompt for Bash permission, then continue
@@ -34,6 +35,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 )
 
 type envelope struct {
@@ -134,6 +136,14 @@ func main() {
 				if taskTurnOpen {
 					taskTurnOpen = false
 					_ = enc.Encode(result(sessionID, ""))
+				}
+				// Like the real CLI: a turn waiting on a permission or a
+				// question withdraws it and ends.
+				if pending != nil {
+					_ = enc.Encode(map[string]any{"type": "control_cancel_request", "request_id": pending.requestID})
+					writeToolResult(enc, sessionID, pending.toolUseID, "[Request interrupted by user for tool use]", true)
+					_ = enc.Encode(result(sessionID, ""))
+					pending = nil
 				}
 				_ = out.Flush()
 			case "stop_task":
@@ -254,6 +264,12 @@ func startTurn(mode string, enc *json.Encoder, out *bufio.Writer, sessionID, pro
 		emitTaskTurn(enc, out, sessionID, prompt)
 	default: // auto
 		switch {
+		case strings.Contains(low, "crash while asking"):
+			// The process dies while a permission waits for the owner.
+			emitPermission(enc, out, sessionID, prompt)
+			_ = out.Flush()
+			time.Sleep(200 * time.Millisecond)
+			os.Exit(3)
 		case strings.Contains(low, "permission"):
 			return emitPermission(enc, out, sessionID, prompt)
 		case strings.Contains(low, "ask"):
