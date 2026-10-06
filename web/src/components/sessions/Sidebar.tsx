@@ -1,5 +1,5 @@
 import { useCallback, useRef, useState } from 'react'
-import AccountPanel from '../account/AccountPanel'
+import { Accounts } from '../account/AccountPanel'
 import AgentAvatar from '../AgentAvatar'
 import FolderField from '../folders/FolderField'
 import QuotaWidget from '../quota/QuotaWidget'
@@ -206,7 +206,7 @@ export default function Sidebar(props: SidebarProps) {
       <SessionList agent={agent} creating={creating} creatingIn={creatingIn} onCreateIn={(dir) => void createIn(dir)} />
       <HistoryPanel />
       <footer className="sidebar-footer">
-        <AccountPanel key={agent} agent={agent} />
+        <Accounts />
         <QuotaWidget />
         <SignOut className="sidebar-signout" />
       </footer>

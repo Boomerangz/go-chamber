@@ -1,7 +1,8 @@
 import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import AccountPanel from './AccountPanel'
+import AccountPanel, { Accounts } from './AccountPanel'
+import { lastError, resetNotices } from '../../stores/notices'
 import * as api from '../../lib/api'
 
 vi.mock('../../lib/api', () => ({ getAccount: vi.fn(), startLogin: vi.fn() }))
@@ -9,6 +10,7 @@ vi.mock('../../lib/api', () => ({ getAccount: vi.fn(), startLogin: vi.fn() }))
 afterEach(() => {
   vi.useRealTimers()
   vi.resetAllMocks()
+  resetNotices()
 })
 
 const out = { agent: 'codex', loggedIn: false } as api.AccountInfo
@@ -36,11 +38,11 @@ describe('AccountPanel', () => {
     let resolve!: (a: api.AccountInfo) => void
     vi.mocked(api.getAccount).mockReturnValue(new Promise((r) => (resolve = r)))
     render(<AccountPanel agent="codex" />)
-    expect(screen.getByText('checking account…')).toBeInTheDocument()
+    expect(screen.getByText('checking Codex account…')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Sign in to Codex' })).toBeNull()
     await act(async () => resolve({ ...out, loggedIn: true, email: 'dev@example.com' }))
     expect(screen.getByText(/Signed in as dev@example.com/)).toBeInTheDocument()
-    expect(screen.queryByText('checking account…')).toBeNull()
+    expect(screen.queryByText('checking Codex account…')).toBeNull()
   })
 
   it('shows the code request in progress', async () => {
@@ -116,4 +118,36 @@ describe('AccountPanel', () => {
     expect(await screen.findByText('ABCD')).toBeInTheDocument()
     expect(screen.queryByText('no network')).toBeNull()
   })
+
+  it('says the check failed, with a retry, instead of offering to sign in', async () => {
+    vi.mocked(api.getAccount).mockRejectedValueOnce(new Error('codex stopped'))
+    render(<AccountPanel agent="codex" />)
+    expect(await screen.findByText("Couldn't check the Codex account: codex stopped")).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Sign in to Codex' })).toBeNull()
+    vi.mocked(api.getAccount).mockResolvedValueOnce({ ...out, loggedIn: true, email: 'dev@example.com' })
+    await userEvent.click(screen.getByRole('button', { name: 'Retry' }))
+    expect(await screen.findByText(/Signed in as dev@example.com/)).toBeInTheDocument()
+  })
+
+  it('says when the code could not be copied', async () => {
+    const user = userEvent.setup()
+    vi.spyOn(navigator.clipboard, 'writeText').mockRejectedValueOnce(new Error('denied'))
+    await startSignIn()
+    await user.click(screen.getByRole('button', { name: 'Copy code' }))
+    await waitFor(() => expect(lastError()).toBe('denied'))
+  })
 })
+
+describe('Accounts', () => {
+  it('shows one line per agent, each on its own', async () => {
+    vi.mocked(api.getAccount).mockImplementation(async (agent) =>
+      agent === 'claude' ? { agent, loggedIn: true, authMode: 'cli' } : { ...out, loggedIn: true, email: 'dev@example.com' },
+    )
+    render(<Accounts />)
+    expect(await screen.findByText(/Signed in as dev@example.com/)).toBeInTheDocument()
+    expect(await screen.findByText(/Signed in with the CLI login/)).toBeInTheDocument()
+    expect(screen.getByText('Claude')).toBeInTheDocument()
+    expect(screen.getByText('Codex')).toBeInTheDocument()
+  })
+})
+

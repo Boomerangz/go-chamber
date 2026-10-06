@@ -6,3 +6,6 @@
 .account .device-code-wait { gap: 8px; }
 .account .device-code-wait .btn { margin-left: auto; }
 .account .code-expired { display: flex; align-items: center; gap: 6px; font-family: var(--font-mono); font-size: 12px; color: var(--ink-2); }
+.accounts { display: grid; gap: 6px; }
+.account .account-agent { font-family: var(--font-mono); font-size: 12px; color: var(--ink); }
+.account .account-agent::after { content: ' ·'; color: var(--ink-3); }

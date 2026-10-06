@@ -2,9 +2,9 @@ import { Check, Copy } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import { getAccount, startLogin, type AccountInfo, type AgentKind, type LoginChallenge } from '../../lib/api'
 import { usePending } from '../../lib/pending'
-import { describeError } from '../../stores/notices'
+import { describeError, fail } from '../../stores/notices'
 import { icon } from '../icon'
-import { LoadingLine } from '../ui/Loading'
+import { LoadFailed, LoadingLine } from '../ui/Loading'
 import './AccountPanel.css'
 
 const POLL_MS = 3000
@@ -12,26 +12,45 @@ const POLL_MS = 3000
 const CODE_TTL_MS = 15 * 60_000
 const COPIED_MS = 1500
 
-// AccountPanel shows the Codex login state and the device-code flow.
+const agentName: Record<AgentKind, string> = { claude: 'Claude', codex: 'Codex' }
+
+// Accounts shows each agent's login on its own line, whichever agent the
+// new-session switch has chosen.
+export function Accounts() {
+  return (
+    <div className="accounts">
+      <AccountPanel agent="claude" />
+      <AccountPanel agent="codex" />
+    </div>
+  )
+}
+
+// AccountPanel shows an agent's login state and, for Codex, the device-code flow.
 export default function AccountPanel({ agent }: { agent: AgentKind }) {
   const [account, setAccount] = useState<AccountInfo | null>(null)
   const [checked, setChecked] = useState(false)
+  // checkFailed is why the first look at the account failed.
+  const [checkFailed, setCheckFailed] = useState<string | null>(null)
+  const [attempt, setAttempt] = useState(0)
   const [login, setLogin] = useState<LoginChallenge | null>(null)
   const [expired, setExpired] = useState(false)
   const [copied, setCopied] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    if (agent !== 'codex') return
     let alive = true
     getAccount(agent)
-      .then((a) => alive && setAccount(a))
-      .catch((e) => alive && setError(describeError(e)))
+      .then((a) => {
+        if (!alive) return
+        setAccount(a)
+        setCheckFailed(null)
+      })
+      .catch((e) => alive && setCheckFailed(describeError(e)))
       .finally(() => alive && setChecked(true))
     return () => {
       alive = false
     }
-  }, [agent])
+  }, [agent, attempt])
 
   // Codex finishes the device-code login on its own; poll until it does or
   // the code runs out.
@@ -74,20 +93,30 @@ export default function AccountPanel({ agent }: { agent: AgentKind }) {
   }, [agent])
   const [signIn, requesting] = usePending(request)
 
-  if (agent !== 'codex') return null
-  if (!checked) {
+  const name = agentName[agent]
+  if (!checked || (checkFailed && !account)) {
     return (
       <div className="account">
-        <LoadingLine>checking account…</LoadingLine>
+        {checked ? (
+          <LoadFailed
+            onRetry={() => {
+              setChecked(false)
+              setAttempt((n) => n + 1)
+            }}
+          >{`Couldn't check the ${name} account: ${checkFailed}`}</LoadFailed>
+        ) : (
+          <LoadingLine>{`checking ${name} account…`}</LoadingLine>
+        )}
       </div>
     )
   }
 
   const copy = () => {
     if (!login) return
-    navigator.clipboard?.writeText(login.userCode).then(
+    const write = navigator.clipboard?.writeText(login.userCode) ?? Promise.reject(new Error('The clipboard is not available here'))
+    write.then(
       () => setCopied(true),
-      () => {},
+      (err: unknown) => fail("Couldn't copy the code", err, 'copy-code'),
     )
   }
 
@@ -95,7 +124,14 @@ export default function AccountPanel({ agent }: { agent: AgentKind }) {
     <div className="account">
       {account?.loggedIn ? (
         <span className="signed-in">
-          Signed in as {account.email || 'unknown'} ({account.plan || account.authMode})
+          <span className="account-agent">{name}</span>
+          {account.email
+            ? ` Signed in as ${account.email} (${account.plan || account.authMode})`
+            : ` Signed in with the ${account.authMode === 'cli' ? 'CLI login' : account.authMode || 'CLI login'}`}
+        </span>
+      ) : agent !== 'codex' ? (
+        <span className="signed-in">
+          <span className="account-agent">{name}</span> not signed in · sign in with its CLI
         </span>
       ) : expired ? (
         <span className="code-expired">

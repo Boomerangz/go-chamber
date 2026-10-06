@@ -17,6 +17,7 @@ vi.mock('./lib/api', () => ({
   listRequests: vi.fn(),
   getQuotas: vi.fn(),
   refreshQuota: vi.fn(),
+  getAccount: vi.fn(),
   createSession: vi.fn(),
   getSession: vi.fn(),
   sendMessage: vi.fn(),
@@ -52,6 +53,7 @@ function mockApi() {
   vi.mocked(api.listSessions).mockResolvedValue([])
   vi.mocked(api.listRequests).mockResolvedValue([])
   vi.mocked(api.getQuotas).mockResolvedValue([])
+  vi.mocked(api.getAccount).mockImplementation(async (agent) => ({ agent, loggedIn: true, authMode: 'cli' }))
 }
 
 describe('App', () => {
