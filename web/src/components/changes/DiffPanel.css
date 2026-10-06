@@ -77,6 +77,8 @@
 .diff-code span { color: var(--shiki-light, inherit); }
 @media (prefers-color-scheme: dark) {
   .diff-code span { color: var(--shiki-dark, inherit); }
+  /* pressed paper is too close to the sheet in the dark: added lines take deep paper */
+  .diff-view > .diff-add { background: var(--paper-3); }
 }
 .diff-more { margin: 0 0 8px; font-family: var(--font-mono); font-size: 12px; color: var(--ink-3); }
 .diff-more .act-link, .diff-none .act-link { margin: 0; }

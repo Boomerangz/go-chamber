@@ -56,6 +56,23 @@ const aliases: Record<string, string> = {
   'protobuf': 'proto',
 }
 
+// GitHub's themes print keywords and operators red; here red means failure
+// (and it is the removed-line wash), so they take the quiet ink instead.
+const QUIET: Record<string, string> = { '#D73A49': '#45474d', '#F97583': '#b3b1ab' }
+
+function quiet(lines: ThemedToken[][]): ThemedToken[][] {
+  for (const line of lines) {
+    for (const t of line) {
+      if (!t.htmlStyle) continue
+      for (const [k, v] of Object.entries(t.htmlStyle)) {
+        const to = QUIET[v.toUpperCase()]
+        if (to) t.htmlStyle[k] = to
+      }
+    }
+  }
+  return lines
+}
+
 // tokenize colours code for both sheets (--shiki-light / --shiki-dark);
 // grammars load on first use. Unknown languages resolve to undefined.
 export async function tokenize(code: string, lang: string): Promise<ThemedToken[][] | undefined> {
@@ -72,9 +89,9 @@ export async function tokenize(code: string, lang: string): Promise<ThemedToken[
   if (!h.getLoadedLanguages().includes(id)) {
     await h.loadLanguage((await load()) as Parameters<HighlighterCore['loadLanguage']>[0])
   }
-  return h.codeToTokens(code, {
+  return quiet(h.codeToTokens(code, {
     lang: id,
     themes: { light: 'github-light', dark: 'github-dark' },
     defaultColor: false,
-  }).tokens
+  }).tokens)
 }
