@@ -1,8 +1,9 @@
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import RequestTray from './RequestTray'
 import { resetStore, useSessionStore } from '../../stores/session'
+import { fail } from '../../stores/notices'
 
 vi.mock('../../lib/api', () => ({
   listSessions: vi.fn(),
@@ -59,8 +60,8 @@ describe('RequestTray', () => {
     render(<RequestTray />)
     await userEvent.click(screen.getByRole('button', { name: 'Allow' }))
     expect(respond).toHaveBeenCalledWith('s1', 'r1', { behavior: 'allow' })
-    await userEvent.click(screen.getByRole('button', { name: 'Deny' }))
-    expect(respond).toHaveBeenCalledWith('s1', 'r1', { behavior: 'deny' })
+    // answered: the line holds until it leaves, so a second click can't send again
+    expect(screen.getByRole('button', { name: 'Deny' })).toBeDisabled()
     expect(useSessionStore.getState().activeId).not.toBe('s1')
     expect(screen.queryByRole('button', { name: 'Allow for session' })).toBeNull()
   })
@@ -78,7 +79,13 @@ describe('RequestTray', () => {
   })
 
   it('answers from the keyboard and moves between requests with the arrows', async () => {
-    const respond = vi.fn().mockResolvedValue(undefined)
+    // an answered request leaves the queue, as request.resolved does
+    const respond = vi.fn(async (sessionId: string, id: string) => {
+      useSessionStore.setState({
+        pendingRequests: useSessionStore.getState().pendingRequests.filter((r) => r.sessionId !== sessionId || r.id !== id),
+      })
+      return true
+    })
     useSessionStore.setState({
       respond,
       sessions: [
@@ -88,6 +95,7 @@ describe('RequestTray', () => {
       pendingRequests: [
         { id: 'r1', sessionId: 's1', kind: 'permission', state: 'pending', title: 'First' },
         { id: 'r1', sessionId: 's2', kind: 'permission', state: 'pending', title: 'Second' },
+        { id: 'r2', sessionId: 's1', kind: 'permission', state: 'pending', title: 'Third' },
       ],
     })
     render(<RequestTray />)
@@ -96,15 +104,74 @@ describe('RequestTray', () => {
     expect(screen.getByRole('button', { name: /Second/ })).toHaveFocus()
     await userEvent.keyboard('d')
     expect(respond).toHaveBeenLastCalledWith('s2', 'r1', { behavior: 'deny' })
-    // the last line answered: focus steps back to the one above
-    expect(screen.getByRole('button', { name: /First/ })).toHaveFocus()
-    await userEvent.keyboard('s')
-    expect(respond).toHaveBeenLastCalledWith('s1', 'r1', { behavior: 'allow', allowForSession: true })
     // answered: focus moves on to the next line, ready for the next key
-    expect(screen.getByRole('button', { name: /Second/ })).toHaveFocus()
+    await vi.waitFor(() => expect(screen.getByRole('button', { name: /Third/ })).toHaveFocus())
+    await userEvent.keyboard('s')
+    expect(respond).toHaveBeenLastCalledWith('s1', 'r2', { behavior: 'allow', allowForSession: true })
+    // the last line answered: focus steps back to the one above
+    await vi.waitFor(() => expect(screen.getByRole('button', { name: /First/ })).toHaveFocus())
     await userEvent.keyboard('a')
-    expect(respond).toHaveBeenLastCalledWith('s2', 'r1', { behavior: 'allow' })
+    expect(respond).toHaveBeenLastCalledWith('s1', 'r1', { behavior: 'allow' })
     expect(respond).toHaveBeenCalledTimes(3)
+  })
+
+  it('holds a line while its answer is on its way and keeps focus there', async () => {
+    let release: (ok: boolean) => void = () => {}
+    const respond = vi.fn(() => new Promise<boolean>((r) => (release = r)))
+    useSessionStore.setState({
+      respond,
+      pendingRequests: [
+        { id: 'r1', sessionId: 's1', kind: 'permission', state: 'pending', title: 'First' },
+        { id: 'r2', sessionId: 's1', kind: 'permission', state: 'pending', title: 'Second' },
+      ],
+    })
+    render(<RequestTray />)
+    const row = screen.getByRole('button', { name: /First/ })
+    row.focus()
+    await userEvent.keyboard('a')
+    await userEvent.keyboard('d')
+    expect(respond).toHaveBeenCalledTimes(1)
+    expect(row).toHaveFocus()
+    const line = row.closest('li')!
+    expect(line).toHaveClass('answering')
+    expect(line).toHaveAttribute('aria-busy', 'true')
+    for (const b of line.querySelectorAll('.tray-actions button')) expect(b).toBeDisabled()
+    release(true)
+    await vi.waitFor(() => expect(screen.getByRole('button', { name: /Second/ })).toHaveFocus())
+  })
+
+  it('names a failed answer on its line and lets the owner retry', async () => {
+    const respond = vi.fn(async () => {
+      fail('Answer not sent', new Error('agent gone'))
+      return false
+    })
+    useSessionStore.setState({
+      respond,
+      pendingRequests: [
+        { id: 'r1', sessionId: 's1', kind: 'permission', state: 'pending', title: 'First' },
+        { id: 'r2', sessionId: 's1', kind: 'permission', state: 'pending', title: 'Second' },
+      ],
+    })
+    render(<RequestTray />)
+    const first = screen.getAllByRole('listitem')[0]!
+    await userEvent.click(within(first).getByRole('button', { name: 'Allow' }))
+    expect(await within(first).findByText('Not sent: agent gone')).toBeInTheDocument()
+    expect(first).not.toHaveClass('answering')
+    expect(within(first).getByRole('button', { name: 'Allow' })).toBeEnabled()
+    const row = within(first).getByRole('button', { name: /First/ })
+    row.focus()
+    await userEvent.keyboard('a')
+    expect(respond).toHaveBeenCalledTimes(2)
+    await vi.waitFor(() => expect(within(first).getByText('Not sent: agent gone')).toBeInTheDocument())
+    expect(row).toHaveFocus()
+  })
+
+  it('labels elicitations as input', () => {
+    useSessionStore.setState({
+      pendingRequests: [{ id: 'e1', sessionId: 's1', kind: 'elicitation', state: 'pending', title: 'Need details' }],
+    })
+    render(<RequestTray />)
+    expect(screen.getByText('Input')).toHaveClass('request-kind')
   })
 
   it('does not answer with keys that only add modifiers', async () => {

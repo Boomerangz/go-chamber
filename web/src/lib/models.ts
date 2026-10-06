@@ -14,3 +14,11 @@ export function modelLabel(models: ModelInfo[], session: Pick<Session, 'model' |
   const name = session.model ? models.find((m) => m.id === session.model)?.name ?? session.model : 'Default model'
   return session.effort ? `${name} · ${session.effort}` : name
 }
+
+// neverAsks lists the permission modes in which the agent acts without
+// asking first: Claude's bypass and Codex's full access.
+const neverAsks = new Set(['bypassPermissions', 'full-access', 'danger-full-access'])
+
+export function isDangerousMode(mode: string | undefined): boolean {
+  return mode !== undefined && neverAsks.has(mode)
+}

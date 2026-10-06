@@ -29,4 +29,36 @@ describe('PermissionModeSelect', () => {
     expect(screen.getByLabelText('permission mode')).toHaveValue('')
     expect(screen.getAllByRole('option').map((o) => o.getAttribute('value'))).toEqual(['', 'read-only', 'auto', 'full-access'])
   })
+
+  it('shows the new mode at once while it saves and goes back if it fails', async () => {
+    let finish: (ok: boolean) => void = () => {}
+    vi.mocked(api.setPermissionMode).mockImplementation(
+      (id, mode) =>
+        new Promise((resolve, reject) => {
+          finish = (ok) => (ok ? resolve({ id, agent: 'claude', cwd: '/p', status: 'idle', permissionMode: mode }) : reject(new Error('no')))
+        }),
+    )
+    render(<PermissionModeSelect session={{ id: 's', agent: 'claude', cwd: '/p', status: 'idle', permissionMode: 'plan' }} />)
+    const select = screen.getByLabelText('permission mode')
+    await userEvent.selectOptions(select, 'acceptEdits')
+    expect(select).toHaveValue('acceptEdits')
+    expect(select).toHaveAttribute('aria-busy', 'true')
+    expect(document.querySelector('.reviewer .busy-mark')).not.toBeNull()
+    finish(false)
+    await vi.waitFor(() => expect(select).toHaveValue('plan'))
+    expect(select).not.toHaveAttribute('aria-busy')
+    expect(document.querySelector('.reviewer .busy-mark')).toBeNull()
+  })
+
+  it('reads the modes that never ask as dangerous', () => {
+    const { rerender } = render(<PermissionModeSelect session={{ id: 's', agent: 'claude', cwd: '/p', status: 'idle', permissionMode: 'bypassPermissions' }} />)
+    const select = screen.getByLabelText('permission mode')
+    expect(select).toHaveClass('mode-danger')
+    expect(select.getAttribute('title')).toMatch(/won't ask/)
+    rerender(<PermissionModeSelect session={{ id: 's', agent: 'codex', cwd: '/p', status: 'idle', permissionMode: 'full-access' }} />)
+    expect(select).toHaveClass('mode-danger')
+    rerender(<PermissionModeSelect session={{ id: 's', agent: 'codex', cwd: '/p', status: 'idle', permissionMode: 'auto' }} />)
+    expect(select).not.toHaveClass('mode-danger')
+    expect(select).not.toHaveAttribute('title')
+  })
 })

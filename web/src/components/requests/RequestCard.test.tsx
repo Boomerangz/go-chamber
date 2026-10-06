@@ -1,6 +1,7 @@
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { fail, resetNotices } from '../../stores/notices'
 import RequestCard from './RequestCard'
 import type { RequestAnswerInput, SessionRequest } from '../../lib/api'
 
@@ -199,15 +200,160 @@ describe('RequestCard audit fixes', () => {
     expect(onRespond).toHaveBeenCalledWith('s1', 'e1', { behavior: 'deny' })
   })
 
-  it('disables the buttons while an answer is in flight', async () => {
-    let release: () => void = () => {}
-    const onRespond = vi.fn(() => new Promise<void>((r) => (release = r)))
+  it('keeps the card busy after a successful answer until it leaves', async () => {
+    let release: (ok: boolean) => void = () => {}
+    const onRespond = vi.fn(() => new Promise<boolean>((r) => (release = r)))
     render(<RequestCard request={permission} onRespond={onRespond} />)
     await userEvent.click(screen.getByRole('button', { name: 'Allow' }))
-    expect(screen.getByRole('button', { name: 'Allow' })).toBeDisabled()
-    await userEvent.click(screen.getByRole('button', { name: 'Allow' }))
+    const allowing = screen.getByRole('button', { name: 'Allowing…' })
+    expect(allowing).toHaveAttribute('aria-busy', 'true')
+    expect(screen.getByRole('button', { name: 'Allow for session' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Deny' })).toBeDisabled()
+    await userEvent.click(allowing)
     expect(onRespond).toHaveBeenCalledTimes(1)
-    release()
-    await vi.waitFor(() => expect(screen.getByRole('button', { name: 'Allow' })).toBeEnabled())
+    release(true)
+    await new Promise((r) => setTimeout(r, 0))
+    expect(screen.getByRole('button', { name: 'Allowing…' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Deny' })).toBeDisabled()
+  })
+})
+
+describe('RequestCard pending and failure', () => {
+  beforeEach(() => resetNotices())
+
+  it('sends once on a same-tick double click', () => {
+    const onRespond = vi.fn(() => new Promise<boolean>(() => {}))
+    render(<RequestCard request={permission} onRespond={onRespond} />)
+    const allow = screen.getByRole('button', { name: 'Allow' })
+    fireEvent.click(allow)
+    fireEvent.click(allow)
+    expect(onRespond).toHaveBeenCalledTimes(1)
+  })
+
+  it('names the failure under the actions and lets the owner try again', async () => {
+    const onRespond = vi.fn(async () => {
+      fail('Answer not sent', new Error('agent gone'))
+      return false
+    })
+    render(<RequestCard request={permission} onRespond={onRespond} />)
+    await userEvent.click(screen.getByRole('button', { name: 'Allow' }))
+    expect(await screen.findByText('Not sent: agent gone')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Allow' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'Deny' })).toBeEnabled()
+    await userEvent.click(screen.getByRole('button', { name: 'Allow' }))
+    expect(onRespond).toHaveBeenCalledTimes(2)
+  })
+
+  it('reports a thrown failure too', async () => {
+    const onRespond = vi.fn(async () => {
+      throw new Error('boom')
+    })
+    render(<RequestCard request={question} onRespond={onRespond} />)
+    await userEvent.click(screen.getByRole('radio', { name: /Alpha/ }))
+    await userEvent.click(screen.getByRole('button', { name: 'Submit' }))
+    expect(await screen.findByText('Not sent: boom')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Submit' })).toBeEnabled()
+  })
+
+  it('labels the sending answer of a question and an elicitation', async () => {
+    const onRespond = vi.fn(() => new Promise<boolean>(() => {}))
+    const { unmount } = render(<RequestCard request={question} onRespond={onRespond} />)
+    await userEvent.click(screen.getByRole('radio', { name: /Alpha/ }))
+    await userEvent.click(screen.getByRole('button', { name: 'Submit' }))
+    expect(screen.getByRole('button', { name: 'Sending…' })).toHaveAttribute('aria-busy', 'true')
+    unmount()
+    render(<RequestCard request={{ id: 'e1', sessionId: 's1', kind: 'elicitation', state: 'pending' }} onRespond={onRespond} />)
+    await userEvent.click(screen.getByRole('button', { name: 'Decline' }))
+    expect(screen.getByRole('button', { name: 'Declining…' })).toHaveAttribute('aria-busy', 'true')
+    expect(screen.getByRole('button', { name: 'Accept' })).toBeDisabled()
+  })
+})
+
+describe('RequestCard keyboard', () => {
+  it('answers with A and S while focus is in the card and shows the keys', async () => {
+    const { onRespond } = setup(permission)
+    expect(screen.getByRole('button', { name: 'Allow' })).toHaveAttribute('aria-keyshortcuts', 'A')
+    expect(screen.getByRole('button', { name: 'Allow for session' })).toHaveAttribute('aria-keyshortcuts', 'S')
+    expect(screen.getByRole('button', { name: 'Deny' })).toHaveAttribute('aria-keyshortcuts', 'D')
+    screen.getByRole('button', { name: 'Deny' }).focus()
+    await userEvent.keyboard('s')
+    expect(onRespond).toHaveBeenCalledWith('s1', 'r1', { behavior: 'allow', allowForSession: true })
+  })
+
+  it('answers allow with A', async () => {
+    const { onRespond } = setup(permission)
+    screen.getByRole('button', { name: 'Deny' }).focus()
+    await userEvent.keyboard('{Meta>}a{/Meta}')
+    expect(onRespond).not.toHaveBeenCalled()
+    await userEvent.keyboard('a')
+    expect(onRespond).toHaveBeenCalledWith('s1', 'r1', { behavior: 'allow' })
+  })
+
+  it('ignores S without a per-session option', async () => {
+    const { onRespond } = setup({ ...permission, payload: { toolName: 'Bash', input: {} } })
+    screen.getByRole('button', { name: 'Allow' }).focus()
+    await userEvent.keyboard('s')
+    expect(onRespond).not.toHaveBeenCalled()
+  })
+
+  it('opens the reason with D; Escape cancels, Enter confirms', async () => {
+    const { onRespond } = setup(permission)
+    screen.getByRole('button', { name: 'Allow' }).focus()
+    await userEvent.keyboard('d')
+    const reason = screen.getByLabelText('deny reason')
+    expect(reason).toHaveFocus()
+    // typing in the reason is text, not shortcuts
+    await userEvent.keyboard('a')
+    expect(onRespond).not.toHaveBeenCalled()
+    await userEvent.keyboard('{Escape}')
+    expect(screen.queryByLabelText('deny reason')).toBeNull()
+    expect(screen.getByRole('button', { name: 'Deny' })).toHaveFocus()
+    await userEvent.keyboard('d')
+    await userEvent.keyboard('nope{Enter}')
+    expect(onRespond).toHaveBeenCalledWith('s1', 'r1', { behavior: 'deny', message: 'nope' })
+  })
+})
+
+describe('RequestCard question form', () => {
+  const two: SessionRequest = {
+    ...question,
+    payload: {
+      input: {
+        questions: [
+          { question: 'Pick?', header: 'Approach', options: [{ label: 'Alpha', description: 'first', preview: 'alpha()' }, { label: 'Beta' }] },
+          { question: 'Name?', options: [] },
+        ],
+      },
+    },
+  }
+
+  it('waits for every answer before Submit and counts them', async () => {
+    const { onRespond } = setup(two)
+    const submit = screen.getByRole('button', { name: 'Submit' })
+    expect(submit).toBeDisabled()
+    expect(screen.getByText('0 of 2 answered')).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('radio', { name: /Alpha/ }))
+    expect(screen.getByText('1 of 2 answered')).toBeInTheDocument()
+    expect(submit).toBeDisabled()
+    await userEvent.type(screen.getByLabelText('other Name?'), 'Ann{Enter}')
+    expect(onRespond).toHaveBeenCalledWith('s1', 'q1', { behavior: 'allow', answers: { 'Pick?': ['Alpha'], 'Name?': ['Ann'] } })
+    expect(screen.queryByText(/answered$/)).toBeNull()
+  })
+
+  it('shows the header, option descriptions and previews', () => {
+    setup(two)
+    expect(screen.getByText('Approach')).toHaveClass('question-header')
+    expect(screen.getByText('first')).toBeInTheDocument()
+    expect(screen.getByText('alpha()')).toHaveClass('option-preview')
+  })
+
+  it('clears the radio when Other is typed for a single choice', async () => {
+    setup(question)
+    const alpha = screen.getByRole('radio', { name: /Alpha/ })
+    await userEvent.click(alpha)
+    await userEvent.type(screen.getByLabelText('other Pick?'), 'G')
+    expect(alpha).not.toBeChecked()
+    await userEvent.click(alpha)
+    expect(screen.getByLabelText('other Pick?')).toHaveValue('')
   })
 })

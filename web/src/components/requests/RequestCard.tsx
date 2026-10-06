@@ -1,49 +1,104 @@
-import { useState } from 'react'
+import { useRef, useState, type KeyboardEvent } from 'react'
 import type { AgentKind, Question, RequestAnswerInput, SessionRequest } from '../../lib/api'
+import { usePending } from '../../lib/pending'
 import Markdown from '../markdown/Markdown'
+import { notSent, shortcut } from './answer'
+import './RequestCard.css'
 
 export interface RequestCardProps {
   request: SessionRequest
   // agent owns the session; Codex always supports approving for the session.
   agent?: AgentKind
+  // onRespond resolves false (or throws) when the answer didn't go through.
   onRespond: (sessionId: string, requestId: string, answer: RequestAnswerInput) => void | Promise<unknown>
 }
+
+// Action names the control that sent the answer, so only it reads "…ing".
+type Action = 'allow' | 'session' | 'deny' | 'submit' | 'decline'
 
 // RequestCard renders a blocking agent request: a permission prompt, an
 // AskUserQuestion dialog or an MCP elicitation form.
 export default function RequestCard(props: RequestCardProps) {
-  const [busy, setBusy] = useState(false)
-  // answer disables the card until the server accepted the answer, so a
-  // double click doesn't send it twice.
-  const answer = async (a: RequestAnswerInput) => {
-    if (busy) return
-    setBusy(true)
-    try {
-      await props.onRespond(props.request.sessionId, props.request.id, a)
-    } finally {
-      setBusy(false)
-    }
+  const [acting, setActing] = useState<Action | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  // The card stays busy after a sent answer until request.resolved removes
+  // it; usePending's ref guard also drops a same-tick double click.
+  const [run] = usePending(
+    async (action: Action, a: RequestAnswerInput) => {
+      setActing(action)
+      setError(null)
+      let failure: string | null = null
+      try {
+        if ((await props.onRespond(props.request.sessionId, props.request.id, a)) === false) failure = notSent()
+      } catch (err) {
+        failure = notSent(err)
+      }
+      if (failure === null) return true
+      setError(failure)
+      setActing(null)
+      return false
+    },
+    { holdOnSuccess: true },
+  )
+  const answer = async (action: Action, a: RequestAnswerInput) => {
+    await run(action, a)
   }
-  const inner = { ...props, busy, answer }
+  const inner = { ...props, acting, error, answer }
   if (props.request.kind === 'question') return <QuestionCard {...inner} />
   if (props.request.kind === 'elicitation') return <ElicitationCard {...inner} />
   return <PermissionCard {...inner} />
 }
 
 interface CardProps extends RequestCardProps {
-  busy: boolean
-  answer: (a: RequestAnswerInput) => Promise<void>
+  acting: Action | null
+  error: string | null
+  answer: (action: Action, a: RequestAnswerInput) => Promise<void>
 }
 
-function PermissionCard({ request, agent, busy, answer }: CardProps) {
+// busyProps marks the control that sent the answer and disables the rest.
+function busyProps(acting: Action | null, self: Action) {
+  if (acting === self) return { 'aria-busy': true as const }
+  return { disabled: acting !== null }
+}
+
+function ErrorLine({ error }: { error: string | null }) {
+  return error ? (
+    <p className="error request-error" role="alert">
+      {error}
+    </p>
+  ) : null
+}
+
+// typing reports whether a key goes to a text control, not to shortcuts.
+function typing(target: EventTarget): boolean {
+  return target instanceof HTMLElement && target.closest('input, textarea, select, [contenteditable="true"]') !== null
+}
+
+function PermissionCard({ request, agent, acting, error, answer }: CardProps) {
   const [denying, setDenying] = useState(false)
   const [reason, setReason] = useState('')
+  const denyButton = useRef<HTMLButtonElement>(null)
   const toolName = request.payload?.toolName
   // ExitPlanMode asks to leave plan mode; its plan reads better as text.
   const input = request.payload?.input as { plan?: unknown } | undefined
   const plan = toolName === 'ExitPlanMode' && typeof input?.plan === 'string' ? input.plan : null
+  const perSession = request.payload?.suggestions != null || agent === 'codex'
+  const allowing = acting === 'allow' || acting === 'session'
+
+  // The same keys as the tray: A allow, S allow for the session, D deny
+  // (here it opens the reason, as the button does).
+  const onKey = (e: KeyboardEvent<HTMLDivElement>) => {
+    if (typing(e.target) || acting !== null) return
+    const key = shortcut(e)
+    if (key === 'a') void answer('allow', { behavior: 'allow' })
+    else if (key === 's' && perSession) void answer('session', { behavior: 'allow', allowForSession: true })
+    else if (key === 'd') setDenying(true)
+    else return
+    e.preventDefault()
+  }
+
   return (
-    <div className="request permission">
+    <div className="request permission" tabIndex={-1} onKeyDown={onKey}>
       <header className="request-title">
         <span className="request-kw">Requires approval</span>
         <span>{request.title || toolName || 'Permission required'}</span>
@@ -58,20 +113,35 @@ function PermissionCard({ request, agent, busy, answer }: CardProps) {
         request.payload?.input && <pre className="request-input">{JSON.stringify(request.payload.input, null, 2)}</pre>
       )}
       <div className="request-actions">
-        <button className="btn btn-primary" disabled={busy} onClick={() => void answer({ behavior: 'allow' })}>
-          Allow
+        <button
+          className="btn btn-primary"
+          aria-keyshortcuts="A"
+          {...busyProps(acting, 'allow')}
+          onClick={() => void answer('allow', { behavior: 'allow' })}
+        >
+          {acting === 'allow' ? 'Allowing…' : 'Allow'}
+          {!allowing && <kbd aria-hidden="true">A</kbd>}
         </button>
-        {(request.payload?.suggestions != null || agent === 'codex') && (
+        {perSession && (
           <button
             className="btn"
-            disabled={busy}
-            onClick={() => void answer({ behavior: 'allow', allowForSession: true })}
+            aria-keyshortcuts="S"
+            {...busyProps(acting, 'session')}
+            onClick={() => void answer('session', { behavior: 'allow', allowForSession: true })}
           >
-            Allow for session
+            {acting === 'session' ? 'Allowing…' : 'Allow for session'}
+            {!allowing && <kbd aria-hidden="true">S</kbd>}
           </button>
         )}
-        <button className="btn btn-danger deny" disabled={busy} onClick={() => setDenying((v) => !v)}>
-          Deny
+        <button
+          ref={denyButton}
+          className="btn btn-danger deny"
+          aria-keyshortcuts="D"
+          aria-expanded={denying}
+          disabled={acting !== null}
+          onClick={() => setDenying((v) => !v)}
+        >
+          Deny <kbd aria-hidden="true">D</kbd>
         </button>
       </div>
       {denying && (
@@ -79,31 +149,41 @@ function PermissionCard({ request, agent, busy, answer }: CardProps) {
           className="deny-form"
           onSubmit={(e) => {
             e.preventDefault()
-            void answer({ behavior: 'deny', message: reason })
+            void answer('deny', { behavior: 'deny', message: reason })
           }}
         >
           <input
             className="field"
             aria-label="deny reason"
             placeholder="Reason (optional)"
+            autoFocus
             value={reason}
             onChange={(e) => setReason(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key !== 'Escape') return
+              e.preventDefault()
+              e.stopPropagation()
+              setDenying(false)
+              setReason('')
+              denyButton.current?.focus()
+            }}
           />
-          <button type="submit" className="btn btn-danger" disabled={busy}>
-            Confirm deny
+          <button type="submit" className="btn btn-danger" {...busyProps(acting, 'deny')}>
+            {acting === 'deny' ? 'Denying…' : 'Confirm deny'}
           </button>
         </form>
       )}
+      <ErrorLine error={error} />
     </div>
   )
 }
 
-function QuestionCard({ request, busy, answer }: CardProps) {
+function QuestionCard({ request, acting, error, answer }: CardProps) {
   const questions = request.payload?.input?.questions ?? []
   const [selected, setSelected] = useState<Record<string, string[]>>({})
   const [other, setOther] = useState<Record<string, string>>({})
 
-  const toggle = (question: string, label: string, multi: boolean) =>
+  const toggle = (question: string, label: string, multi: boolean) => {
     setSelected((prev) => {
       const current = prev[question] ?? []
       if (multi) {
@@ -114,21 +194,42 @@ function QuestionCard({ request, busy, answer }: CardProps) {
       }
       return { ...prev, [question]: [label] }
     })
+    // A single choice is either an option or typed text, never both.
+    if (!multi) setOther((prev) => ({ ...prev, [question]: '' }))
+  }
+
+  const type = (question: string, text: string, multi: boolean) => {
+    setOther((prev) => ({ ...prev, [question]: text }))
+    if (!multi && text.trim()) setSelected((prev) => ({ ...prev, [question]: [] }))
+  }
+
+  const labelsFor = (q: Question): string[] => {
+    const custom = other[q.question]?.trim()
+    const picked = selected[q.question] ?? []
+    // A single-choice question takes one answer: typed text wins over the radio.
+    return q.multiSelect ? [...picked, ...(custom ? [custom] : [])] : custom ? [custom] : picked.slice(0, 1)
+  }
+  const answered = questions.filter((q) => labelsFor(q).length > 0).length
+  const complete = answered === questions.length
 
   const submit = () => {
+    if (!complete) return
     const answers: Record<string, string[]> = {}
     for (const q of questions) {
-      const custom = other[q.question]?.trim()
-      const picked = selected[q.question] ?? []
-      // A single-choice question takes one answer: typed text wins over the radio.
-      const labels = q.multiSelect ? [...picked, ...(custom ? [custom] : [])] : custom ? [custom] : picked.slice(0, 1)
+      const labels = labelsFor(q)
       if (labels.length > 0) answers[q.question] = labels
     }
-    void answer({ behavior: 'allow', answers })
+    void answer('submit', { behavior: 'allow', answers })
   }
 
   return (
-    <div className="request question">
+    <form
+      className="request question"
+      onSubmit={(e) => {
+        e.preventDefault()
+        submit()
+      }}
+    >
       <header className="request-title">
         <span className="request-kw">Requires answer</span>
         <span>{request.title || 'Question'}</span>
@@ -136,7 +237,10 @@ function QuestionCard({ request, busy, answer }: CardProps) {
       {request.prompt && <p className="request-prompt">{request.prompt}</p>}
       {questions.map((q: Question) => (
         <fieldset key={q.question} className="question">
-          <legend>{q.question}</legend>
+          <legend>
+            {q.header && <span className="question-header">{q.header}</span>}
+            {q.question}
+          </legend>
           {q.options?.map((opt) => (
             <label key={opt.label} className="option">
               <input
@@ -147,6 +251,7 @@ function QuestionCard({ request, busy, answer }: CardProps) {
               />
               <span className="option-label">{opt.label}</span>
               {opt.description && <small>{opt.description}</small>}
+              {opt.preview && <pre className="option-preview">{opt.preview}</pre>}
             </label>
           ))}
           <label className="other">
@@ -156,15 +261,27 @@ function QuestionCard({ request, busy, answer }: CardProps) {
               aria-label={`other ${q.question}`}
               placeholder="Other…"
               value={other[q.question] ?? ''}
-              onChange={(e) => setOther((prev) => ({ ...prev, [q.question]: e.target.value }))}
+              onChange={(e) => type(q.question, e.target.value, !!q.multiSelect)}
             />
           </label>
         </fieldset>
       ))}
-      <button className="btn btn-primary submit-answer" disabled={busy} onClick={submit}>
-        Submit
-      </button>
-    </div>
+      <div className="request-actions">
+        <button
+          type="submit"
+          className="btn btn-primary submit-answer"
+          {...(acting === 'submit' ? { 'aria-busy': true as const } : { disabled: acting !== null || !complete })}
+        >
+          {acting === 'submit' ? 'Sending…' : 'Submit'}
+        </button>
+        {!complete && (
+          <span className="request-meta">
+            {answered} of {questions.length} answered
+          </span>
+        )}
+      </div>
+      <ErrorLine error={error} />
+    </form>
   )
 }
 
@@ -182,7 +299,7 @@ interface ElicitationPayload {
 
 // ElicitationCard renders an MCP elicitation's flat form schema (string,
 // number, integer, boolean, enum) and returns the values as content.
-function ElicitationCard({ request, busy, answer }: CardProps) {
+function ElicitationCard({ request, acting, error, answer }: CardProps) {
   const payload = (request.payload ?? {}) as ElicitationPayload
   const fields = Object.entries(payload.requestedSchema?.properties ?? {})
   const required = new Set(payload.requestedSchema?.required ?? [])
@@ -196,7 +313,7 @@ function ElicitationCard({ request, busy, answer }: CardProps) {
       if (v === undefined || v === '') continue
       content[name] = f.type === 'number' || f.type === 'integer' ? Number(v) : v
     }
-    void answer({ behavior: 'allow', content })
+    void answer('submit', { behavior: 'allow', content })
   }
 
   return (
@@ -243,13 +360,19 @@ function ElicitationCard({ request, busy, answer }: CardProps) {
         )
       })}
       <div className="request-actions">
-        <button type="submit" className="btn btn-primary" disabled={busy}>
-          Accept
+        <button type="submit" className="btn btn-primary" {...busyProps(acting, 'submit')}>
+          {acting === 'submit' ? 'Sending…' : 'Accept'}
         </button>
-        <button type="button" className="btn btn-danger" disabled={busy} onClick={() => void answer({ behavior: 'deny' })}>
-          Decline
+        <button
+          type="button"
+          className="btn btn-danger"
+          {...busyProps(acting, 'decline')}
+          onClick={() => void answer('decline', { behavior: 'deny' })}
+        >
+          {acting === 'decline' ? 'Declining…' : 'Decline'}
         </button>
       </div>
+      <ErrorLine error={error} />
     </form>
   )
 }

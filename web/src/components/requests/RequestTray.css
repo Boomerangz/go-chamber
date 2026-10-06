@@ -1,0 +1,9 @@
+/* a line whose answer is on its way: dimmed, its buttons held */
+.request-tray li.answering > .tray-row,
+.request-tray li.answering > .tray-row .request-label { color: var(--ink-3); }
+.request-tray li.answering > .tray-row { cursor: progress; }
+.request-tray li.answering > .tray-row .request-kind::before { border-style: dashed; }
+.tray-error {
+  margin: 0; padding: 0 10px 9px;
+  border: 1px solid var(--rule); border-top: 0; background: var(--paper);
+}

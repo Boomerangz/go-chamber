@@ -1,0 +1,4 @@
+/* a mode in which the agent never asks reads as destruction */
+.field.mode-danger { color: var(--bad); border-color: var(--bad); }
+.field.mode-danger option { color: var(--ink); }
+.reviewer .field[aria-busy='true'] { cursor: progress; }

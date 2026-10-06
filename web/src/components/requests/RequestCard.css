@@ -1,0 +1,19 @@
+/* request cards: pending answers, inline failures, key hints, question extras */
+.request:focus { outline: none; }
+.request:focus-visible { outline: 1px solid var(--act-ring); outline-offset: 2px; }
+.request-actions { align-items: center; }
+.request-actions kbd { margin-left: 4px; opacity: 0.6; }
+.btn-primary kbd { border-color: currentColor; background: transparent; color: inherit; }
+.request-meta { font-family: var(--font-mono); font-size: 12px; color: var(--ink-3); }
+.request-error { margin: 0; }
+.question-header {
+  display: block; margin-bottom: 2px;
+  font-family: var(--font-mono); font-size: 11.5px; font-weight: 400; letter-spacing: 0.06em;
+  text-transform: uppercase; color: var(--ink-3);
+}
+.option-preview {
+  grid-column: 2; margin: 6px 0 0; padding: 6px 10px; max-height: 160px; overflow: auto;
+  white-space: pre-wrap; overflow-wrap: anywhere;
+  background: var(--paper-2); border-left: 1px solid var(--rule-strong); color: var(--ink-2); font-size: 12px;
+}
+.request.question .submit-answer { margin-top: 0; }
