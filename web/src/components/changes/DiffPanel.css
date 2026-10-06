@@ -1,34 +1,53 @@
 .diff-panel { display: flex; flex-direction: column; gap: 10px; min-height: 0; flex: 1; overflow: auto; padding: 12px 14px; }
-.diff-head { display: flex; align-items: center; justify-content: space-between; }
+.diff-head { display: flex; align-items: center; gap: 10px; }
 .diff-head .section-title { margin: 0; }
-.diff-error { margin: 0; color: var(--bad); font-size: 13px; white-space: pre-wrap; }
+.diff-updated { flex: 1; font-family: var(--font-mono); font-size: 12px; color: var(--ink-3); }
+.diff-head .btn { margin-left: auto; }
+.diff-error { margin: 4px 6px; color: var(--bad); font-size: 13px; white-space: pre-wrap; overflow-wrap: anywhere; }
 .diff-files { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.diff-files > li > .loading-line { margin: 6px; }
 .diff-files button {
   display: flex; gap: 8px; align-items: baseline; width: 100%; min-height: 32px; padding: 4px 6px;
   border: 1px solid transparent; border-radius: var(--r); background: transparent; color: var(--ink);
   font: inherit; text-align: left; cursor: pointer;
 }
 .diff-files button:hover { background: var(--paper-2); }
-.diff-files button[aria-pressed='true'] { border-color: var(--rule-strong); }
-.diff-status { flex: none; width: 76px; color: var(--ink-3); font-size: 12px; }
-.diff-status.status-A, .diff-status.status-u { color: var(--act); }
-.diff-status.status-D { color: var(--bad); }
-.diff-path { font-family: var(--font-mono); font-size: 12.5px; overflow-wrap: anywhere; }
+.diff-files button[aria-expanded='true'] { border-color: var(--rule-strong); }
+/* status: a lowercase word after a square mark whose form is the status */
+.diff-status {
+  flex: none; display: inline-flex; align-items: center; gap: 6px; width: 14ch; white-space: nowrap;
+  font-family: var(--font-mono); font-size: 12px; color: var(--ink-3); text-transform: lowercase;
+}
+.diff-status::before { content: ''; flex: none; width: 7px; height: 7px; border: 1px solid currentColor; border-radius: 1px; }
+.diff-status[data-mark='solid']::before { background: currentColor; }
+.diff-status[data-mark='struck']::before { background: linear-gradient(to top right, transparent 45%, currentColor 45% 60%, transparent 60%); }
+.diff-status[data-mark='dashed']::before { border-style: dashed; }
+.diff-path { flex: 1; min-width: 0; display: flex; font-family: var(--font-mono); font-size: 12.5px; white-space: nowrap; }
+.diff-dir { min-width: 0; overflow: hidden; text-overflow: ellipsis; color: var(--ink-3); }
+.diff-base { flex: none; color: var(--ink); }
+.diff-counts { flex: none; display: inline-flex; gap: 6px; font-family: var(--font-mono); font-size: 12px; color: var(--ink-3); }
 .diff-view {
   margin: 4px 0 8px; padding: 6px 0; overflow: auto; max-height: 60vh;
-  border: 1px solid var(--rule); border-radius: var(--r); background: var(--paper-2); font-size: 12px; line-height: 1.45;
+  border: 1px solid var(--rule); border-radius: var(--r); background: var(--paper); font-size: 12px; line-height: 1.45;
 }
-.diff-view > div { padding: 0 8px; white-space: pre; min-height: 1.45em; }
-.diff-add { background: var(--act-wash); }
+.diff-view > div { padding: 0 8px 0 10px; white-space: pre; min-height: 1.45em; border-left: 1px solid transparent; }
+/* added lines are ink on the sheet with a strong hairline; blue is for pressable only */
+.diff-view > .diff-add { color: var(--ink); border-left-color: var(--rule-strong); background: var(--paper-2); }
 .diff-del { background: var(--bad-wash); }
-.diff-hunk { color: var(--act); }
+.diff-hunk { color: var(--ink-3); }
 .diff-meta { color: var(--ink-3); }
+.diff-ctx { color: var(--ink-2); }
+.diff-more { margin: 0 0 8px; }
 .diff-none { margin: 4px 6px; color: var(--ink-3); font-size: 12.5px; }
 .worktree-bar { display: flex; flex-direction: column; gap: 6px; padding: 8px 10px; border: 1px solid var(--rule); border-radius: var(--r); font-size: 13px; }
 .worktree-bar p { margin: 0; }
-.worktree-bar .btn { align-self: flex-start; }
-.merge-hint { overflow-wrap: anywhere; user-select: all; color: var(--ink-2); }
-.worktree-dirty { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; color: var(--req); }
+.worktree-bar > .btn { align-self: flex-start; }
+.merge-row { display: flex; align-items: center; gap: 4px; min-width: 0; }
+.merge-hint { flex: 1; min-width: 0; overflow-wrap: anywhere; user-select: all; color: var(--ink-2); }
+.worktree-confirm { display: grid; gap: 6px; font-family: var(--font-mono); font-size: 12px; color: var(--ink-2); }
+.worktree-confirm p { overflow-wrap: anywhere; }
+.worktree-actions { display: flex; gap: 6px; }
+.worktree-dirty { color: var(--ink); }
 
 .layout[data-dock='changes'] { grid-template-columns: 300px minmax(0, 1fr) minmax(380px, 34%); }
 .changes-pane { display: none; }

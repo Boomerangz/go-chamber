@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import DiffPanel from './DiffPanel'
 import * as api from '../../lib/api'
 import { resetStore, useSessionStore } from '../../stores/session'
+import { useNotices } from '../../stores/notices'
 
 vi.mock('../../lib/api', () => ({
   getChanges: vi.fn(),
@@ -16,6 +17,7 @@ const worktree = { repo: '/src/app', path: '/wt/app/fix', branch: 'chamber/fix',
 beforeEach(() => {
   vi.clearAllMocks()
   resetStore()
+  useNotices.setState({ notices: [] })
 })
 
 describe('DiffPanel', () => {
@@ -68,8 +70,43 @@ describe('DiffPanel', () => {
     render(<DiffPanel sessionId="s1" />)
     expect(await screen.findByText('git -C /src/app merge chamber/fix')).toBeInTheDocument()
     await userEvent.click(screen.getByRole('button', { name: 'Remove worktree' }))
+    expect(api.removeWorktree).not.toHaveBeenCalled()
+    expect(screen.getByText(/remove folder \/wt\/app\/fix\? branch chamber\/fix is kept/)).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Remove' }))
     expect(api.removeWorktree).toHaveBeenCalledWith('s1', false)
     await waitFor(() => expect(useSessionStore.getState().sessions[0].worktree).toBeUndefined())
+    expect(useNotices.getState().notices.at(-1)).toMatchObject({ kind: 'info', text: 'Worktree removed, branch kept' })
+  })
+
+  it('keeps the worktree when the owner changes their mind', async () => {
+    vi.mocked(api.getChanges).mockResolvedValue({ repository: true, base: 'abc', files: [] })
+    useSessionStore.setState({ sessions: [{ id: 's1', agent: 'claude', cwd: worktree.path, status: 'idle', worktree }] })
+    render(<DiffPanel sessionId="s1" />)
+    await userEvent.click(await screen.findByRole('button', { name: 'Remove worktree' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Keep' }))
+    expect(screen.getByRole('button', { name: 'Remove worktree' })).toBeInTheDocument()
+    expect(api.removeWorktree).not.toHaveBeenCalled()
+  })
+
+  it('says it is removing while the request runs', async () => {
+    vi.mocked(api.getChanges).mockResolvedValue({ repository: true, base: 'abc', files: [] })
+    vi.mocked(api.removeWorktree).mockReturnValue(new Promise(() => {}))
+    useSessionStore.setState({ sessions: [{ id: 's1', agent: 'claude', cwd: worktree.path, status: 'idle', worktree }] })
+    render(<DiffPanel sessionId="s1" />)
+    await userEvent.click(await screen.findByRole('button', { name: 'Remove worktree' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Remove' }))
+    expect(screen.getByRole('button', { name: 'Removing…' })).toHaveAttribute('aria-busy', 'true')
+  })
+
+  it('copies the merge command', async () => {
+    const writeText = vi.fn(() => Promise.resolve())
+    vi.stubGlobal('navigator', { ...navigator, clipboard: { writeText } })
+    vi.mocked(api.getChanges).mockResolvedValue({ repository: true, base: 'abc', files: [] })
+    useSessionStore.setState({ sessions: [{ id: 's1', agent: 'claude', cwd: worktree.path, status: 'idle', worktree }] })
+    render(<DiffPanel sessionId="s1" />)
+    await userEvent.click(await screen.findByRole('button', { name: 'Copy merge command' }))
+    expect(writeText).toHaveBeenCalledWith('git -C /src/app merge chamber/fix')
+    vi.unstubAllGlobals()
   })
 
   it('preserves live session changes while worktree removal awaits its response', async () => {
@@ -80,6 +117,7 @@ describe('DiffPanel', () => {
     useSessionStore.setState({ sessions: [initial] })
     render(<DiffPanel sessionId="s1" />)
     await userEvent.click(await screen.findByRole('button', { name: 'Remove worktree' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Remove' }))
     act(() => useSessionStore.getState().applyIncoming({
       seq: 1, sessionId: 's1', type: 'session.state',
       session: { ...initial, status: 'running', title: 'Live title' },
@@ -89,23 +127,100 @@ describe('DiffPanel', () => {
     expect(useSessionStore.getState().sessions[0].worktree).toBeUndefined()
   })
 
-  it('offers a forced removal when the worktree has changes', async () => {
+  it('warns that listed changes will be lost and removes anyway', async () => {
     vi.mocked(api.getChanges).mockResolvedValue({ repository: true, base: 'abc', files: [{ path: 'a', status: 'M' }] })
+    vi.mocked(api.removeWorktree).mockResolvedValueOnce({ id: 's1', agent: 'claude', cwd: worktree.path, status: 'idle' })
+    useSessionStore.setState({ sessions: [{ id: 's1', agent: 'claude', cwd: worktree.path, status: 'idle', worktree }] })
+    render(<DiffPanel sessionId="s1" />)
+    await screen.findByText('a')
+    await userEvent.click(screen.getByRole('button', { name: 'Remove worktree' }))
+    expect(screen.getByText(/uncommitted changes will be lost/)).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Remove anyway' }))
+    expect(api.removeWorktree).toHaveBeenCalledTimes(1)
+    expect(api.removeWorktree).toHaveBeenLastCalledWith('s1', true)
+  })
+
+  it('offers a forced removal when the server finds changes', async () => {
+    vi.mocked(api.getChanges).mockResolvedValue({ repository: true, base: 'abc', files: [] })
     vi.mocked(api.removeWorktree)
       .mockRejectedValueOnce(new Error('{"error":"worktree has uncommitted changes"}'))
       .mockResolvedValueOnce({ id: 's1', agent: 'claude', cwd: worktree.path, status: 'idle' })
     useSessionStore.setState({ sessions: [{ id: 's1', agent: 'claude', cwd: worktree.path, status: 'idle', worktree }] })
     render(<DiffPanel sessionId="s1" />)
     await userEvent.click(await screen.findByRole('button', { name: 'Remove worktree' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Remove' }))
     await userEvent.click(await screen.findByRole('button', { name: 'Remove anyway' }))
     expect(api.removeWorktree).toHaveBeenLastCalledWith('s1', true)
   })
 
-  it('shows a load error', async () => {
-    vi.mocked(api.getChanges).mockRejectedValue(new Error('boom'))
+  it('says it is loading the list and the diff, and when it last updated', async () => {
+    let list!: (c: api.Changes) => void
+    vi.mocked(api.getChanges).mockReturnValueOnce(new Promise((r) => { list = r }))
+    useSessionStore.setState({ sessions: [{ id: 's1', agent: 'claude', cwd: '/p', status: 'idle' }] })
+    render(<DiffPanel sessionId="s1" />)
+    expect(screen.getByText('loading changes…')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Refresh changes' })).toHaveAttribute('aria-busy', 'true')
+    await act(async () => list({ repository: true, files: [{ path: 'src/deep/a.go', status: 'M' }] }))
+    expect(screen.getByRole('button', { name: 'Refresh changes' })).not.toHaveAttribute('aria-busy')
+    expect(screen.getByText(/^updated \d\d:\d\d$/)).toBeInTheDocument()
+    vi.mocked(api.getFileDiff).mockReturnValueOnce(new Promise(() => {}))
+    await userEvent.click(screen.getByRole('button', { name: /a\.go/ }))
+    expect(screen.getByText('loading diff…')).toBeInTheDocument()
+  })
+
+  it('shows the file name in ink and its folder quietly', async () => {
+    vi.mocked(api.getChanges).mockResolvedValue({ repository: true, files: [{ path: 'src/deep/a.go', status: 'T' }] })
+    render(<DiffPanel sessionId="s1" />)
+    expect(await screen.findByText('a.go')).toHaveClass('diff-base')
+    expect(screen.getByText('src/deep/')).toHaveClass('diff-dir')
+    expect(screen.getByText('type changed')).toHaveClass('diff-status')
+  })
+
+  it('collapses an open file on a second click and refetches it with the list', async () => {
+    vi.mocked(api.getChanges).mockResolvedValue({ repository: true, files: [{ path: 'a.go', status: 'M' }] })
+    vi.mocked(api.getFileDiff).mockResolvedValueOnce({ diff: '+one\n' }).mockResolvedValueOnce({ diff: '+two\n-gone\n' })
+    render(<DiffPanel sessionId="s1" />)
+    const file = await screen.findByRole('button', { name: /a\.go/ })
+    await userEvent.click(file)
+    expect(await screen.findByText('+one')).toBeInTheDocument()
+    expect(file).toHaveAttribute('aria-expanded', 'true')
+    await userEvent.click(screen.getByRole('button', { name: 'Refresh changes' }))
+    expect(await screen.findByText('+two')).toBeInTheDocument()
+    expect(screen.getByText('+1')).toBeInTheDocument()
+    expect(screen.getByText('−1')).toBeInTheDocument()
+    await userEvent.click(file)
+    expect(file).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByText('+two')).toBeNull()
+  })
+
+  it('keeps the list when one diff fails', async () => {
+    vi.mocked(api.getChanges).mockResolvedValue({ repository: true, files: [{ path: 'a.go', status: 'M' }] })
+    vi.mocked(api.getFileDiff).mockRejectedValue(new Error('too big'))
+    render(<DiffPanel sessionId="s1" />)
+    await userEvent.click(await screen.findByRole('button', { name: /a\.go/ }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('too big')
+    expect(screen.getByRole('button', { name: /a\.go/ })).toBeInTheDocument()
+  })
+
+  it('shows the first 2000 lines of a long diff until asked for all', async () => {
+    const diff = Array.from({ length: 2500 }, (_, i) => `+line ${i}`).join('\n')
+    vi.mocked(api.getChanges).mockResolvedValue({ repository: true, files: [{ path: 'big.txt', status: 'A' }] })
+    vi.mocked(api.getFileDiff).mockResolvedValue({ diff })
+    render(<DiffPanel sessionId="s1" />)
+    await userEvent.click(await screen.findByRole('button', { name: /big\.txt/ }))
+    expect(await screen.findByText('+line 1999')).toBeInTheDocument()
+    expect(screen.queryByText('+line 2000')).toBeNull()
+    await userEvent.click(screen.getByRole('button', { name: 'show all 2500 lines' }))
+    expect(screen.getByText('+line 2499')).toBeInTheDocument()
+  })
+
+  it('shows a load error with a retry', async () => {
+    vi.mocked(api.getChanges).mockRejectedValueOnce(new Error('boom')).mockResolvedValueOnce({ repository: true, files: [] })
     useSessionStore.setState({ sessions: [{ id: 's1', agent: 'claude', cwd: '/p', status: 'idle' }] })
     render(<DiffPanel sessionId="s1" />)
     expect(await screen.findByRole('alert')).toHaveTextContent('boom')
+    await userEvent.click(screen.getByRole('button', { name: 'Retry' }))
+    expect(await screen.findByText('No changes')).toBeInTheDocument()
   })
 })
 

@@ -59,6 +59,10 @@ export function terminalURL(
   return `${scheme}//${loc.host}/api/terminals/${encodeURIComponent(id)}/pty`
 }
 
+// TerminalState is what the owner sees of the connection: dashed while it
+// is being made, struck once it is lost or the shell has exited.
+export type TerminalState = 'connecting' | 'live' | 'reconnecting' | 'disconnected' | 'exited'
+
 export interface TerminalHandlers {
   onOutput: (data: Uint8Array) => void
   onExit: (code: number) => void
@@ -69,40 +73,77 @@ export interface TerminalHandlers {
   // onReset runs when a reconnected socket opens, before the server replays
   // the scrollback, so the screen must be cleared first.
   onReset: (reason?: 'reconnect' | 'upgrade') => void
-  // onGiveUp runs when reconnecting failed maxAttempts times in a row.
+  // onGiveUp runs when reconnecting failed maxAttempts times in a row while
+  // the tab was hidden; reconnect() or showing the tab tries again.
   onGiveUp: () => void
+  // onState reports each change of the connection; attempt counts the
+  // failures in a row while reconnecting.
+  onState?: (state: TerminalState, attempt?: number) => void
 }
 
 export interface TerminalConnection {
   send: (text: string) => void
   resize: (cols: number, rows: number) => void
+  // reconnect tries again now: after giving up, or instead of waiting out
+  // the backoff.
+  reconnect: () => void
   close: () => void
+}
+
+interface SocketHandlers extends Omit<TerminalHandlers, 'onState'> {
+  onRetry: (attempt: number) => void
+}
+
+interface SocketConnection extends Omit<TerminalConnection, 'reconnect'> {
+  retryNow: () => void
 }
 
 const NORMAL_CLOSURE = 1000
 
+const hidden = () => typeof document !== 'undefined' && document.visibilityState === 'hidden'
+
+export interface ConnectOptions {
+  reconnectDelayMs?: number
+  maxDelayMs?: number
+  maxAttempts?: number
+  stableMs?: number
+  rtc?: boolean
+}
+
 // connectTerminal attaches to a shell over WebSocket: binary frames are
 // output and input, text frames carry resize, the replay marker and the exit
-// notice. Dropped connections (including "lagging" closes) reconnect; a
-// normal close means the shell exited or the terminal was closed. Failures
-// count as consecutive until a connection stays up for stableMs.
+// notice. Dropped connections (including "lagging" closes) reconnect with a
+// growing delay; a normal close means the shell exited or the terminal was
+// closed. Failures count as consecutive until a connection stays up for
+// stableMs. While the tab is visible it never gives up; coming back online
+// or showing the tab again reconnects at once.
 export function connectTerminal(
   id: string,
   handlers: TerminalHandlers,
-  options: { reconnectDelayMs?: number; maxAttempts?: number; stableMs?: number; rtc?: boolean } = {},
+  options: ConnectOptions = {},
 ): TerminalConnection {
-  let socket: TerminalConnection
+  let socket: SocketConnection
   let peer: RTCConnection | undefined
   let active: 'websocket' | 'webrtc' = 'websocket'
   let stopped = false
+  let gaveUp = false
   let tried = false
   let generation = 0
   let size: { cols: number; rows: number } | undefined
   const encoder = new TextEncoder()
+  const state = (s: TerminalState, attempt?: number) => handlers.onState?.(s, attempt)
   // socketReady: the current WebSocket replayed the scrollback, so an
   // upgrade can start.
   let socketReady = false
-  const close = () => { if (!stopped) { stopped = true; unsubscribe(); socket.close(); peer?.close() } }
+  const close = () => {
+    if (stopped) return
+    stopped = true
+    unsubscribe()
+    if (typeof window !== 'undefined') window.removeEventListener('online', wake)
+    if (typeof document !== 'undefined') document.removeEventListener('visibilitychange', onVisible)
+    socket.close()
+    peer?.close()
+  }
   const fallback = () => {
     if (stopped) return
     const wasActive = active === 'webrtc'
@@ -118,6 +159,7 @@ export function connectTerminal(
         active = 'webrtc'
         socket.close()
         handlers.onReset('upgrade')
+        state('connecting')
         recordTerminalTransport(id, 'webrtc')
         if (size) peer?.send(JSON.stringify({ type: 'resize', ...size }))
       },
@@ -129,8 +171,8 @@ export function connectTerminal(
         }
         let msg: { type?: string; code?: number }
         try { msg = JSON.parse(data) } catch { return }
-        if (msg.type === 'ready') handlers.onReady()
-        else if (msg.type === 'exit') { handlers.onExit(msg.code ?? -1); close() }
+        if (msg.type === 'ready') { handlers.onReady(); state('live') }
+        else if (msg.type === 'exit') { handlers.onExit(msg.code ?? -1); state('exited'); close() }
         else if (msg.type === 'closed') close()
         else if (msg.type === 'fallback') fallback()
       },
@@ -141,17 +183,27 @@ export function connectTerminal(
   function openSocket(reset: boolean) {
     const ownGeneration = ++generation
     socketReady = false
+    gaveUp = false
     recordTerminalTransport(id, 'websocket')
+    state(reset ? 'reconnecting' : 'connecting')
     const current = () => !stopped && active === 'websocket' && generation === ownGeneration
     socket = connectWebSocketTerminal(id, {
       onOutput(data) { if (current()) handlers.onOutput(data) },
-      onReady() { if (current()) { socketReady = true; handlers.onReady(); tryRTC() } },
+      onReady() { if (current()) { socketReady = true; handlers.onReady(); state('live'); tryRTC() } },
       onReset() { if (current()) handlers.onReset() },
-      onExit(code) { if (current()) { handlers.onExit(code); close() } },
-      onGiveUp() { if (current()) { handlers.onGiveUp(); close() } },
+      onExit(code) { if (current()) { handlers.onExit(code); state('exited'); close() } },
+      onGiveUp() { if (current()) { gaveUp = true; handlers.onGiveUp(); state('disconnected') } },
+      onRetry(attempt) { if (current()) state('reconnecting', attempt) },
     }, { ...options, resetOnOpen: reset })
     if (size) socket.resize(size.cols, size.rows)
   }
+  const reconnect = () => {
+    if (stopped) return
+    if (gaveUp) openSocket(true)
+    else if (active === 'websocket') socket.retryNow()
+  }
+  function wake() { if (!hidden()) reconnect() }
+  function onVisible() { if (!hidden()) reconnect() }
   // Turning WebRTC off moves an open terminal back to the WebSocket;
   // turning it on upgrades again, even after an earlier attempt failed.
   const unsubscribe = onRTCChange((on) => {
@@ -159,6 +211,8 @@ export function connectTerminal(
     tried = false
     if (active === 'websocket' && socketReady) tryRTC()
   })
+  if (typeof window !== 'undefined') window.addEventListener('online', wake)
+  if (typeof document !== 'undefined') document.addEventListener('visibilitychange', onVisible)
   openSocket(false)
   return {
     send(text) { if (!stopped) { if (active === 'webrtc') peer?.send(encoder.encode(text)); else socket.send(text) } },
@@ -166,15 +220,16 @@ export function connectTerminal(
       size = { cols, rows }
       if (!stopped) { if (active === 'webrtc') peer?.send(JSON.stringify({ type: 'resize', ...size })); else socket.resize(cols, rows) }
     },
+    reconnect,
     close,
   }
 }
 
 function connectWebSocketTerminal(
   id: string,
-  handlers: TerminalHandlers,
-  { reconnectDelayMs = 500, maxAttempts = 5, stableMs = 10_000, resetOnOpen = false } = {},
-): TerminalConnection {
+  handlers: SocketHandlers,
+  { reconnectDelayMs = 500, maxDelayMs = 10_000, maxAttempts = 5, stableMs = 10_000, resetOnOpen = false } = {},
+): SocketConnection {
   const encoder = new TextEncoder()
   let ws: WebSocket
   let size: { cols: number; rows: number } | null = null
@@ -190,6 +245,7 @@ function connectWebSocketTerminal(
   }
 
   const connect = (reconnect: boolean) => {
+    timer = undefined
     ws = new WebSocket(terminalURL(id))
     ws.binaryType = 'arraybuffer'
     readyAt = null
@@ -219,12 +275,14 @@ function connectWebSocketTerminal(
       if (stopped || ev.code === NORMAL_CLOSURE) return
       if (readyAt !== null && Date.now() - readyAt >= stableMs) failures = 0
       failures++
-      if (failures >= maxAttempts) {
+      if (failures >= maxAttempts && hidden()) {
         stopped = true
         handlers.onGiveUp()
         return
       }
-      timer = setTimeout(() => connect(true), reconnectDelayMs)
+      handlers.onRetry(failures)
+      const delay = Math.min(reconnectDelayMs * 2 ** (failures - 1), maxDelayMs)
+      timer = setTimeout(() => connect(true), delay)
     }
   }
   connect(resetOnOpen)
@@ -236,6 +294,11 @@ function connectWebSocketTerminal(
     resize: (cols, rows) => {
       size = { cols, rows }
       sendSize()
+    },
+    retryNow: () => {
+      if (stopped || timer === undefined) return
+      clearTimeout(timer)
+      connect(true)
     },
     close: () => {
       stopped = true

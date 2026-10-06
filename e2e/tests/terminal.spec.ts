@@ -28,6 +28,8 @@ test('WebSocket terminal renders large output and replays it after reload', asyn
   await page.keyboard.press('Enter')
   await expect(panel.getByTestId('terminal-view').locator('.xterm-rows')).toContainText('LIVE-42')
   await panel.getByRole('button', { name: `Close terminal ${dir.split('/').pop()}` }).click()
+  // A running shell asks before it is killed.
+  await panel.getByRole('group', { name: /^Close terminal / }).getByRole('button', { name: 'Close', exact: true }).click()
 })
 
 // A real shell (SHELL=/bin/sh from the webServer command) in a pty.
@@ -97,6 +99,8 @@ test('terminal in the session directory', async ({ page }) => {
   await page.keyboard.type('pwd\n')
   await expect(screen.locator('.xterm-rows')).toContainText(dir)
   await panel.getByRole('button', { name: `Close terminal ${dir.split('/').pop()}` }).click()
+  // A running shell asks before it is killed.
+  await panel.getByRole('group', { name: /^Close terminal / }).getByRole('button', { name: 'Close', exact: true }).click()
 })
 
 test('ad-hoc terminal docked next to the chat', async ({ page, isMobile }) => {
@@ -123,4 +127,6 @@ test('ad-hoc terminal docked next to the chat', async ({ page, isMobile }) => {
   await expect(panel).toBeHidden()
   await rail.getByRole('button', { name: /^Terminal/ }).click()
   await panel.getByRole('button', { name: `Close terminal ${dir.split('/').pop()}` }).click()
+  // A running shell asks before it is killed.
+  await panel.getByRole('group', { name: /^Close terminal / }).getByRole('button', { name: 'Close', exact: true }).click()
 })

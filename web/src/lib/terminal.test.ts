@@ -122,11 +122,95 @@ function handlers(): TerminalHandlers & {
   return h
 }
 
+function hide(hidden: boolean) {
+  Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => (hidden ? 'hidden' : 'visible') })
+}
+
 describe('connectTerminal', () => {
   beforeEach(() => {
     FakeSocket.instances = []
     vi.stubGlobal('WebSocket', FakeSocket)
     vi.useFakeTimers()
+  })
+  afterEach(() => {
+    hide(false)
+  })
+
+  it('backs off from half a second to ten and keeps trying while the tab is visible', () => {
+    const h = handlers()
+    const states: string[] = []
+    connectTerminal('t1', { ...h, onState: (s, attempt) => states.push(attempt ? `${s} ${attempt}` : s) })
+    const waits: number[] = []
+    for (let i = 0; i < 8; i++) {
+      const before = FakeSocket.instances.length
+      last().drop(1006)
+      let waited = 0
+      while (FakeSocket.instances.length === before) {
+        vi.advanceTimersByTime(100)
+        waited += 100
+      }
+      waits.push(waited)
+    }
+    expect(waits).toEqual([500, 1000, 2000, 4000, 8000, 10_000, 10_000, 10_000])
+    expect(h.gaveUp).toBe(0)
+    expect(states.slice(0, 3)).toEqual(['connecting', 'reconnecting 1', 'reconnecting 2'])
+  })
+
+  it('reconnects at once when the network returns or the tab is shown again', () => {
+    const h = handlers()
+    connectTerminal('t1', h)
+    for (let i = 0; i < 4; i++) {
+      last().drop(1006)
+      vi.advanceTimersByTime(10_000)
+    }
+    expect(FakeSocket.instances).toHaveLength(5)
+    last().drop(1006)
+    window.dispatchEvent(new Event('online'))
+    expect(FakeSocket.instances).toHaveLength(6)
+    last().drop(1006)
+    hide(false)
+    document.dispatchEvent(new Event('visibilitychange'))
+    expect(FakeSocket.instances).toHaveLength(7)
+    // nothing pending: a second wake does not open another socket
+    window.dispatchEvent(new Event('online'))
+    expect(FakeSocket.instances).toHaveLength(7)
+  })
+
+  it('reports its state: connecting, live, reconnecting, exited', () => {
+    const states: string[] = []
+    connectTerminal('t1', { ...handlers(), onState: (s) => states.push(s) })
+    last().open()
+    last().message('{"type":"ready"}')
+    last().drop(1006)
+    vi.advanceTimersByTime(500)
+    last().open()
+    last().message('{"type":"ready"}')
+    last().message('{"type":"exit","code":0}')
+    expect(states).toEqual(['connecting', 'live', 'reconnecting', 'live', 'exited'])
+  })
+
+  it('reconnects on demand after giving up, and on its own once the tab is shown', () => {
+    hide(true)
+    const h = handlers()
+    const states: string[] = []
+    const conn = connectTerminal('t1', { ...h, onState: (s) => states.push(s) }, { reconnectDelayMs: 10, maxAttempts: 1 })
+    last().drop(1006)
+    expect(h.gaveUp).toBe(1)
+    expect(states.at(-1)).toBe('disconnected')
+    conn.reconnect()
+    expect(FakeSocket.instances).toHaveLength(2)
+    expect(states.at(-1)).toBe('reconnecting')
+    last().open()
+    expect(h.resets).toBe(1)
+    last().drop(1006)
+    expect(h.gaveUp).toBe(2)
+    hide(false)
+    document.dispatchEvent(new Event('visibilitychange'))
+    expect(FakeSocket.instances).toHaveLength(3)
+    conn.close()
+    window.dispatchEvent(new Event('online'))
+    conn.reconnect()
+    expect(FakeSocket.instances).toHaveLength(3)
   })
 
   it('streams binary output and sends input and size', () => {
@@ -218,32 +302,37 @@ describe('connectTerminal', () => {
     expect(h.resets).toBe(1)
     expect(last().sent).toEqual([JSON.stringify({ type: 'resize', cols: 90, rows: 20 })])
     last().drop(1006)
-    vi.advanceTimersByTime(100)
+    // the second failure in a row waits twice as long
+    vi.advanceTimersByTime(199)
+    expect(FakeSocket.instances).toHaveLength(2)
+    vi.advanceTimersByTime(1)
     expect(FakeSocket.instances).toHaveLength(3)
     last().open()
     expect(h.resets).toBe(2)
   })
 
-  it('gives up after repeated failures without opening', () => {
+  it('gives up after repeated failures without opening while the tab is hidden', () => {
+    hide(true)
     const h = handlers()
     connectTerminal('t1', h, { reconnectDelayMs: 10, maxAttempts: 3 })
     for (let i = 0; i < 5; i++) {
       last().drop(1006)
-      vi.advanceTimersByTime(10)
+      vi.advanceTimersByTime(1000)
     }
     expect(FakeSocket.instances).toHaveLength(3)
     expect(h.gaveUp).toBe(1)
     expect(h.resets).toBe(0)
   })
 
-  it('caps reconnects that keep lagging right after opening', () => {
+  it('caps reconnects that keep lagging right after opening while the tab is hidden', () => {
+    hide(true)
     const h = handlers()
     connectTerminal('t1', h, { reconnectDelayMs: 10, maxAttempts: 3 })
     for (let i = 0; i < 5; i++) {
       last().open()
       last().message('{"type":"ready"}')
       last().drop(1013)
-      vi.advanceTimersByTime(10)
+      vi.advanceTimersByTime(1000)
     }
     expect(FakeSocket.instances).toHaveLength(3)
     expect(h.gaveUp).toBe(1)

@@ -27,4 +27,19 @@ describe('terminalTheme', () => {
     expect(terminalTheme(true).black).not.toBe(terminalTheme(true).background)
     expect(terminalTheme(false).white).not.toBe(terminalTheme(false).background)
   })
+
+  it('keeps shell yellow apart from the "needs you" amber', () => {
+    for (const dark of [true, false]) {
+      const t = terminalTheme(dark)
+      expect([t.yellow, t.brightYellow]).not.toContain('#e3a33a')
+      expect([t.yellow, t.brightYellow]).not.toContain('#b86a00')
+      expect([t.yellow, t.brightYellow]).not.toContain('#8f5200')
+    }
+  })
+
+  it('takes the sheet, ink and accent from the page tokens', () => {
+    const tokens: Record<string, string> = { '--paper': '#101010', '--ink': '#fafafa', '--act': '#123456', '--bad': '#ff0000' }
+    const t = terminalTheme(true, (name) => tokens[name] ?? '')
+    expect(t).toMatchObject({ background: '#101010', foreground: '#fafafa', cursor: '#123456', cursorAccent: '#101010', red: '#ff0000' })
+  })
 })

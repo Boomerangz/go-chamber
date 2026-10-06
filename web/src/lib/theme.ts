@@ -1,27 +1,50 @@
 import type { ITheme } from '@xterm/xterm'
 
-// terminalTheme prints the terminal in the page's ink: the same sheet, ink
-// and accent as the rest of the UI, with ANSI colours tuned for each sheet.
-export function terminalTheme(dark: boolean): ITheme {
+// TokenReader returns the current value of a CSS custom property, or '' when
+// it is not set (tests, a page without the stylesheet).
+export type TokenReader = (name: string) => string
+
+function pageTokens(): TokenReader {
+  if (typeof document === 'undefined' || typeof getComputedStyle === 'undefined') return () => ''
+  const style = getComputedStyle(document.documentElement)
+  return (name) => style.getPropertyValue(name).trim()
+}
+
+// The tokens' values when the stylesheet is not there to read.
+const fallback = {
+  dark: { paper: '#0f1012', ink: '#e4e2dc', act: '#8c98ff', bad: '#f07a6a' },
+  light: { paper: '#f3f3f1', ink: '#16171a', act: '#2433d6', bad: '#b3261e' },
+}
+
+// terminalTheme prints the terminal in the page's ink: the sheet, ink,
+// accent and failure red come from the page tokens, so the terminal follows
+// the design; the other ANSI colours are tuned for each sheet. Yellow leans
+// green of the "needs you" amber so shell output never reads as a request.
+export function terminalTheme(dark: boolean, token: TokenReader = pageTokens()): ITheme {
+  const base = dark ? fallback.dark : fallback.light
+  const paper = token('--paper') || base.paper
+  const ink = token('--ink') || base.ink
+  const act = token('--act') || base.act
+  const bad = token('--bad') || base.bad
   if (dark) {
     return {
-      background: '#0f1012',
-      foreground: '#e4e2dc',
-      cursor: '#8c98ff',
-      cursorAccent: '#0f1012',
+      background: paper,
+      foreground: ink,
+      cursor: act,
+      cursorAccent: paper,
       selectionBackground: 'rgba(140, 152, 255, 0.28)',
       black: '#34363b',
-      red: '#f07a6a',
+      red: bad,
       green: '#8fc27a',
-      yellow: '#e3a33a',
+      yellow: '#d6c45a',
       blue: '#8c98ff',
       magenta: '#c79bdc',
       cyan: '#6fc0c6',
-      white: '#e4e2dc',
+      white: ink,
       brightBlack: '#6b6d73',
       brightRed: '#ff9a8b',
       brightGreen: '#a9d894',
-      brightYellow: '#f2bd5c',
+      brightYellow: '#ecdc7e',
       brightBlue: '#aab3ff',
       brightMagenta: '#dcb6ec',
       brightCyan: '#8fd6db',
@@ -29,15 +52,15 @@ export function terminalTheme(dark: boolean): ITheme {
     }
   }
   return {
-    background: '#f3f3f1',
-    foreground: '#16171a',
-    cursor: '#2433d6',
-    cursorAccent: '#f3f3f1',
+    background: paper,
+    foreground: ink,
+    cursor: act,
+    cursorAccent: paper,
     selectionBackground: 'rgba(36, 51, 214, 0.18)',
-    black: '#16171a',
-    red: '#b3261e',
+    black: ink,
+    red: bad,
     green: '#2f6f2a',
-    yellow: '#8a5200',
+    yellow: '#6f6300',
     blue: '#2433d6',
     magenta: '#7a2f8f',
     cyan: '#11636b',
@@ -45,7 +68,7 @@ export function terminalTheme(dark: boolean): ITheme {
     brightBlack: '#5e6066',
     brightRed: '#d0342b',
     brightGreen: '#3b8a35',
-    brightYellow: '#a86400',
+    brightYellow: '#857700',
     brightBlue: '#4050e8',
     brightMagenta: '#9340ab',
     brightCyan: '#167a84',

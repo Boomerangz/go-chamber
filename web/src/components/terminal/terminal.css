@@ -1,0 +1,69 @@
+/* ---------- terminal: connection line, keys, close confirm, dock tabs ---------- */
+
+.terminal-panel { flex-direction: column; gap: 6px; }
+
+/* one line above the screen while the connection is not simply live */
+.term-strip {
+  flex: none; display: flex; align-items: center; flex-wrap: wrap; gap: 6px 8px; min-height: 24px;
+  font-family: var(--font-mono); font-size: 12px; color: var(--ink-3); text-transform: lowercase;
+}
+.term-strip .btn { text-transform: none; }
+.term-strip-word { white-space: nowrap; }
+.term-bad { color: var(--bad); }
+
+/* keys a phone keyboard lacks: only on touch screens */
+.term-keys { display: none; }
+@media (pointer: coarse) {
+  .term-keys {
+    flex: none; display: flex; gap: 4px; overflow-x: auto; scrollbar-width: none;
+    font-family: var(--font-mono);
+  }
+  .term-keys .btn { flex: none; min-width: 36px; height: 32px; justify-content: center; }
+  .term-keys .btn[aria-pressed='true'] { border-color: var(--ink); background: var(--paper-2); color: var(--ink); }
+}
+
+/* close: a running shell asks first, in place */
+.term-confirm {
+  flex: none; display: inline-flex; align-items: center; gap: 4px; padding: 0 4px;
+  font-family: var(--font-mono); font-size: 12px; color: var(--ink-2); white-space: nowrap;
+}
+.term-row:has(.term-confirm) { flex-wrap: wrap; }
+.term-row .term-confirm { flex-basis: 100%; padding: 0 8px 6px 26px; }
+.term-row.closing, .terminal-tabs li.closing { opacity: 0.5; transition: opacity var(--dur-fast); }
+.term-row.closing [role='tab'] { cursor: progress; }
+.term-exit { font-family: var(--font-mono); color: var(--ink-3); }
+.term-error {
+  display: flex; align-items: center; gap: 6px; margin: 0; flex-basis: 100%;
+  color: var(--bad); font-size: 13px; overflow-wrap: anywhere;
+}
+.term-error > span { flex: 1; min-width: 0; }
+.term-error .btn { flex: none; color: var(--ink-3); }
+
+/* terminal mode header and empty state */
+.term-header-actions { flex: none; display: inline-flex; gap: 2px; }
+.term-header .term-confirm { padding: 0; }
+.term-header .term-dot { align-self: center; }
+.term-missing { margin: 0 0 4px; font-family: var(--font-mono); font-size: 12px; color: var(--ink-3); }
+.term-main > .hero .btn-primary { margin-top: 6px; }
+
+/* dock: a single row of tabs that scrolls sideways, ending in "+" */
+.dock-tabs { display: flex; align-items: flex-end; min-width: 0; border-bottom: 1px solid var(--rule); }
+.terminal-tabs [role='tab'] { white-space: nowrap; }
+.term-tab-title { display: inline-block; max-width: 16ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.term-tab-input { width: 16ch; min-width: 0; height: 24px; margin: 3px 4px; font-family: var(--font-mono); font-size: 12.5px; }
+.terminal-tabs .term-confirm { padding-right: 6px; }
+.term-new { position: relative; flex: none; display: flex; align-items: center; height: 30px; padding-left: 4px; }
+.term-new .term-new-more { width: 20px; }
+.term-new-menu {
+  position: absolute; top: calc(100% + 4px); right: 0; z-index: 5; width: min(320px, 80vw);
+  display: grid; gap: 8px; padding: 10px;
+  border: 1px solid var(--ink); border-radius: var(--r); background: var(--paper);
+}
+.term-new-menu > .btn { justify-self: start; }
+.term-new-folder { display: flex; gap: 6px; align-items: center; min-width: 0; }
+.term-new-folder .folder-field { flex: 1; min-width: 0; }
+
+@media (max-width: 720px) {
+  .terminal-tabs .close-terminal { width: 36px; height: 36px; }
+  .term-row .close-terminal { width: 36px; height: 36px; }
+}

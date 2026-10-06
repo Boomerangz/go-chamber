@@ -4,6 +4,7 @@ import { rtcEnabled, setRTCEnabled } from '../../lib/transport'
 import { useSessionStore } from '../../stores/session'
 import { useTerminalStore } from '../../stores/terminals'
 import { useDiagnostics } from './useDiagnostics'
+import { formatUptime, linkMark } from './format'
 import './DiagnosticsPage.css'
 
 const metrics: { key: MetricKey; label: string; description: string }[] = [
@@ -49,12 +50,16 @@ export default function DiagnosticsPage() {
         </div>
       </header>
       <div className="diagnostics-status">
-        <span>Agent stream: <strong>{connection}</strong></span>
-        <span>Echo connection: <strong>{enabled ? socketStatus : 'paused'}</strong></span>
+        <span>Agent stream: <LinkState status={connection} /></span>
+        <span>Echo connection: <LinkState status={enabled ? socketStatus : 'paused'} /></span>
         <span>Browser events: <strong>{client.agent.events}</strong></span>
         <span>Long tasks: <strong>{client.browser.longTaskSupport ? client.browser.longTasks : 'unsupported'}</strong></span>
       </div>
-      {error && <p role="alert" className="diagnostics-error">{error}. The last successful server snapshot is shown below.</p>}
+      {error && (
+        <p role="alert" className="diagnostics-error">
+          {error}.{server ? ' The last successful server snapshot is shown below.' : ''}
+        </p>
+      )}
       <p className="diagnostics-note">Use the agent or terminal, then return here to inspect samples. Percentiles cover the latest 120 samples in this browser tab. CLI startup and model response time are not collected yet.</p>
       <div className="diagnostics-grid">
         {metrics.map(({ key, label, description }) => {
@@ -73,7 +78,7 @@ export default function DiagnosticsPage() {
         <h3>Server since startup</h3>
         {server ? (
           <dl className="diagnostics-server-grid">
-            <div><dt>Uptime</dt><dd>{Math.floor(server.uptimeSeconds / 60)} min</dd></div>
+            <div><dt>Uptime</dt><dd>{formatUptime(server.uptimeSeconds)}</dd></div>
             <div><dt>Go heap</dt><dd>{bytes(server.heapBytes)}</dd></div>
             <div><dt>Goroutines</dt><dd>{server.goroutines}</dd></div>
             <div><dt>Published events</dt><dd>{server.events.published}</dd></div>
@@ -108,5 +113,15 @@ export default function DiagnosticsPage() {
         <p className="diagnostics-note">Browser pending bytes await xterm processing. Server queued bytes await delivery, summed across attached clients.</p>
       </section>
     </section>
+  )
+}
+
+// LinkState is a connection's state as a lowercase word after a square mark
+// whose form carries it.
+function LinkState({ status }: { status: string }) {
+  return (
+    <strong className="diag-state" data-mark={linkMark(status)}>
+      {status}
+    </strong>
   )
 }

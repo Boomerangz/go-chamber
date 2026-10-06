@@ -1,31 +1,54 @@
+import { X } from 'lucide-react'
 import { useState } from 'react'
 import { useTerminalStore } from '../../stores/terminals'
 import FolderField from '../folders/FolderField'
+import { icon } from '../icon'
 
 // NewTerminalForm opens a shell in a chosen folder (home when empty) or,
-// given a session, in that session's folder.
+// given a session, in that session's folder. The field keeps what was typed
+// until the shell opened, and a failure is shown right under it.
 export default function NewTerminalForm({ sessionId }: { sessionId?: string | null }) {
   const open = useTerminalStore((s) => s.open)
+  const opening = useTerminalStore((s) => s.opening)
   const [cwd, setCwd] = useState('')
   return (
     <form
       className="new-terminal"
+      aria-busy={opening || undefined}
       onSubmit={(e) => {
         e.preventDefault()
         const dir = cwd.trim()
-        void open(dir ? { cwd: dir } : {})
-        setCwd('')
+        void open(dir ? { cwd: dir } : {}).then((ok) => {
+          if (ok) setCwd('')
+        })
       }}
     >
       <FolderField label="terminal directory" placeholder="~ (home)" value={cwd} onChange={setCwd} />
-      <button type="submit" className="btn">
-        New terminal
+      <button type="submit" className="btn" aria-busy={opening || undefined}>
+        {opening ? 'Opening…' : 'New terminal'}
       </button>
       {sessionId && (
-        <button type="button" className="btn" onClick={() => void open({ sessionId })}>
+        <button type="button" className="btn" aria-busy={opening || undefined} onClick={() => void open({ sessionId })}>
           In session dir
         </button>
       )}
+      <OpenError />
     </form>
+  )
+}
+
+// OpenError shows why the last terminal didn't open, until dismissed or the
+// next one opens.
+export function OpenError() {
+  const error = useTerminalStore((s) => s.openError)
+  const dismiss = useTerminalStore((s) => s.dismissOpenError)
+  if (!error) return null
+  return (
+    <p className="term-error" role="alert">
+      <span>Couldn’t open a terminal: {error}</span>
+      <button type="button" className="btn btn-ghost btn-icon" aria-label="Dismiss" title="Dismiss" onClick={dismiss}>
+        <X {...icon(13)} />
+      </button>
+    </p>
   )
 }

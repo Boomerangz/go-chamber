@@ -9,6 +9,7 @@ vi.mock('../lib/terminal', () => ({
 }))
 
 import * as api from '../lib/terminal'
+import { lastError, useNotices } from './notices'
 import { resetTerminals, useTerminalStore } from './terminals'
 
 const store = () => useTerminalStore.getState()
@@ -22,6 +23,7 @@ beforeEach(() => {
   vi.clearAllMocks()
   sessionStorage.clear()
   resetTerminals()
+  useNotices.setState({ notices: [] })
 })
 
 describe('terminal store', () => {
@@ -154,10 +156,64 @@ describe('terminal store', () => {
     set.mockRestore()
   })
 
-  it('records load errors', async () => {
+  it('records load errors and is not loaded until a list arrives', async () => {
+    expect(store().loaded).toBe(false)
     ;(api.listTerminals as Mock).mockRejectedValue(new Error('offline'))
     await store().load()
-    expect(store().error).toBe('offline')
+    expect(store().loadError).toBe('offline')
+    expect(store().loaded).toBe(false)
+    ;(api.listTerminals as Mock).mockResolvedValue([])
+    await store().load()
+    expect(store().loadError).toBeNull()
+    expect(store().loaded).toBe(true)
+  })
+
+  it('says when a requested terminal no longer exists', async () => {
+    store().select('gone')
+    ;(api.listTerminals as Mock).mockResolvedValue([term()])
+    await store().load()
+    expect(store().activeId).toBeNull()
+    expect(store().missingId).toBe('gone')
+    store().select('t1')
+    expect(store().missingId).toBeNull()
+  })
+
+  it('is opening while the request is in flight and drops a second open', async () => {
+    let release: (v: Terminal) => void = () => {}
+    ;(api.openTerminal as Mock).mockReturnValueOnce(new Promise((r) => (release = r)))
+    const first = store().open({ cwd: '/h' })
+    expect(store().opening).toBe(true)
+    expect(await store().open({ cwd: '/x' })).toBe(false)
+    expect(api.openTerminal).toHaveBeenCalledTimes(1)
+    release(term())
+    expect(await first).toBe(true)
+    expect(store().opening).toBe(false)
+  })
+
+  it('marks a terminal closing until the close returns', async () => {
+    useTerminalStore.setState({ terminals: [term()], activeId: 't1' })
+    let release: () => void = () => {}
+    ;(api.closeTerminal as Mock).mockReturnValueOnce(new Promise<void>((r) => (release = r)))
+    const pending = store().close('t1')
+    expect(store().closing).toEqual({ t1: true })
+    expect(await store().close('t1')).toBe(false)
+    release()
+    await pending
+    expect(store().closing).toEqual({})
+  })
+
+  it('keeps the connection state of each terminal', () => {
+    store().setConnState('t1', 'reconnecting', 3)
+    expect(store().conn.t1).toEqual({ state: 'reconnecting', attempt: 3 })
+    store().setConnState('t1', 'live')
+    expect(store().conn.t1).toEqual({ state: 'live', attempt: undefined })
+  })
+
+  it('reports rename failures as a notice', async () => {
+    useTerminalStore.setState({ terminals: [term()] })
+    ;(api.renameTerminal as Mock).mockRejectedValue(new Error('denied'))
+    await store().rename('t1', 'x')
+    expect(lastError()).toBe('denied')
   })
 
   it('opens a terminal and selects it', async () => {
@@ -166,14 +222,16 @@ describe('terminal store', () => {
     expect(api.openTerminal).toHaveBeenCalledWith({ cwd: '/srv' })
     expect(store().terminals.map((t) => t.id)).toEqual(['new'])
     expect(store().activeId).toBe('new')
-    expect(store().error).toBeNull()
+    expect(store().openError).toBeNull()
   })
 
-  it('records open errors', async () => {
+  it('records open errors next to the form until dismissed', async () => {
     ;(api.openTerminal as Mock).mockRejectedValue(new Error('bad cwd'))
-    await store().open({ cwd: 'x' })
-    expect(store().error).toBe('bad cwd')
+    expect(await store().open({ cwd: 'x' })).toBe(false)
+    expect(store().openError).toBe('bad cwd')
     expect(store().terminals).toEqual([])
+    store().dismissOpenError()
+    expect(store().openError).toBeNull()
   })
 
   it('closes a terminal and moves the selection', async () => {
@@ -190,13 +248,14 @@ describe('terminal store', () => {
     expect(store().activeId).toBe('t1')
   })
 
-  it('records close errors and keeps the terminal', async () => {
+  it('reports close errors and keeps the terminal', async () => {
     ;(api.listTerminals as Mock).mockResolvedValue([term()])
     await store().load()
     ;(api.closeTerminal as Mock).mockRejectedValue(new Error('nope'))
-    await store().close('t1')
-    expect(store().error).toBe('nope')
+    expect(await store().close('t1')).toBe(false)
+    expect(lastError()).toBe('nope')
     expect(store().terminals).toHaveLength(1)
+    expect(store().closing).toEqual({})
   })
 
   it('marks a terminal exited', async () => {
@@ -230,16 +289,20 @@ describe('terminal store', () => {
     expect(store().activeId).toBe('new')
   })
 
-  it('clears a stale error after successful load and close', async () => {
+  it('clears a stale open error once a terminal opens', async () => {
     ;(api.openTerminal as Mock).mockRejectedValue(new Error('bad'))
     await store().open({})
-    ;(api.listTerminals as Mock).mockResolvedValue([term()])
-    await store().load()
-    expect(store().error).toBeNull()
-    ;(api.openTerminal as Mock).mockRejectedValue(new Error('bad'))
+    ;(api.openTerminal as Mock).mockResolvedValue(term())
     await store().open({})
+    expect(store().openError).toBeNull()
+  })
+
+  it('focuses the next terminal after a close', async () => {
+    useTerminalStore.setState({ terminals: [term(), term({ id: 't2' })], activeId: 't2', focusId: 't2' })
     ;(api.closeTerminal as Mock).mockResolvedValue(undefined)
-    await store().close('t1')
-    expect(store().error).toBeNull()
+    const tick = store().focusTick
+    await store().close('t2')
+    expect(store().focusId).toBe('t1')
+    expect(store().focusTick).toBe(tick + 1)
   })
 })
