@@ -67,7 +67,11 @@ export default function Sidebar(props: SidebarProps) {
   // typed is what the owner chose; until then the field offers the open
   // session's folder, or the one last started in.
   const [typed, setTyped] = useState<string | null>(null)
-  const activeCwd = useSessionStore((s) => s.sessions.find((x) => x.id === s.activeId)?.cwd)
+  // A worktree session offers its repository: a worktree of a worktree isn't wanted.
+  const activeCwd = useSessionStore((s) => {
+    const active = s.sessions.find((x) => x.id === s.activeId)
+    return active?.worktree?.repo ?? active?.cwd
+  })
   const [remembered, setRemembered] = useState(lastFolder)
   const cwd = typed ?? activeCwd ?? remembered
   const setCwd = setTyped

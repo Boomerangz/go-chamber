@@ -162,6 +162,12 @@ describe('Sidebar folder', () => {
     expect(screen.getByLabelText('Working directory')).toHaveValue('/src/app')
   })
 
+  it('starts in a worktree session’s repository, not the worktree', () => {
+    useSessionStore.setState({ activeId: 'w' })
+    setup(undefined, [{ ...session, id: 'w', cwd: '/data/worktrees/app/fix', worktree: { repo: '/src/app', path: '/data/worktrees/app/fix', branch: 'chamber/fix', base: 'main' } }])
+    expect(screen.getByLabelText('Working directory')).toHaveValue('/src/app')
+  })
+
   it('otherwise starts in the folder last used', async () => {
     const onCreate = setup()
     await userEvent.type(screen.getByLabelText('Working directory'), '/repo')
