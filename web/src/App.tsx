@@ -9,6 +9,7 @@ import SoundToggle from './components/notify/SoundToggle'
 import RequestTray from './components/requests/RequestTray'
 import Sidebar from './components/sessions/Sidebar'
 import { DockRail, DockSplitter, HealthStatus, ModeSwitch, PaneBar, ShowSessions, SidebarSplitter, SignOut } from './components/shell/Shell'
+import { useSidebarShown } from './components/shell/sidebarShown'
 import Notices from './components/shell/Notices'
 import Hotkeys from './components/shell/Hotkeys'
 import { openShortcuts } from './components/shell/overlay'
@@ -42,7 +43,7 @@ export default function App() {
   const pending = useSessionStore((s) => s.pendingRequests.length)
   const chosenDock = useLayoutStore((s) => s.dock)
   const dock = visibleDock({ dock: chosenDock, focus }, pending, Boolean(activeId))
-  const sidebar = useLayoutStore((s) => s.sidebar)
+  const sidebar = useSidebarShown()
   const layoutVars = useLayoutVars(dock)
   const loadTerminals = useTerminalStore((s) => s.load)
 

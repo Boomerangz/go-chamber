@@ -276,14 +276,19 @@ button.health { border: 0; background: none; padding: 0; }
 .notice p { color: var(--ink-2); }
 
 .layout {
-  --sb: var(--sidebar-w, 300px);
+  /* the chat keeps --chat-min: the sessions list and the dock give way to it */
+  --chat-min: 360px; --rail-w: 44px;
+  --sb: min(var(--sidebar-w, 300px), max(200px, 100% - var(--chat-min) - var(--rail-w)));
   position: relative; display: grid; min-height: 0;
   grid-template-columns: var(--sb) minmax(0, 1fr) auto;
 }
-/* --dock-w is a dragged dock width; without one each dock takes its default */
-.layout[data-dock='requests'] { grid-template-columns: var(--sb) minmax(0, 1fr) var(--dock-w, minmax(300px, 26%)); }
-.layout[data-dock='terminal'] { grid-template-columns: var(--sb) minmax(0, 1fr) var(--dock-w, minmax(420px, 38%)); }
+/* --dock is each dock's default width; --dock-w a dragged one */
+.layout[data-dock='requests'] { --dock: max(300px, 26%); }
+.layout[data-dock='terminal'] { --dock: max(420px, 38%); }
 @media (min-width: 721px) {
+  .layout:not([data-dock='closed']) {
+    grid-template-columns: var(--sb) minmax(0, 1fr) min(var(--dock-w, var(--dock)), max(var(--rail-w), 100% - var(--sb) - var(--chat-min)));
+  }
   .layout[data-sidebar='off'] { --sb: 0px; }
   .layout[data-sidebar='off'] > .sidebar { visibility: hidden; overflow: hidden; border: 0; }
 }
@@ -291,7 +296,7 @@ button.health { border: 0; background: none; padding: 0; }
 /* focus: only the chat, until a request waits; then the tray opens beside it */
 @media (min-width: 721px) {
   .layout[data-focus='on'] { grid-template-columns: minmax(0, 1fr); }
-  .layout[data-focus='on'][data-dock='requests'] { grid-template-columns: minmax(0, 1fr) var(--dock-w, minmax(300px, 26%)); }
+  .layout[data-focus='on'][data-dock='requests'] { grid-template-columns: minmax(0, 1fr) min(var(--dock-w, var(--dock)), max(var(--rail-w), 100% - var(--chat-min))); }
   .layout[data-focus='on'] > .splitter { display: none; }
   .layout[data-focus='on'] > .sidebar, .layout[data-focus='on'] .dock-rail { display: none; }
   .layout[data-focus='on'][data-dock='closed'] > .dock { display: none; }
@@ -1000,7 +1005,7 @@ button.health { border: 0; background: none; padding: 0; }
 
 @media (max-width: 1100px) {
   .layout { --sb: var(--sidebar-w, 260px); }
-  .layout[data-dock='requests'], .layout[data-dock='terminal'] { grid-template-columns: var(--sb) minmax(0, 1fr) var(--dock-w, minmax(300px, 40%)); }
+  .layout[data-dock] { --dock: max(300px, 40%); }
   .term-workspace { grid-template-columns: 240px minmax(0, 1fr); }
 }
 

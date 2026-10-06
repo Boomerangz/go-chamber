@@ -4,6 +4,7 @@ import type { Health } from '../../lib/api'
 import { ChevronsRight, FileDiff, Inbox, List, MessageSquareText, SquareTerminal } from 'lucide-react'
 import { icon } from '../icon'
 import { DOCK_MAX, DOCK_MIN, SIDEBAR_MAX, SIDEBAR_MIN, useLayoutStore, visibleDock, type DockTab, type Mode } from '../../stores/layout'
+import { useSidebarShown } from './sidebarShown'
 import { formatCombo } from '../../lib/hotkeys'
 import { useSessionStore, type Pane } from '../../stores/session'
 import { useTerminalStore } from '../../stores/terminals'
@@ -214,15 +215,18 @@ function Splitter(props: {
 }
 
 const widthOf = (el: Element | null | undefined) => el?.getBoundingClientRect().width ?? 0
+const windowWidth = (fallback: number) => (typeof window === 'undefined' ? fallback : window.innerWidth)
+
 
 // DockSplitter sits on the open dock's left edge.
 export function DockSplitter({ dock }: { dock: DockTab }) {
   const width = useLayoutStore((s) => s.widths[dock])
-  const sidebar = useLayoutStore((s) => (s.sidebar ? s.sidebarWidth ?? 300 : 0))
+  const shown = useSidebarShown()
+  const sidebar = useLayoutStore((s) => (shown ? s.sidebarWidth ?? 300 : 0))
   const setDockWidth = useLayoutStore((s) => s.setDockWidth)
   const ref = useRef<HTMLSpanElement>(null)
   const measure = () => widthOf(ref.current?.closest('.dock'))
-  const max = Math.max(DOCK_MIN, Math.min(DOCK_MAX, (typeof window === 'undefined' ? DOCK_MAX : window.innerWidth) - sidebar - CHAT_MIN))
+  const max = Math.max(DOCK_MIN, Math.min(DOCK_MAX, windowWidth(DOCK_MAX) - sidebar - CHAT_MIN))
   return (
     <span ref={ref} className="splitter-anchor">
       <Splitter
@@ -243,7 +247,8 @@ export function DockSplitter({ dock }: { dock: DockTab }) {
 // ShowSessions brings back a sessions list hidden with ⌘B, named in the top
 // bar so the way back is plain to see.
 export function ShowSessions() {
-  const hidden = useLayoutStore((s) => s.mode === 'agents' && !s.sidebar && !s.focus)
+  const shown = useSidebarShown()
+  const hidden = useLayoutStore((s) => s.mode === 'agents' && !s.focus) && !shown
   const toggleSidebar = useLayoutStore((s) => s.toggleSidebar)
   if (!hidden) return null
   return (
@@ -262,7 +267,7 @@ export function ShowSessions() {
 // SidebarSplitter sits on the sessions sidebar's right edge; while the
 // sidebar is hidden it is a slim button that brings it back.
 export function SidebarSplitter() {
-  const shown = useLayoutStore((s) => s.sidebar)
+  const shown = useSidebarShown()
   const width = useLayoutStore((s) => s.sidebarWidth)
   const setSidebarWidth = useLayoutStore((s) => s.setSidebarWidth)
   const toggleSidebar = useLayoutStore((s) => s.toggleSidebar)
@@ -283,6 +288,9 @@ export function SidebarSplitter() {
     )
   }
   const measure = () => widthOf(ref.current?.parentElement?.querySelector(':scope > .sidebar'))
+  // The chat keeps its room beside the dock (or its rail) however wide the list is dragged.
+  const dock = widthOf(typeof document === 'undefined' ? null : document.querySelector('.layout > .dock'))
+  const max = Math.max(SIDEBAR_MIN, Math.min(SIDEBAR_MAX, windowWidth(SIDEBAR_MAX) - dock - CHAT_MIN))
   return (
     <span ref={ref} className="splitter-anchor">
       <Splitter
@@ -290,7 +298,7 @@ export function SidebarSplitter() {
         className="splitter-sidebar"
         value={width ?? undefined}
         min={SIDEBAR_MIN}
-        max={SIDEBAR_MAX}
+        max={max}
         grows={1}
         measure={measure}
         onChange={setSidebarWidth}

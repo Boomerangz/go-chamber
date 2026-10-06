@@ -94,6 +94,19 @@ export function visibleDock(layout: Pick<Layout, 'dock' | 'focus'>, pending: num
   return layout.dock
 }
 
+// CROWDED is a window too narrow for the sessions list, the chat and an open
+// dock side by side (above the phone layout, which shows one pane at a time).
+// There an open dock takes the sessions list's place: one side panel at a time.
+export const CROWDED = '(min-width: 721px) and (max-width: 1000px)'
+
+const crowdedNow = () => typeof window !== 'undefined' && !!window.matchMedia?.(CROWDED).matches
+
+// sidebarShown says whether the sessions list is on screen: shown by the
+// owner, and not crowded out by the open dock (dock is the visible one).
+export function sidebarShown(layout: Pick<Layout, 'sidebar' | 'focus'>, dock: Dock, crowded: boolean): boolean {
+  return layout.sidebar && !layout.focus && !(crowded && dock !== null)
+}
+
 export const useLayoutStore = create<LayoutStore>((set, get) => {
   const update = (patch: Partial<Layout>) => {
     set(patch)
@@ -117,7 +130,15 @@ export const useLayoutStore = create<LayoutStore>((set, get) => {
       update({ widths })
     },
     setSidebarWidth: (px) => update({ sidebarWidth: px === null ? null : clamp(px, SIDEBAR_MIN, SIDEBAR_MAX) }),
-    toggleSidebar: () => update({ sidebar: !get().sidebar }),
+    toggleSidebar: () => {
+      const layout = get()
+      // Crowded out by the dock: bringing the sessions back collapses the dock.
+      if (layout.sidebar && crowdedNow()) {
+        const { pendingRequests, activeId } = useSessionStore.getState()
+        if (visibleDock(layout, pendingRequests.length, Boolean(activeId))) return update({ dock: null })
+      }
+      update({ sidebar: !layout.sidebar })
+    },
   }
 })
 
