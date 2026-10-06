@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import * as api from '../../lib/api'
 import Attachments from './Attachments'
 import { useAttachments } from './useAttachments'
+import { resetDrafts } from '../../stores/drafts'
 
 vi.mock('../../lib/api', async (orig) => ({
   ...(await orig<typeof import('../../lib/api')>()),
@@ -14,6 +15,7 @@ vi.mock('../../lib/api', async (orig) => ({
 let n = 0
 beforeEach(() => {
   vi.clearAllMocks()
+  resetDrafts()
   n = 0
   vi.mocked(api.uploadImage).mockImplementation(async () => ({ id: `img${++n}.png`, mimeType: 'image/png' }))
 })
@@ -21,14 +23,14 @@ beforeEach(() => {
 const png = (name = 'a.png') => new File(['x'], name, { type: 'image/png' })
 
 let latest: ReturnType<typeof useAttachments>
-function Harness({ sessionId = 's1' }: { sessionId?: string }) {
+function Harness({ sessionId = 's1', locked = false }: { sessionId?: string; locked?: boolean }) {
   const state = useAttachments(sessionId)
   useEffect(() => {
     latest = state
   })
   return (
     <form aria-label="composer" {...state.dropProps}>
-      <Attachments state={state} />
+      <Attachments state={state} locked={locked} />
     </form>
   )
 }
@@ -60,7 +62,58 @@ describe('Attachments', () => {
     vi.mocked(api.uploadImage).mockRejectedValue(new Error('image is larger than 10 MB'))
     render(<Harness />)
     await userEvent.upload(screen.getByLabelText('attach images'), png())
-    expect(await screen.findByRole('alert')).toHaveTextContent('image is larger than 10 MB')
+    expect(await screen.findByRole('alert')).toHaveTextContent('a.png: image is larger than 10 MB')
     expect(latest.ids).toEqual([])
+    await userEvent.click(screen.getByRole('button', { name: 'dismiss a.png' }))
+    expect(screen.queryByRole('alert')).toBeNull()
+  })
+
+  it('shows a placeholder per file while it uploads', async () => {
+    let finish: (v: api.UploadedImage) => void = () => {}
+    vi.mocked(api.uploadImage).mockImplementationOnce(() => new Promise((r) => (finish = r)))
+    render(<Harness />)
+    await userEvent.upload(screen.getByLabelText('attach images'), png('big.png'))
+    const placeholder = screen.getByLabelText('uploading big.png')
+    expect(placeholder).toHaveAttribute('title', 'big.png')
+    expect(latest.uploading).toBe(true)
+    await act(async () => finish({ id: 'big.png', mimeType: 'image/png' }))
+    expect(screen.queryByLabelText('uploading big.png')).toBeNull()
+    expect(latest.uploading).toBe(false)
+    expect(screen.getByRole('img')).toHaveAttribute('alt', 'big.png')
+  })
+
+  it('names a dropped file that is not an image', async () => {
+    render(<Harness />)
+    fireEvent.drop(screen.getByRole('form', { name: 'composer' }), {
+      dataTransfer: { files: [new File(['t'], 'x.pdf', { type: 'application/pdf' })] },
+    })
+    expect(await screen.findByRole('alert')).toHaveTextContent('only images can be attached: x.pdf')
+    expect(api.uploadImage).not.toHaveBeenCalled()
+  })
+
+  it('says where to drop while dragging over the composer', () => {
+    render(<Harness />)
+    const form = screen.getByRole('form', { name: 'composer' })
+    fireEvent.dragEnter(form, { dataTransfer: { types: ['Files'] } })
+    expect(latest.dragging).toBe(true)
+    expect(screen.getByText('Drop images to attach')).toBeInTheDocument()
+    fireEvent.dragLeave(form)
+    expect(latest.dragging).toBe(false)
+  })
+
+  it('keeps images of a session across remounts', async () => {
+    const { unmount } = render(<Harness />)
+    await userEvent.upload(screen.getByLabelText('attach images'), png('kept.png'))
+    await screen.findByRole('img')
+    unmount()
+    render(<Harness />)
+    expect(screen.getByRole('img')).toHaveAttribute('alt', 'kept.png')
+  })
+
+  it('locks attaching while a turn runs: images go with the next message', () => {
+    render(<Harness locked />)
+    const attach = screen.getByRole('button', { name: 'Attach' })
+    expect(attach).toBeDisabled()
+    expect(attach).toHaveAttribute('title', 'Images go with the next message')
   })
 })

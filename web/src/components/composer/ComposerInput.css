@@ -3,8 +3,18 @@
 .completions {
   position: absolute; left: -12px; right: -6px; bottom: calc(100% + 12px); z-index: 20;
   max-height: min(320px, 45vh); overflow-y: auto; margin: 0; padding: 4px 0; list-style: none;
-  border: 1px solid var(--rule-strong); border-radius: var(--r); background: var(--paper);
-  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.12);
+  border: 1px solid var(--ink); border-radius: var(--r); background: var(--paper);
+}
+/* "searching…" / "no matches": a quiet line where the list would be */
+.completions-note {
+  padding: 6px 12px; font-family: var(--font-mono); font-size: 12px; color: var(--ink-3);
+}
+/* a quick answer never flashes "searching…" */
+.completions-note.searching { animation: completions-wait 0s linear 180ms backwards; }
+@keyframes completions-wait { from { visibility: hidden; } }
+/* dragging files over the composer: a dashed "not yet settled" border */
+.composer.dragging, .composer.dragging:hover, .composer.dragging:focus-within {
+  border-style: dashed; border-color: var(--act); box-shadow: none;
 }
 .completions li {
   display: flex; align-items: baseline; gap: 10px; min-height: 30px; padding: 5px 12px;

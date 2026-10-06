@@ -64,15 +64,23 @@ export function completeFiles(sessionId: string, query: string): Promise<FileMat
   return getJSON(`/api/sessions/${encodeURIComponent(sessionId)}/complete/files?q=${encodeURIComponent(query)}`)
 }
 
-const commandCache = new Map<string, Promise<Command[]>>()
+// Commands and skills change on disk (and after /plugin installs), so a list
+// is reused only for a while, and dropped when a turn ends.
+const COMMANDS_TTL = 5 * 60_000
+const commandCache = new Map<string, { at: number; list: Promise<Command[]> }>()
 
-// listCommands asks once per session; a failed lookup is retried next time.
+// listCommands asks once per session while fresh; a failed lookup is retried next time.
 export function listCommands(sessionId: string): Promise<Command[]> {
-  let p = commandCache.get(sessionId)
-  if (!p) {
-    p = getJSON<Command[]>(`/api/sessions/${encodeURIComponent(sessionId)}/commands`)
-    p.catch(() => commandCache.delete(sessionId))
-    commandCache.set(sessionId, p)
-  }
-  return p
+  const cached = commandCache.get(sessionId)
+  if (cached && Date.now() - cached.at < COMMANDS_TTL) return cached.list
+  const list = getJSON<Command[]>(`/api/sessions/${encodeURIComponent(sessionId)}/commands`)
+  const entry = { at: Date.now(), list }
+  list.catch(() => commandCache.get(sessionId) === entry && commandCache.delete(sessionId))
+  commandCache.set(sessionId, entry)
+  return list
+}
+
+// forgetCommands makes the next lookup ask the agent again.
+export function forgetCommands(sessionId: string): void {
+  commandCache.delete(sessionId)
 }

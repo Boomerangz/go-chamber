@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest'
-import { applyCompletion, filterCommands, findToken } from './complete'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { applyCompletion, filterCommands, findToken, forgetCommands, listCommands } from './complete'
 
 describe('findToken', () => {
   it('finds an @ mention ending at the caret', () => {
@@ -53,5 +53,41 @@ describe('filterCommands', () => {
   })
   it('lists everything for an empty query', () => {
     expect(filterCommands(cmds, '')).toHaveLength(4)
+  })
+})
+
+describe('listCommands', () => {
+  afterEach(() => {
+    vi.useRealTimers()
+    vi.unstubAllGlobals()
+  })
+  const stubFetch = () => {
+    const fetch = vi.fn(async () => new Response(JSON.stringify([{ name: 'compact', insert: '/compact' }])))
+    vi.stubGlobal('fetch', fetch)
+    return fetch
+  }
+
+  it('asks once per session while the list is fresh', async () => {
+    const fetch = stubFetch()
+    await listCommands('fresh')
+    await listCommands('fresh')
+    expect(fetch).toHaveBeenCalledTimes(1)
+  })
+
+  it('asks again after a while: skills and commands change on disk', async () => {
+    vi.useFakeTimers()
+    const fetch = stubFetch()
+    await listCommands('stale')
+    vi.advanceTimersByTime(5 * 60_000 + 1)
+    await listCommands('stale')
+    expect(fetch).toHaveBeenCalledTimes(2)
+  })
+
+  it('asks again once forgotten, e.g. when the turn ends', async () => {
+    const fetch = stubFetch()
+    await listCommands('forget')
+    forgetCommands('forget')
+    expect((await listCommands('forget'))[0]?.name).toBe('compact')
+    expect(fetch).toHaveBeenCalledTimes(2)
   })
 })

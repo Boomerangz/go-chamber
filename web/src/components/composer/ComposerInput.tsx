@@ -1,4 +1,4 @@
-import { useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react'
+import { useEffect, useId, useImperativeHandle, useLayoutEffect, useRef, useState, type KeyboardEvent, type Ref } from 'react'
 import type { AgentKind } from '../../lib/api'
 import { applyCompletion, completeFiles, filterCommands, findToken, listCommands, type Token } from '../../lib/complete'
 import './ComposerInput.css'
@@ -17,24 +17,36 @@ interface Props {
   value: string
   onChange: (text: string) => void
   onSubmit: () => void
+  // onEscape gets Escape when no popup took it (the chat stops a turn with it).
+  onEscape?: () => void
+  // recall is the text ArrowUp brings back into an empty composer.
+  recall?: string
   placeholder: string
+  inputRef?: Ref<HTMLTextAreaElement>
 }
+
+// Browsers without field-sizing (Firefox) get the box grown by script.
+const sizesItself = () => typeof CSS !== 'undefined' && !!CSS.supports?.('field-sizing', 'content')
 
 // ComposerInput is the message box with a completion popup: "@" for files
 // in the session folder, "/" (and "$" for Codex) for the agent's commands.
-export default function ComposerInput({ sessionId, agent, value, onChange, onSubmit, placeholder }: Props) {
+export default function ComposerInput({ sessionId, agent, value, onChange, onSubmit, onEscape, recall, placeholder, inputRef }: Props) {
   const ref = useRef<HTMLTextAreaElement>(null)
+  useImperativeHandle(inputRef, () => ref.current!, [])
   const listId = useId()
   const [tracked, setToken] = useState<Token | null>(null)
-  const [result, setResult] = useState<{ key: string; options: Option[] }>({ key: '', options: [] })
+  const [result, setResult] = useState<{ key: string; options: Option[]; failed?: boolean }>({ key: '', options: [] })
   const [active, setActive] = useState(0)
   const caret = useRef<number | null>(null)
   // A cleared composer (after send) has nothing to complete.
   const token = value ? tracked : null
   const key = token ? `${token.kind}:${token.query}` : ''
   // Only show suggestions fetched for the text under the caret right now.
-  const options = token && result.key === key ? result.options : []
+  const answered = !!token && result.key === key
+  const options = answered ? result.options : []
   const open = options.length > 0
+  // A lookup on its way, or one that found nothing, says so in place of the list.
+  const note = !token || open ? null : !answered ? 'searching…' : result.failed ? null : 'no matches'
 
   const track = (el: HTMLTextAreaElement) =>
     setToken(sessionId ? findToken(el.value, el.selectionStart ?? el.value.length, agent) : null)
@@ -67,7 +79,7 @@ export default function ComposerInput({ sessionId, agent, value, onChange, onSub
             setResult({ key: `${kind}:${query}`, options: next })
             setActive(0)
           },
-          () => !cancelled && setResult({ key: `${kind}:${query}`, options: [] }),
+          () => !cancelled && setResult({ key: `${kind}:${query}`, options: [], failed: true }),
         ),
       kind === 'file' ? 80 : 0,
     )
@@ -76,6 +88,13 @@ export default function ComposerInput({ sessionId, agent, value, onChange, onSub
       clearTimeout(timer)
     }
   }, [kind, query, sessionId])
+
+  useLayoutEffect(() => {
+    const el = ref.current
+    if (!el || sizesItself()) return
+    el.style.height = 'auto'
+    el.style.height = `${el.scrollHeight}px`
+  }, [value])
 
   useLayoutEffect(() => {
     const el = ref.current
@@ -117,9 +136,24 @@ export default function ComposerInput({ sessionId, agent, value, onChange, onSub
           return
       }
     }
+    if (e.key === 'Escape' && note) {
+      e.preventDefault()
+      setToken(null)
+      return
+    }
     if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
       e.preventDefault()
       onSubmit()
+      return
+    }
+    if (e.key === 'Escape' && onEscape) {
+      onEscape()
+      return
+    }
+    if (e.key === 'ArrowUp' && !value && recall && !e.shiftKey && !e.altKey && !e.metaKey && !e.ctrlKey) {
+      e.preventDefault()
+      caret.current = recall.length
+      onChange(recall)
     }
   }
 
@@ -144,6 +178,11 @@ export default function ComposerInput({ sessionId, agent, value, onChange, onSub
             </li>
           ))}
         </ul>
+      )}
+      {note && (
+        <div className={`completions completions-note${answered ? '' : ' searching'}`} role="status">
+          {note}
+        </div>
       )}
       <textarea
         ref={ref}

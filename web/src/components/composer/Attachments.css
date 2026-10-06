@@ -4,18 +4,30 @@
 .attachment img, .item-images img {
   width: 56px; height: 56px; object-fit: cover; border: 1px solid var(--rule-strong); border-radius: var(--r);
 }
+/* an image still on its way: the "not yet settled" dashed form */
+.attachment-pending {
+  width: 56px; height: 56px; align-items: center; justify-content: center;
+  border: 1px dashed var(--rule-strong); border-radius: var(--r); color: var(--ink-3);
+}
 .attachment-remove {
   position: absolute; top: -6px; right: -6px; width: 20px; height: 20px; padding: 0;
-  border: 1px solid var(--rule-strong); border-radius: 50%; background: var(--paper); color: var(--ink);
-  line-height: 1; cursor: pointer;
+  display: inline-grid; place-items: center;
+  border: 1px solid var(--rule-strong); border-radius: var(--r); background: var(--paper); color: var(--ink);
+  cursor: pointer;
 }
-.attachment-busy { color: var(--ink-2); font-size: 12px; }
-.attachment-error { color: var(--danger, #b3261e); font-size: 12px; }
+.attachment-remove:hover { border-color: var(--ink); }
+.attachment-drop { font-family: var(--font-mono); font-size: 12px; color: var(--act); }
+.attachment-error {
+  display: inline-flex; align-items: center; gap: 4px; min-width: 0;
+  color: var(--bad); font-size: 12px;
+}
+.attachment-error .btn-icon { width: 20px; height: 20px; color: var(--bad); }
 .item-images { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
 .item-images img { width: 120px; height: auto; max-height: 120px; }
 @media (max-width: 720px) {
   .attachment-remove { width: 28px; height: 28px; }
+  .attachment-error .btn-icon { width: 28px; height: 28px; }
 }
-.composer:has(.attachment) { flex-wrap: wrap; }
-.composer:has(.attachment) .composer-actions { width: 100%; justify-content: flex-end; }
+.composer:has(.attachment, .attachment-error) { flex-wrap: wrap; }
+.composer:has(.attachment, .attachment-error) .composer-actions { width: 100%; justify-content: flex-end; }
 .composer-actions .attachments { margin-right: auto; }

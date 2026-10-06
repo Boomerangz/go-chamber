@@ -11,11 +11,30 @@ vi.mock('../../lib/complete', async (orig) => ({
   listCommands: vi.fn(),
 }))
 
-function Harness({ agent = 'claude' as const, onSubmit = () => {} }: { agent?: 'claude' | 'codex'; onSubmit?: () => void }) {
+function Harness({
+  agent = 'claude' as const,
+  onSubmit = () => {},
+  onEscape,
+  recall,
+}: {
+  agent?: 'claude' | 'codex'
+  onSubmit?: () => void
+  onEscape?: () => void
+  recall?: string
+}) {
   const [text, setText] = useState('')
   return (
     <>
-      <ComposerInput sessionId="s1" agent={agent} value={text} onChange={setText} onSubmit={onSubmit} placeholder="msg" />
+      <ComposerInput
+        sessionId="s1"
+        agent={agent}
+        value={text}
+        onChange={setText}
+        onSubmit={onSubmit}
+        onEscape={onEscape}
+        recall={recall}
+        placeholder="msg"
+      />
       <output data-testid="value">{text}</output>
     </>
   )
@@ -94,5 +113,49 @@ describe('ComposerInput', () => {
     await userEvent.type(box(), '@x')
     await waitFor(() => expect(complete.completeFiles).toHaveBeenCalled())
     expect(screen.queryByRole('listbox')).toBeNull()
+  })
+
+  it('says it is searching, then that nothing matched', async () => {
+    let answer: (files: complete.FileMatch[]) => void = () => {}
+    vi.mocked(complete.completeFiles).mockImplementation(() => new Promise((r) => (answer = r)))
+    render(<Harness />)
+    await userEvent.type(box(), '@zz')
+    expect(await screen.findByText('searching…')).toBeInTheDocument()
+    await waitFor(() => expect(complete.completeFiles).toHaveBeenLastCalledWith('s1', 'zz'))
+    answer([])
+    expect(await screen.findByText('no matches')).toBeInTheDocument()
+    expect(screen.queryByRole('listbox')).toBeNull()
+    await userEvent.keyboard('{Escape}')
+    expect(screen.queryByText('no matches')).toBeNull()
+  })
+
+  it('hands Escape on to the chat when no popup is open', async () => {
+    const onEscape = vi.fn()
+    render(<Harness onEscape={onEscape} />)
+    await userEvent.type(box(), '@c')
+    await screen.findByRole('listbox')
+    await userEvent.keyboard('{Escape}')
+    expect(onEscape).not.toHaveBeenCalled()
+    await userEvent.keyboard('{Escape}')
+    expect(onEscape).toHaveBeenCalledTimes(1)
+  })
+
+  it('recalls the last message with ArrowUp in an empty composer', async () => {
+    render(<Harness recall="fix the tests" />)
+    await userEvent.type(box(), 'x')
+    await userEvent.keyboard('{ArrowUp}')
+    expect(box()).toHaveValue('x')
+    await userEvent.clear(box())
+    await userEvent.keyboard('{ArrowUp}')
+    expect(box()).toHaveValue('fix the tests')
+  })
+
+  it('grows with its text where CSS cannot size it', async () => {
+    vi.stubGlobal('CSS', { supports: () => false })
+    render(<Harness />)
+    Object.defineProperty(box(), 'scrollHeight', { configurable: true, get: () => 90 })
+    await userEvent.type(box(), 'a')
+    expect(box().style.height).toBe('90px')
+    vi.unstubAllGlobals()
   })
 })
