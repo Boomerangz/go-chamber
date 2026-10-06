@@ -103,10 +103,12 @@ export function applyEvents(state: ChatState, events: readonly SessionEvent[]): 
 
 // endTurn notes whether the turn failed and writes the failure into the
 // transcript, unless the agent already reported an error item in this turn
-// (Codex does). An interrupted turn is shown by its banner instead.
+// (Codex does). An interrupted turn is shown by its banner instead, a
+// stopped one by its foot.
 function endTurn(state: ChatState, ev: SessionEvent): ChatState {
-  const result = ev.result as (TurnResult & { interruptionReason?: string }) | undefined
-  state.lastTurnFailed = !!result?.isError && !result.interruptionReason
+  const result = ev.result
+  // A turn the owner stopped didn't fail; its foot says it was stopped.
+  state.lastTurnFailed = !!result?.isError && !result.interruptionReason && !result.stopped
   if (!state.lastTurnFailed || reportedInTurn(state)) return state
   return upsert(state, {
     id: `turn-failed-${ev.seq}`,

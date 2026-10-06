@@ -456,15 +456,18 @@ function GroupView({ nodes, onStopTask }: { nodes: ItemNode[]; onStopTask: StopT
 
 const numberFormat = new Intl.NumberFormat('en-US')
 
-// TurnFoot closes a finished turn with what its result says it cost.
+// TurnFoot closes a finished turn with what its result says it cost, and
+// records a turn the owner stopped (in ink: nothing failed).
 function TurnFoot({ result }: { result: TurnResult }) {
   const parts: string[] = []
   if (result.inputTokens) parts.push(`${numberFormat.format(result.inputTokens)} in`)
   if (result.outputTokens) parts.push(`${numberFormat.format(result.outputTokens)} out`)
   if (result.costUsd) parts.push(`$${result.costUsd.toFixed(4)}`)
-  if (parts.length === 0) return null
+  if (parts.length === 0 && !result.stopped) return null
   return (
-    <li className="turn-foot" aria-label="Turn usage">
+    <li className="turn-foot" aria-label={result.stopped ? 'Turn stopped' : 'Turn usage'}>
+      {result.stopped && <span className="stop-kw">turn stopped</span>}
+      {result.stopped && parts.length > 0 && ' · '}
       {parts.join(' · ')}
     </li>
   )

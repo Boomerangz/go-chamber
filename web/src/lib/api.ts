@@ -6,6 +6,9 @@ export type SessionStatus = 'detached' | 'idle' | 'running' | 'interrupted'
 export interface Interruption {
   reason?: string
   resumeAfter?: string
+  // withRequest: the turn was cut off while a question or permission waited
+  // for the owner, who still owes it an answer.
+  withRequest?: boolean
 }
 
 // ApprovalReviewer decides who reviews the agent's approval requests (Codex);
@@ -95,6 +98,10 @@ export interface TurnResult {
   costUsd?: number
   inputTokens?: number
   outputTokens?: number
+  // interruptionReason is set when the turn was cut short (see Interruption).
+  interruptionReason?: string
+  // stopped: the owner stopped the turn.
+  stopped?: boolean
 }
 
 export type EventType =

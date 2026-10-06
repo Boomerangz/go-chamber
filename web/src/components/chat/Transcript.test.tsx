@@ -482,4 +482,13 @@ describe('turn footer', () => {
     rerender(<ol><Row {...props} result={{ text: 'done' }} /></ol>)
     expect(container.querySelector('.turn-foot')).toBeNull()
   })
+
+  it('records a turn the owner stopped, in ink', () => {
+    const { container, rerender, props } = show(item({ kind: 'assistant_message', text: 'half' }), { result: { stopped: true } })
+    const foot = container.querySelector('.turn-foot')!
+    expect(foot).toHaveTextContent(/^turn stopped$/)
+    expect(foot.querySelector('.stop-kw')).toHaveTextContent('turn stopped')
+    rerender(<ol><Row {...props} result={{ stopped: true, outputTokens: 5 }} /></ol>)
+    expect(container.querySelector('.turn-foot')).toHaveTextContent('turn stopped · 5 out')
+  })
 })

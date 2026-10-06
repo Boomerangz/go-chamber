@@ -125,6 +125,8 @@
   margin-top: -8px; font-family: var(--font-mono); font-size: 11.5px; color: var(--ink-3);
   font-variant-numeric: tabular-nums;
 }
+/* a turn the owner stopped: the keyword of TURN FAILED, in ink */
+.turn-foot .stop-kw { letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink); }
 
 /* a message of the owner's: copy it, or take it back into the composer */
 .item.user {
