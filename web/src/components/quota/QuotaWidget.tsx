@@ -2,7 +2,7 @@ import { ChevronDown, RotateCw } from 'lucide-react'
 import { icon } from '../icon'
 import { useCallback, useState } from 'react'
 import { refreshQuota, type AgentKind } from '../../lib/api'
-import { resetLabel, windowLabel } from '../../lib/format'
+import { hasReset, resetLabel, windowLabel } from '../../lib/format'
 import { useNow } from '../../lib/now'
 import { usePending } from '../../lib/pending'
 import { relativeTime } from '../../lib/sessions'
@@ -49,7 +49,7 @@ export default function QuotaWidget() {
               <span className={`bar bar-${level(top)}`} aria-hidden="true">
                 <span className="fill" style={{ transform: `scaleX(${top / 100})` }} />
               </span>
-              <span className="pct">{Math.round(top)}%</span>
+              <Pct value={top} stale={fullest !== undefined && hasReset(fullest.resetsAt, new Date(now))} />
               {fullest && (
                 <span className="quota-when">
                   {windowLabel(fullest).replace(/ window$/, '')}
@@ -81,7 +81,7 @@ export default function QuotaWidget() {
                   <div key={w.name} className="window">
                     <div className="window-line">
                       <span>{windowLabel(w)}</span>
-                      <span className="pct">{Math.round(w.usedPct)}%</span>
+                      <Pct value={w.usedPct} stale={hasReset(w.resetsAt, new Date(now))} />
                     </div>
                     <div className={`bar bar-${level(pct)}`}>
                       <div className="fill" style={{ transform: `scaleX(${pct / 100})` }} />
@@ -96,6 +96,16 @@ export default function QuotaWidget() {
         {error && <span className="error" role="alert">{error}</span>}
       </div>
     </details>
+  )
+}
+
+// Pct prints a window's usage; after its reset the number is old, so it is
+// shown in the unsettled form until fresh numbers arrive.
+function Pct({ value, stale }: { value: number; stale: boolean }) {
+  return (
+    <span className="pct" data-stale={stale || undefined} title={stale ? 'Usage from before the reset; refresh for new numbers' : undefined}>
+      {Math.round(value)}%
+    </span>
   )
 }
 

@@ -28,6 +28,27 @@ function setup(onCreate = vi.fn(async () => true), sessions: Session[] = []) {
 }
 
 describe('Sidebar new session', () => {
+  it('folds the form behind one line on phones, and folds it again once a session starts', async () => {
+    const onCreate = setup()
+    const form = document.querySelector('form.new-session')!
+    const open = screen.getByRole('button', { name: 'Start a session' })
+    expect(open).toHaveAttribute('aria-expanded', 'false')
+    expect(form).toHaveAttribute('data-folded')
+    await userEvent.click(open)
+    expect(open).toHaveAttribute('aria-expanded', 'true')
+    expect(form).not.toHaveAttribute('data-folded')
+    await userEvent.type(screen.getByLabelText('working directory'), '/tmp')
+    await userEvent.click(screen.getByRole('button', { name: 'New session' }))
+    await waitFor(() => expect(onCreate).toHaveBeenCalled())
+    await waitFor(() => expect(form).toHaveAttribute('data-folded'))
+  })
+
+  it('unfolds by itself when the folder field takes focus', async () => {
+    setup()
+    await userEvent.click(screen.getByLabelText('working directory'))
+    expect(document.querySelector('form.new-session')).not.toHaveAttribute('data-folded')
+  })
+
   it('asks for a folder first, pointing at the field', async () => {
     const onCreate = setup()
     await userEvent.click(screen.getByRole('button', { name: 'New session' }))

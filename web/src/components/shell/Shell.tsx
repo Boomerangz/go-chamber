@@ -1,4 +1,4 @@
-import { useRef, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { useNow } from '../../lib/now'
 import type { Health } from '../../lib/api'
 import { ChevronsRight, FileDiff, Inbox, List, MessageSquareText, SquareTerminal } from 'lucide-react'
@@ -154,6 +154,25 @@ export function DockSplitter({ dock }: { dock: DockTab }) {
   )
 }
 
+// ShowSessions brings back a sessions list hidden with ⌘B, named in the top
+// bar so the way back is plain to see.
+export function ShowSessions() {
+  const hidden = useLayoutStore((s) => s.mode === 'agents' && !s.sidebar && !s.focus)
+  const toggleSidebar = useLayoutStore((s) => s.toggleSidebar)
+  if (!hidden) return null
+  return (
+    <button
+      type="button"
+      className="btn btn-ghost btn-xs show-sessions"
+      title={`Show sessions (${formatCombo({ key: 'b', mod: true })})`}
+      onClick={toggleSidebar}
+    >
+      <ChevronsRight {...icon(14)} />
+      Show sessions
+    </button>
+  )
+}
+
 // SidebarSplitter sits on the sessions sidebar's right edge; while the
 // sidebar is hidden it is a slim button that brings it back.
 export function SidebarSplitter() {
@@ -164,7 +183,15 @@ export function SidebarSplitter() {
   const ref = useRef<HTMLSpanElement>(null)
   if (!shown) {
     return (
-      <button type="button" className="splitter sidebar-show" aria-label="Show sessions" title={`Show sessions (${formatCombo({ key: 'b', mod: true })})`} onClick={toggleSidebar}>
+      <button
+        type="button"
+        className="splitter sidebar-show"
+        aria-label="Show sessions"
+        aria-hidden="true"
+        tabIndex={-1}
+        title={`Show sessions (${formatCombo({ key: 'b', mod: true })})`}
+        onClick={toggleSidebar}
+      >
         <ChevronsRight {...icon(14)} />
       </button>
     )
@@ -234,6 +261,14 @@ export function HealthStatus({ health }: { health: Health | null }) {
     )
   }
   const state = health ?? 'connecting'
+  // While connecting the page says so in full; the bar keeps just the mark.
+  if (state === 'connecting') {
+    return (
+      <span className="health health-connecting" role="status" aria-label="connecting" title="connecting to go-chamber">
+        <span className="dot" aria-hidden="true" />
+      </span>
+    )
+  }
   // All is well most of the time: then only the mark shows, and says so on hover.
   if (state === 'online' && connection !== 'offline') {
     return (
@@ -254,24 +289,54 @@ export function HealthStatus({ health }: { health: Health | null }) {
 // token go-chamber printed at startup.
 export function SignOut({ className }: { className?: string }) {
   const [asking, setAsking] = useState(false)
+  // Cancelling hands focus back to the button that asked.
+  const refocus = useRef(false)
+  const ask = useRef<HTMLButtonElement>(null)
+  useEffect(() => {
+    if (!asking && refocus.current) {
+      refocus.current = false
+      ask.current?.focus()
+    }
+  }, [asking])
+  const cancel = () => {
+    refocus.current = true
+    setAsking(false)
+  }
   if (!asking) {
     return (
       <div className={className}>
-        <button type="button" className="btn btn-ghost" onClick={() => setAsking(true)}>
+        <button ref={ask} type="button" className="btn btn-ghost" onClick={() => setAsking(true)}>
           Sign out
         </button>
       </div>
     )
   }
   return (
-    <form method="post" action="/logout" className={`${className ?? ''} signout-confirm`} role="group" aria-label="Sign out">
-      <span className="signout-question">Sign out? You'll need the access token again.</span>
-      <button type="submit" className="btn btn-danger btn-xs" autoFocus>
+    <form
+      method="post"
+      action="/logout"
+      className={`${className ?? ''} signout-confirm`}
+      role="group"
+      aria-label="Sign out"
+      onKeyDown={(e) => {
+        if (e.key !== 'Escape') return
+        e.preventDefault()
+        e.stopPropagation()
+        cancel()
+      }}
+    >
+      <span className="signout-question" title={SIGN_BACK_IN}>
+        Sign out?
+      </span>
+      <button type="submit" className="btn btn-danger btn-xs" autoFocus title={SIGN_BACK_IN}>
         Sign out
       </button>
-      <button type="button" className="btn btn-ghost btn-xs" onClick={() => setAsking(false)}>
+      <button type="button" className="btn btn-ghost btn-xs" onClick={cancel}>
         Cancel
       </button>
     </form>
   )
 }
+
+const SIGN_BACK_IN = "Signing back in needs the access token go-chamber printed at startup."
+

@@ -8,7 +8,7 @@ import NotifyToggle from './components/notify/NotifyToggle'
 import SoundToggle from './components/notify/SoundToggle'
 import RequestTray from './components/requests/RequestTray'
 import Sidebar from './components/sessions/Sidebar'
-import { DockRail, DockSplitter, HealthStatus, ModeSwitch, PaneBar, SidebarSplitter, SignOut } from './components/shell/Shell'
+import { DockRail, DockSplitter, HealthStatus, ModeSwitch, PaneBar, ShowSessions, SidebarSplitter, SignOut } from './components/shell/Shell'
 import Notices from './components/shell/Notices'
 import Hotkeys from './components/shell/Hotkeys'
 import { openShortcuts } from './components/shell/overlay'
@@ -69,6 +69,7 @@ export default function App() {
       <header className="topbar">
         <div className="brand">
           <h1>go-chamber</h1>
+          {health === 'online' && <ShowSessions />}
         </div>
         {health === 'online' && <ModeSwitch />}
         <div className="topbar-end">

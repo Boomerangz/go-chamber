@@ -134,9 +134,11 @@ export default function ChatHeader({ session, status, loading, notFound, forking
         </button>
       )}
       <div className="chat-meta">
-        <span className={`status status-${status}`} role="status">
-          {status}
-        </span>
+        {session && (
+          <span className={`status status-${status}`} role="status">
+            {status}
+          </span>
+        )}
         {connection !== 'online' && <span className={`health health-${connection}`}>{connection}</span>}
         {unguarded && (
           <span className="no-approvals" title="The agent won't ask before running commands or editing files">

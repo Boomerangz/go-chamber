@@ -68,7 +68,6 @@ function ArchivedRow(props: { node: SessionNode; depth: number; activeId: string
             </span>
           </span>
         </span>
-        <span className="session-badge" />
       </button>
       <SessionMenu session={s} />
       {props.node.children.length > 0 && (

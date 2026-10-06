@@ -32,8 +32,9 @@ describe('resetLabel', () => {
   })
 
   it('shows time left relative to now', () => {
-    expect(resetLabel('2026-09-25T11:00:00Z', now)).toBe('resets now')
-    expect(resetLabel('2026-09-25T12:00:00Z', now)).toBe('resets now')
+    // Once the time has passed the window has reset; its number is old.
+    expect(resetLabel('2026-09-25T11:00:00Z', now)).toBe('reset')
+    expect(resetLabel('2026-09-25T12:00:00Z', now)).toBe('reset')
     expect(resetLabel('2026-09-25T12:12:30Z', now)).toBe('resets in 12m')
     expect(resetLabel('2026-09-25T12:00:30Z', now)).toBe('resets in 1m')
     expect(resetLabel('2026-09-25T14:14:00Z', now)).toBe('resets in 2h 14m')

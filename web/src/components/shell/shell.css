@@ -16,6 +16,7 @@
 .switcher-row[aria-selected='true'] { background: var(--paper-2); color: var(--ink); }
 .switcher-mark { gap: 0; justify-self: center; }
 .switcher-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13.5px; }
+.switcher-path { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .switcher-detail { display: inline-flex; gap: 8px; font-family: var(--font-mono); font-size: 12px; color: var(--ink-3); white-space: nowrap; }
 .switcher-time { color: var(--ink-3); }
 .switcher-title mark, .switcher-detail mark { background: none; color: var(--ink); box-shadow: inset 0 -1px 0 var(--ink); }
@@ -28,11 +29,18 @@
   font-family: var(--font-mono); font-size: 11.5px; color: var(--ink-3);
 }
 .switcher-foot kbd { margin-right: 2px; }
-.shortcut-help { max-height: 80vh; }
+.shortcut-help { width: min(860px, calc(100vw - 32px)); max-height: 86vh; }
 .shortcut-head { display: flex; align-items: center; justify-content: space-between; padding: 12px 10px 8px 16px; border-bottom: 1px solid var(--rule); }
 .shortcut-head h2 { font-size: 15px; font-weight: 600; }
-.shortcut-list { margin: 0; padding: 8px 16px; overflow: auto; display: grid; gap: 2px; }
-.shortcut-list > div { display: grid; grid-template-columns: 9em 1fr; align-items: center; gap: 12px; padding: 4px 0; }
+/* the help reads in two columns of groups: navigate beside chat, requests, terminal */
+.shortcut-groups {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(min(340px, 100%), 1fr)); gap: 4px 28px;
+  padding: 10px 16px 6px; overflow: auto; min-height: 0;
+}
+.shortcut-groups > section:first-child { grid-row: span 3; }
+.shortcut-groups h3 { padding: 6px 0 2px; }
+.shortcut-list { margin: 0; padding: 0 0 8px; display: grid; gap: 0; }
+.shortcut-list > div { display: grid; grid-template-columns: 7em 1fr; align-items: center; gap: 12px; padding: 3px 0; }
 .shortcut-list dd { margin: 0; color: var(--ink-2); font-size: 13px; }
 .shortcut-list kbd { min-width: 0; padding: 0 6px; }
 @media (max-width: 720px) {

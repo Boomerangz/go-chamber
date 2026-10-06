@@ -32,6 +32,20 @@ describe('Hotkeys', () => {
     expect(screen.getByText('Next session that needs you')).toBeInTheDocument()
   })
 
+  it('groups the shortcut list and names the modes', async () => {
+    render(<Hotkeys />)
+    await userEvent.keyboard('?')
+    const dialog = screen.getByRole('dialog', { name: 'Keyboard shortcuts' })
+    const groups = [...dialog.querySelectorAll('section')].map((s) => s.getAttribute('aria-label'))
+    expect(groups).toEqual(['Navigate', 'Chat', 'Requests', 'Terminal'])
+    const navigate = screen.getByRole('region', { name: 'Navigate' })
+    expect(navigate).toHaveTextContent('Agents mode')
+    expect(navigate).toHaveTextContent('Terminal mode')
+    expect(screen.getByRole('region', { name: 'Chat' })).toHaveTextContent('Send the message')
+    expect(screen.getByRole('region', { name: 'Requests' })).toHaveTextContent('Allow, allow for session, deny a request')
+    expect(screen.getByRole('region', { name: 'Terminal' })).toHaveTextContent('Terminal dock on or off')
+  })
+
   it('jumps to a session from the switcher', async () => {
     render(<Hotkeys />)
     await userEvent.keyboard('{Control>}k{/Control}')
@@ -121,6 +135,16 @@ describe('QuickSwitcher', () => {
     const option = screen.getAllByRole('option')[0]!
     expect([...option.querySelectorAll('.switcher-title mark')].map((m) => m.textContent)).toEqual(['a', 'ph'])
     expect(option).toHaveTextContent('current')
+  })
+
+  it('keeps a matched folder one word, marks inside it', async () => {
+    useSessionStore.setState({ sessions: [{ ...session('a', 'zzz'), cwd: '/w/alpha' }] })
+    const input = await openSwitcher()
+    await userEvent.type(input, 'alpha')
+    const detail = screen.getAllByRole('option')[0]!.querySelector('.switcher-detail')!
+    const path = detail.querySelector(':scope > .switcher-path')!
+    expect(path.querySelector('mark')).not.toBeNull()
+    expect(path).toHaveTextContent('alpha')
   })
 
   it('starts a new session in a folder from the list', async () => {

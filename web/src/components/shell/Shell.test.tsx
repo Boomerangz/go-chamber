@@ -90,7 +90,8 @@ describe('SidebarSplitter', () => {
   it('becomes a button that shows the hidden sidebar', () => {
     useLayoutStore.setState({ sidebar: false })
     render(<SidebarSplitter />)
-    fireEvent.click(screen.getByRole('button', { name: 'Show sessions' }))
+    // A mouse affordance on the edge; the top bar names it for everyone else.
+    fireEvent.click(document.querySelector('.sidebar-show')!)
     expect(layout().sidebar).toBe(true)
   })
 })

@@ -9,22 +9,27 @@ import { useLayoutStore, type Mode } from '../../stores/layout'
 import { useSessionStore } from '../../stores/session'
 import './shell.css'
 
+// The help lists shortcuts in these groups, in this order.
+const GROUPS = ['Navigate', 'Chat', 'Requests', 'Terminal'] as const
+type Group = (typeof GROUPS)[number]
+
 interface Shortcut {
   combo: Combo
   label: string
+  group: Group
   // anywhere lets the shortcut fire while typing (never inside the terminal).
   anywhere?: boolean
   run: () => void
 }
 
 // Shortcuts handled elsewhere, listed in the help so it is complete.
-const local: { keys: string; label: string }[] = [
-  { keys: formatCombo({ key: 'Enter', mod: true }), label: 'Send the message' },
-  { keys: formatCombo({ key: '.', mod: true }), label: 'Stop the running turn' },
-  { keys: 'Esc', label: 'In an empty composer: stop the turn, or leave it' },
-  { keys: 'A · S · D', label: 'Allow, allow for session, deny a request' },
-  { keys: '↑ ↓', label: 'Move through requests in the tray' },
-  { keys: 'j · k', label: 'In Changes: next, previous file' },
+const local: { keys: string; label: string; group: Group }[] = [
+  { keys: formatCombo({ key: 'Enter', mod: true }), label: 'Send the message', group: 'Chat' },
+  { keys: formatCombo({ key: '.', mod: true }), label: 'Stop the running turn', group: 'Chat' },
+  { keys: 'Esc', label: 'In an empty composer: stop the turn, or leave it', group: 'Chat' },
+  { keys: 'A · S · D', label: 'Allow, allow for session, deny a request', group: 'Requests' },
+  { keys: '↑ ↓', label: 'Move through requests in the tray', group: 'Requests' },
+  { keys: 'j · k', label: 'In Changes: next, previous file', group: 'Navigate' },
 ]
 
 function rows(): HTMLButtonElement[] {
@@ -65,23 +70,24 @@ type SetOverlay = (update: (o: Overlay) => Overlay) => void
 
 function buildShortcuts(setOverlay: SetOverlay): Shortcut[] {
   return [
-    { combo: { key: 'k', mod: true }, label: 'Go to a session or terminal', anywhere: true, run: () => setOverlay((o) => (o === 'switcher' ? null : 'switcher')) },
-    { combo: { key: '?' }, label: 'Show shortcuts', run: () => setOverlay((o) => (o === 'help' ? null : 'help')) },
-    { combo: { key: '/' }, label: 'Search sessions', run: () => focusIn('.session-search input, input[type="search"]', 'sessions') },
-    { combo: { key: 'c' }, label: 'Write to the agent', run: () => focusIn('.composer textarea', 'chat') },
-    { combo: { key: 'n' }, label: 'New session: choose a folder', run: () => focusIn('.new-session .folder-field input', 'sessions') },
-    { combo: { key: 'j' }, label: 'Next session', run: () => stepSession(1) },
-    { combo: { key: 'k' }, label: 'Previous session', run: () => stepSession(-1) },
-    { combo: { key: 'r' }, label: 'Next session that needs you', run: nextWaiting },
-    { combo: { key: 'f' }, label: 'Focus mode on or off', run: () => useLayoutStore.getState().toggleFocus() },
-    { combo: { key: 't' }, label: 'Terminal dock on or off', run: () => useLayoutStore.getState().toggleDock('terminal') },
-    { combo: { key: 'd' }, label: 'Changes dock on or off', run: () => useLayoutStore.getState().toggleDock('changes') },
-    { combo: { key: 'b', mod: true }, label: 'Sessions list on or off', anywhere: true, run: () => useLayoutStore.getState().toggleSidebar() },
+    { combo: { key: 'k', mod: true }, group: 'Navigate', label: 'Go to a session or terminal', anywhere: true, run: () => setOverlay((o) => (o === 'switcher' ? null : 'switcher')) },
+    { combo: { key: '?' }, group: 'Navigate', label: 'Show shortcuts', run: () => setOverlay((o) => (o === 'help' ? null : 'help')) },
+    { combo: { key: '/' }, group: 'Navigate', label: 'Search sessions', run: () => focusIn('.session-search input, input[type="search"]', 'sessions') },
+    { combo: { key: 'n' }, group: 'Navigate', label: 'New session: choose a folder', run: () => focusIn('.new-session .folder-field input', 'sessions') },
+    { combo: { key: 'j' }, group: 'Navigate', label: 'Next session', run: () => stepSession(1) },
+    { combo: { key: 'k' }, group: 'Navigate', label: 'Previous session', run: () => stepSession(-1) },
+    { combo: { key: 'r' }, group: 'Requests', label: 'Next session that needs you', run: nextWaiting },
+    { combo: { key: 'f' }, group: 'Navigate', label: 'Focus mode on or off', run: () => useLayoutStore.getState().toggleFocus() },
+    { combo: { key: 'b', mod: true }, group: 'Navigate', label: 'Sessions list on or off', anywhere: true, run: () => useLayoutStore.getState().toggleSidebar() },
+    { combo: { key: 'd' }, group: 'Navigate', label: 'Changes dock on or off', run: () => useLayoutStore.getState().toggleDock('changes') },
     ...modeKeys.map(([key, mode]) => ({
       combo: { key },
-      label: `${mode[0]!.toUpperCase()}${mode.slice(1)}`,
+      group: 'Navigate' as const,
+      label: `${mode[0]!.toUpperCase()}${mode.slice(1)} mode`,
       run: () => useLayoutStore.getState().setMode(mode),
     })),
+    { combo: { key: 'c' }, group: 'Chat', label: 'Write to the agent', run: () => focusIn('.composer textarea', 'chat') },
+    { combo: { key: 't' }, group: 'Terminal', label: 'Terminal dock on or off', run: () => useLayoutStore.getState().toggleDock('terminal') },
   ]
 }
 
@@ -124,7 +130,7 @@ function ShortcutHelp({ shortcuts, onClose }: { shortcuts: Shortcut[]; onClose: 
     const d = ref.current
     if (d && !d.open) d.showModal()
   }, [])
-  const all = [...shortcuts.map((s) => ({ keys: formatCombo(s.combo), label: s.label })), ...local]
+  const all = [...shortcuts.map((s) => ({ keys: formatCombo(s.combo), label: s.label, group: s.group })), ...local]
   return (
     <dialog
       ref={ref}
@@ -140,14 +146,23 @@ function ShortcutHelp({ shortcuts, onClose }: { shortcuts: Shortcut[]; onClose: 
           <X {...icon(16)} />
         </button>
       </header>
-      <dl className="shortcut-list">
-        {all.map((s) => (
-          <div key={s.keys + s.label}>
-            <dt><kbd>{s.keys}</kbd></dt>
-            <dd>{s.label}</dd>
-          </div>
+      <div className="shortcut-groups">
+        {GROUPS.map((group) => (
+          <section key={group} aria-label={group}>
+            <h3 className="section-title">{group}</h3>
+            <dl className="shortcut-list">
+              {all
+                .filter((s) => s.group === group)
+                .map((s) => (
+                  <div key={s.keys + s.label}>
+                    <dt><kbd>{s.keys}</kbd></dt>
+                    <dd>{s.label}</dd>
+                  </div>
+                ))}
+            </dl>
+          </section>
         ))}
-      </dl>
+      </div>
       <p className="shortcut-note">Single keys work when you are not typing.</p>
     </dialog>
   )
