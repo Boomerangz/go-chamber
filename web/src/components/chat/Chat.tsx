@@ -280,8 +280,9 @@ export default function Chat() {
   )
 
   // The sessions list has every session (subagents too); one it lacks once
-  // loaded doesn't exist, whatever its (empty) transcript says.
-  const notFound = !session && sessionsStatus === 'ready'
+  // loaded, with nothing in its transcript, doesn't exist (the server answers
+  // an unknown session's events with an empty list).
+  const notFound = !session && sessionsStatus === 'ready' && history !== 'loading' && chat.order.length === 0
   const announcement = useAnnouncement(chat, history, status)
 
   const empty = !text.trim() && (busy || attachments.ids.length === 0)
