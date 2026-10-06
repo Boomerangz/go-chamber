@@ -187,7 +187,7 @@ describe('DiffPanel', () => {
   it('shows the file name in ink and its folder quietly', async () => {
     vi.mocked(api.getChanges).mockResolvedValue({ repository: true, files: [{ path: 'src/deep/a.go', status: 'T' }] })
     render(<DiffPanel sessionId="s1" />)
-    expect(await screen.findByText('a.go')).toHaveClass('diff-base')
+    expect((await screen.findByText('a.go')).closest('.midcut')).toHaveClass('diff-base')
     expect(screen.getByText('src/deep/')).toHaveClass('diff-dir')
     expect(screen.getByText('type changed').closest('span.diff-status')).toBeInTheDocument()
   })
@@ -197,10 +197,25 @@ describe('DiffPanel', () => {
     render(<DiffPanel sessionId="s1" />)
     const row = await screen.findByRole('button', { name: /old\/name\.go ?→ ?src\/new\.go/ })
     expect(row).toHaveAttribute('title', 'old/name.go → src/new.go')
-    expect(screen.getByText('old/name.go')).toHaveClass('diff-from')
-    expect(screen.getByText('new.go')).toHaveClass('diff-base')
+    expect(row.querySelector('.diff-from')).toHaveTextContent('old/name.go')
+    expect(row.querySelector('.diff-base')).toHaveTextContent(/^new\.go$/)
     expect(row.querySelector('.diff-status')).toHaveTextContent('renamed')
     expect(row).toHaveTextContent('+2−1')
+  })
+
+  it('cuts a long name in its middle, keeping the end and extension, and the old folder before the old name', async () => {
+    const path = 'src/widgets/renamed_component_header_panel_v2.tsx'
+    const from = 'src/components/renamed_component_header_panel.tsx'
+    vi.mocked(api.getChanges).mockResolvedValue({ repository: true, files: [{ path, from, status: 'R' }] })
+    render(<DiffPanel sessionId="s1" />)
+    const row = await screen.findByRole('button', { name: /renamed_component_header_panel\.tsx ?→ ?src\/widgets\// })
+    const base = row.querySelector('.diff-base')!
+    expect(base.querySelector('.midcut-head')).toHaveTextContent(/^renamed_component_/)
+    expect(base.querySelector('.midcut-tail')?.textContent).toMatch(/panel_v2\.tsx$/)
+    expect(base).toHaveTextContent('renamed_component_header_panel_v2.tsx')
+    const old = row.querySelector('.diff-from')!
+    expect(old.querySelector('.diff-from-dir')).toHaveTextContent(/^src\/components\/$/)
+    expect(old.querySelector('.midcut-tail')?.textContent).toMatch(/\.tsx$/)
   })
 
   it('keeps the status word for screen readers and the tooltip when only its mark shows', async () => {

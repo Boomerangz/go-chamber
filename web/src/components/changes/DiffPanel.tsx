@@ -12,6 +12,7 @@ import { useSessionStore } from '../../stores/session'
 import { icon } from '../icon'
 import { FileViewer } from '../markdown/FileLink'
 import { LoadFailed, LoadingLine } from '../ui/Loading'
+import MidCut from '../ui/MidCut'
 import { diffBody } from './diffBody'
 import './DiffPanel.css'
 
@@ -312,6 +313,7 @@ function FileRow(props: {
 }) {
   const { file: f, counts, isOpen, diff, wrap } = props
   const { base, dir } = splitPath(f.path)
+  const from = splitPath(f.from ?? '')
   const label = statusLabel[f.status] ?? f.status
   const busy = Boolean(diff?.loading)
   return (
@@ -325,12 +327,15 @@ function FileRow(props: {
           <span className="diff-path">
             {f.from && (
               <>
-                <span className="diff-from">{f.from}</span>
+                <span className="diff-from">
+                  {from.dir && <span className="diff-from-dir">{from.dir}</span>}
+                  <MidCut text={from.base} className="diff-from-base" />
+                </span>
                 <span className="diff-arrow"> → </span>
               </>
             )}
             {dir && <span className="diff-dir">{dir}</span>}
-            <span className="diff-base">{base}</span>
+            <MidCut text={base} className="diff-base" />
           </span>
           {busy && diff?.text !== undefined && <span className="busy-mark" aria-hidden="true" />}
           {f.binary ? (
