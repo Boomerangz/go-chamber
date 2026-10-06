@@ -25,7 +25,7 @@ import { useJustFinished } from '../../lib/finished'
 import { useNow } from '../../lib/now'
 import { usePending } from '../../lib/pending'
 import { useUnseen } from '../../lib/seen'
-import { isBlank, itemTree } from '../../lib/tree'
+import { isBlank, itemTree, withoutAnsweredQuestions } from '../../lib/tree'
 import { groupTools, lastItemId } from '../../lib/group'
 import { turnNumbers } from '../../lib/turns'
 import { loadDraft, saveDraft } from '../../stores/drafts'
@@ -93,15 +93,20 @@ export default function Chat() {
     textRef.current = text
   }, [text])
   const status = displayStatus(chat, session)
-  const finished = useJustFinished(status)
-  // The transcript owner marks a failed turn; a failure doesn't flash "done".
-  const shownStatus = finished && !chat.lastTurnFailed ? 'done' : status
+  const failedTurn = !!chat.lastTurnFailed && status === 'idle'
+  const finished = useJustFinished(status, failedTurn)
+  // A failed turn doesn't flash "done"; until the next turn the header says
+  // it failed, as the transcript does.
+  const shownStatus = failedTurn ? 'failed' : finished ? 'done' : status
   const running = status === 'running'
   const reduced = useReducedMotion() ?? false
   const narrow = useMedia('(max-width: 720px)')
   // On a touch screen Enter is the keyboard's newline; Send is a tap away.
   const touch = useMedia('(pointer: coarse)')
-  const nodes = useMemo(() => itemTree(chat.order, chat.items).filter((node) => !isBlank(node.item)), [chat.order, chat.items])
+  const nodes = useMemo(
+    () => withoutAnsweredQuestions(itemTree(chat.order, chat.items).filter((node) => !isBlank(node.item))),
+    [chat.order, chat.items],
+  )
   const turns = useMemo(() => turnNumbers(nodes), [nodes])
   // What the "latest" button counts: replies and requests, not tool lines.
   const news = useMemo(() => {
@@ -211,6 +216,19 @@ export default function Chat() {
     input.current?.focus()
   }, [setText])
 
+  // restoreDraft puts a message that didn't go back, ahead of anything typed
+  // since; if the owner moved to another session it waits in its draft.
+  const restoreDraft = (message: string) => {
+    if (!sessionId) return
+    if (useSessionStore.getState().activeId !== sessionId) {
+      const draft = loadDraft(sessionId)
+      saveDraft(sessionId, draft.trim() ? `${message}\n\n${draft}` : message)
+      return
+    }
+    const now = textRef.current
+    setText(now.trim() ? `${message}\n\n${now}` : message)
+  }
+
   const doSubmit = async (): Promise<boolean> => {
     const value = text.trim()
     const images = attachments.ids
@@ -222,9 +240,12 @@ export default function Chat() {
     const key = ++nextSendKey
     const shown = value || (images.length === 1 ? '[1 image]' : `[${images.length} images]`)
     setPendingSends((list) => [...list, { key, text: shown, accepted: false }])
+    // The message shows once: on its way in the transcript, not also here.
+    if (value) setText('')
     const accepted = steerIt ? await steer(value) : await send(value, images)
     if (!accepted) {
       dropSend(key)
+      if (value) restoreDraft(text)
       return false
     }
     setPendingSends((list) => list.map((p) => (p.key === key ? { ...p, accepted: true } : p)))
@@ -236,7 +257,6 @@ export default function Chat() {
       if (sameMark(before, after) && after.status !== 'running') setStarting(after)
     }
     if (useSessionStore.getState().activeId === sessionId) {
-      if (textRef.current === text) setText('')
       stick.stick()
       if (!document.activeElement?.closest('.request')) input.current?.focus()
     }
@@ -500,7 +520,9 @@ function WorkingTail({ since, waiting, streaming, live }: { since: number | null
   const now = useNow(live && !waiting ? 1000 : null)
   const start = since ?? mounted
   const clock = elapsed(Math.max(0, now - start))
-  const text = waiting ? 'waiting for you' : !live ? 'last seen working' : streaming ? clock : `working · ${clock}`
+  // Live updates paused (the strip above the composer says so): the clock
+  // stops rather than run on for a turn the page can't see.
+  const text = waiting ? 'waiting for you' : !live ? 'working · paused' : streaming ? clock : `working · ${clock}`
   const cls = ['working-tail', waiting && 'waiting', !live && !waiting && 'stale', streaming && !waiting && live && 'streaming']
   return (
     <div className={cls.filter(Boolean).join(' ')} aria-hidden={waiting ? undefined : true}>

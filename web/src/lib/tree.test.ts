@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { itemTree, sameNode } from './tree'
+import { itemTree, sameNode, withoutAnsweredQuestions } from './tree'
 import type { Item } from './api'
 
 const item = (id: string, parentItemId?: string): Item => ({
@@ -65,5 +65,50 @@ describe('sameNode', () => {
     expect(sameNode(before!, itemTree(['a', 'b'], { ...items, b: item('b', 'a') })[0]!)).toBe(false)
     expect(sameNode(before!, itemTree(['a', 'b'], { ...items, a: item('a') })[0]!)).toBe(false)
     expect(sameNode(before!, itemTree(['a', 'b', 'c'], { ...items, c: item('c', 'a') })[0]!)).toBe(false)
+  })
+})
+
+describe('withoutAnsweredQuestions', () => {
+  const node = (over: Partial<Item>): { item: Item; children: [] } => ({
+    item: { id: over.id ?? 'x', sessionId: 's1', kind: 'tool_call', status: 'completed', ...over },
+    children: [],
+  })
+  const ids = (nodes: { item: Item }[]) => nodes.map((n) => n.item.id)
+
+  it('drops a question tool line its decision record already tells', () => {
+    const nodes = [
+      node({ id: 'u', kind: 'user_message' }),
+      node({ id: 'q', name: 'AskUserQuestion' }),
+      node({ id: 'd', kind: 'decision', decision: 'answered' }),
+      node({ id: 'a', kind: 'assistant_message' }),
+    ]
+    expect(ids(withoutAnsweredQuestions(nodes))).toEqual(['u', 'd', 'a'])
+  })
+
+  it('keeps a question with no record after it in its turn, and other tools', () => {
+    const nodes = [
+      node({ id: 'q1', name: 'AskUserQuestion' }),
+      node({ id: 'u', kind: 'user_message' }),
+      node({ id: 'd', kind: 'decision' }),
+      node({ id: 'r', name: 'Read' }),
+      node({ id: 'q2', name: 'AskUserQuestion', status: 'pending' }),
+    ]
+    expect(ids(withoutAnsweredQuestions(nodes))).toEqual(['q1', 'u', 'd', 'r', 'q2'])
+  })
+
+  it('hides only question tool lines before the record, not what ran beside them', () => {
+    const nodes = [
+      node({ id: 'q', name: 'AskUserQuestion' }),
+      node({ id: 'r', name: 'Read' }),
+      node({ id: 'c', kind: 'command', name: 'AskUserQuestion' }),
+      node({ id: 'n', name: undefined }),
+      node({ id: 'd', kind: 'decision' }),
+    ]
+    expect(ids(withoutAnsweredQuestions(nodes))).toEqual(['r', 'c', 'n', 'd'])
+  })
+
+  it('returns the same list when nothing is hidden', () => {
+    const nodes = [node({ id: 'a', kind: 'assistant_message' })]
+    expect(withoutAnsweredQuestions(nodes)).toBe(nodes)
   })
 })

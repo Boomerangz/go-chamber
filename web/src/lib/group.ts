@@ -3,8 +3,9 @@ import { toolLabel } from './toolSummary'
 import type { ItemNode } from './tree'
 
 // A run of this many finished tool lines folds into one line that says
-// what they did.
+// what they did; a run that only read and searched folds from LOOK_MIN.
 export const GROUP_MIN = 3
+const LOOK_MIN = 2
 
 // Tools that edit a file: their diff is what the owner reviews, so they
 // keep a line of their own.
@@ -18,7 +19,15 @@ function groupable(node: ItemNode): boolean {
   if (item.kind !== 'tool_call' && item.kind !== 'command') return false
   if (item.name && EDITS.has(item.name)) return false
   if (item.status !== 'completed' || node.children.length > 0) return false
-  return item.exitCode === undefined || item.exitCode === 0
+  // A command without an exit code never ran (it was denied).
+  return item.kind === 'command' ? item.exitCode === 0 : true
+}
+
+// looks: a tool that only reads or searches, so a pair of them says
+// nothing worth a line each.
+function looks(node: ItemNode): boolean {
+  const name = node.item.name ?? ''
+  return node.item.kind === 'tool_call' && (READS.has(name) || SEARCHES.has(name))
 }
 
 // groupTools folds each run of GROUP_MIN or more consecutive finished tool
@@ -28,7 +37,7 @@ export function groupTools(nodes: ItemNode[], split?: string | null): ItemNode[]
   const out: ItemNode[] = []
   let run: ItemNode[] = []
   const flush = () => {
-    if (run.length >= GROUP_MIN) out.push({ item: run[0]!.item, children: [], group: run })
+    if (run.length >= GROUP_MIN || (run.length >= LOOK_MIN && run.every(looks))) out.push({ item: run[0]!.item, children: [], group: run })
     else out.push(...run)
     run = []
   }

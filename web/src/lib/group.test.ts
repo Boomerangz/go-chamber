@@ -3,26 +3,39 @@ import type { Item } from './api'
 import { groupSummary, groupTools, lastItemId } from './group'
 import { sameNode, type ItemNode } from './tree'
 
-const node = (id: string, over: Partial<Item> = {}, children: ItemNode[] = []): ItemNode => ({
+const nodeOf = (id: string, over: Partial<Item> = {}, children: ItemNode[] = []): ItemNode => ({
   item: { id, sessionId: 's1', kind: 'tool_call', status: 'completed', turnId: 't1', name: 'Read', ...over },
   children,
 })
+const node = nodeOf
 const ids = (nodes: ItemNode[]) => nodes.map((n) => (n.group ? `[${n.group.map((m) => m.item.id).join(',')}]` : n.item.id))
 
 describe('groupTools', () => {
   it('folds three or more finished tool lines into one row', () => {
-    const nodes = [node('u', { kind: 'user_message' }), node('a'), node('b', { kind: 'command' }), node('c', { name: 'Grep' }), node('m', { kind: 'assistant_message' })]
+    const nodes = [node('u', { kind: 'user_message' }), node('a'), node('b', { kind: 'command', exitCode: 0 }), node('c', { name: 'Grep' }), node('m', { kind: 'assistant_message' })]
     const out = groupTools(nodes)
     expect(ids(out)).toEqual(['u', '[a,b,c]', 'm'])
     expect(out[1]!.item.id).toBe('a')
     expect(out[1]!.children).toEqual([])
   })
 
-  it('leaves runs of two alone', () => {
-    expect(ids(groupTools([node('a'), node('b'), node('m', { kind: 'assistant_message' }), node('c')]))).toEqual(['a', 'b', 'm', 'c'])
+  it('leaves runs of two alone unless both only looked', () => {
+    const ran = { kind: 'command' as const, exitCode: 0 }
+    expect(ids(groupTools([node('a', ran), node('b'), node('m', { kind: 'assistant_message' }), node('c')]))).toEqual(['a', 'b', 'm', 'c'])
+  })
+
+  it('folds two reads or searches in a row', () => {
+    expect(ids(groupTools([node('a'), node('b', { name: 'Grep' }), node('m', { kind: 'assistant_message' })]))).toEqual(['[a,b]', 'm'])
+  })
+
+  it('keeps a command that never ran out of a group', () => {
+    const out = groupTools([node('a'), node('b'), node('no', { kind: 'command' })])
+    expect(ids(out)).toEqual(['[a,b]', 'no'])
   })
 
   it('keeps out what is running, failed, exited non-zero or has children', () => {
+    // Pairs of a tool that does more than look, so a pair alone stays apart.
+    const node = (id: string, over: Partial<Item> = {}, children: ItemNode[] = []) => nodeOf(id, { name: 'TodoWrite', ...over }, children)
     const out = groupTools([
       node('a'), node('b'), node('run', { status: 'streaming' }),
       node('c'), node('d'), node('bad', { status: 'failed' }),
@@ -34,6 +47,7 @@ describe('groupTools', () => {
   })
 
   it('keeps edits on lines of their own: their diffs are what gets reviewed', () => {
+    const node = (id: string, over: Partial<Item> = {}) => nodeOf(id, { name: 'TodoWrite', ...over })
     const out = groupTools([
       node('a'), node('b'), node('f', { kind: 'file_change', name: 'Edit' }),
       node('c'), node('d'), node('w', { name: 'Write' }), node('e'), node('g'), node('h'),
@@ -47,7 +61,7 @@ describe('groupTools', () => {
 
   it('does not fold across turns', () => {
     const out = groupTools([node('a'), node('b'), node('c'), node('d', { turnId: 't2' }), node('e', { turnId: 't2' })])
-    expect(ids(out)).toEqual(['[a,b,c]', 'd', 'e'])
+    expect(ids(out)).toEqual(['[a,b,c]', '[d,e]'])
   })
 
   it('starts a new run at the split item', () => {

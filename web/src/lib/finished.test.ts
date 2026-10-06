@@ -34,4 +34,10 @@ describe('useJustFinished', () => {
     act(() => vi.advanceTimersByTime(1500))
     expect(result.current).toBe(false)
   })
+
+  it('does not call a failed turn done', () => {
+    const { result, rerender } = renderHook(({ s, failed }) => useJustFinished(s, failed), { initialProps: { s: 'running', failed: false } })
+    rerender({ s: 'idle', failed: true })
+    expect(result.current).toBe(false)
+  })
 })

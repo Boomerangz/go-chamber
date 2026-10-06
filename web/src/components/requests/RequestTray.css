@@ -10,3 +10,6 @@
 }
 /* sent, but the line never left: the answer waits on the agent */
 .tray-waiting { font-family: var(--font-mono); font-size: 12px; color: var(--ink-3); }
+
+/* key hints mean nothing without a keyboard */
+@media (hover: none), (pointer: coarse) { .tray-actions kbd { display: none; } }

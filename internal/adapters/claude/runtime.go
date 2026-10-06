@@ -198,7 +198,11 @@ func (r *Runtime) Respond(_ context.Context, requestID domain.RequestID, answer 
 	if err := r.writeLine(append(line, '\n')); err != nil {
 		return err
 	}
-	r.mapper.TakePending(requestID)
+	if answer.Allow {
+		r.mapper.TakePending(requestID)
+	} else {
+		r.mapper.Deny(requestID)
+	}
 	return nil
 }
 
