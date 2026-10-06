@@ -1,5 +1,13 @@
-.diff-panel { display: flex; flex-direction: column; gap: 10px; min-height: 0; flex: 1; overflow: auto; padding: 12px 14px; }
-.diff-head { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 10px; }
+.diff-panel {
+  --pad-y: 12px; --pad-x: 14px;
+  display: flex; flex-direction: column; gap: 10px; min-height: 0; flex: 1; overflow: auto; padding: var(--pad-y) var(--pad-x);
+}
+/* the panel's controls stay in view; each open file's header sticks under them */
+.diff-head {
+  position: sticky; top: calc(-1 * var(--pad-y)); z-index: 2; display: flex; align-items: center; flex-wrap: wrap; gap: 4px 10px;
+  margin: calc(-1 * var(--pad-y)) calc(-1 * var(--pad-x)) 0; padding: var(--pad-y) var(--pad-x) 6px;
+  background: var(--paper);
+}
 .diff-head .section-title { margin: 0; }
 .diff-total { font-family: var(--font-mono); font-size: 12px; color: var(--ink-2); white-space: nowrap; }
 .diff-updated { flex: 1; font-family: var(--font-mono); font-size: 12px; color: var(--ink-3); white-space: nowrap; }
@@ -10,7 +18,7 @@
 .diff-files > li > .loading-line, .diff-files > li > .load-failed { margin: 6px; }
 /* a file's header stays in view while its diff scrolls under it */
 .diff-file-head {
-  position: sticky; top: -12px; z-index: 1; display: flex; align-items: center; gap: 2px;
+  position: sticky; top: calc(var(--diff-head-h, 44px) - var(--pad-y)); z-index: 1; display: flex; align-items: center; gap: 2px;
   background: var(--paper);
 }
 .diff-file-toggle {
@@ -23,7 +31,8 @@
 .diff-file-toggle .busy-mark { align-self: center; color: var(--ink-3); }
 .diff-file-actions { flex: none; display: inline-flex; gap: 2px; opacity: 0; transition: opacity var(--dur-fast); }
 .diff-file:hover .diff-file-actions, .diff-file-head:focus-within .diff-file-actions { opacity: 1; }
-.diff-file-actions .btn-icon { width: 26px; height: 26px; }
+.diff-file-actions .btn-icon, .diff-action-gap { width: 26px; height: 26px; }
+.diff-action-gap { flex: none; }
 @media (hover: none) { .diff-file-actions { opacity: 1; } }
 /* status: a lowercase word after a square mark whose form is the status */
 .diff-status {
@@ -34,16 +43,19 @@
 .diff-status[data-mark='solid']::before { background: currentColor; }
 .diff-status[data-mark='struck']::before { background: linear-gradient(to top right, transparent 45%, currentColor 45% 60%, transparent 60%); }
 .diff-status[data-mark='dashed']::before { border-style: dashed; }
-.diff-path { flex: 1; min-width: 0; display: flex; font-family: var(--font-mono); font-size: 12.5px; white-space: nowrap; }
-.diff-dir { min-width: 0; overflow: hidden; text-overflow: ellipsis; color: var(--ink-3); }
-.diff-base { flex: none; color: var(--ink); }
+/* a long path gives way folder first, then the name; the full path is the row's title */
+.diff-path { flex: 1; min-width: 0; display: flex; overflow: hidden; font-family: var(--font-mono); font-size: 12.5px; white-space: nowrap; }
+.diff-dir { flex: 0 1000 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; color: var(--ink-3); }
+.diff-base { flex: 0 1 auto; min-width: 3ch; overflow: hidden; text-overflow: ellipsis; color: var(--ink); }
 .diff-counts { flex: none; display: inline-flex; gap: 6px; font-family: var(--font-mono); font-size: 12px; color: var(--ink-3); }
+.diff-counts > span { min-width: 4ch; text-align: right; }
 /* the diff grows with the panel (no inner scroll trap); one grid column as
    wide as the longest line keeps every row's wash the same width */
 .diff-view {
   display: grid; grid-template-columns: minmax(100%, max-content);
   margin: 4px 0 8px; padding: 6px 0; overflow-x: auto;
   border: 1px solid var(--rule); border-radius: var(--r); background: var(--paper); font-size: 12px; line-height: 1.45;
+  tab-size: 4;
 }
 .diff-view > div { display: flex; min-height: 1.45em; padding-right: 8px; border-left: 1px solid transparent; }
 .diff-ln {
@@ -66,8 +78,10 @@
 @media (prefers-color-scheme: dark) {
   .diff-code span { color: var(--shiki-dark, inherit); }
 }
-.diff-more { margin: 0 0 8px; }
+.diff-more { margin: 0 0 8px; font-family: var(--font-mono); font-size: 12px; color: var(--ink-3); }
+.diff-more .act-link, .diff-none .act-link { margin: 0; }
 .diff-none { margin: 4px 6px; color: var(--ink-3); font-size: 12.5px; }
+.diff-note { margin: 4px 6px 0; font-family: var(--font-mono); font-size: 12px; color: var(--ink-3); }
 .worktree-bar { display: flex; flex-direction: column; gap: 6px; padding: 8px 10px; border: 1px solid var(--rule); border-radius: var(--r); font-size: 13px; }
 .worktree-bar p { margin: 0; }
 .worktree-bar > .btn { align-self: flex-start; }
@@ -91,6 +105,8 @@
 @media (max-width: 720px) {
   .layout[data-dock='changes'] { grid-template-columns: minmax(0, 1fr); }
   .layout[data-pane='changes'] > .changes-pane { display: flex; flex-direction: column; min-height: 0; }
-  .changes-pane .diff-panel { padding: 14px var(--gutter); }
+  .changes-pane .diff-panel { --pad-y: 14px; --pad-x: var(--gutter); }
+  .diff-file-actions .btn-icon, .diff-action-gap { width: 36px; height: 36px; }
+  .diff-status { width: 11.5ch; gap: 4px; }
   .changes-pane .tray-empty { display: block; padding: 32px var(--gutter); color: var(--ink-3); }
 }

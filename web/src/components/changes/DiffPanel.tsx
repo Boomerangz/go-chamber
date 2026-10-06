@@ -12,6 +12,7 @@ import { useSessionStore } from '../../stores/session'
 import { icon } from '../icon'
 import { FileViewer } from '../markdown/FileLink'
 import { LoadFailed, LoadingLine } from '../ui/Loading'
+import { diffBody } from './diffBody'
 import './DiffPanel.css'
 
 const statusLabel: Record<string, string> = { A: 'added', M: 'modified', D: 'deleted', T: 'type changed', '?': 'untracked' }
@@ -30,6 +31,8 @@ export const POLL_MS = 5000
 function countLines(diff: string): Counts {
   return totals(parseDiff(diff).map((l) => ({ added: l.kind === 'add' ? 1 : 0, removed: l.kind === 'del' ? 1 : 0 })))
 }
+
+const count = (n: number) => n.toLocaleString('en-US')
 
 const clock = (d: Date) => `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
 
@@ -73,6 +76,9 @@ function SessionDiffPanel({ sessionId }: { sessionId: string | null }) {
   // reload is on its way.
   const [settled, setSettled] = useState<string | null>(null)
   const [updatedAt, setUpdatedAt] = useState<Date | null>(null)
+  // asked is the reload the owner asked for (Refresh, Retry): only that one
+  // says "refreshing…"; a poll or a turn ending reloads quietly.
+  const [asked, setAsked] = useState<number | null>(null)
   // open lists the expanded files; diffs holds what each one loaded.
   const [open, setOpen] = useState<string[]>([])
   const [diffs, setDiffs] = useState<Record<string, FileDiff>>({})
@@ -96,6 +102,7 @@ function SessionDiffPanel({ sessionId }: { sessionId: string | null }) {
   const [poll, setPoll] = useState(0)
   const reloadKey = `${status}:${tick}:${poll}`
   const loading = settled !== reloadKey
+  const refreshing = loading && asked === tick
 
   const fetchDiff = useCallback(async (path: string) => {
     if (!sessionId) return
@@ -199,7 +206,9 @@ function SessionDiffPanel({ sessionId }: { sessionId: string | null }) {
     setOpen([])
   }
   const refresh = () => {
-    if (!loading) setTick((t) => t + 1)
+    if (loading) return
+    setAsked(tick + 1)
+    setTick((t) => t + 1)
   }
 
   // j / k move between files while the panel has focus.
@@ -215,21 +224,22 @@ function SessionDiffPanel({ sessionId }: { sessionId: string | null }) {
     heads[next]!.scrollIntoView?.({ block: 'nearest' })
   }
 
+  const [head, headHeight] = useHeight<HTMLElement>()
   const total = totals(files)
   const counted = files.every((f) => f.added !== undefined || f.binary)
   const root = changes?.root
 
   if (!sessionId) return <p className="tray-empty">Open a session to see its changes</p>
   return (
-    <section className="diff-panel" aria-label="Changes" onKeyDown={onKey}>
-      <header className="diff-head">
+    <section className="diff-panel" aria-label="Changes" onKeyDown={onKey} style={headHeight ? ({ '--diff-head-h': `${headHeight}px` } as CSSProperties) : undefined}>
+      <header className="diff-head" ref={head}>
         <h2 className="section-title">Changes</h2>
         {changes?.repository && files.length > 0 && counted && (
           <span className="diff-total" aria-label={`${files.length} ${files.length === 1 ? 'file' : 'files'}, ${total.added} added, ${total.removed} removed lines`}>
             {files.length} {files.length === 1 ? 'file' : 'files'} <span>+{total.added}</span> <span>−{total.removed}</span>
           </span>
         )}
-        <span className="diff-updated">{loading && changes ? 'refreshing…' : updatedAt ? `updated ${clock(updatedAt)}` : ''}</span>
+        <span className="diff-updated">{refreshing && changes ? 'refreshing…' : updatedAt ? `updated ${clock(updatedAt)}` : ''}</span>
         <span className="diff-actions">
           <button type="button" className="btn btn-ghost btn-icon" aria-label="Wrap long lines" title="Wrap long lines" aria-pressed={wrap} onClick={toggleWrap}>
             <WrapText {...icon(14)} />
@@ -249,8 +259,8 @@ function SessionDiffPanel({ sessionId }: { sessionId: string | null }) {
             type="button"
             className="btn btn-icon"
             aria-label="Refresh changes"
-            title={loading ? 'Refreshing…' : 'Refresh'}
-            aria-busy={loading || undefined}
+            title={refreshing || !changes ? 'Refreshing…' : 'Refresh'}
+            aria-busy={(loading && (refreshing || !changes)) || undefined}
             onClick={refresh}
           >
             <RefreshCw {...icon(14)} />
@@ -331,17 +341,52 @@ function FileRow(props: {
           <button type="button" className="btn btn-ghost btn-icon" aria-label="Copy path" title="Copy path" onClick={() => void copy(f.path, 'path', 'copy-path')}>
             <Copy {...icon(13)} />
           </button>
-          {props.onView && (
+          {props.onView ? (
             <button type="button" className="btn btn-ghost btn-icon" aria-label="View file" title="View file" onClick={props.onView}>
               <Eye {...icon(13)} />
             </button>
+          ) : (
+            // A deleted file has nothing to view; the gap keeps the counts in line.
+            <span className="diff-action-gap" aria-hidden="true" />
           )}
         </span>
       </div>
-      {isOpen && diff?.error && <LoadFailed onRetry={props.onRetry}>{`Couldn’t load the diff: ${diff.error}`}</LoadFailed>}
-      {isOpen && !diff?.error && diff?.text === undefined && <LoadingLine>loading diff…</LoadingLine>}
-      {isOpen && !diff?.error && diff?.text !== undefined && <DiffView diff={diff.text} path={f.path} wrap={wrap} />}
+      {isOpen && f.binary && <BinaryLine onView={props.onView} />}
+      {isOpen && !f.binary && diff?.error && <LoadFailed onRetry={props.onRetry}>{`Couldn’t load the diff: ${diff.error}`}</LoadFailed>}
+      {isOpen && !f.binary && !diff?.error && diff?.text === undefined && <LoadingLine>loading diff…</LoadingLine>}
+      {isOpen && !f.binary && !diff?.error && diff?.text !== undefined && <DiffView diff={diff.text} path={f.path} wrap={wrap} onView={props.onView} />}
     </li>
+  )
+}
+
+// useHeight follows an element's height, for what sticks under it.
+function useHeight<T extends HTMLElement>(): [(el: T | null) => void, number | undefined] {
+  const [height, setHeight] = useState<number>()
+  const observer = useRef<ResizeObserver | null>(null)
+  const ref = useCallback((el: T | null) => {
+    observer.current?.disconnect()
+    observer.current = null
+    if (!el || typeof ResizeObserver === 'undefined') return
+    observer.current = new ResizeObserver(() => setHeight(Math.round(el.getBoundingClientRect().height)))
+    observer.current.observe(el)
+  }, [])
+  return [ref, height]
+}
+
+// BinaryLine stands in for a diff git can't print.
+function BinaryLine({ onView }: { onView?: () => void }) {
+  return (
+    <p className="diff-none">
+      <span>binary file</span>
+      {onView && (
+        <>
+          {' · '}
+          <button type="button" className="act-link diff-view-link" onClick={onView}>
+            View
+          </button>
+        </>
+      )}
+    </p>
   )
 }
 
@@ -370,16 +415,20 @@ function useTokens(lines: DiffLine[], lang: string | undefined): (ThemedToken[] 
 
 // DiffView renders a unified diff with old and new line numbers and a sign
 // column, the first DIFF_LINE_LIMIT lines until asked for all.
-export function DiffView({ diff, path = '', wrap = false }: { diff: string; path?: string; wrap?: boolean }) {
+export function DiffView({ diff, path = '', wrap = false, onView }: { diff: string; path?: string; wrap?: boolean; onView?: () => void }) {
   const [all, setAll] = useState(false)
-  const lines = useMemo(() => parseDiff(diff), [diff])
+  const body = useMemo(() => diffBody(parseDiff(diff)), [diff])
+  const lines = body.lines
   const shown = useMemo(() => (all ? lines : lines.slice(0, DIFF_LINE_LIMIT)), [all, lines])
   const tokens = useTokens(shown, langOf(path))
-  if (!diff) return <p className="diff-none">No textual difference</p>
+  if (body.binary) return <BinaryLine onView={onView} />
+  const note = body.note && <p className="diff-note">{body.note}</p>
+  if (lines.length === 0) return note || <p className="diff-none">No textual difference</p>
   const widest = shown.reduce((n, l) => Math.max(n, l.old ?? 0, l.new ?? 0), 0)
   const style = { '--ln': `${Math.max(2, String(widest).length)}ch` } as CSSProperties
   return (
     <>
+      {note}
       <pre className="diff-view" data-wrap={wrap || undefined} style={style}>
         {shown.map((line, i) => (
           <div key={i} className={`diff-${line.kind === 'meta' ? 'meta' : line.kind === 'hunk' ? 'hunk' : line.kind}`}>
@@ -397,9 +446,13 @@ export function DiffView({ diff, path = '', wrap = false }: { diff: string; path
         ))}
       </pre>
       {shown.length < lines.length && (
-        <button type="button" className="btn btn-xs diff-more" onClick={() => setAll(true)}>
-          show all {lines.length} lines
-        </button>
+        <p className="diff-more">
+          <span>{`showing ${count(shown.length)} of ${count(lines.length)} lines`}</span>
+          {' · '}
+          <button type="button" className="act-link" onClick={() => setAll(true)}>
+            show all {count(lines.length)} lines
+          </button>
+        </p>
       )}
     </>
   )

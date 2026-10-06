@@ -1,9 +1,10 @@
 import { lazy, Suspense, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
-import { WrapText } from 'lucide-react'
+import { Download, WrapText, X } from 'lucide-react'
+import CodeView from './CodeView'
 import CopyButton from './CopyButton'
 import { icon } from '../icon'
 import { LoadingLine } from '../ui/Loading'
-import { fetchFile, fileKind, fileLine, filePath, fileUrl, langOf, MarkLine, PREVIEW_LIMIT, SessionFiles, type FetchedFile } from '../../lib/files'
+import { fetchFile, fileKind, fileLine, filePath, fileUrl, langOf, PREVIEW_LIMIT, SessionFiles, type FetchedFile } from '../../lib/files'
 import { useLayoutStore } from '../../stores/layout'
 
 const Markdown = lazy(() => import('./Markdown'))
@@ -70,10 +71,15 @@ export function FileViewer({
   const wrap = useLayoutStore((s) => s.wrap)
   const toggleWrap = useLayoutStore((s) => s.toggleWrap)
   const [loaded, setLoaded] = useState<Loaded>()
+  // opener has the focus before the dialog takes it; it gets it back on close.
+  const [opener] = useState(() => (typeof document === 'undefined' ? null : (document.activeElement as HTMLElement | null)))
   useEffect(() => {
     const d = ref.current
     if (d && !d.open) d.showModal?.()
-  }, [])
+    return () => {
+      if (opener && opener !== document.body && opener.isConnected) opener.focus({ preventScroll: true })
+    }
+  }, [opener])
   useEffect(() => {
     if (kind === 'image') return
     let live = true
@@ -86,6 +92,8 @@ export function FileViewer({
     }
   }, [sessionId, path, kind])
   const download = fileUrl(sessionId, path, true)
+  const failed = Boolean(loaded && 'error' in loaded)
+  const text = kind === 'text' && loaded && 'text' in loaded
   return (
     <dialog
       ref={ref}
@@ -102,18 +110,22 @@ export function FileViewer({
           {label}
           {line ? <span className="file-viewer-line">:{line}</span> : null}
         </span>
-        <CopyButton text={label} label="Copy path" className="file-viewer-copy" />
-        {kind !== 'image' && (
-          <button type="button" className="btn btn-ghost btn-icon" aria-label="Wrap long lines" title="Wrap long lines" aria-pressed={wrap} onClick={toggleWrap}>
-            <WrapText {...icon(14)} />
+        <span className="file-viewer-tools">
+          <CopyButton text={label} label="Copy path" className="file-viewer-copy" iconOnly />
+          {text && (
+            <button type="button" className="btn btn-ghost btn-icon" aria-label="Wrap long lines" title="Wrap long lines" aria-pressed={wrap} onClick={toggleWrap}>
+              <WrapText {...icon(14)} />
+            </button>
+          )}
+          {!failed && (
+            <a className="btn btn-ghost btn-icon" href={download} download aria-label="Download" title="Download">
+              <Download {...icon(14)} />
+            </a>
+          )}
+          <button type="button" className="btn btn-ghost btn-icon" aria-label="Close" title="Close (Esc)" onClick={onClose}>
+            <X {...icon(15)} />
           </button>
-        )}
-        <a className="btn btn-ghost" href={download} download>
-          Download
-        </a>
-        <button type="button" className="btn btn-ghost" onClick={onClose}>
-          Close
-        </button>
+        </span>
       </header>
       <div className="file-viewer-body">
         {kind === 'image' ? (
@@ -121,7 +133,7 @@ export function FileViewer({
         ) : !loaded ? (
           <LoadingLine>loading file…</LoadingLine>
         ) : 'error' in loaded ? (
-          <p className="file-viewer-note" role="alert">
+          <p className="file-viewer-note file-viewer-error" role="alert">
             {loaded.error}
           </p>
         ) : 'binary' in loaded ? (
@@ -135,11 +147,13 @@ export function FileViewer({
                 Showing the first {kib(PREVIEW_LIMIT)} of {kib(loaded.size)}. <a href={download} download>Download full file</a>
               </p>
             )}
-            <MarkLine.Provider value={kind === 'markdown' ? undefined : line}>
+            {kind === 'markdown' ? (
               <Suspense fallback={<pre>{loaded.text}</pre>}>
-                <Markdown text={kind === 'markdown' ? loaded.text : fence(loaded.text, langOf(path))} />
+                <Markdown text={loaded.text} />
               </Suspense>
-            </MarkLine.Provider>
+            ) : (
+              <CodeView text={loaded.text} lang={langOf(path)} mark={line} />
+            )}
           </>
         )}
       </div>
@@ -162,9 +176,4 @@ function ImageView({ src, alt }: { src: string; alt: string }) {
       <img src={src} alt={alt} data-loading={state === 'loading' || undefined} onLoad={() => setState('ready')} onError={() => setState('error')} />
     </>
   )
-}
-
-function fence(text: string, lang = '') {
-  const ticks = '`'.repeat(Math.max(3, ...[...text.matchAll(/`+/g)].map((m) => m[0].length + 1)))
-  return `${ticks}${lang}\n${text}\n${ticks}`
 }
