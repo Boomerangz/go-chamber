@@ -47,6 +47,22 @@ func TestPageWithoutCookieShowsLoginForm(t *testing.T) {
 	}
 }
 
+// The sign-in page is the app's first screen: it wears the app's sheet,
+// ink, faces and primary button, in light and dark, with its icon.
+func TestLoginPageWearsTheAppsLook(t *testing.T) {
+	body := do(newTestServer(), httptest.NewRequest("GET", "/", nil)).Body.String()
+	for _, want := range []string{
+		"--paper:#f3f3f1", "--ink:#16171a", "--act:#2433d6", // light tokens
+		"prefers-color-scheme:dark", "--paper:#0f1012", // dark tokens
+		"'PT Mono'", "SF Pro Text", // the masthead's and the prose's faces
+		`class="primary"`, `href="/favicon.svg"`,
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("login page lacks %q", want)
+		}
+	}
+}
+
 func TestAPIWithoutCookieStaysPlain401(t *testing.T) {
 	rec := do(newTestServer(), httptest.NewRequest("GET", "/api/sessions", nil))
 	if rec.Code != http.StatusUnauthorized || strings.Contains(rec.Body.String(), "<form") {
