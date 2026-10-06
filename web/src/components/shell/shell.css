@@ -7,7 +7,10 @@
 .switcher { width: min(560px, calc(100vw - 32px)); margin-top: 12vh; max-height: min(520px, 76vh); }
 .switcher[open], .shortcut-help[open] { display: flex; flex-direction: column; }
 .switcher::backdrop, .shortcut-help::backdrop { background: color-mix(in srgb, var(--paper) 55%, transparent); }
-.switcher-input { margin: 12px; height: 36px; font-size: 15px; }
+/* the field keeps its height over a long list; on a phone it is 16px, the
+   size below which iOS zooms into a focused field */
+.switcher-input { flex: none; margin: 12px; height: 36px; font-size: 15px; }
+@media (max-width: 720px) { .switcher-input { font-size: 16px; } }
 .switcher-list { list-style: none; margin: 0; padding: 0 6px 6px; overflow: auto; min-height: 0; }
 .switcher-row {
   /* the folder takes at most 40% of the row, so a long one never squeezes the title away */

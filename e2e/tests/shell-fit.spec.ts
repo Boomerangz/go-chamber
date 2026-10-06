@@ -183,6 +183,23 @@ test('the quick switcher keeps titles readable beside a long folder', async ({ p
   expect(await dialog.evaluate((e) => e.scrollWidth <= e.clientWidth)).toBe(true)
 })
 
+test.describe('the quick switcher on a short, narrow window', () => {
+  test.use({ viewport: { width: 390, height: 600 } })
+  test('keeps its field whole over a long list, in a size phones do not zoom into', async ({ page }, info) => {
+    test.skip(info.project.name === 'mobile', '⌘K is a keyboard matter')
+    const dir = fs.realpathSync(fs.mkdtempSync(`${os.tmpdir()}/gc-switch-`))
+    const headers = { Authorization: `Bearer ${token}` }
+    for (let i = 0; i < 20; i++) await page.request.post('/api/sessions', { headers, data: { agent: 'claude', cwd: dir } })
+    await page.goto(`/?token=${token}`)
+    await page.locator('.topbar').click({ position: { x: 1, y: 1 } })
+    await page.keyboard.press('ControlOrMeta+k')
+    const input = page.getByRole('dialog').getByRole('combobox')
+    await expect(input).toBeFocused()
+    expect((await box(input)).height).toBeGreaterThanOrEqual(35)
+    expect(await input.evaluate((e) => getComputedStyle(e).fontSize)).toBe('16px')
+  })
+})
+
 test('the dock terminal tabs scroll sideways only: no stray vertical scrollbar', async ({ page, isMobile }) => {
   test.skip(isMobile, 'the dock is desktop-only')
   await page.addInitScript(() => Object.defineProperty(window, 'RTCPeerConnection', { value: undefined }))
