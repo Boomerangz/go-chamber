@@ -284,7 +284,9 @@ function unseenIn(node: SessionNode, seen: Visits, activeId: string | null): num
 // session changes from elsewhere (a link, a notification, the tray). It
 // scrolls once the list has laid out (a group unfolding to show the row
 // comes first), and a row on a hidden pane (a phone showing the chat)
-// waits until its pane shows.
+// waits until its pane shows. While the list still settles (the footer
+// loading below shrinks it), the row is put back in view on each resize,
+// until the owner scrolls the list themselves.
 function useScrolledIntoView(active: boolean) {
   const ref = useRef<HTMLButtonElement>(null)
   const pane = useSessionStore((s) => s.pane)
@@ -294,15 +296,50 @@ function useScrolledIntoView(active: boolean) {
   }, [active])
   useEffect(() => {
     if (!owed.current) return
+    let stopSettling = () => {}
     const frame = requestAnimationFrame(() => {
       const el = ref.current
       if (!el || el.checkVisibility?.() === false) return
       el.scrollIntoView?.({ block: 'nearest' })
       owed.current = false
+      stopSettling = keepInView(el)
     })
-    return () => cancelAnimationFrame(frame)
+    return () => {
+      cancelAnimationFrame(frame)
+      stopSettling()
+    }
   }, [active, pane])
   return ref
+}
+
+// SETTLE is how long after scrolling to it a row is kept in view while the
+// list around it still changes size.
+const SETTLE_MS = 3000
+const OWNER_SCROLLS = ['wheel', 'touchstart', 'pointerdown', 'keydown'] as const
+
+// keepInView scrolls el back into view whenever its scroller resizes, for a
+// short while and until the owner scrolls; it returns the way to stop.
+function keepInView(el: HTMLElement): () => void {
+  const scroller = scrollParent(el)
+  if (!scroller || typeof ResizeObserver === 'undefined') return () => {}
+  const observer = new ResizeObserver(() => el.scrollIntoView?.({ block: 'nearest' }))
+  observer.observe(scroller)
+  const stop = () => {
+    observer.disconnect()
+    clearTimeout(timer)
+    for (const type of OWNER_SCROLLS) scroller.removeEventListener(type, stop)
+  }
+  const timer = setTimeout(stop, SETTLE_MS)
+  for (const type of OWNER_SCROLLS) scroller.addEventListener(type, stop, { passive: true })
+  return stop
+}
+
+function scrollParent(el: HTMLElement): HTMLElement | null {
+  for (let p = el.parentElement; p; p = p.parentElement) {
+    const y = getComputedStyle(p).overflowY
+    if (y === 'auto' || y === 'scroll') return p
+  }
+  return null
 }
 
 function SessionRow(props: {

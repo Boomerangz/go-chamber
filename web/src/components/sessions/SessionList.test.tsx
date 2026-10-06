@@ -191,6 +191,48 @@ describe('session rows', () => {
     }
   })
 
+  it('scrolls the open session back into view while the list settles, until the owner scrolls', async () => {
+    let resized = () => {}
+    const observed: Element[] = []
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        constructor(cb: () => void) {
+          resized = cb
+        }
+        observe(el: Element) {
+          observed.push(el)
+        }
+        disconnect() {
+          resized = () => {}
+        }
+      },
+    )
+    try {
+      useSessionStore.setState({ sessions: [session('s1', 'One'), session('s2', 'Two')], activeId: 's1' })
+      render(
+        <div data-testid="scroller" style={{ overflowY: 'auto' }}>
+          <SessionList onCreateIn={() => {}} />
+        </div>,
+      )
+      act(() => useSessionStore.setState({ activeId: 's2' }))
+      await waitFor(() => expect(Element.prototype.scrollIntoView).toHaveBeenCalled())
+      const scroller = screen.getByTestId('scroller')
+      expect(observed).toContain(scroller)
+      // the footer loads below and the list shrinks: the row is put back in view
+      vi.mocked(Element.prototype.scrollIntoView).mockClear()
+      resized()
+      expect(Element.prototype.scrollIntoView).toHaveBeenCalledWith({ block: 'nearest' })
+      // once the owner scrolls, the list stays where they put it
+      scroller.dispatchEvent(new WheelEvent('wheel', { bubbles: true }))
+      vi.mocked(Element.prototype.scrollIntoView).mockClear()
+      resized()
+      expect(Element.prototype.scrollIntoView).not.toHaveBeenCalled()
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  })
+
   it('names the agent and folder on the group "+" button', async () => {
     const onCreateIn = vi.fn()
     useSessionStore.setState({ sessions: [session('s1', 'One')] })
