@@ -6,7 +6,7 @@ import PermissionModeSelect from '../models/PermissionModeSelect'
 import EditableTitle from '../title/EditableTitle'
 import PathText from '../ui/PathText'
 import { icon } from '../icon'
-import type { ApprovalReviewer, Session } from '../../lib/api'
+import type { ApprovalReviewer, Session, Worktree } from '../../lib/api'
 import { statusWord, type ShownStatus } from '../../lib/status'
 import { isDangerousMode } from '../../lib/models'
 import { sessionTitle } from '../../lib/sessions'
@@ -72,8 +72,10 @@ function SessionUsage() {
   )
 }
 
-// ChatPath shows the session folder, whole on hover, with a copy button.
-function ChatPath({ cwd }: { cwd: string }) {
+// ChatPath shows the session folder, whole on hover, with a copy button. A
+// session in a worktree reads as its repository with the branch beside it
+// (as in the sessions list); the copy is still the folder the agent runs in.
+function ChatPath({ cwd, worktree }: { cwd: string; worktree?: Worktree }) {
   const copy = async () => {
     try {
       await navigator.clipboard.writeText(cwd)
@@ -84,7 +86,12 @@ function ChatPath({ cwd }: { cwd: string }) {
   }
   return (
     <span className="chat-path-line">
-      <PathText path={cwd} className="chat-path" />
+      <PathText path={worktree?.repo ?? cwd} className="chat-path" />
+      {worktree && (
+        <span className="session-branch" title={`In a worktree on ${worktree.branch} · ${worktree.path}`}>
+          {worktree.branch.replace(/^chamber\//, '')}
+        </span>
+      )}
       <button type="button" className="btn btn-ghost btn-icon chat-path-copy" aria-label="Copy path" title="Copy path" onClick={() => void copy()}>
         <Copy {...icon(12)} />
       </button>
@@ -129,7 +136,7 @@ export default function ChatHeader({ session, status, unsettled, loading, notFou
         ) : (
           <h2>{notFound ? 'Session not found' : 'Session'}</h2>
         )}
-        {session && <ChatPath cwd={session.cwd} />}
+        {session && <ChatPath cwd={session.cwd} worktree={session.worktree} />}
       </div>
       {session && (
         <button

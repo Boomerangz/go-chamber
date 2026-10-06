@@ -129,6 +129,19 @@ describe('header status', () => {
     expect(useNotices.getState().notices.at(-1)?.text).toBe('Path copied')
   })
 
+  it('reads a worktree session by its repository and branch, and copies the worktree', async () => {
+    const writeText = vi.fn(async () => {})
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true })
+    const worktree = { repo: '/home/me/project', path: '/home/me/.go-chamber/worktrees/project/fix-readme', branch: 'chamber/fix-readme', base: 'abc' }
+    setup({ sessions: [{ ...session, cwd: worktree.path, worktree }] })
+    expect(document.querySelector('.chat-path')).toHaveTextContent('~/project')
+    const branch = document.querySelector('.chat-path-line .session-branch')!
+    expect(branch).toHaveTextContent('fix-readme')
+    expect(branch).toHaveAttribute('title', `In a worktree on chamber/fix-readme · ${worktree.path}`)
+    await userEvent.click(screen.getByRole('button', { name: 'Copy path' }))
+    expect(writeText).toHaveBeenCalledWith(worktree.path)
+  })
+
   const statusEl = () => document.querySelector('.chat-meta .status')
 
   it('says the session waits for the owner while a request is open, as the list does', () => {
