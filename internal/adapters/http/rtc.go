@@ -237,10 +237,15 @@ func (s *server) rtcOutput(ctx context.Context, dc *webrtc.DataChannel, id domai
 			return
 		case data, ok := <-att.Output:
 			if ok {
-				if !send(data) {
+				// Line-by-line output arrives as one tiny chunk per line; a
+				// message each falls behind and gets the client dropped.
+				frame, open := coalesce(data, att.Output, maxTerminalFrame)
+				if !send(frame) {
 					return
 				}
-				continue
+				if open {
+					continue
+				}
 			}
 			term, err := s.cfg.Terminals.Get(id)
 			switch {

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -12,6 +13,7 @@ import (
 	"time"
 
 	"github.com/igorzygin/go-chamber/internal/app"
+	"github.com/igorzygin/go-chamber/internal/domain"
 	"github.com/pion/webrtc/v4"
 )
 
@@ -64,22 +66,20 @@ func TestRTCRejectsInvalidOffersAndCrossOrigin(t *testing.T) {
 	}
 }
 
-func TestRTCTerminalStreamsInputOutputResizeAndPing(t *testing.T) {
-	e := newTermEnv(t)
-	term, err := e.terms.Open(context.Background(), app.OpenTerminal{Cwd: "/tmp"})
-	if err != nil {
-		t.Fatal(err)
-	}
+// dialRTC connects a data channel to the terminal and returns it with a
+// function that waits for the next message.
+func dialRTC(t *testing.T, e termEnv, id domain.TerminalID, buffer int) (*webrtc.DataChannel, func() webrtc.DataChannelMessage) {
+	t.Helper()
 	pc, err := webrtc.NewPeerConnection(webrtc.Configuration{})
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer func() { _ = pc.Close() }()
+	t.Cleanup(func() { _ = pc.Close() })
 	dc, err := pc.CreateDataChannel("terminal", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	received := make(chan webrtc.DataChannelMessage, 16)
+	received := make(chan webrtc.DataChannelMessage, buffer)
 	dc.OnMessage(func(m webrtc.DataChannelMessage) { received <- m })
 	offer, err := pc.CreateOffer(nil)
 	if err != nil {
@@ -95,7 +95,7 @@ func TestRTCTerminalStreamsInputOutputResizeAndPing(t *testing.T) {
 		t.Fatal("gathering timed out")
 	}
 	body, _ := json.Marshal(pc.LocalDescription())
-	req := authed("POST", "/api/terminals/"+string(term.ID)+"/rtc", "")
+	req := authed("POST", "/api/terminals/"+string(id)+"/rtc", "")
 	req.URL.Scheme = "http"
 	req.RequestURI = ""
 	req.URL.Host = e.ts.Listener.Addr().String()
@@ -104,7 +104,7 @@ func TestRTCTerminalStreamsInputOutputResizeAndPing(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer func() { _ = response.Body.Close() }()
+	t.Cleanup(func() { _ = response.Body.Close() })
 	if response.StatusCode != http.StatusOK {
 		t.Fatalf("offer: %d", response.StatusCode)
 	}
@@ -125,6 +125,16 @@ func TestRTCTerminalStreamsInputOutputResizeAndPing(t *testing.T) {
 			return webrtc.DataChannelMessage{}
 		}
 	}
+	return dc, next
+}
+
+func TestRTCTerminalStreamsInputOutputResizeAndPing(t *testing.T) {
+	e := newTermEnv(t)
+	term, err := e.terms.Open(context.Background(), app.OpenTerminal{Cwd: "/tmp"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	dc, next := dialRTC(t, e, term.ID, 16)
 	if ready := next(); !ready.IsString || !bytes.Contains(ready.Data, []byte("ready")) {
 		t.Fatalf("ready: %+v", ready)
 	}
@@ -156,5 +166,41 @@ func TestRTCTerminalStreamsInputOutputResizeAndPing(t *testing.T) {
 	p.exit(7)
 	if exit := next(); !exit.IsString || !bytes.Contains(exit.Data, []byte(`"code":7`)) {
 		t.Fatalf("exit: %+v", exit)
+	}
+}
+
+// A shell printing line by line (seq, logs) yields one tiny pty read per
+// line. Sending each as its own message let the client fall behind and get
+// dropped to the WebSocket fallback; queued output must go out coalesced.
+func TestRTCTerminalKeepsUpWithLineByLineOutput(t *testing.T) {
+	e := newTermEnv(t)
+	term, err := e.terms.Open(context.Background(), app.OpenTerminal{Cwd: "/tmp"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, next := dialRTC(t, e, term.ID, 1<<16)
+	if ready := next(); !ready.IsString || !bytes.Contains(ready.Data, []byte("ready")) {
+		t.Fatalf("ready: %+v", ready)
+	}
+	const lines = 50_000
+	p := e.factory.ptys[0]
+	go func() {
+		for i := range lines {
+			if _, err := fmt.Fprintf(p.outW, "%d\r\n", i); err != nil {
+				return
+			}
+		}
+	}()
+	want := 0
+	for i := range lines {
+		want += len(fmt.Sprintf("%d\r\n", i))
+	}
+	got := 0
+	for got < want {
+		msg := next()
+		if msg.IsString {
+			t.Fatalf("after %d of %d bytes: %s", got, want, msg.Data)
+		}
+		got += len(msg.Data)
 	}
 }
