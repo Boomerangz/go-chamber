@@ -374,6 +374,8 @@ describe('App', () => {
     expect(screen.getAllByRole('complementary', { name: 'Pending requests' }).length).toBeGreaterThan(0)
     await userEvent.click(within(rail).getByRole('button', { name: 'Collapse dock' }))
     expect(within(rail).getByRole('button', { name: 'Requests 1' })).toHaveAttribute('aria-pressed', 'false')
+    // The phone's requests pane isn't open, so there is no second, hidden inbox.
+    expect(screen.queryAllByRole('complementary', { name: 'Pending requests' })).toHaveLength(0)
   })
 
   it('opens the dock terminal in terminal mode', async () => {

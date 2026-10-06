@@ -132,9 +132,7 @@ export default function App() {
               )}
               <DockRail />
             </div>
-            <div className="requests-pane">
-              <RequestTray />
-            </div>
+            <div className="requests-pane">{pane === 'requests' && <RequestTray />}</div>
             <div className="changes-pane">{pane === 'changes' && <DiffPanel key={activeId} sessionId={activeId} />}</div>
           </div>
           <PaneBar />

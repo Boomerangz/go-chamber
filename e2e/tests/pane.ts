@@ -5,8 +5,12 @@ import type { Page } from '@playwright/test'
 // showShells unfolds terminal mode's shell list on a phone, where it folds
 // to one line while a shell is attached; elsewhere it is a no-op.
 export async function showShells(page: Page) {
-  const toggle = page.locator('.term-switch[aria-expanded="false"]')
-  if (await toggle.isVisible()) await toggle.click()
+  if ((page.viewportSize()?.width ?? Infinity) > 720) return
+  // The switcher appears once a shell attaches; wait for it rather than
+  // racing a terminal that is still opening.
+  const toggle = page.locator('.term-switch')
+  await toggle.waitFor()
+  if ((await toggle.getAttribute('aria-expanded')) === 'false') await toggle.click()
 }
 
 export async function showPane(page: Page, name: 'Sessions' | 'Chat' | 'Requests') {
