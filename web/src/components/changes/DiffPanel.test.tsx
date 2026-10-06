@@ -189,7 +189,26 @@ describe('DiffPanel', () => {
     render(<DiffPanel sessionId="s1" />)
     expect(await screen.findByText('a.go')).toHaveClass('diff-base')
     expect(screen.getByText('src/deep/')).toHaveClass('diff-dir')
-    expect(screen.getByText('type changed')).toHaveClass('diff-status')
+    expect(screen.getByText('type changed').closest('span.diff-status')).toBeInTheDocument()
+  })
+
+  it('shows a rename as one row, from the old path to the new, with its counts', async () => {
+    vi.mocked(api.getChanges).mockResolvedValue({ repository: true, files: [{ path: 'src/new.go', from: 'old/name.go', status: 'R', added: 2, removed: 1 }] })
+    render(<DiffPanel sessionId="s1" />)
+    const row = await screen.findByRole('button', { name: /old\/name\.go ?→ ?src\/new\.go/ })
+    expect(row).toHaveAttribute('title', 'old/name.go → src/new.go')
+    expect(screen.getByText('old/name.go')).toHaveClass('diff-from')
+    expect(screen.getByText('new.go')).toHaveClass('diff-base')
+    expect(row.querySelector('.diff-status')).toHaveTextContent('renamed')
+    expect(row).toHaveTextContent('+2−1')
+  })
+
+  it('keeps the status word for screen readers and the tooltip when only its mark shows', async () => {
+    vi.mocked(api.getChanges).mockResolvedValue({ repository: true, files: [{ path: 'a.go', status: 'M' }] })
+    render(<DiffPanel sessionId="s1" />)
+    const status = (await screen.findByText('modified')).closest('.diff-status')!
+    expect(status).toHaveAttribute('title', 'modified')
+    expect(screen.getByText('modified')).toHaveClass('diff-status-word')
   })
 
   it('collapses an open file on a second click and refetches it with the list', async () => {

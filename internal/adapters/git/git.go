@@ -67,20 +67,19 @@ func (r Repo) Changes(ctx context.Context, dir, base string) ([]app.FileChange, 
 	if err != nil {
 		return nil, err
 	}
-	tracked, err := run(ctx, dir, "diff", "--name-status", "--no-renames", "-z", base, "--")
+	tracked, err := nameStatus(ctx, dir, base)
 	if err != nil {
 		return nil, err
 	}
-	numstat, err := run(ctx, dir, "diff", "--numstat", "--no-renames", "-z", base, "--")
+	numstat, err := run(ctx, dir, "diff", "--numstat", "--find-renames", "-z", base, "--")
 	if err != nil {
 		return nil, err
 	}
 	counts := parseNumstat(numstat)
-	var files []app.FileChange
-	fields := strings.Split(strings.TrimSuffix(tracked, "\x00"), "\x00")
-	for i := 0; i+1 < len(fields); i += 2 {
-		f := counts[fields[i+1]]
-		f.Status, f.Path = fields[i], fields[i+1]
+	files := make([]app.FileChange, 0, len(tracked))
+	for _, t := range tracked {
+		f := counts[t.Path]
+		f.Status, f.Path, f.From = t.Status, t.Path, t.From
 		files = append(files, f)
 	}
 	untracked, err := untracked(ctx, dir, "")
@@ -95,22 +94,56 @@ func (r Repo) Changes(ctx context.Context, dir, base string) ([]app.FileChange, 
 	return files, nil
 }
 
+// nameStatus lists the tracked changes against base, renames found: a
+// renamed file is one change with the path it had before.
+func nameStatus(ctx context.Context, dir, base string) ([]app.FileChange, error) {
+	out, err := run(ctx, dir, "diff", "--name-status", "--find-renames", "-z", base, "--")
+	if err != nil {
+		return nil, err
+	}
+	return parseNameStatus(out), nil
+}
+
+// parseNameStatus reads `git diff --name-status -z`: "M\0path\0", and for
+// a rename or copy "R097\0old\0new\0" (the score is dropped).
+func parseNameStatus(out string) []app.FileChange {
+	var files []app.FileChange
+	fields := strings.Split(strings.TrimSuffix(out, "\x00"), "\x00")
+	for i := 0; i+1 < len(fields); i += 2 {
+		status := fields[i]
+		if (strings.HasPrefix(status, "R") || strings.HasPrefix(status, "C")) && i+2 < len(fields) {
+			files = append(files, app.FileChange{Status: status[:1], From: fields[i+1], Path: fields[i+2]})
+			i++
+			continue
+		}
+		files = append(files, app.FileChange{Status: status, Path: fields[i+1]})
+	}
+	return files
+}
+
 // parseNumstat reads `git diff --numstat -z`: "added\tremoved\tpath\0",
-// with "-" counts for a binary file.
+// or for a rename "added\tremoved\t\0old\0new\0", with "-" counts for a
+// binary file. Counts are keyed by the (new) path.
 func parseNumstat(out string) map[string]app.FileChange {
 	counts := map[string]app.FileChange{}
-	for _, rec := range strings.Split(out, "\x00") {
-		parts := strings.SplitN(rec, "\t", 3)
+	recs := strings.Split(out, "\x00")
+	for i := 0; i < len(recs); i++ {
+		parts := strings.SplitN(recs[i], "\t", 3)
 		if len(parts) != 3 {
 			continue
 		}
+		path := parts[2]
+		if path == "" && i+2 < len(recs) {
+			path = recs[i+2]
+			i += 2
+		}
 		if parts[0] == "-" {
-			counts[parts[2]] = app.FileChange{Binary: true}
+			counts[path] = app.FileChange{Binary: true}
 			continue
 		}
 		added, _ := strconv.Atoi(parts[0])
 		removed, _ := strconv.Atoi(parts[1])
-		counts[parts[2]] = app.FileChange{Added: added, Removed: removed}
+		counts[path] = app.FileChange{Added: added, Removed: removed}
 	}
 	return counts
 }
@@ -150,6 +183,16 @@ func (r Repo) FileDiff(ctx context.Context, dir, base, path string) (string, err
 	base, err = resolve(ctx, dir, base)
 	if err != nil {
 		return "", err
+	}
+	// A renamed file diffs against the path it had, so only its edits show.
+	tracked, err := nameStatus(ctx, dir, base)
+	if err != nil {
+		return "", err
+	}
+	for _, t := range tracked {
+		if t.Path == path && t.From != "" {
+			return run(ctx, dir, "diff", "--find-renames", base, "--", t.From, path)
+		}
 	}
 	out, err := run(ctx, dir, "diff", "--no-renames", base, "--", path)
 	if err != nil || out != "" {

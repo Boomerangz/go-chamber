@@ -15,10 +15,10 @@ import { LoadFailed, LoadingLine } from '../ui/Loading'
 import { diffBody } from './diffBody'
 import './DiffPanel.css'
 
-const statusLabel: Record<string, string> = { A: 'added', M: 'modified', D: 'deleted', T: 'type changed', '?': 'untracked' }
+const statusLabel: Record<string, string> = { A: 'added', M: 'modified', D: 'deleted', R: 'renamed', C: 'copied', T: 'type changed', '?': 'untracked' }
 // The status is the form of the square mark: added solid, changed hollow,
 // deleted struck, untracked dashed (not yet part of the repository).
-const statusMark: Record<string, string> = { A: 'solid', M: 'hollow', T: 'hollow', D: 'struck', '?': 'dashed' }
+const statusMark: Record<string, string> = { A: 'solid', C: 'solid', M: 'hollow', R: 'hollow', T: 'hollow', D: 'struck', '?': 'dashed' }
 
 // A diff longer than this shows its head until asked for the rest: React
 // renders every line as an element.
@@ -317,11 +317,18 @@ function FileRow(props: {
   return (
     <li className="diff-file" aria-busy={busy || undefined}>
       <div className="diff-file-head">
-        <button type="button" className="diff-file-toggle" aria-expanded={isOpen} title={f.path} onClick={props.onToggle}>
-          <span className="diff-status" data-mark={statusMark[f.status] ?? 'hollow'}>
-            {label}
+        <button type="button" className="diff-file-toggle" aria-expanded={isOpen} title={f.from ? `${f.from} → ${f.path}` : f.path} onClick={props.onToggle}>
+          {/* a narrow panel keeps only the mark; the word stays for screen readers and the tooltip */}
+          <span className="diff-status" data-mark={statusMark[f.status] ?? 'hollow'} title={label}>
+            <span className="diff-status-word">{label}</span>
           </span>
           <span className="diff-path">
+            {f.from && (
+              <>
+                <span className="diff-from">{f.from}</span>
+                <span className="diff-arrow"> → </span>
+              </>
+            )}
             {dir && <span className="diff-dir">{dir}</span>}
             <span className="diff-base">{base}</span>
           </span>

@@ -489,7 +489,9 @@ export function setModel(id: string, choice: ModelChoice): Promise<Session> {
 
 export interface FileChange {
   path: string
-  // status is git's letter (A, M, D, T) or '?' for an untracked file.
+  // from is the path a renamed file (status R) had before.
+  from?: string
+  // status is git's letter (A, M, D, R, T) or '?' for an untracked file.
   status: string
   // added and removed count changed lines; a binary file counts none.
   added?: number
