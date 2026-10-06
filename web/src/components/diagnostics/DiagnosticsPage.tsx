@@ -26,7 +26,16 @@ export default function DiagnosticsPage() {
   const { client, server, error, socketStatus } = useDiagnostics(enabled)
   const connection = useSessionStore((s) => s.connection)
   const terminalNames = useTerminalStore((s) => s.terminals)
-  const ids = [...new Set([...client.terminals.map((t) => t.id), ...(server?.terminals.map((t) => t.id) ?? [])])]
+  const all = [...new Set([...client.terminals.map((t) => t.id), ...(server?.terminals.map((t) => t.id) ?? [])])]
+  // A terminal no client here attached and nobody reads has nothing to show:
+  // a row of dashes per shell says less than one line naming them.
+  const quiet = (id: string) => {
+    if (client.terminals.some((t) => t.id === id)) return false
+    const remote = server?.terminals.find((t) => t.id === id)
+    return !remote || (remote.clients === 0 && remote.queuedBytes === 0 && remote.laggedClients === 0)
+  }
+  const ids = all.filter((id) => !quiet(id))
+  const idle = all.filter(quiet).map((id) => terminalName(id, terminalNames.find((t) => t.id === id)))
   const report = () => JSON.stringify({ generatedAt: new Date().toISOString(), client: diagnostics(), server }, null, 2)
   const copyReport = async () => {
     try {
@@ -134,7 +143,8 @@ export default function DiagnosticsPage() {
               return <tr key={id}><th scope="row">{terminalName(id, terminalNames.find((t) => t.id === id))}</th>{cells.map(([label, value]) => <td key={label} data-label={label}>{value}</td>)}</tr>
             })}</tbody>
           </table></div>
-        ) : <p>Open a terminal to collect output and queue measurements.</p>}
+        ) : idle.length === 0 && <p>Open a terminal to collect output and queue measurements.</p>}
+        {idle.length > 0 && <p className="diagnostics-idle">{`Not attached, nothing measured: ${idle.join(', ')}`}</p>}
         <p className="diagnostics-note">Browser pending bytes await xterm processing. Server queued bytes await delivery, summed across attached clients.</p>
       </section>
     </section>

@@ -20,6 +20,11 @@
 .diagnostics-table-wrap { overflow-x: auto; }
 .diagnostics-page table { border-collapse: collapse; width: 100%; font-size: 12px; text-align: left; }
 .diagnostics-page th, .diagnostics-page td { padding: 10px 12px; border-bottom: 1px solid var(--rule); white-space: nowrap; }
+/* eleven columns fit a laptop: headings wrap, and so does a long WebRTC attempt */
+.diagnostics-page thead th { padding: 8px; white-space: normal; vertical-align: bottom; font-weight: 400; color: var(--ink-3); }
+.diagnostics-page td, .diagnostics-page tbody th { padding: 8px; }
+.diagnostics-page td[data-label='WebRTC attempt'], .diagnostics-page td[data-label='Route'] { white-space: normal; min-width: 12ch; }
+.diagnostics-idle { margin: 10px 0 0; font-family: var(--font-mono); font-size: 12px; color: var(--ink-3); }
 .diagnostics-page td { font-family: var(--font-mono); }
 @media (max-width: 900px) { .diagnostics-grid, .diagnostics-server-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 600px) { .diagnostics-page { padding: 12px; } .diagnostics-grid, .diagnostics-server-grid { grid-template-columns: minmax(0, 1fr); } .diagnostics-actions .btn { font-size: 11px; } }

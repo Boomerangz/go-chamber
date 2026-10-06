@@ -36,3 +36,22 @@ test('shells in one folder are numbered, and a phone with nothing attached shows
   }
   for (const t of opened) await page.request.delete(`/api/terminals/${t.id}`)
 })
+
+test('diagnostics fit the terminal table on a laptop and fold idle shells into a line', async ({ page }, info) => {
+  test.skip(info.project.name === 'mobile', 'laptop width')
+  await page.setViewportSize({ width: 1440, height: 900 })
+  const dir = fs.realpathSync(fs.mkdtempSync(`${os.tmpdir()}/gc-diag-`))
+  await page.goto(`/?token=${token}`)
+  const idle = await open(page, dir)
+  await page.getByRole('radio', { name: /^Terminal/ }).click()
+  const panel = page.getByRole('region', { name: 'Terminals' })
+  await panel.getByLabel('terminal directory').fill(dir)
+  await panel.getByRole('button', { name: 'New terminal' }).click()
+  await expect(panel.getByTestId('terminal-view')).toBeVisible()
+  await page.getByRole('radio', { name: /^Diagnostics/ }).click()
+  const table = page.locator('.diagnostics-table-wrap')
+  await expect(table.getByRole('rowheader').first()).toBeVisible()
+  expect(await table.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true)
+  await expect(page.locator('.diagnostics-idle')).toContainText(idle.title)
+  await page.request.delete(`/api/terminals/${idle.id}`)
+})

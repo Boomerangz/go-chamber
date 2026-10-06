@@ -66,6 +66,25 @@ describe('DiagnosticsPage', () => {
     expect(row.closest('tr')!.querySelector('td[data-label="Clients"]')).toHaveTextContent('1')
   })
 
+  it('folds terminals with nothing measured into one line', () => {
+    const shell = (id: string, title: string) => ({ id, title, cwd: '/srv/repo', shell: 'sh', status: 'running' as const, exitCode: 0, createdAt: '' })
+    useTerminalStore.setState({ terminals: [shell('a', 'repo'), shell('b', 'repo 2'), shell('c', 'logs')] })
+    state({
+      server: {
+        ...server,
+        terminals: [
+          { id: 'a', queuedBytes: 0, outputBytes: 0, laggedClients: 0, clients: 0 },
+          { id: 'b', queuedBytes: 0, outputBytes: 0, laggedClients: 0, clients: 0 },
+          { id: 'c', queuedBytes: 0, outputBytes: 0, laggedClients: 0, clients: 1 },
+        ],
+      },
+    })
+    render(<DiagnosticsPage />)
+    expect(screen.getByRole('rowheader', { name: 'logs' })).toBeInTheDocument()
+    expect(screen.queryByRole('rowheader', { name: 'repo' })).toBeNull()
+    expect(screen.getByText('Not attached, nothing measured: repo, repo 2')).toBeInTheDocument()
+  })
+
   it('shows uptime in hours and minutes and connection states as marks', () => {
     state({ server, socketStatus: 'reconnecting' })
     const { container } = render(<DiagnosticsPage />)
