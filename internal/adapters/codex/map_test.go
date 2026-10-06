@@ -136,6 +136,20 @@ func TestMapTurnCompleted(t *testing.T) {
 	}
 }
 
+// An interrupted turn was stopped, not failed.
+func TestMapTurnInterruptedIsStopped(t *testing.T) {
+	m := NewMapper("s1")
+	events := feedCodex(t, m, "turn/completed", `{"threadId":"th","turn":{"id":"t1","status":"interrupted","items":[]}}`)
+	res := events[len(events)-1].Result
+	if !res.Stopped || res.IsError {
+		t.Fatalf("result = %+v", res)
+	}
+	events = feedCodex(t, m, "turn/completed", `{"threadId":"th","turn":{"id":"t2","status":"completed","items":[]}}`)
+	if res := events[len(events)-1].Result; res.Stopped {
+		t.Fatalf("result = %+v", res)
+	}
+}
+
 func TestMapTurnStartedSetsTurn(t *testing.T) {
 	m := NewMapper("s1")
 	feedCodex(t, m, "turn/started", `{"threadId":"th","turn":{"id":"turn-9","status":"inProgress"}}`)

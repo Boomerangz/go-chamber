@@ -282,7 +282,21 @@ func main() {
 		case "turn/steer":
 			respond(m.ID, map[string]any{})
 		case "turn/interrupt":
+			// Like the real server: the turn ends as interrupted and the
+			// requests it waited on are withdrawn.
+			var p struct {
+				ThreadID string `json:"threadId"`
+				TurnID   string `json:"turnId"`
+			}
+			_ = json.Unmarshal(m.Params, &p)
 			respond(m.ID, map[string]any{})
+			if reqs, open := openTurns[p.TurnID]; open {
+				for _, req := range reqs {
+					delete(pending, req)
+					notify("serverRequest/resolved", map[string]any{"threadId": p.ThreadID, "requestId": req})
+				}
+				turnCompleted(p.ThreadID, p.TurnID, "interrupted", "", "")
+			}
 		default:
 			respond(m.ID, map[string]any{})
 		}
@@ -376,6 +390,7 @@ func permissionTurn(threadID, turnID, text string, pending map[string]func(json.
 	notify("item/started", map[string]any{"threadId": threadID, "turnId": turnID,
 		"item": map[string]any{"type": "commandExecution", "id": itemID, "command": text, "status": "inProgress"}})
 	reqID := nextID("appr")
+	openTurns[turnID] = append(openTurns[turnID], reqID)
 	pending[reqID] = func(result json.RawMessage) {
 		var r struct {
 			Decision string `json:"decision"`
@@ -390,8 +405,8 @@ func permissionTurn(threadID, turnID, text string, pending map[string]func(json.
 			"item": map[string]any{"type": "commandExecution", "id": itemID, "command": text,
 				"aggregatedOutput": answer, "exitCode": exit, "status": status}})
 		notify("item/completed", map[string]any{"threadId": threadID, "turnId": turnID,
-			"item": map[string]any{"type": "agentMessage", "id": "agent-final", "text": answer}})
-		turnCompleted(threadID, turnID, "completed", "agent-final", answer)
+			"item": map[string]any{"type": "agentMessage", "id": "agent-final-" + turnID, "text": answer}})
+		turnCompleted(threadID, turnID, "completed", "agent-final-"+turnID, answer)
 	}
 	if reviewers[threadID] == "auto_review" || policies[threadID][0] == "never" {
 		delete(pending, reqID)
@@ -399,8 +414,8 @@ func permissionTurn(threadID, turnID, text string, pending map[string]func(json.
 			"item": map[string]any{"type": "commandExecution", "id": itemID, "command": text,
 				"aggregatedOutput": "auto-approved: " + text, "exitCode": 0, "status": "completed"}})
 		notify("item/completed", map[string]any{"threadId": threadID, "turnId": turnID,
-			"item": map[string]any{"type": "agentMessage", "id": "agent-final", "text": "auto-approved: " + text}})
-		turnCompleted(threadID, turnID, "completed", "agent-final", "auto-approved: "+text)
+			"item": map[string]any{"type": "agentMessage", "id": "agent-final-" + turnID, "text": "auto-approved: " + text}})
+		turnCompleted(threadID, turnID, "completed", "agent-final-"+turnID, "auto-approved: "+text)
 		return
 	}
 	serverRequest(reqID, "item/commandExecution/requestApproval", map[string]any{
@@ -411,6 +426,7 @@ func permissionTurn(threadID, turnID, text string, pending map[string]func(json.
 func questionTurn(threadID, turnID string, pending map[string]func(json.RawMessage)) {
 	turnStarted(threadID, turnID)
 	reqID := nextID("ask")
+	openTurns[turnID] = append(openTurns[turnID], reqID)
 	pending[reqID] = func(result json.RawMessage) {
 		var r struct {
 			Answers map[string]struct {
@@ -423,8 +439,8 @@ func questionTurn(threadID, turnID string, pending map[string]func(json.RawMessa
 			answer = "answered " + id + ": " + strings.Join(a.Answers, ",")
 		}
 		notify("item/completed", map[string]any{"threadId": threadID, "turnId": turnID,
-			"item": map[string]any{"type": "agentMessage", "id": "agent-final", "text": answer}})
-		turnCompleted(threadID, turnID, "completed", "agent-final", answer)
+			"item": map[string]any{"type": "agentMessage", "id": "agent-final-" + turnID, "text": answer}})
+		turnCompleted(threadID, turnID, "completed", "agent-final-"+turnID, answer)
 	}
 	serverRequest(reqID, "item/tool/requestUserInput", map[string]any{
 		"threadId": threadID, "turnId": turnID, "itemId": nextID("q"), "isBlocking": true,
@@ -459,23 +475,30 @@ func collabTurn(threadID, turnID, text string) {
 	turnCompleted(threadID, turnID, "completed", nextID("final"), "collab started")
 }
 
+// openTurns holds each running turn's server requests.
+var openTurns = map[string][]string{}
+
 func turnStarted(threadID, turnID string) {
+	openTurns[turnID] = nil
 	notify("turn/started", map[string]any{"threadId": threadID,
 		"turn": map[string]any{"id": turnID, "status": "inProgress", "items": []any{}}})
 }
 
 func turnCompleted(threadID, turnID, status, itemID, text string) {
+	delete(openTurns, turnID)
+	items := []any{}
+	if itemID != "" {
+		items = append(items, map[string]any{"type": "agentMessage", "id": itemID, "text": text})
+	}
 	for _, turn := range histories[threadID] {
 		if turn["id"] == turnID {
 			turn["status"] = status
-			turn["items"] = append(turn["items"].([]any), map[string]any{"type": "agentMessage", "id": itemID, "text": text})
+			turn["items"] = append(turn["items"].([]any), items...)
 		}
 	}
 
 	notify("turn/completed", map[string]any{"threadId": threadID,
-		"turn": map[string]any{"id": turnID, "status": status, "items": []any{
-			map[string]any{"type": "agentMessage", "id": itemID, "text": text},
-		}}})
+		"turn": map[string]any{"id": turnID, "status": status, "items": items}})
 }
 
 func notify(method string, params any) {

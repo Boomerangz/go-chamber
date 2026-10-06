@@ -135,6 +135,14 @@ func main() {
 					taskTurnOpen = false
 					_ = enc.Encode(result(sessionID, ""))
 				}
+				// Like the real CLI: a turn waiting on a permission or a
+				// question withdraws it and ends.
+				if pending != nil {
+					_ = enc.Encode(map[string]any{"type": "control_cancel_request", "request_id": pending.requestID})
+					writeToolResult(enc, sessionID, pending.toolUseID, "[Request interrupted by user for tool use]", true)
+					_ = enc.Encode(result(sessionID, ""))
+					pending = nil
+				}
 				_ = out.Flush()
 			case "stop_task":
 				stopTask(enc, out, sessionID, env.RequestID, env.Request.TaskID)

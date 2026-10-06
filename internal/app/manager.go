@@ -68,6 +68,8 @@ type Manager struct {
 	idle map[domain.SessionID]*idleTimer
 	// resume holds the timers that continue quota-interrupted sessions.
 	resume map[domain.SessionID]*time.Timer
+	// stopping marks sessions whose owner asked to stop the running turn.
+	stopping map[domain.SessionID]bool
 }
 
 func NewManager(cfg ManagerConfig) *Manager {
@@ -85,6 +87,7 @@ func NewManager(cfg ManagerConfig) *Manager {
 		restart:  map[domain.SessionID]bool{},
 		idle:     map[domain.SessionID]*idleTimer{},
 		resume:   map[domain.SessionID]*time.Timer{},
+		stopping: map[domain.SessionID]bool{},
 	}
 }
 
@@ -148,7 +151,13 @@ func (m *Manager) Restore(ctx context.Context) ([]domain.SessionSnapshot, error)
 		cur := s.Snapshot()
 		// Whatever the saved status, no process of the previous run can
 		// answer its requests any more.
-		m.closeLeftoverRequests(cur.ID)
+		if m.closeLeftoverRequests(cur.ID) > 0 {
+			s.InterruptedWithRequest()
+			cur = s.Snapshot()
+		}
+		if snap.Status == domain.StatusRunning {
+			m.stopLeftoverItems(cur.ID)
+		}
 		if cur.AutoContinue {
 			m.armAutoContinue(cur.ID, true, cur.Interruption.ResumeAfter)
 		}
@@ -166,10 +175,11 @@ func (m *Manager) Restore(ctx context.Context) ([]domain.SessionSnapshot, error)
 
 // closeLeftoverRequests marks requests the previous process never resolved
 // as stale, so replayed history doesn't show them as answerable.
-func (m *Manager) closeLeftoverRequests(id domain.SessionID) {
+func (m *Manager) closeLeftoverRequests(id domain.SessionID) int {
 	if m.cfg.History == nil {
-		return
+		return 0
 	}
+	closed := 0
 	open := map[domain.RequestID]*domain.Request{}
 	var order []domain.RequestID
 	for _, ev := range m.cfg.History.Requests(id) {
@@ -187,7 +197,34 @@ func (m *Manager) closeLeftoverRequests(id domain.SessionID) {
 			delete(open, rid)
 			req.MarkStale()
 			m.cfg.Bus.Publish(domain.Event{SessionID: id, Type: domain.EventRequestResolved, Request: req})
+			closed++
 		}
+	}
+	return closed
+}
+
+// stopLeftoverItems stops what the turn a previous process was running
+// left unfinished in the log: nothing of it runs any more, not even
+// background work, which died with the process.
+func (m *Manager) stopLeftoverItems(id domain.SessionID) {
+	if m.cfg.History == nil {
+		return
+	}
+	open := map[domain.ItemID]domain.Item{}
+	for _, ev := range m.cfg.History.History(id, 0) {
+		if ev.Type != domain.EventItemUpdated || ev.Item == nil {
+			continue
+		}
+		item := *ev.Item
+		item.OutlivesTurn = false
+		if item.Status.Terminal() {
+			delete(open, item.ID)
+		} else {
+			open[item.ID] = item
+		}
+	}
+	for _, item := range domain.LeftByTurn(open) {
+		m.cfg.Bus.Publish(domain.Event{SessionID: id, Type: domain.EventItemUpdated, Item: &item})
 	}
 }
 
@@ -219,6 +256,7 @@ func (m *Manager) SendInput(ctx context.Context, id domain.SessionID, text strin
 	m.mu.Lock()
 	err = s.TurnStarted()
 	if err == nil {
+		delete(m.stopping, id)
 		s.Touch(m.cfg.Now().UTC())
 		if s.Title() == "" {
 			s.Rename(titleFromText(text))
@@ -448,6 +486,9 @@ func (m *Manager) Interrupt(ctx context.Context, id domain.SessionID) error {
 	}
 	m.mu.Lock()
 	rt := m.runtimes[id]
+	if rt != nil {
+		m.stopping[id] = true
+	}
 	m.mu.Unlock()
 	if rt == nil {
 		return nil
@@ -620,6 +661,7 @@ func (m *Manager) consume(s *domain.Session, rt AgentRuntime) {
 			continue
 		}
 		quotaStop := false
+		var left []domain.Item
 		switch ev.Type {
 		case domain.EventItemUpdated:
 			if ev.Item.Status.Terminal() {
@@ -638,6 +680,13 @@ func (m *Manager) consume(s *domain.Session, rt AgentRuntime) {
 			ev.Quota = m.cacheQuota(context.Background(), *ev.Quota)
 			quotaStop = ev.Quota.Reached && s.QuotaExhausted(ev.Quota.ResetsAt()) == nil
 		case domain.EventTurnEnded:
+			ev.Result = m.markStopped(s.ID(), ev.Result)
+			if cutShort(ev.Result) {
+				left = domain.LeftByTurn(open)
+				for _, item := range left {
+					delete(open, item.ID)
+				}
+			}
 			if ev.Result != nil && ev.Result.InterruptionReason != "" {
 				_ = s.TurnInterrupted(ev.Result.InterruptionReason)
 			} else {
@@ -654,6 +703,9 @@ func (m *Manager) consume(s *domain.Session, rt AgentRuntime) {
 		snap := s.Snapshot()
 		m.mu.Unlock()
 
+		for _, item := range left {
+			m.cfg.Bus.Publish(domain.Event{SessionID: s.ID(), Type: domain.EventItemUpdated, Item: &item})
+		}
 		ev = m.cfg.Bus.Publish(ev)
 		if quotaEvent {
 			m.quotaEventsMu.Unlock()
@@ -672,6 +724,29 @@ func (m *Manager) consume(s *domain.Session, rt AgentRuntime) {
 		}
 	}
 	m.detach(s, rt, open)
+}
+
+// markStopped notes on the result of a turn the owner asked to stop that it
+// was stopped; the agent's own result may not say so. Caller holds m.mu.
+func (m *Manager) markStopped(id domain.SessionID, res *domain.TurnResult) *domain.TurnResult {
+	if !m.stopping[id] {
+		return res
+	}
+	delete(m.stopping, id)
+	if res == nil {
+		res = &domain.TurnResult{}
+	} else {
+		c := *res
+		res = &c
+	}
+	res.Stopped = true
+	return res
+}
+
+// cutShort tells a turn that ended before its work did: stopped,
+// interrupted or failed.
+func cutShort(res *domain.TurnResult) bool {
+	return res != nil && (res.Stopped || res.IsError || res.InterruptionReason != "")
 }
 
 // armIdle (re)starts the timer that retires an idle Claude process.
@@ -736,6 +811,10 @@ func (m *Manager) detach(s *domain.Session, rt AgentRuntime, open map[domain.Ite
 		reason = domain.ExitIdleTimeout
 	}
 	s.RuntimeExited(reason)
+	if len(stale) > 0 {
+		s.InterruptedWithRequest()
+	}
+	delete(m.stopping, s.ID())
 	snap := s.Snapshot()
 	m.mu.Unlock()
 
