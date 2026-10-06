@@ -55,11 +55,21 @@ describe('transcript hook-ups', () => {
       item('u', 'user_message'),
       item('a', 'tool_call', { name: 'Read', input: { file_path: '/a' } }),
       item('b', 'tool_call', { name: 'Read', input: { file_path: '/b' } }),
-      item('c', 'command', { input: { command: 'ls' } }),
+      item('c', 'command', { input: { command: 'ls' }, exitCode: 0 }),
       item('m', 'assistant_message'),
     ]))
     expect(container.querySelector('.tool-group-label')).toHaveTextContent('Read 2 files · ran 1 command')
     expect(container.querySelectorAll('.items > li.row')).toHaveLength(3)
+  })
+
+  it('leaves an answered question to its record, without the raw tool line', () => {
+    const { container } = setup(chatOf([
+      item('u', 'user_message'),
+      item('q', 'tool_call', { name: 'AskUserQuestion', input: { questions: [] }, text: 'answered: {}' }),
+      item('d', 'decision', { name: 'Question', decision: 'answered', text: 'Which? Beta' }),
+    ]))
+    expect(screen.queryByText('AskUserQuestion')).toBeNull()
+    expect(container.querySelector('.item.decision')).toHaveTextContent('Which? Beta')
   })
 
   it('sends the last message of a failed turn again, with its images', async () => {

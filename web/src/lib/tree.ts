@@ -62,3 +62,23 @@ export function sameNode(a: ItemNode, b: ItemNode): boolean {
 export function isBlank(item: Item): boolean {
   return item.kind === 'assistant_message' && item.status === 'completed' && !item.text?.trim()
 }
+
+// Tools that ask the owner a question: the request card asks it and the
+// decision record keeps the answer, so the tool line only repeats them.
+const QUESTION_TOOLS = new Set(['AskUserQuestion'])
+
+// withoutAnsweredQuestions drops a question tool line once a decision
+// record follows it in the same turn.
+export function withoutAnsweredQuestions(nodes: ItemNode[]): ItemNode[] {
+  const hidden = new Set<ItemNode>()
+  let asked: ItemNode[] = []
+  for (const node of nodes) {
+    const { kind, name } = node.item
+    if (kind === 'user_message') asked = []
+    else if (kind === 'decision') {
+      asked.forEach((q) => hidden.add(q))
+      asked = []
+    } else if (kind === 'tool_call' && name && QUESTION_TOOLS.has(name)) asked.push(node)
+  }
+  return hidden.size ? nodes.filter((node) => !hidden.has(node)) : nodes
+}

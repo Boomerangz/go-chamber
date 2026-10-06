@@ -25,7 +25,7 @@ import { useJustFinished } from '../../lib/finished'
 import { useNow } from '../../lib/now'
 import { usePending } from '../../lib/pending'
 import { useUnseen } from '../../lib/seen'
-import { isBlank, itemTree } from '../../lib/tree'
+import { isBlank, itemTree, withoutAnsweredQuestions } from '../../lib/tree'
 import { groupTools, lastItemId } from '../../lib/group'
 import { turnNumbers } from '../../lib/turns'
 import { loadDraft, saveDraft } from '../../stores/drafts'
@@ -101,7 +101,10 @@ export default function Chat() {
   const narrow = useMedia('(max-width: 720px)')
   // On a touch screen Enter is the keyboard's newline; Send is a tap away.
   const touch = useMedia('(pointer: coarse)')
-  const nodes = useMemo(() => itemTree(chat.order, chat.items).filter((node) => !isBlank(node.item)), [chat.order, chat.items])
+  const nodes = useMemo(
+    () => withoutAnsweredQuestions(itemTree(chat.order, chat.items).filter((node) => !isBlank(node.item))),
+    [chat.order, chat.items],
+  )
   const turns = useMemo(() => turnNumbers(nodes), [nodes])
   // What the "latest" button counts: replies and requests, not tool lines.
   const news = useMemo(() => {
