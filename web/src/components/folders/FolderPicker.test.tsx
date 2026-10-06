@@ -98,7 +98,9 @@ describe('FolderPicker', () => {
   it('reports a failing initial listing', async () => {
     vi.mocked(api.listFolders).mockRejectedValue(new Error('down'))
     setup()
-    expect(await screen.findByText('down')).toBeInTheDocument()
+    expect(await screen.findByRole('alert')).toHaveTextContent("Couldn't list your home folder: down")
+    // home is what failed: no second way to it
+    expect(screen.queryByRole('button', { name: 'Go home' })).toBeNull()
   })
 
   it('offers recent folders and hidden ones', async () => {
@@ -195,6 +197,28 @@ describe('FolderPicker loading and keys', () => {
     await userEvent.click(await screen.findByRole('button', { name: 'Go home' }))
     expect(await screen.findByRole('button', { name: 'dev' })).toBeInTheDocument()
     expect(api.listFolders).toHaveBeenLastCalledWith('', false)
+  })
+
+  it('says which folder it could not list, keeps its path, and offers Retry and Go home', async () => {
+    vi.mocked(api.listFolders).mockRejectedValueOnce(new Error('boom')).mockRejectedValueOnce(new Error('boom'))
+    setup({ start: '/srv/work/app' })
+    expect(await screen.findByRole('alert')).toHaveTextContent("Couldn't list this folder: boom")
+    const path = screen.getByRole('navigation', { name: 'Folder path' })
+    expect(path).toHaveTextContent('/srv/work/app')
+    // Retry asks for the same folder again
+    vi.mocked(api.listFolders).mockResolvedValueOnce(listings['/tmp'])
+    await userEvent.click(screen.getByRole('button', { name: 'Retry' }))
+    expect(api.listFolders).toHaveBeenLastCalledWith('/srv/work/app', false)
+    expect(await screen.findByText('No subfolders')).toBeInTheDocument()
+    expect(screen.queryByRole('alert')).toBeNull()
+  })
+
+  it('names a failed move the same way, over the listing still shown', async () => {
+    setup()
+    await screen.findByRole('button', { name: 'dev' })
+    vi.mocked(api.listFolders).mockRejectedValueOnce(new Error('permission denied'))
+    await userEvent.click(screen.getByRole('button', { name: 'dev' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent("Couldn't list dev: permission denied")
   })
 
   it('moves through folders with the arrow keys from the filter', async () => {

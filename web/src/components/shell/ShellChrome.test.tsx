@@ -5,7 +5,7 @@ import { notify, resetNotices, useNotices } from '../../stores/notices'
 import { resetStore, useSessionStore } from '../../stores/session'
 import Notices from './Notices'
 import { useLayoutStore } from '../../stores/layout'
-import { DockRail, HealthStatus, ModeSwitch, ShowSessions, SignOut } from './Shell'
+import { DockRail, HealthStatus, ModeSwitch, PaneBar, ShowSessions, SignOut } from './Shell'
 
 beforeEach(() => {
   resetStore()
@@ -119,6 +119,28 @@ describe('DockRail', () => {
     act(() => useLayoutStore.setState({ dock: null }))
     fireEvent.click(screen.getByRole('button', { name: 'Terminal' }), { detail: 0 })
     await waitFor(() => expect(screen.getByRole('button', { name: 'inside' })).toHaveFocus())
+  })
+})
+
+describe('waiting counts', () => {
+  beforeEach(() => {
+    useLayoutStore.setState({ dock: null, focus: false, mode: 'agents' })
+    useSessionStore.setState({
+      sessions: [
+        { id: 'a', agent: 'claude', cwd: '/w', status: 'interrupted', interruption: { withRequest: true } },
+        { id: 'b', agent: 'codex', cwd: '/w', status: 'interrupted', interruption: { withRequest: true } },
+      ],
+    })
+  })
+
+  it('the dock rail counts turns cut off while asking, as the tray lists them', () => {
+    render(<DockRail />)
+    expect(screen.getByRole('button', { name: 'Requests 2' })).toHaveTextContent('2')
+  })
+
+  it('the phone Requests tab counts them too', () => {
+    render(<PaneBar />)
+    expect(screen.getByRole('button', { name: /Requests/ })).toHaveTextContent('2')
   })
 })
 

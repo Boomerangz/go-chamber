@@ -326,17 +326,21 @@ function FileRow(props: {
             <span className="diff-status-word">{label}</span>
           </span>
           <span className="diff-path">
+            {/* a rename: the old path shows on the line only beside the whole
+                new one; otherwise it drops (the title still names it) */}
             {f.from && (
-              <>
+              <span className="diff-from-part">
                 <span className="diff-from">
                   {from.dir && <span className="diff-from-dir">{from.dir}</span>}
                   <MidCut text={from.base} className="diff-from-base" />
                 </span>
                 <span className="diff-arrow"> → </span>
-              </>
+              </span>
             )}
-            {dir && <span className="diff-dir">{dir}</span>}
-            <MidCut text={base} className="diff-base" />
+            <span className="diff-new">
+              {dir && <span className="diff-dir">{dir}</span>}
+              <MidCut text={base} className="diff-base" />
+            </span>
           </span>
           {busy && diff?.text !== undefined && <span className="busy-mark" aria-hidden="true" />}
           {f.binary ? (

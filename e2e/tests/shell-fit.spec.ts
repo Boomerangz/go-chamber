@@ -182,3 +182,88 @@ test('the quick switcher keeps titles readable beside a long folder', async ({ p
   expect(d.width).toBeLessThanOrEqual(r.width * 0.4 + 1)
   expect(await dialog.evaluate((e) => e.scrollWidth <= e.clientWidth)).toBe(true)
 })
+
+test.describe('the quick switcher on a short, narrow window', () => {
+  test.use({ viewport: { width: 390, height: 600 } })
+  test('keeps its field whole over a long list, in a size phones do not zoom into', async ({ page }, info) => {
+    test.skip(info.project.name === 'mobile', '⌘K is a keyboard matter')
+    const dir = fs.realpathSync(fs.mkdtempSync(`${os.tmpdir()}/gc-switch-`))
+    const headers = { Authorization: `Bearer ${token}` }
+    for (let i = 0; i < 20; i++) await page.request.post('/api/sessions', { headers, data: { agent: 'claude', cwd: dir } })
+    await page.goto(`/?token=${token}`)
+    await page.locator('.topbar').click({ position: { x: 1, y: 1 } })
+    await page.keyboard.press('ControlOrMeta+k')
+    const input = page.getByRole('dialog').getByRole('combobox')
+    await expect(input).toBeFocused()
+    expect((await box(input)).height).toBeGreaterThanOrEqual(35)
+    expect(await input.evaluate((e) => getComputedStyle(e).fontSize)).toBe('16px')
+  })
+})
+
+test('a path shortened at its start lines up with the title above it', async ({ page }, info) => {
+  test.skip(info.project.name === 'mobile', 'the same rule; the desktop list is enough')
+  await page.addInitScript(() => Object.defineProperty(window, 'RTCPeerConnection', { value: undefined }))
+  const base = fs.realpathSync(fs.mkdtempSync(`${os.tmpdir()}/gc-align-with-a-long-folder-name-`))
+  await page.goto(`/?token=${token}`)
+  const ids: string[] = []
+  for (const n of ['billing-service', 'docs']) {
+    fs.mkdirSync(`${base}/projects/${n}`, { recursive: true })
+    const r = await page.request.post('/api/terminals', { data: { cwd: `${base}/projects/${n}` } })
+    ids.push(((await r.json()) as { id: string }).id)
+  }
+  try {
+    await page.reload()
+    await page.getByRole('radio', { name: /^Terminal/ }).click()
+    for (const name of ['billing-service', 'docs']) {
+      const row = page.locator('.term-sidebar [role="tab"]').filter({ hasText: `projects/${name}` })
+      // the server's other shells may push it down the list
+      await row.scrollIntoViewIfNeeded()
+      const [title, path] = [await box(row.locator('.term-title')), await box(row.locator('.path-text'))]
+      expect(await row.locator('.path-head').evaluate((e) => e.scrollWidth > e.clientWidth)).toBe(true)
+      // where the ink starts: the title's first letter, the path's "…"
+      const clip = { x: title.x - 4, y: title.y, width: 40, height: path.y + path.height - title.y }
+      const png = (await page.screenshot({ clip })).toString('base64')
+      const [t, p] = await page.evaluate(
+        async ({ src, split }) => {
+          const img = new Image()
+          img.src = src
+          await img.decode()
+          const c = document.createElement('canvas')
+          c.width = img.width
+          c.height = img.height
+          const g = c.getContext('2d')!
+          g.drawImage(img, 0, 0)
+          const d = g.getImageData(0, 0, c.width, c.height).data
+          const left = (y0: number, y1: number) => {
+            for (let x = 0; x < c.width; x++) for (let y = y0; y < y1; y++) if (d[(y * c.width + x) * 4]! < 170) return x
+            return -1
+          }
+          return [left(0, split), left(split, c.height)]
+        },
+        { src: `data:image/png;base64,${png}`, split: Math.round(path.y - title.y) },
+      )
+      expect(Math.abs(p! - t!)).toBeLessThanOrEqual(2)
+    }
+  } finally {
+    for (const id of ids) await page.request.delete(`/api/terminals/${id}`)
+  }
+})
+
+test('the dock terminal tabs scroll sideways only: no stray vertical scrollbar', async ({ page, isMobile }) => {
+  test.skip(isMobile, 'the dock is desktop-only')
+  await page.addInitScript(() => Object.defineProperty(window, 'RTCPeerConnection', { value: undefined }))
+  const dir = fs.realpathSync(fs.mkdtempSync(`${os.tmpdir()}/gc-tabs-`))
+  await startSession(page, dir)
+  await page.getByRole('toolbar', { name: 'Dock' }).getByRole('button', { name: /^Terminal/ }).click()
+  const panel = page.getByRole('region', { name: 'Terminals' })
+  await panel.getByRole('button', { name: 'New terminal in session dir' }).click()
+  await expect(panel.getByRole('tab', { selected: true })).toBeVisible()
+  const tabs = panel.getByRole('tablist')
+  expect(await tabs.evaluate((e) => e.scrollHeight - e.clientHeight)).toBe(0)
+  // the open tab's rule still sits on the strip's bottom line
+  const [tab, strip] = [await box(tabs.locator('li').first()), await box(panel.locator('.dock-tabs'))]
+  expect(Math.abs(tab.y + tab.height - (strip.y + strip.height))).toBeLessThan(1.5)
+  const name = dir.split('/').pop()!
+  await panel.getByRole('button', { name: `Close terminal ${name}`, exact: true }).click()
+  await panel.getByRole('group', { name: /^Close terminal / }).getByRole('button', { name: 'Close', exact: true }).click()
+})

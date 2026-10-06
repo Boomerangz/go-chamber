@@ -23,6 +23,7 @@ import { usePending } from './lib/pending'
 import { sessionTitle } from './lib/sessions'
 import { attentionTitle } from './lib/title'
 import { endedTurns, markEnded, markVisited, unseenCount, useVisits } from './lib/visits'
+import { useWaitingCount } from './lib/waiting'
 import { settleRestoredDock, useLayoutStore, useLayoutVars, visibleDock } from './stores/layout'
 import { useSessionStore } from './stores/session'
 import { useTerminalStore } from './stores/terminals'
@@ -40,7 +41,7 @@ export default function App() {
   const mode = useLayoutStore((s) => s.mode)
   const focus = useLayoutStore((s) => s.focus)
   const toggleFocus = useLayoutStore((s) => s.toggleFocus)
-  const pending = useSessionStore((s) => s.pendingRequests.length)
+  const pending = useWaitingCount()
   const chosenDock = useLayoutStore((s) => s.dock)
   const dock = visibleDock({ dock: chosenDock, focus }, pending, Boolean(activeId))
   const sidebar = useSidebarShown()
@@ -215,7 +216,7 @@ function useHealth(): [Health | null, () => Promise<void>] {
 
 // useAttentionTitle keeps the tab title and icon saying what needs the owner.
 function useAttentionTitle() {
-  const pending = useSessionStore((s) => s.pendingRequests.length)
+  const pending = useWaitingCount()
   const running = useSessionStore((s) => s.sessions.some((x) => x.status === 'running'))
   const sessionName = useSessionStore((s) => {
     const active = s.sessions.find((x) => x.id === s.activeId)

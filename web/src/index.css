@@ -431,13 +431,14 @@ button.health { border: 0; background: none; padding: 0; }
 .session-text { display: grid; min-width: 0; gap: 1px; }
 .session-title { font-weight: 500; font-size: 13px; color: var(--ink-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .session-meta { display: flex; align-items: center; gap: 8px; font-family: var(--font-mono); font-size: 11.5px; color: var(--ink-3); min-width: 0; }
-.session-status { display: inline-flex; align-items: center; gap: 5px; text-transform: lowercase; }
+.session-status { display: inline-flex; align-items: center; gap: 5px; text-transform: lowercase; flex: none; white-space: nowrap; }
 .session-status::before { content: ''; width: 7px; height: 7px; border: 1px solid currentColor; border-radius: 1px; }
 .session-status-running { color: var(--ink); }
 .session-status-running::before { background: currentColor; }
-.session-fork { border: 1px dashed currentColor; padding: 0 4px; line-height: 1.3; text-transform: lowercase; }
-/* a worktree session names its branch, after a branch glyph */
-.session-branch { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--font-mono); font-size: 11.5px; color: var(--ink-3); }
+.session-fork { flex: none; border: 1px dashed currentColor; padding: 0 4px; line-height: 1.3; text-transform: lowercase; }
+/* a worktree session names its branch, after a branch glyph; it is context,
+   so it is what yields when the row is short of room */
+.session-branch { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--font-mono); font-size: 11.5px; color: var(--ink-3); }
 .session-branch::before { content: '⎇ '; }
 .session-status-interrupted { color: var(--ink); }
 .session-status-interrupted::before { background: linear-gradient(to top right, transparent 45%, currentColor 45% 60%, transparent 60%); }
@@ -451,7 +452,7 @@ button.health { border: 0; background: none; padding: 0; }
   flex: none; font-family: var(--font-mono); font-size: 11.5px; letter-spacing: 0.06em; text-transform: uppercase;
   color: var(--ink); border-bottom: 1px dashed var(--ink); line-height: 1.2;
 }
-.session-time { white-space: nowrap; margin-left: auto; }
+.session-time { flex: none; white-space: nowrap; margin-left: auto; }
 .session-meta .badge { flex: none; min-width: 16px; height: 16px; }
 .message-hits { display: grid; gap: 4px; padding-top: 10px; border-top: 1px solid var(--rule); }
 .message-hits .section-title { padding: 2px 0; }
@@ -840,8 +841,10 @@ button.health { border: 0; background: none; padding: 0; }
 .new-terminal { display: flex; gap: 8px; flex-wrap: wrap; }
 .new-terminal .folder-field { flex: 1 1 100%; }
 .new-terminal .btn { flex: 1; }
-.terminal-tabs { list-style: none; margin: 0; padding: 0; display: flex; flex: 1; min-width: 0; overflow-x: auto; scrollbar-width: thin; }
-.terminal-tabs li { flex: none; display: flex; align-items: center; border-bottom: 2px solid transparent; margin-bottom: -1px; }
+/* the strip scrolls sideways only; it sits 1px over the rule below so the
+   open tab's underline lands on it without overflowing downwards */
+.terminal-tabs { list-style: none; margin: 0 0 -1px; padding: 0; display: flex; flex: 1; min-width: 0; overflow-x: auto; overflow-y: hidden; scrollbar-width: thin; }
+.terminal-tabs li { flex: none; display: flex; align-items: center; border-bottom: 2px solid transparent; }
 .terminal-tabs li:has([aria-selected='true']) { border-bottom-color: var(--ink); }
 .terminal-tabs button { height: 30px; border: 0; background: none; color: var(--ink-3); font-family: var(--font-mono); font-size: 12.5px; }
 .terminal-tabs [role='tab'] { display: inline-flex; align-items: center; gap: 6px; padding: 0 4px 0 10px; white-space: nowrap; }

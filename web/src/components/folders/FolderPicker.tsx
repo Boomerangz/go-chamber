@@ -37,6 +37,14 @@ export interface FolderPickerProps {
   onClose: () => void
 }
 
+// failedName says which folder couldn't be listed: by name over another
+// folder's listing, as "this folder" when its own path is what shows.
+function failedName(path: string, listing: FolderListing | null): string {
+  if (path === '') return 'your home folder'
+  if (!listing) return 'this folder'
+  return basename(path)
+}
+
 // FolderPicker browses the server's folders. Browsers can't hand out
 // absolute paths of local folders, so the listing comes from go-chamber.
 export default function FolderPicker({ start = '', recent = [], onPick, onClose }: FolderPickerProps) {
@@ -95,7 +103,11 @@ export default function FolderPicker({ start = '', recent = [], onPick, onClose 
         }),
       )
       .then((l) => current() && setListing(l))
-      .catch((e: unknown) => current() && setError(describeError(e)))
+      .catch((e: unknown) => {
+        if (!current()) return
+        setError(describeError(e))
+        setFailed({ path: start, hidden: showHidden })
+      })
       .finally(() => current() && setLoading(false))
     return () => {
       alive = false
@@ -153,9 +165,10 @@ export default function FolderPicker({ start = '', recent = [], onPick, onClose 
           </button>
         </header>
 
-        {listing && (
+        {/* the path stays on screen when its listing failed: where it failed */}
+        {(listing || failed?.path) && (
           <nav className="crumbs" aria-label="Folder path">
-            {crumbs(listing.path, listing.home).map((c, i, all) => (
+            {crumbs(listing?.path ?? failed!.path, listing?.home ?? '').map((c, i, all) => (
               <span key={c.path} className="crumb">
                 <button type="button"
                   className={i === all.length - 1 ? 'crumb-current' : undefined}
@@ -259,16 +272,15 @@ export default function FolderPicker({ start = '', recent = [], onPick, onClose 
         </ul>
 
         {missing && listing && !error && <p className="picker-note">{`${missing} not found, showing home`}</p>}
-        {error && listing && failed && <LoadFailed onRetry={() => go(failed.path, failed.hidden)}>{error}</LoadFailed>}
-        {error && !(listing && failed) && (
-          <p className="error picker-error" role="alert">
-            {error}
-            {!listing && (
+        {error && failed && (
+          <div className="picker-failed">
+            <LoadFailed onRetry={() => go(failed.path, failed.hidden)}>{`Couldn't list ${failedName(failed.path, listing)}: ${error}`}</LoadFailed>
+            {!listing && failed.path !== '' && (
               <button type="button" className="btn btn-xs" onClick={() => go('')}>
                 Go home
               </button>
             )}
-          </p>
+          </div>
         )}
 
         <footer className="picker-footer">
