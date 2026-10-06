@@ -862,11 +862,8 @@ button.health { border: 0; background: none; padding: 0; }
   background: var(--paper); border-right: 1px solid var(--rule);
 }
 .term-projects { display: grid; gap: 8px; }
-.term-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.term-chips { display: flex; flex-wrap: wrap; gap: 6px; min-width: 0; }
 .term-chips .chip .icon { color: var(--ink-3); }
-/* a long project name stays one line in its 24px chip; the title has it all */
-.term-chips .chip { display: inline-block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; line-height: 22px; }
-.term-chips .chip .icon { vertical-align: -2px; }
 .term-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 1px; }
 .term-row { display: flex; align-items: center; border: 1px solid transparent; border-radius: var(--r); transition: background var(--dur-fast); }
 .term-row:hover { background: var(--paper-2); }
@@ -930,10 +927,12 @@ button.health { border: 0; background: none; padding: 0; }
   height: 24px; padding: 0 8px; border: 1px solid var(--rule-strong); border-radius: var(--r);
   background: var(--paper); color: var(--ink-2); font-family: var(--font-mono); font-size: 12px;
 }
+/* a long name stays one line inside its chip, cut at the end; the title has it all */
+.chip { max-width: 100%; min-width: 0; }
+.chip-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .chip:hover { border-color: var(--ink); color: var(--ink); }
 .chip[aria-pressed='true'] { border-color: var(--ink); color: var(--ink); }
 .folder-chips { gap: 4px 6px; min-width: 0; }
-.folder-chips .chip { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: inline-block; line-height: 22px; }
 .field-hint { margin: -4px 0 0; color: var(--bad); font-size: 12.5px; }
 
 .folder-list {
@@ -1061,7 +1060,6 @@ button.health { border: 0; background: none; padding: 0; }
   .btn-icon { width: 36px; height: 36px; }
   .segmented button, .model-button, .field-sm, .effort-options button { height: 36px; }
   .chip { height: 36px; }
-  .term-chips .chip, .folder-chips .chip { line-height: 34px; }
   .folder-item .pick { height: 36px; }
   .item-output > summary, .item.hook > summary, .item.reasoning summary, .item.tool-group > summary,
   .quotas-details summary, .request-raw > summary { padding-block: 9px; }

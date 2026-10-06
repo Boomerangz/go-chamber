@@ -8,6 +8,7 @@ import { useState } from 'react'
 import { openKey, useTerminalStore } from '../../stores/terminals'
 import EditableTitle from '../title/EditableTitle'
 import { LoadFailed, LoadingLine } from '../ui/Loading'
+import PathText from '../ui/PathText'
 import CloseTerminalButton from './CloseTerminalButton'
 import NewTerminalForm from './NewTerminalForm'
 import TerminalScreen from './TerminalScreen'
@@ -90,7 +91,7 @@ export default function TerminalWorkspace({ sessions }: { sessions: Session[] })
                     {t.title}
                     {t.status === 'exited' && <span className={t.exitCode === 0 ? 'term-exit' : 'term-exit term-bad'}> exited {t.exitCode}</span>}
                   </span>
-                  <span className="term-cwd" title={t.cwd}>{t.cwd}</span>
+                  <PathText path={t.cwd} className="term-cwd" />
                 </span>
               </button>
               <CloseTerminalButton terminal={t} />
@@ -128,7 +129,8 @@ export default function TerminalWorkspace({ sessions }: { sessions: Session[] })
                   aria-busy={opening[openKey({ cwd: dir })] || undefined}
                   onClick={() => void open({ cwd: dir })}
                 >
-                  <SquareTerminal {...icon(13)} /> {basename(dir)}
+                  <SquareTerminal {...icon(13)} />
+                  <span className="chip-label">{basename(dir)}</span>
                 </button>
               ))}
             </div>
@@ -146,7 +148,7 @@ export default function TerminalWorkspace({ sessions }: { sessions: Session[] })
             <header className="term-header">
               <span className="term-dot" data-mark={markOf(active, conn[active.id]).form} aria-hidden="true" />
               <EditableTitle className="term-title" value={active.title} label="terminal" onRename={(title) => rename(active.id, title)} />
-              <span className="term-cwd" title={active.cwd}>{active.cwd}</span>
+              <PathText path={active.cwd} className="term-cwd" />
               <span className="term-shell">{basename(active.shell)}</span>
               <span className="term-header-actions">
                 <button type="button" className="btn btn-ghost btn-icon" aria-label="Copy folder path" title="Copy folder path" onClick={() => void copyPath(active.cwd)}>

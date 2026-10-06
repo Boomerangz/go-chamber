@@ -188,7 +188,7 @@ export default function Sidebar(props: SidebarProps) {
                   if (missing === 'cwd') setMissing(null)
                 }}
               >
-                {g.name}
+                <span className="chip-label">{g.name}</span>
               </button>
             ))}
           </div>

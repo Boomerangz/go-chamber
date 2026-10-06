@@ -206,7 +206,7 @@ export default function FolderPicker({ start = '', recent = [], onPick, onClose 
             {recent.map((p) => (
               <span key={p} className="recent-folder">
                 <button type="button" className="chip" title={`Use ${p}`} onClick={() => onPick(p)}>
-                  {basename(p)}
+                  <span className="chip-label">{basename(p)}</span>
                 </button>
                 <button type="button" className="btn btn-ghost btn-icon recent-open" aria-label={`Browse inside ${p}`} title={`Browse inside ${p}`} onClick={() => go(p)}>
                   <FolderOpen {...icon(13)} />
