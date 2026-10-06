@@ -84,3 +84,16 @@ func TestListFilesMissingRoot(t *testing.T) {
 		t.Fatal("expected an error")
 	}
 }
+
+func TestListFilesFollowsASymlinkedRoot(t *testing.T) {
+	real := t.TempDir()
+	writeFiles(t, real, "a.txt", "src/b.go")
+	link := filepath.Join(t.TempDir(), "link")
+	if err := os.Symlink(real, link); err != nil {
+		t.Skipf("symlink: %v", err)
+	}
+	want := []string{"a.txt", "src/b.go"}
+	if got := listed(t, &Files{}, link); !reflect.DeepEqual(got, want) {
+		t.Fatalf("got %v, want %v", got, want)
+	}
+}

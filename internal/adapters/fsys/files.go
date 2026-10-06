@@ -85,6 +85,11 @@ func gitFiles(ctx context.Context, root string, limit int) ([]string, bool) {
 }
 
 func walkFiles(root string, limit int) ([]string, error) {
+	// WalkDir doesn't follow a symlinked root (macOS /tmp is one); walk its
+	// target. Listed paths are relative, so they read the same either way.
+	if resolved, err := filepath.EvalSymlinks(root); err == nil {
+		root = resolved
+	}
 	var files []string
 	err := filepath.WalkDir(root, func(p string, d fs.DirEntry, err error) error {
 		if err != nil {
