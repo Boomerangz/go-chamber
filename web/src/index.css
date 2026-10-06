@@ -1038,7 +1038,9 @@ button.health { border: 0; background: none; padding: 0; }
   .sidebar { border-right: 0; }
   .requests-pane { flex-direction: column; min-height: 0; }
   .requests-pane .tray-empty { display: block; padding: 32px var(--gutter); color: var(--ink-3); }
+  /* a long inbox scrolls inside its pane, never under the pane bar */
   .request-tray { max-height: none; }
+  .requests-pane .request-tray { flex: 1; min-height: 0; }
   .term-layout { padding-bottom: env(safe-area-inset-bottom); }
   .term-layout > .term-workspace { display: grid; }
   .term-workspace { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); }
