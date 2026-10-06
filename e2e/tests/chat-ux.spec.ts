@@ -98,6 +98,18 @@ test('cuts a long command to one line', async ({ page }) => {
   expect(await code.evaluate((el) => el.scrollWidth > el.clientWidth)).toBe(true)
 })
 
+test('keeps Copy off the output on a touch screen', async ({ page, isMobile }) => {
+  test.skip(!isMobile, 'touch screens only')
+  await newSession(page)
+  await page.getByLabel('message').fill('bash it')
+  await page.getByRole('button', { name: 'Send' }).click()
+  const fold = page.locator('.item.command details.item-output')
+  await fold.locator('summary').click()
+  const copy = (await fold.locator('.item-output-copy').boundingBox())!
+  const pre = (await fold.locator('pre').boundingBox())!
+  expect(copy.y + copy.height).toBeLessThanOrEqual(pre.y + 1)
+})
+
 test('brings sent messages back with ArrowUp', async ({ page }) => {
   await newSession(page)
   await say(page, 'first thing')

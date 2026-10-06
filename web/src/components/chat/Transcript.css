@@ -47,7 +47,14 @@
   opacity: 0; transition: opacity var(--dur-fast);
 }
 .item-output-body:hover .item-output-copy, .item-output-copy:focus-visible { opacity: 1; }
-@media (hover: none), (pointer: coarse) { .item-output-body .item-output-copy { opacity: 1; } }
+/* a touch screen has no hover to reveal Copy: it gets a row of its own above
+   the output, so it never covers the first lines */
+@media (hover: none), (pointer: coarse) {
+  .item-output-body { display: flex; flex-direction: column; }
+  .item-output-body > * { min-width: 0; }
+  .item-output-body .item-output-copy { position: static; order: -1; align-self: flex-end; margin: 4px 0; opacity: 1; background: none; }
+  .item-output-body .inline-diff { margin-top: 0; }
+}
 
 /* errors: what broke, said in the open */
 .item.item-error {
