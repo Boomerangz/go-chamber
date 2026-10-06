@@ -430,6 +430,14 @@ describe('header', () => {
     expect(fns.forkSession).toHaveBeenCalledTimes(1)
   })
 
+  it('names who reviews approvals in the choice itself', () => {
+    setup({ sessions: [{ ...session, agent: 'codex' }] })
+    const select = screen.getByLabelText('Approval reviewer')
+    expect([...select.querySelectorAll('option')].map((o) => o.textContent)).toEqual(['Default approvals', 'ask me to approve', 'auto-review'])
+    expect(select).toHaveAttribute('title', 'Who reviews approvals · default: as the Codex config sets it')
+    expect(screen.getByText('Approvals')).toHaveClass('tool-label')
+  })
+
   it('shows the reviewer choice at once and reverts a refused one', async () => {
     let done: (ok: boolean) => void = () => {}
     setup({ sessions: [{ ...session, agent: 'codex', approvalReviewer: 'user' }] })

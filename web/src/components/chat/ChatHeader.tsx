@@ -31,10 +31,13 @@ function ApprovalReviewerSelect({ session }: { session: Session }) {
   }
   return (
     <label className="reviewer">
-      Approvals
+      <span className="tool-label" aria-hidden="true">
+        Approvals
+      </span>
       <select
         className="field field-sm"
         aria-label="Approval reviewer"
+        title="Who reviews approvals · default: as the Codex config sets it"
         aria-busy={saving !== null || undefined}
         value={saving ?? session.approvalReviewer ?? ''}
         onChange={(e) => {
@@ -42,9 +45,9 @@ function ApprovalReviewerSelect({ session }: { session: Session }) {
         }}
       >
         <option value="" disabled>
-          from Codex config
+          Default approvals
         </option>
-        <option value="user">ask me</option>
+        <option value="user">ask me to approve</option>
         <option value="auto_review">auto-review</option>
       </select>
       {saving !== null && <span className="busy-mark" aria-hidden="true" />}

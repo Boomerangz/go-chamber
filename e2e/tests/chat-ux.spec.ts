@@ -204,7 +204,8 @@ test('keeps the session header one height with any dock open', async ({ page, is
   for (const name of ['Requests', 'Terminal', 'Changes']) {
     await dock.getByRole('button', { name }).click()
     await expect.poll(height).toBe(base)
-    expect(await header.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true)
+    // The settings fold once the dock has taken its width (a frame later).
+    await expect.poll(() => header.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true)
     await dock.getByRole('button', { name }).click()
   }
   // A Codex session, with its approvals choice, takes the same height.

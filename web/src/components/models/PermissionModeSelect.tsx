@@ -39,6 +39,7 @@ export default function PermissionModeSelect({ session }: { session: Session }) 
   const value = pending ?? session.permissionMode ?? ''
   const danger = isDangerousMode(value)
   const label = (mode: string) => modes[session.agent].find(([v]) => v === mode)?.[1] ?? mode
+  const config = session.agent === 'codex' ? 'Codex' : 'Claude'
 
   const change = async (mode: string) => {
     const ticket = ++latest.current
@@ -60,17 +61,21 @@ export default function PermissionModeSelect({ session }: { session: Session }) 
   return (
     <span className="mode-select">
       <label className="reviewer">
-        Mode
+        {/* The word shows only where the settings stack, on a phone; inline,
+            the choice names itself ("Default mode", "plan only"). */}
+        <span className="tool-label" aria-hidden="true">
+          Mode
+        </span>
         <select
           ref={select}
           className={`field field-sm${danger ? ' mode-danger' : ''}`}
           aria-label="Permission mode"
           aria-busy={pending !== null || undefined}
-          title={danger ? dangerTitle : undefined}
+          title={danger ? dangerTitle : `Permission mode · default: as the ${config} config sets it`}
           value={value}
           onChange={(e) => choose(e.target.value)}
         >
-          <option value="">from {session.agent === 'codex' ? 'Codex' : 'Claude'} config</option>
+          <option value="">Default mode</option>
           {modes[session.agent].map(([v, text]) => (
             <option key={v} value={v} title={isDangerousMode(v) ? dangerTitle : undefined}>
               {text}
