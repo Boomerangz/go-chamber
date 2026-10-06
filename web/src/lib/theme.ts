@@ -1,3 +1,4 @@
+import type { ISearchOptions } from '@xterm/addon-search'
 import type { ITheme } from '@xterm/xterm'
 
 // TokenReader returns the current value of a CSS custom property, or '' when
@@ -12,8 +13,26 @@ function pageTokens(): TokenReader {
 
 // The tokens' values when the stylesheet is not there to read.
 const fallback = {
-  dark: { paper: '#0f1012', ink: '#e4e2dc', act: '#8c98ff', bad: '#f07a6a' },
-  light: { paper: '#f3f3f1', ink: '#16171a', act: '#2433d6', bad: '#b3261e' },
+  dark: { paper: '#0f1012', ink: '#e4e2dc', act: '#8c98ff', bad: '#f07a6a', paper3: '#1e2023', rule: '#2a2c30', ruleStrong: '#5e6066' },
+  light: { paper: '#f3f3f1', ink: '#16171a', act: '#2433d6', bad: '#b3261e', paper3: '#dfdfda', rule: '#d3d3cd', ruleStrong: '#8c8c86' },
+}
+
+// searchDecorations marks scrollback matches in the sheet's quiet tones and
+// the current one with the focus colour's border. On the dark sheet each
+// mark is one tone stronger: its deep paper sits too close to the sheet.
+export function searchDecorations(dark: boolean, token: TokenReader = pageTokens()): ISearchOptions['decorations'] {
+  const base = dark ? fallback.dark : fallback.light
+  const paper3 = token('--paper-3') || base.paper3
+  const rule = token('--rule') || base.rule
+  const ruleStrong = token('--rule-strong') || base.ruleStrong
+  const act = token('--act') || base.act
+  return {
+    matchBackground: dark ? rule : paper3,
+    matchOverviewRuler: ruleStrong,
+    activeMatchBackground: dark ? ruleStrong : rule,
+    activeMatchBorder: act,
+    activeMatchColorOverviewRuler: act,
+  }
 }
 
 // terminalTheme prints the terminal in the page's ink: the sheet, ink,

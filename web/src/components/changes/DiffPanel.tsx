@@ -257,7 +257,7 @@ function SessionDiffPanel({ sessionId }: { sessionId: string | null }) {
           )}
           <button
             type="button"
-            className="btn btn-icon"
+            className="btn btn-ghost btn-icon"
             aria-label="Refresh changes"
             title={refreshing || !changes ? 'Refreshing…' : 'Refresh'}
             aria-busy={(loading && (refreshing || !changes)) || undefined}

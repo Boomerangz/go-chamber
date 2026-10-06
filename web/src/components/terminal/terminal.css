@@ -1,6 +1,6 @@
 /* ---------- terminal: connection line, keys, close confirm, dock tabs ---------- */
 
-.terminal-panel { flex-direction: column; gap: 6px; }
+.terminal-panel { display: flex; flex-direction: column; gap: 6px; flex: 1; min-height: 0; }
 
 /* one line above the screen while the connection is not simply live */
 .term-strip {
@@ -17,7 +17,6 @@
   position: absolute; right: 14px; bottom: 10px; z-index: 2; gap: 4px;
   background: var(--paper); text-transform: lowercase;
 }
-.chip[aria-busy='true'] { cursor: progress; }
 
 /* find in scrollback: one line in the strip's place */
 .term-find { flex-wrap: nowrap; text-transform: none; }
@@ -32,7 +31,7 @@
     flex: none; display: flex; gap: 4px; overflow-x: auto; scrollbar-width: none;
     font-family: var(--font-mono);
   }
-  .term-keys .btn { flex: none; min-width: 36px; height: 32px; justify-content: center; }
+  .term-keys .btn { flex: none; min-width: 36px; height: 36px; justify-content: center; }
   .term-keys .btn[aria-pressed='true'] { border-color: var(--ink); background: var(--paper-2); color: var(--ink); }
   .term-keys-gap { flex: none; width: 1px; margin: 4px 2px; background: var(--rule); }
 }
@@ -46,7 +45,9 @@
 .term-row .term-confirm { flex-basis: 100%; min-width: 0; flex-wrap: wrap; justify-content: flex-end; padding: 0 8px 6px; }
 .term-row.closing, .terminal-tabs li.closing { opacity: 0.5; transition: opacity var(--dur-fast); }
 .term-row.closing [role='tab'] { cursor: progress; }
-.term-exit { font-family: var(--font-mono); color: var(--ink-3); }
+/* an exit code: quiet mono after the name, in a tab or a list row */
+.term-exit { font-family: var(--font-mono); font-size: 11px; font-weight: 400; color: var(--ink-3); }
+.term-title .term-exit { margin-left: 6px; }
 .term-error {
   display: flex; align-items: center; gap: 6px; margin: 0; flex-basis: 100%;
   color: var(--bad); font-size: 13px; overflow-wrap: anywhere;
@@ -100,6 +101,7 @@
 @media (max-width: 720px) {
   .terminal-tabs .close-terminal { width: 36px; height: 36px; }
   .term-row .close-terminal { width: 36px; height: 36px; }
+  .term-find .btn-icon { width: 36px; height: 36px; }
 }
 
 /* a failed exit is red in the list too, not only above the screen */
