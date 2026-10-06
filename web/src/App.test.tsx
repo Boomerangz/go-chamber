@@ -268,13 +268,13 @@ describe('App', () => {
           r1: { id: 'r1', sessionId: 's1', kind: 'reasoning', status: 'completed', text: 'hmm' },
           c1: { id: 'c1', sessionId: 's1', kind: 'command', status: 'completed', name: 'Bash', input: { command: 'ls' }, text: 'a\nb' },
           f1: { id: 'f1', sessionId: 's1', kind: 'file_change', status: 'completed', name: 'Edit', path: '/tmp/x.go' },
-          t1: { id: 't1', sessionId: 's1', kind: 'tool_call', status: 'completed', name: 'WebFetch' },
+          t1: { id: 't1', sessionId: 's1', kind: 'tool_call', status: 'pending', name: 'WebFetch' },
           s1: { id: 's1', sessionId: 's1', kind: 'subagent', status: 'completed', name: 'Task' },
         },
       },
     })
     render(<App />)
-    await userEvent.click(await screen.findByText('Thinking'))
+    await userEvent.click(await screen.findByText('Thought'))
     expect(await screen.findByText('hmm')).toBeInTheDocument()
     expect(screen.getByText('ls')).toBeInTheDocument()
     expect(screen.getByText('/tmp/x.go')).toBeInTheDocument()
