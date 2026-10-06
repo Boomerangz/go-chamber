@@ -267,7 +267,7 @@ export default function Chat() {
     if (useSessionStore.getState().activeId === sessionId) {
       if (textRef.current === text) setText('')
       stick.stick()
-      input.current?.focus()
+      if (!document.activeElement?.closest('.request')) input.current?.focus()
     }
     return true
   }

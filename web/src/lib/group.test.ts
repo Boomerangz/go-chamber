@@ -11,7 +11,7 @@ const ids = (nodes: ItemNode[]) => nodes.map((n) => (n.group ? `[${n.group.map((
 
 describe('groupTools', () => {
   it('folds three or more finished tool lines into one row', () => {
-    const nodes = [node('u', { kind: 'user_message' }), node('a'), node('b', { kind: 'command' }), node('c', { kind: 'file_change' }), node('m', { kind: 'assistant_message' })]
+    const nodes = [node('u', { kind: 'user_message' }), node('a'), node('b', { kind: 'command' }), node('c', { name: 'Grep' }), node('m', { kind: 'assistant_message' })]
     const out = groupTools(nodes)
     expect(ids(out)).toEqual(['u', '[a,b,c]', 'm'])
     expect(out[1]!.item.id).toBe('a')
@@ -31,6 +31,14 @@ describe('groupTools', () => {
       node('i'), node('j'), node('kids', {}, [node('x')]),
     ])
     expect(ids(out)).toEqual(['a', 'b', 'run', 'c', 'd', 'bad', 'e', 'f', 'exit', 'g', 'h', 'sub', 'i', 'j', 'kids'])
+  })
+
+  it('keeps edits on lines of their own: their diffs are what gets reviewed', () => {
+    const out = groupTools([
+      node('a'), node('b'), node('f', { kind: 'file_change', name: 'Edit' }),
+      node('c'), node('d'), node('w', { name: 'Write' }), node('e'), node('g'), node('h'),
+    ])
+    expect(ids(out)).toEqual(['a', 'b', 'f', 'c', 'd', 'w', '[e,g,h]'])
   })
 
   it('takes a command that exited zero', () => {
@@ -68,10 +76,8 @@ describe('groupSummary', () => {
       node('4', { name: 'Grep', input: { pattern: 'x' } }),
       node('5', { name: 'Glob', input: { pattern: 'y' } }),
       node('6', { kind: 'command', name: 'Bash' }),
-      node('7', { kind: 'file_change', path: '/a' }),
-      node('8', { kind: 'file_change', path: '/a' }),
     ]
-    expect(groupSummary(nodes)).toBe('Read 2 files · searched 2 patterns · ran 1 command · edited 1 file')
+    expect(groupSummary(nodes)).toBe('Read 2 files · searched 2 patterns · ran 1 command')
   })
 
   it('counts a file by its path field or each call without one', () => {

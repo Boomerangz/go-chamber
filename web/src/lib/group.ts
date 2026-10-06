@@ -6,11 +6,17 @@ import type { ItemNode } from './tree'
 // what they did.
 export const GROUP_MIN = 3
 
-// groupable: a finished tool line with nothing to say on its own. A failed
-// one, a command that exited non-zero and anything still running stay out.
+// Tools that edit a file: their diff is what the owner reviews, so they
+// keep a line of their own.
+const EDITS = new Set(['Edit', 'MultiEdit', 'Write', 'NotebookEdit'])
+
+// groupable: a finished tool line with nothing to say on its own. Edits, a
+// failed line, a command that exited non-zero and anything still running
+// stay out.
 function groupable(node: ItemNode): boolean {
   const item = node.item
-  if (item.kind !== 'tool_call' && item.kind !== 'command' && item.kind !== 'file_change') return false
+  if (item.kind !== 'tool_call' && item.kind !== 'command') return false
+  if (item.name && EDITS.has(item.name)) return false
   if (item.status !== 'completed' || node.children.length > 0) return false
   return item.exitCode === undefined || item.exitCode === 0
 }
@@ -59,14 +65,13 @@ const SEARCHES = new Set(['Grep', 'Glob', 'LS', 'grep', 'glob', 'search'])
 
 function target(item: Item): string {
   const input = item.input && typeof item.input === 'object' ? (item.input as Record<string, unknown>) : {}
-  const path = item.path ?? input.file_path ?? input.path ?? input.notebook_path
+  const path = input.file_path ?? input.path ?? input.notebook_path
   return typeof path === 'string' && path ? path : item.id
 }
 
-// category sorts a tool line into what it did: read, searched, edited, ran.
+// category sorts a tool line into what it did: read, searched, ran.
 function category(item: Item): Omit<Tally, 'keys' | 'calls'> & { key: string } {
   if (item.kind === 'command') return { key: 'ran', verb: 'ran', one: 'command', many: 'commands', distinct: false }
-  if (item.kind === 'file_change') return { key: 'edited', verb: 'edited', one: 'file', many: 'files', distinct: true }
   const name = item.name ?? ''
   if (READS.has(name)) return { key: 'read', verb: 'read', one: 'file', many: 'files', distinct: true }
   if (SEARCHES.has(name)) return { key: 'searched', verb: 'searched', one: 'pattern', many: 'patterns', distinct: false }
