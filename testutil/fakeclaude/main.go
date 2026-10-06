@@ -268,6 +268,15 @@ func startTurn(mode string, enc *json.Encoder, out *bufio.Writer, sessionID, pro
 			return emitPlanApproval(enc, out, sessionID)
 		case strings.Contains(low, "which model"):
 			emitTextTurn(enc, out, sessionID, "model: "+model+" effort: "+effort)
+		case strings.Contains(low, "edit some files"):
+			emitEditTurn(enc, out, sessionID)
+		case strings.Contains(low, "fail this turn"):
+			emitText(enc, out, sessionID, "trying")
+			_ = enc.Encode(map[string]any{
+				"type": "result", "subtype": "error_during_execution", "is_error": true,
+				"session_id": sessionID, "result": "API Error: overloaded",
+				"usage": map[string]any{"input_tokens": 7, "output_tokens": 3},
+			})
 		default:
 			emitTextTurn(enc, out, sessionID, "echo: "+prompt)
 		}
@@ -525,6 +534,29 @@ func emitToolTurn(enc *json.Encoder, out *bufio.Writer, sessionID, prompt string
 	_ = out.Flush()
 	writeToolResult(enc, sessionID, toolUseID, "ran: "+prompt, false)
 	emitTextTurn(enc, out, sessionID, "done: "+prompt)
+}
+
+// emitEditTurn reads three files, edits one of them and answers, as a turn
+// that changes code does.
+func emitEditTurn(enc *json.Encoder, out *bufio.Writer, sessionID string) {
+	tool := func(name string, input map[string]any, result string) {
+		msgID := "msg_" + strconv.Itoa(nextSeq())
+		toolUseID := "toolu_edit_" + strconv.Itoa(nextSeq())
+		_ = enc.Encode(map[string]any{
+			"type": "assistant", "session_id": sessionID, "uuid": "e-" + msgID,
+			"parent_tool_use_id": nil,
+			"message": map[string]any{"id": msgID, "role": "assistant", "content": []any{
+				map[string]any{"type": "tool_use", "id": toolUseID, "name": name, "input": input},
+			}},
+		})
+		writeToolResult(enc, sessionID, toolUseID, result, false)
+		_ = out.Flush()
+	}
+	for _, path := range []string{"/src/a.go", "/src/b.go", "/src/c.go"} {
+		tool("Read", map[string]any{"file_path": path}, "package src")
+	}
+	tool("Edit", map[string]any{"file_path": "/src/a.go", "old_string": "x := 1\ny := 2", "new_string": "x := 1\ny := 3\nz := 4"}, "edited")
+	emitTextTurn(enc, out, sessionID, "edited a.go")
 }
 
 func emitPartial(enc *json.Encoder, out *bufio.Writer, sessionID, text string) {

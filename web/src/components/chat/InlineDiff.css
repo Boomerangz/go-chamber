@@ -1,0 +1,23 @@
+/* a diff in the transcript or a request: the Changes panel's language, capped like output */
+.inline-diff-wrap { grid-column: 1 / -1; min-width: 0; }
+.inline-diff {
+  margin: 6px 0 0; padding: 6px 0; max-height: 280px; overflow: auto;
+  border: 1px solid var(--rule); border-radius: var(--r); background: var(--paper);
+  font-family: var(--font-mono); font-size: 12px; line-height: 1.45; color: var(--ink-2);
+}
+.inline-diff.full { max-height: none; }
+.inline-diff > .idiff {
+  min-height: 1.45em; padding: 0 10px 0 8px; white-space: pre; border-left: 1px solid transparent;
+  width: max-content; min-width: 100%;
+}
+.idiff-sign { display: inline-block; width: 2ch; color: var(--ink-3); user-select: none; }
+/* added lines are ink on pressed paper with a strong hairline; blue is for pressable only */
+.inline-diff > .idiff-add { color: var(--ink); background: var(--paper-2); border-left-color: var(--rule-strong); }
+.inline-diff > .idiff-del { color: var(--ink); background: var(--bad-wash); border-left-color: var(--bad); }
+.idiff-del .idiff-sign { color: var(--bad); }
+.idiff-add .idiff-sign { color: var(--ink); }
+.inline-diff > .idiff-hunk, .inline-diff > .idiff-meta { color: var(--ink-3); }
+.inline-diff-wrap > .show-all { margin-top: 4px; }
+
+/* the +/− count after a diff's label */
+.diff-stat { font-family: var(--font-mono); color: var(--ink-3); white-space: nowrap; }

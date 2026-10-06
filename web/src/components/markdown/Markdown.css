@@ -10,7 +10,14 @@
 .md-code-lang {
   font-family: var(--font-mono); font-size: 11.5px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-3);
 }
-.md-code-bar .copy-btn { height: 22px; }
+.md-code-bar .copy-btn, .md-code-bar .md-code-wrap-toggle { height: 22px; }
+.md-code-tools { display: inline-flex; gap: 2px; }
+.md-code-wrap-toggle[aria-pressed='true'] { color: var(--ink); border-color: var(--rule-strong); }
+
+/* long lines wrapped on request; a capped block shown whole */
+.md pre.md-code.md-code-wrap, .item .md pre.md-code.md-code-wrap { white-space: pre-wrap; overflow-wrap: anywhere; }
+.item .md pre.md-code.full { max-height: none; }
+.md-codeblock > .show-all { margin: 4px 0 0; }
 
 /* the line a file link points at, in the file viewer */
 .md-line-mark { background: var(--paper-3); box-shadow: inset 1px 0 0 var(--ink); scroll-margin: 40px; }

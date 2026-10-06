@@ -1,4 +1,5 @@
 import type { Item, SessionEvent, SessionRequest, SessionStatus, TurnResult, Usage } from './api'
+import { isBlank } from './tree'
 
 export interface ChatState {
   items: Record<string, Item>
@@ -6,6 +7,9 @@ export interface ChatState {
   status: SessionStatus
   lastSeq: number
   result?: TurnResult
+  // turnResults holds each finished turn's result by the id of the last
+  // top-level item it showed.
+  turnResults?: Record<string, TurnResult>
   usage?: Usage
   requests: Record<string, SessionRequest>
   // lastTurnFailed is true when the last turn ended with an error, so the
@@ -39,10 +43,12 @@ export function applyEvent(state: ChatState, ev: SessionEvent): ChatState {
       next.status = 'running'
       next.lastTurnFailed = false
       return next
-    case 'turn.ended':
+    case 'turn.ended': {
       next.status = 'idle'
       if (ev.result) next.result = ev.result
-      return endTurn(next, ev)
+      const ended = endTurn(next, ev)
+      return ev.result ? withTurnResult(ended, ev.result) : ended
+    }
     case 'usage':
       if (ev.usage) next.usage = ev.usage
       return next
@@ -110,6 +116,17 @@ function endTurn(state: ChatState, ev: SessionEvent): ChatState {
     name: TURN_FAILED,
     text: result?.error?.trim() || result?.text?.trim() || 'The turn ended with an error.',
   })
+}
+
+// withTurnResult files a turn's result under the last top-level item the
+// transcript shows for it, where the turn's footer goes.
+function withTurnResult(state: ChatState, result: TurnResult): ChatState {
+  for (let i = state.order.length - 1; i >= 0; i--) {
+    const item = state.items[state.order[i]!]
+    if (!item || (item.parentItemId && state.items[item.parentItemId]) || isBlank(item)) continue
+    return { ...state, turnResults: { ...state.turnResults, [item.id]: result } }
+  }
+  return state
 }
 
 function reportedInTurn(state: ChatState): boolean {

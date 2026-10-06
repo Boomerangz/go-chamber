@@ -24,8 +24,9 @@ import { enter } from '../../lib/motion'
 import { useJustFinished } from '../../lib/finished'
 import { useNow } from '../../lib/now'
 import { usePending } from '../../lib/pending'
-import { firstUnseen, loadSeen, saveSeen } from '../../lib/seen'
+import { useUnseen } from '../../lib/seen'
 import { isBlank, itemTree } from '../../lib/tree'
+import { groupTools, lastItemId } from '../../lib/group'
 import { turnNumbers } from '../../lib/turns'
 import { loadDraft, saveDraft } from '../../stores/drafts'
 import { useSessionStore } from '../../stores/session'
@@ -112,7 +113,9 @@ export default function Chat() {
     return keys
   }, [chat.order, chat.items, chat.requests])
   const [scrollRef, stick] = useStickToBottom(chat, news)
-  const unseen = useUnseen(sessionId, chat.order, stick.pinned, stick.isPinned)
+  const unseen = useUnseen({
+    sessionId, order: chat.order, items: chat.items, ready: history === 'ready', pinned: stick.pinned, isPinned: stick.isPinned,
+  })
   const lastItem = chat.order.length ? chat.items[chat.order[chat.order.length - 1]!] : undefined
   const streaming = lastItem?.status === 'streaming'
   // The owner's messages, oldest first: ArrowUp walks back through them.
@@ -183,8 +186,30 @@ export default function Chat() {
 
   const input = useRef<HTMLTextAreaElement>(null)
   useEffect(() => {
-    if (matches('(pointer: fine)')) input.current?.focus()
+    // A request card that took focus on arrival keeps it, so its keys answer.
+    if (matches('(pointer: fine)') && !document.activeElement?.closest('.request')) input.current?.focus()
   }, [])
+
+  // Transcript hook-ups: runs of tool lines fold, a failed turn's message can
+  // be sent again, a message of the owner's can be taken back to the composer.
+  const rows = useMemo(() => groupTools(nodes, unseen), [nodes, unseen])
+  const lastUser = useMemo(() => {
+    for (let i = chat.order.length - 1; i >= 0; i--) {
+      const item = chat.items[chat.order[i]!]
+      if (item?.kind === 'user_message' && !item.parentItemId) return item
+    }
+    return undefined
+  }, [chat.order, chat.items])
+  const stickToEnd = stick.stick
+  const retry = useCallback(async () => {
+    const ok = lastUser ? await send(lastUser.text ?? '', lastUser.images ?? []) : false
+    if (ok) stickToEnd()
+    return ok
+  }, [lastUser, send, stickToEnd])
+  const editMessage = useCallback((message: string) => {
+    setText(textRef.current.trim() ? `${textRef.current}\n\n${message}` : message)
+    input.current?.focus()
+  }, [setText])
 
   const doSubmit = async (): Promise<boolean> => {
     const value = text.trim()
@@ -213,7 +238,7 @@ export default function Chat() {
     if (useSessionStore.getState().activeId === sessionId) {
       if (textRef.current === text) setText('')
       stick.stick()
-      input.current?.focus()
+      if (!document.activeElement?.closest('.request')) input.current?.focus()
     }
     return true
   }
@@ -313,8 +338,8 @@ export default function Chat() {
           </div>
         ) : (
           <SessionFiles.Provider value={sessionId}>
-            <ol className="items" aria-label="transcript">
-              {nodes.map((node) => (
+            <ol className="items" aria-label="transcript" aria-busy={streaming}>
+              {rows.map((node, i) => (
                 <Row
                   key={node.item.id}
                   node={node}
@@ -323,6 +348,9 @@ export default function Chat() {
                   reduced={reduced}
                   animateIn={listedFor === sessionId}
                   onStopTask={stopTask}
+                  onRetry={i === rows.length - 1 && node.item.kind === 'error' && !busy ? retry : undefined}
+                  onEdit={editMessage}
+                  result={chat.turnResults?.[lastItemId(node)]}
                 />
               ))}
               {pendingSends.map((p) => (
@@ -367,7 +395,7 @@ export default function Chat() {
           />
         )}
         <AnimatePresence initial={false}>
-          {Object.values(chat.requests).map((request) => (
+          {Object.values(chat.requests).map((request, i, all) => (
             <motion.div
               key={request.id}
               className="request-slot"
@@ -377,7 +405,7 @@ export default function Chat() {
               data-request-id={request.id}
               tabIndex={-1}
             >
-              <RequestCard request={request} agent={session?.agent} onRespond={answer} />
+              <RequestCard request={request} agent={session?.agent} onRespond={answer} position={{ index: i + 1, count: all.length }} />
             </motion.div>
           ))}
         </AnimatePresence>
@@ -488,32 +516,6 @@ function elapsed(ms: number): string {
   const m = Math.floor((total % 3600) / 60)
   const s = String(total % 60).padStart(2, '0')
   return h ? `${h}:${String(m).padStart(2, '0')}:${s}` : `${m}:${s}`
-}
-
-// useUnseen remembers where the user stopped reading this session and returns
-// the first item that arrived since, for the "new since you left" mark. What
-// counts as read is what was on screen: the page visible and the end in view.
-function useUnseen(sessionId: string | undefined, order: string[], pinned: boolean, isPinned: () => boolean): string | null {
-  // Read once: the mark stays where the user left, while new items stream in.
-  const [seen] = useState(() => (sessionId ? loadSeen(sessionId) : null))
-  const visible = useVisible()
-  const last = order[order.length - 1]
-  useEffect(() => {
-    // isPinned, not pinned: landing on the mark unpins in this very commit.
-    if (sessionId && last && pinned && visible && isPinned()) saveSeen(sessionId, last)
-  }, [sessionId, last, pinned, visible, isPinned])
-  return firstUnseen(order, seen)
-}
-
-function useVisible(): boolean {
-  const read = () => typeof document === 'undefined' || document.visibilityState !== 'hidden'
-  const [visible, setVisible] = useState(read)
-  useEffect(() => {
-    const update = () => setVisible(read())
-    document.addEventListener('visibilitychange', update)
-    return () => document.removeEventListener('visibilitychange', update)
-  }, [])
-  return visible
 }
 
 // resolve strikes the answered request through, then folds it away.

@@ -4,6 +4,9 @@ import remarkGfm from 'remark-gfm'
 import type { ThemedToken } from 'shiki/core'
 import { MdLink } from './FileLink'
 import CopyButton from './CopyButton'
+import ShowAll from './ShowAll'
+import { useClip } from './useClip'
+import { setCodeWrap, useCodeWrap } from './wrap'
 import { filePath, MarkLine } from '../../lib/files'
 import './Markdown.css'
 
@@ -51,13 +54,28 @@ function CodeBlock({ code, lang }: { code: string; lang?: string }) {
     : mark
       ? code.split('\n').map((line) => [line])
       : undefined
+  const wrap = useCodeWrap()
+  const [box, clip] = useClip<HTMLPreElement>([code, wrap])
+  const count = code.split('\n').length
+  const classes = ['md-code', wrap && 'md-code-wrap', clip.full && 'full'].filter(Boolean).join(' ')
   return (
     <div className="md-codeblock">
       <div className="md-code-bar">
         <span className="md-code-lang">{lang ?? 'text'}</span>
-        <CopyButton text={code} />
+        <span className="md-code-tools">
+          <button
+            type="button"
+            className="btn btn-ghost btn-xs md-code-wrap-toggle"
+            aria-pressed={wrap}
+            title={wrap ? 'Keep long lines on one line' : 'Wrap long lines'}
+            onClick={() => setCodeWrap(!wrap)}
+          >
+            Wrap
+          </button>
+          <CopyButton text={code} />
+        </span>
       </div>
-      <pre className="md-code" data-lang={lang}>
+      <pre ref={box} className={classes} data-lang={lang}>
         <code>
           {lines
             ? lines.map((line, i) => (
@@ -73,6 +91,7 @@ function CodeBlock({ code, lang }: { code: string; lang?: string }) {
             : code}
         </code>
       </pre>
+      <ShowAll clip={clip} lines={count} />
     </div>
   )
 }
