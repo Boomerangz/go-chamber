@@ -5,8 +5,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import RequestTray from './RequestTray'
 import { resetStore, useSessionStore } from '../../stores/session'
 import { fail } from '../../stores/notices'
+import * as api from '../../lib/api'
 
 vi.mock('../../lib/api', () => ({
+  continueSession: vi.fn(),
   listSessions: vi.fn(),
   listRequests: vi.fn(),
   createSession: vi.fn(),
@@ -39,6 +41,21 @@ describe('RequestTray', () => {
     expect(screen.getByRole('button', { name: /Pick one/ })).toHaveTextContent('proj')
     // the name may be cut to the line: the whole of it is on hover
     expect(screen.getByText('proj')).toHaveAttribute('title', 'proj')
+  })
+
+  it('reads each line by what it asks, the session beneath', () => {
+    useSessionStore.setState({
+      sessions: [{ id: 's1', agent: 'claude', cwd: '/tmp/proj', status: 'running', title: 'hello from the worktree' }],
+      pendingRequests: [
+        { id: 'r1', sessionId: 's1', kind: 'permission', state: 'pending', title: 'Run command', payload: { toolName: 'Bash', input: { command: 'make test' } } },
+        { id: 'r2', sessionId: 's1', kind: 'question', state: 'pending', title: 'Question', payload: { input: { questions: [{ question: 'Which option?' }] } } },
+      ],
+    })
+    render(<RequestTray />)
+    const labels = [...document.querySelectorAll('.request-label')].map((l) => l.textContent)
+    expect(labels).toEqual(['make test', 'Which option?'])
+    expect(document.querySelector('.request-label')).toHaveAttribute('title', 'make test')
+    expect(screen.getAllByText('hello from the worktree')).toHaveLength(2)
   })
 
   it('names each kind as the request block does: what it requires', () => {
@@ -281,5 +298,29 @@ describe('RequestTray', () => {
     })
     render(<RequestTray />)
     expect(screen.queryByRole('button', { name: 'Allow' })).toBeNull()
+  })
+})
+
+describe('a turn cut off while it waited for the owner', () => {
+  const owed = { id: 's2', agent: 'claude' as const, cwd: '/tmp/proj', status: 'interrupted' as const, nativeId: 'n2', title: 'ask me', interruption: { reason: 'server_restart', withRequest: true } }
+
+  it('still waits in the inbox, and continues from there', async () => {
+    vi.mocked(api.continueSession).mockResolvedValue(undefined as never)
+    useSessionStore.setState({ requestsStatus: 'ready', sessions: [owed, { ...owed, id: 's3', interruption: { reason: 'crashed' } }] })
+    render(<RequestTray />)
+    expect(screen.getByLabelText('Pending requests')).toBeInTheDocument()
+    expect(document.querySelector('.section-title .badge')).toHaveTextContent('1')
+    const line = screen.getByRole('button', { name: /ask me/ })
+    expect(line).toHaveTextContent('interrupted — continue?')
+    await userEvent.click(screen.getByRole('button', { name: 'Continue' }))
+    expect(api.continueSession).toHaveBeenCalledWith('s2')
+    await userEvent.click(line)
+    expect(useSessionStore.getState().activeId).toBe('s2')
+  })
+
+  it('leaves out a session already continued', () => {
+    useSessionStore.setState({ requestsStatus: 'ready', sessions: [{ ...owed, status: 'running' }] })
+    render(<RequestTray />)
+    expect(screen.getByText('No pending requests')).toBeInTheDocument()
   })
 })

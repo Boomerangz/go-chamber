@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { shownStatus, statusWord, type StatusFacts } from './status'
+import { owesAnswer, shownStatus, statusWord, type StatusFacts } from './status'
 
 const facts = (over: Partial<StatusFacts>): StatusFacts => ({ status: 'idle', started: true, waiting: 0, ...over })
 
@@ -25,5 +25,16 @@ describe('shownStatus', () => {
     expect(shownStatus(facts({ status: 'detached', started: false }))).toBe('idle')
     expect(shownStatus(facts({ status: 'detached' }))).toBe('detached')
     expect(statusWord('detached')).toBe('detached')
+  })
+})
+
+describe('a turn cut off while it waited for the owner', () => {
+  it('still waits for the owner', () => {
+    const owed = { status: 'interrupted' as const, interruption: { reason: 'server_restart', withRequest: true } }
+    expect(owesAnswer(owed)).toBe(true)
+    expect(owesAnswer({ status: 'interrupted', interruption: { reason: 'crashed' } })).toBe(false)
+    // Continued: the mark belongs to the old turn.
+    expect(owesAnswer({ ...owed, status: 'running' })).toBe(false)
+    expect(shownStatus(facts({ status: 'interrupted', owed: true }))).toBe('waiting')
   })
 })

@@ -1,6 +1,7 @@
 import { useLayoutStore } from '../../stores/layout'
 import { useSessionStore } from '../../stores/session'
 import { sessionTitle } from '../../lib/sessions'
+import { owesAnswer } from '../../lib/status'
 import { isMac, useMedia } from './useMedia'
 import { Skeleton } from '../ui/Loading'
 import './EmptyChat.css'
@@ -19,7 +20,7 @@ export default function EmptyChat() {
   const waitingIds = new Set(pending.map((r) => r.sessionId))
   // A steady order whatever order the requests came in: the longest waiting first.
   const waiting = sessions
-    .filter((x) => waitingIds.has(x.id))
+    .filter((x) => waitingIds.has(x.id) || owesAnswer(x))
     .sort((a, b) => (a.activeAt ?? a.createdAt ?? '').localeCompare(b.activeAt ?? b.createdAt ?? '') || a.id.localeCompare(b.id))
   const recent = [...sessions]
     .filter((x) => !x.parentId && !x.archivedAt)

@@ -128,3 +128,24 @@ test('a tray answer on its way names itself', async ({ page }, info) => {
   release()
   await expect(line).toHaveCount(0)
 })
+
+// A turn cut off while a permission waited (the agent process died) still
+// waits for the owner: the header says so, and the inbox offers to continue.
+test('a turn cut off with a permission open still waits in the inbox', async ({ page }, info) => {
+  const text = `cut ${info.project.name} ${Date.now()}: crash while asking`
+  await newSession(page)
+  await page.getByLabel('Message').fill(text)
+  await page.getByRole('button', { name: 'Send' }).click()
+  await expect(page.locator('.banner', { hasText: 'Turn interrupted' })).toContainText('waiting for your answer')
+  await expect(page.locator('.chat-meta .status')).toHaveText(/waiting for you/)
+  // Nothing of the cut-off turn still reads as running.
+  await expect(page.locator('form.composer').getByRole('button', { name: /^Stop/ })).toHaveCount(0)
+
+  const bar = page.getByRole('navigation', { name: 'Views' })
+  if (await bar.isVisible()) await bar.getByRole('button', { name: /^Requests/ }).click()
+  else await page.getByRole('toolbar', { name: 'Dock' }).getByRole('button', { name: /^Requests/ }).click()
+  const line = page.getByRole('complementary', { name: 'Pending requests' }).getByRole('listitem').filter({ hasText: text })
+  await expect(line).toContainText('interrupted — continue?')
+  await line.getByRole('button', { name: 'Continue', exact: true }).click()
+  await expect(line).toHaveCount(0)
+})

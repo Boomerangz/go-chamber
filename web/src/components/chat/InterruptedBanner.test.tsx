@@ -35,6 +35,12 @@ describe('InterruptedBanner', () => {
     expect(screen.queryByLabelText('Continue after reset')).toBeNull()
   })
 
+  it('says the turn was waiting for the owner when it was cut off', () => {
+    setup({ ...base, interruption: { reason: 'server_restart', withRequest: true } })
+    expect(screen.getByRole('status')).toHaveTextContent(/waiting for your answer/)
+    expect(screen.getByRole('status')).toHaveTextContent(/Continue/)
+  })
+
   it('offers to continue after a quota reset', async () => {
     const resumeAfter = '2026-09-28T18:00:00Z'
     const { onAutoContinue } = setup({ ...base, interruption: { reason: 'quota', resumeAfter } })

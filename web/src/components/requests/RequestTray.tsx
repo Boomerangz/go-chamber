@@ -3,10 +3,13 @@ import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { enter } from '../../lib/motion'
 import { basename } from '../../lib/format'
 import { usePending } from '../../lib/pending'
-import type { RequestAnswerInput, Session, SessionRequest } from '../../lib/api'
+import { continueSession, type RequestAnswerInput, type Session, type SessionRequest } from '../../lib/api'
+import { owesAnswer } from '../../lib/status'
+import { fail } from '../../stores/notices'
 import { useSessionStore } from '../../stores/session'
 import { LoadFailed, Skeleton } from '../ui/Loading'
 import { notSent, shortcut } from './answer'
+import { requestGist } from './gist'
 import './RequestTray.css'
 
 // The kind says what the request requires, as its block does ("Requires approval").
@@ -24,6 +27,9 @@ export default function RequestTray() {
   const status = useSessionStore((s) => s.requestsStatus)
   const loadRequests = useSessionStore((s) => s.loadRequests)
   const sessions = useSessionStore((s) => s.sessions)
+  // Turns cut off (a restart, a crash) while they waited for the owner: the
+  // request went with them, but the owner still owes them an answer.
+  const owed = sessions.filter(owesAnswer)
 
   // waiting says whether a line still asks: not being answered and not
   // leaving (an answered line stays in the DOM while it animates out).
@@ -45,7 +51,7 @@ export default function RequestTray() {
   const failed = status === 'error' && (
     <LoadFailed onRetry={() => void loadRequests()}>Couldn't load requests</LoadFailed>
   )
-  if (requests.length === 0) {
+  if (requests.length === 0 && owed.length === 0) {
     if (status === 'loading')
       return (
         <div className="tray-empty">
@@ -58,7 +64,7 @@ export default function RequestTray() {
   return (
     <aside className="request-tray panel" aria-label="Pending requests">
       <h2 className="section-title">
-        Waiting for you <span className="badge">{requests.length}</span>
+        Waiting for you <span className="badge">{requests.length + owed.length}</span>
       </h2>
       {failed}
       <ul>
@@ -70,6 +76,9 @@ export default function RequestTray() {
               session={sessions.find((s) => s.id === r.sessionId)}
               waiting={waiting}
             />
+          ))}
+          {owed.map((s) => (
+            <OwedLine key={`owed/${s.id}`} session={s} />
           ))}
         </AnimatePresence>
       </ul>
@@ -128,6 +137,7 @@ function TrayLine({
 
   const key = keyOf(r)
   const where = session ? session.title || basename(session.cwd) : null
+  const gist = requestGist(r)
   return (
     <motion.li className={sending ? 'answering' : undefined} aria-busy={sending || undefined} {...arrive}>
       <button
@@ -139,7 +149,9 @@ function TrayLine({
         }}
       >
         <span className={`request-kind kind-${r.kind}`}>{kindLabel[r.kind] ?? r.kind}</span>
-        <span className="request-label">{r.title || r.prompt || r.payload?.toolName}</span>
+        <span className="request-label" title={gist}>
+          {gist}
+        </span>
         {where && (
           <span className="request-session" title={where}>
             {where}
@@ -165,6 +177,43 @@ function TrayLine({
           sent · waiting for agent
         </p>
       )}
+    </motion.li>
+  )
+}
+
+// OwedLine is a session whose turn was cut off while it waited for the
+// owner: it opens the session, or continues it in place.
+function OwedLine({ session }: { session: Session }) {
+  const selectSession = useSessionStore((s) => s.selectSession)
+  const arrive = enter(useReducedMotion() ?? false, 'margin')
+  // The line leaves once the session runs again; until then Continue holds.
+  const [resume, continuing] = usePending(
+    async () => {
+      try {
+        await continueSession(session.id)
+        return true
+      } catch (err) {
+        fail("Couldn't continue", err)
+        return false
+      }
+    },
+    { holdOnSuccess: true },
+  )
+  const name = session.title || basename(session.cwd)
+  return (
+    <motion.li {...arrive}>
+      <button className="tray-row" data-key={`owed/${session.id}`} onClick={() => void selectSession(session.id)}>
+        <span className="request-kind kind-interrupted">Interrupted</span>
+        <span className="request-label" title={name}>
+          {name}
+        </span>
+        <span className="request-session">interrupted — continue?</span>
+      </button>
+      <div className="tray-actions">
+        <button className="btn btn-xs btn-primary" aria-busy={continuing} onClick={() => void resume()}>
+          {continuing ? 'Continuing…' : 'Continue'}
+        </button>
+      </div>
     </motion.li>
   )
 }

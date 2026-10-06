@@ -138,6 +138,12 @@ describe('header status', () => {
     expect(statusEl()).toHaveClass('status-waiting')
   })
 
+  it('still waits for the owner after a restart cut off a turn with a question open', () => {
+    const owed = { ...session, status: 'interrupted' as const, interruption: { reason: 'server_restart', withRequest: true } }
+    setup({ sessions: [owed], chat: chatOf([item('u1', 'user_message')], { status: 'interrupted' }) })
+    expect(statusEl()).toHaveTextContent('waiting for you')
+  })
+
   it('calls a session that never ran idle, not detached', () => {
     setup({ sessions: [{ ...session, status: 'detached', nativeId: undefined }], chat: initialChat() })
     expect(statusEl()).toHaveTextContent('idle')

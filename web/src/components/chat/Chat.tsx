@@ -23,7 +23,7 @@ import { displayStatus } from '../../lib/format'
 import { enter } from '../../lib/motion'
 import { useJustFinished } from '../../lib/finished'
 import { useNow } from '../../lib/now'
-import { shownStatus } from '../../lib/status'
+import { owesAnswer, shownStatus } from '../../lib/status'
 import { usePending } from '../../lib/pending'
 import { useUnseen } from '../../lib/seen'
 import { isBlank, itemTree, withoutAnsweredQuestions } from '../../lib/tree'
@@ -108,6 +108,7 @@ export default function Chat() {
   // a failed turn doesn't flash "done", it says it failed until the next turn.
   const shown = shownStatus({
     status, started: !!session?.nativeId, waiting: Object.keys(chat.requests).length, failed: failedTurn, finished,
+    owed: !!session && owesAnswer({ status, interruption: session.interruption }),
   })
   const running = status === 'running'
   const reduced = useReducedMotion() ?? false
