@@ -33,3 +33,6 @@
   .completions li { min-height: 40px; }
   .completion-detail { display: none; }
 }
+/* a draft of several lines takes the whole width; the actions go beneath it */
+.composer.multiline .composer-input { flex-basis: 100%; }
+.composer.multiline .composer-actions { width: 100%; justify-content: flex-end; }

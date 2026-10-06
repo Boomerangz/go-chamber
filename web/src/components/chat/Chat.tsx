@@ -389,6 +389,7 @@ export default function Chat() {
   const placeholder = busy ? 'Steer the running turn…' : 'Message the agent…'
   // A long message says how long it is; the box itself stops growing.
   const lines = text ? text.split('\n').length : 0
+  const multiline = useMultiline(input, text)
 
   return (
     <section className="chat panel">
@@ -500,7 +501,7 @@ export default function Chat() {
       <LiveStrip />
       {!notFound && (
       <form
-        className={attachments.dragging ? 'composer dragging' : 'composer'}
+        className={['composer', attachments.dragging && 'dragging', multiline && 'multiline'].filter(Boolean).join(' ')}
         {...attachments.dropProps}
         onSubmit={(e) => {
           e.preventDefault()
@@ -581,6 +582,26 @@ function WorkingTail({ since, waiting, streaming, live }: { since: number | null
       {text}
     </div>
   )
+}
+
+// useMultiline tells a draft that takes more than one line, by a newline or
+// by wrapping: it then gets the composer's whole width, the actions beneath.
+// A wrapped draft stays multiline until it is shorter than where it wrapped,
+// so the wider box doesn't flip it back and forth.
+function useMultiline(input: React.RefObject<HTMLTextAreaElement | null>, text: string): boolean {
+  const [wrapAt, setWrapAt] = useState<number | null>(null)
+  useLayoutEffect(() => {
+    if (wrapAt !== null) {
+      // eslint-disable-next-line react/set-state-in-effect -- measured layout
+      if (text.length < wrapAt) setWrapAt(null)
+      return
+    }
+    const el = input.current
+    if (!el || !text || text.includes('\n')) return
+    const line = parseFloat(getComputedStyle(el).lineHeight) || 20
+    if (el.scrollHeight > line * 1.6 + 10) setWrapAt(text.length)
+  }, [input, text, wrapAt])
+  return text.includes('\n') || (wrapAt !== null && text.length >= wrapAt)
 }
 
 // elapsed reads a duration as m:ss, or h:mm:ss past an hour.

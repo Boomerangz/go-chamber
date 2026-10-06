@@ -314,6 +314,17 @@ describe('sending', () => {
     expect(document.querySelector('.composer-lines')).toHaveTextContent('21 lines')
   })
 
+  it('gives a message of several lines the whole width, the actions beneath', async () => {
+    setup()
+    const form = () => document.querySelector('form.composer')!
+    await userEvent.type(box(), 'one')
+    expect(form()).not.toHaveClass('multiline')
+    await userEvent.type(box(), '{Shift>}{Enter}{/Shift}two')
+    expect(form()).toHaveClass('multiline')
+    await userEvent.clear(box())
+    expect(form()).not.toHaveClass('multiline')
+  })
+
   it('stays quiet about length for a short message', async () => {
     setup()
     await userEvent.type(box(), 'one{Shift>}{Enter}{/Shift}two')

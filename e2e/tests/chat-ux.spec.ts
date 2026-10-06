@@ -65,6 +65,27 @@ test('the header and the sessions list show one status', async ({ page, isMobile
   await expect(page.locator('.session.active .session-status-waiting')).toHaveText('waiting for you')
 })
 
+test('a draft of several lines gets the whole composer width', async ({ page }) => {
+  await newSession(page)
+  const box = page.getByLabel('message')
+  const width = async () => {
+    const form = (await page.locator('form.composer').boundingBox())!
+    const area = (await box.boundingBox())!
+    return { form: form.width, area: area.width }
+  }
+  await box.fill('one\ntwo\nthree')
+  await expect(page.locator('form.composer')).toHaveClass(/multiline/)
+  let w = await width()
+  expect(w.area).toBeGreaterThan(w.form - 40)
+  // A long line that wraps does the same.
+  await box.fill('word '.repeat(80))
+  await expect(page.locator('form.composer')).toHaveClass(/multiline/)
+  w = await width()
+  expect(w.area).toBeGreaterThan(w.form - 40)
+  await box.fill('short')
+  await expect(page.locator('form.composer')).not.toHaveClass(/multiline/)
+})
+
 test('brings sent messages back with ArrowUp', async ({ page }) => {
   await newSession(page)
   await say(page, 'first thing')
