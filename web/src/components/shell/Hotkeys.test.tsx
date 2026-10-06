@@ -30,6 +30,8 @@ describe('Hotkeys', () => {
     await userEvent.keyboard('?')
     expect(screen.getByRole('dialog', { name: 'Keyboard shortcuts' })).toBeInTheDocument()
     expect(screen.getByText('Next session that needs you')).toBeInTheDocument()
+    expect(screen.getByText('In a terminal: find in the scrollback')).toBeInTheDocument()
+    expect(screen.getByText('In a terminal: larger, smaller, default text')).toBeInTheDocument()
   })
 
   it('jumps to a session from the switcher', async () => {

@@ -151,6 +151,12 @@ func (t *Terminals) Open(ctx context.Context, req OpenTerminal) (domain.Terminal
 		_ = pty.Close()
 		return domain.Terminal{}, ErrTerminalsClosed
 	}
+	taken := make([]string, 0, len(t.terms))
+	for _, other := range t.terms {
+		taken = append(taken, other.snapshot().Title)
+	}
+	rt.term.Title = domain.UniqueTitle(term.Title, taken)
+	term = rt.term
 	t.terms[id] = rt
 	t.mu.Unlock()
 	go rt.pump()

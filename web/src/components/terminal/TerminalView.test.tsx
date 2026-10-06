@@ -180,6 +180,8 @@ describe('TerminalView', () => {
     act(() => handlers().onExit(137))
     expect(xterms[0].options.disableStdin).toBe(true)
     expect(xterms[0].options.cursorBlink).toBe(false)
+    // and hides the cursor: nothing will be typed there again
+    expect(xterms[0].write).toHaveBeenLastCalledWith('\x1b[?25l')
     expect(onExit).toHaveBeenCalledWith(137)
   })
 

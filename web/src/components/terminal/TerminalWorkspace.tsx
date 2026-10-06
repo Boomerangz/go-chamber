@@ -102,7 +102,8 @@ export default function TerminalWorkspace({ sessions }: { sessions: Session[] })
   }
 
   return (
-    <section className="term-workspace" aria-label="Terminals">
+    // Nothing attached on a phone: the list is the content (CSS drops the hero).
+    <section className="term-workspace" aria-label="Terminals" data-attached={active ? 'true' : undefined} data-missing={missingId ? 'true' : undefined}>
       <aside className="term-sidebar panel" data-collapsed={(active && !listOpen) || undefined}>
         {active && (
           <button type="button" className="term-switch" aria-expanded={listOpen} onClick={() => setListOpen((o) => !o)}>

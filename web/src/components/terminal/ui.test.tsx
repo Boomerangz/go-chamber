@@ -184,22 +184,24 @@ describe('ConnectionLine', () => {
 })
 
 describe('TerminalScreen', () => {
-  it('finds in the scrollback: next, previous, counts and Escape back to the shell', async () => {
+  it('finds in the scrollback from the newest output up: older, newer, counts and Escape back to the shell', async () => {
     useTerminalStore.setState({ terminals: [term()], finding: 't1' })
     render(<TerminalScreen id="t1" />)
     const field = screen.getByRole('searchbox', { name: 'Find in terminal' })
     expect(field).toHaveFocus()
     await userEvent.type(field, 'err')
-    expect(live.findInTerminal).toHaveBeenLastCalledWith('t1', 'err', { incremental: true })
+    expect(live.findInTerminal).toHaveBeenLastCalledWith('t1', 'err', { incremental: true, backwards: true })
     const report = vi.mocked(live.onFindResults).mock.calls[0]![1]
     act(() => report({ index: 2, count: 5 }))
     expect(screen.getByText('3 of 5')).toBeInTheDocument()
     await userEvent.keyboard('{Enter}')
-    expect(live.findInTerminal).toHaveBeenLastCalledWith('t1', 'err', { backwards: false })
-    await userEvent.keyboard('{Shift>}{Enter}{/Shift}')
     expect(live.findInTerminal).toHaveBeenLastCalledWith('t1', 'err', { backwards: true })
-    await userEvent.click(screen.getByRole('button', { name: 'Next match' }))
+    await userEvent.keyboard('{Shift>}{Enter}{/Shift}')
+    expect(live.findInTerminal).toHaveBeenLastCalledWith('t1', 'err', { backwards: false })
+    await userEvent.click(screen.getByRole('button', { name: 'Newer match' }))
     expect(live.findInTerminal).toHaveBeenLastCalledWith('t1', 'err', {})
+    await userEvent.click(screen.getByRole('button', { name: 'Older match' }))
+    expect(live.findInTerminal).toHaveBeenLastCalledWith('t1', 'err', { backwards: true })
     vi.mocked(live.findInTerminal).mockReturnValueOnce(false)
     await userEvent.type(field, 'x')
     act(() => report({ index: -1, count: 0 }))
@@ -207,6 +209,27 @@ describe('TerminalScreen', () => {
     await userEvent.type(field, '{Escape}')
     expect(live.endFind).toHaveBeenCalledWith('t1')
     expect(useTerminalStore.getState().finding).toBeNull()
+  })
+
+  it('drops the phone keys once the shell has exited', () => {
+    useTerminalStore.setState({ terminals: [term({ status: 'exited', exitCode: 1 })] })
+    render(<TerminalScreen id="t1" />)
+    expect(screen.queryByRole('button', { name: 'Escape' })).toBeNull()
+    cleanup()
+    act(() => useTerminalStore.setState({ terminals: [term()] }))
+    render(<TerminalScreen id="t1" />)
+    expect(screen.getByRole('button', { name: 'Escape' })).toBeInTheDocument()
+  })
+
+  it('shows the new text size for a moment after a zoom', () => {
+    vi.useFakeTimers()
+    useTerminalStore.setState({ terminals: [term()] })
+    render(<TerminalScreen id="t1" />)
+    expect(screen.queryByText(/^\d+px$/)).toBeNull()
+    act(() => useTerminalStore.getState().setFontSize(17))
+    expect(screen.getByRole('status', { name: 'text size' })).toHaveTextContent('17px')
+    act(() => vi.advanceTimersByTime(2000))
+    expect(screen.queryByText('17px')).toBeNull()
   })
 
   it('offers to jump to new output below', async () => {
@@ -287,6 +310,37 @@ describe('TerminalKeys', () => {
 })
 
 describe('TerminalPanel', () => {
+  it('scrolls the selected tab fully into view, also after a rename', async () => {
+    const seen: Element[] = []
+    const scroll = vi.fn(function (this: Element) { seen.push(this) })
+    Element.prototype.scrollIntoView = scroll
+    useTerminalStore.setState({ loaded: true, terminals: [term({ id: 'a', title: 'one' }), term({ id: 'b', title: 'two' })], activeId: 'a' })
+    render(<TerminalPanel sessionId={null} />)
+    act(() => useTerminalStore.getState().select('b'))
+    expect(seen.at(-1)).toBe(screen.getByRole('tab', { name: /two/ }).closest('li'))
+    expect(scroll).toHaveBeenLastCalledWith({ block: 'nearest', inline: 'nearest' })
+    const calls = scroll.mock.calls.length
+    act(() => useTerminalStore.setState({ terminals: [term({ id: 'a', title: 'one' }), term({ id: 'b', title: 'a much longer name' })] }))
+    expect(scroll.mock.calls.length).toBe(calls + 1)
+    delete (Element.prototype as { scrollIntoView?: unknown }).scrollIntoView
+  })
+
+  it('fades the edge of the tab strip where tabs are hidden', () => {
+    useTerminalStore.setState({ loaded: true, terminals: [term({ id: 'a' }), term({ id: 'b' })], activeId: 'a' })
+    render(<TerminalPanel sessionId={null} />)
+    const strip = screen.getByRole('tablist')
+    Object.defineProperties(strip, { scrollWidth: { value: 600, configurable: true }, clientWidth: { value: 300, configurable: true } })
+    strip.scrollLeft = 0
+    fireEvent.scroll(strip)
+    expect(strip).toHaveAttribute('data-fade', 'end')
+    strip.scrollLeft = 100
+    fireEvent.scroll(strip)
+    expect(strip).toHaveAttribute('data-fade', 'both')
+    strip.scrollLeft = 300
+    fireEvent.scroll(strip)
+    expect(strip).toHaveAttribute('data-fade', 'start')
+  })
+
   it('opens a shell in the session folder from "+", and elsewhere from its menu', async () => {
     useTerminalStore.setState({ loaded: true })
     ;(api.openTerminal as Mock).mockResolvedValue(term())

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { terminalAction, type KeyLike } from './terminal-keys'
+import { terminalAction, terminalShortcuts, type KeyLike } from './terminal-keys'
 
 const key = (over: Partial<KeyLike>): KeyLike => ({
   type: 'keydown', key: '', code: '', metaKey: false, ctrlKey: false, altKey: false, shiftKey: false, ...over,
@@ -54,5 +54,13 @@ describe('terminalAction elsewhere', () => {
     expect(pc({ ctrlKey: true, key: 'a', code: 'KeyA' })).toBeNull()
     expect(pc({ metaKey: true, key: 'f', code: 'KeyF' })).toBeNull()
     expect(pc({ ctrlKey: true, altKey: true, key: 'f', code: 'KeyF' })).toBeNull()
+  })
+})
+
+describe('terminalShortcuts', () => {
+  it('lists the terminal’s own keys for the help, per platform', () => {
+    expect(terminalShortcuts(true).map((s) => s.keys)).toEqual(['⌘F', '⌘= · ⌘- · ⌘0', '⌘C · ⌘V', '⌥[ · ⌥]'])
+    expect(terminalShortcuts(false).map((s) => s.keys)).toEqual(['Ctrl+Shift+F', 'Ctrl+= · Ctrl+- · Ctrl+0', 'Ctrl+Shift+C · Ctrl+Shift+V', 'Alt+[ · Alt+]'])
+    expect(terminalShortcuts(true).every((s) => s.label.startsWith('In a terminal'))).toBe(true)
   })
 })

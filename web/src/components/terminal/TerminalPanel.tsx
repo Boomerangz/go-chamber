@@ -1,5 +1,5 @@
 import { ChevronDown, Maximize2, Pencil, Plus } from 'lucide-react'
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { icon } from '../icon'
 import { basename } from '../../lib/format'
 import type { Terminal } from '../../lib/terminal'
@@ -27,6 +27,23 @@ export default function TerminalPanel({ sessionId }: { sessionId: string | null 
   useTerminalSteps(sorted.map((t) => t.id))
   // A remembered or linked terminal attaches only once the list has it.
   const attached = activeId && terminals.some((t) => t.id === activeId) ? activeId : null
+  const hasTabs = sorted.length > 0
+  const activeTitle = terminals.find((t) => t.id === activeId)?.title
+  const strip = useRef<HTMLUListElement>(null)
+  const [fade, setFade] = useState<Fade>(null)
+  const measure = useCallback(() => setFade(strip.current ? fadeOf(strip.current) : null), [])
+  // The selected tab is always whole on screen, also once renamed longer.
+  useEffect(() => {
+    strip.current?.querySelector('li:has([aria-selected="true"])')?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' })
+    measure()
+  }, [activeId, activeTitle, sorted.length, measure])
+  useEffect(() => {
+    const el = strip.current
+    if (!el || typeof ResizeObserver === 'undefined') return
+    const observer = new ResizeObserver(measure)
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [measure, hasTabs])
 
   return (
     <section className="terminals panel" aria-label="Terminals">
@@ -39,7 +56,10 @@ export default function TerminalPanel({ sessionId }: { sessionId: string | null 
       <div className="dock-tabs">
         {sorted.length > 0 && (
           <ul
+            ref={strip}
             className="terminal-tabs"
+            data-fade={fade ?? undefined}
+            onScroll={measure}
             role="tablist"
             onKeyDown={(e) => {
               const step = stepOf(e)
@@ -70,6 +90,15 @@ export default function TerminalPanel({ sessionId }: { sessionId: string | null 
       {attached && <TerminalScreen id={attached} />}
     </section>
   )
+}
+
+type Fade = 'start' | 'end' | 'both' | null
+
+// fadeOf names the edges of the strip with tabs hidden past them.
+function fadeOf(el: HTMLElement): Fade {
+  const start = el.scrollLeft > 1
+  const end = el.scrollLeft + el.clientWidth < el.scrollWidth - 1
+  return start && end ? 'both' : start ? 'start' : end ? 'end' : null
 }
 
 function TerminalTab({ terminal: t, selected }: { terminal: Terminal; selected: boolean }) {

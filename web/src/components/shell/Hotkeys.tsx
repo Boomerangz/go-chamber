@@ -4,7 +4,8 @@ import { icon } from '../icon'
 import QuickSwitcher from './QuickSwitcher'
 import { replacingHistory } from './routeSync'
 import { useOverlay, type Overlay } from './overlay'
-import { formatCombo, isTypingTarget, matches, nextIndex, type Combo } from '../../lib/hotkeys'
+import { formatCombo, isMac, isTypingTarget, matches, nextIndex, type Combo } from '../../lib/hotkeys'
+import { terminalShortcuts } from '../../lib/terminal-keys'
 import { useLayoutStore, type Mode } from '../../stores/layout'
 import { useSessionStore } from '../../stores/session'
 import './shell.css'
@@ -25,6 +26,7 @@ const local: { keys: string; label: string }[] = [
   { keys: 'A · S · D', label: 'Allow, allow for session, deny a request' },
   { keys: '↑ ↓', label: 'Move through requests in the tray' },
   { keys: 'j · k', label: 'In Changes: next, previous file' },
+  ...terminalShortcuts(isMac),
 ]
 
 function rows(): HTMLButtonElement[] {

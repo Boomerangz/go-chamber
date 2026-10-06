@@ -37,3 +37,15 @@ export function terminalAction(e: KeyLike, mac: boolean): TerminalAction | null 
   }
   return font(e)
 }
+
+// terminalShortcuts lists the keys above for the shortcut help.
+export function terminalShortcuts(mac: boolean): { keys: string; label: string }[] {
+  const k = (key: string, shift = false) => (mac ? `⌘${key}` : `Ctrl+${shift ? 'Shift+' : ''}${key}`)
+  const alt = mac ? '⌥' : 'Alt+'
+  return [
+    { keys: k('F', true), label: 'In a terminal: find in the scrollback' },
+    { keys: `${k('=')} · ${k('-')} · ${k('0')}`, label: 'In a terminal: larger, smaller, default text' },
+    { keys: `${k('C', true)} · ${k('V', true)}`, label: 'In a terminal: copy the selection, paste' },
+    { keys: `${alt}[ · ${alt}]`, label: 'In a terminal: previous, next shell' },
+  ]
+}

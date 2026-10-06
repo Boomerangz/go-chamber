@@ -49,6 +49,20 @@ func NewTerminal(id TerminalID, cwd, shell string, session SessionID, now time.T
 	}, nil
 }
 
+// UniqueTitle numbers a repeated title: several shells in one folder read
+// "repo", "repo 2", "repo 3" rather than the same name over and over.
+func UniqueTitle(base string, taken []string) string {
+	used := make(map[string]bool, len(taken))
+	for _, t := range taken {
+		used[t] = true
+	}
+	title := base
+	for n := 2; used[title]; n++ {
+		title = fmt.Sprintf("%s %d", base, n)
+	}
+	return title
+}
+
 // Exit records the shell's exit code; a terminal exits only once.
 func (t *Terminal) Exit(code int) error {
 	if t.Status == TerminalExited {

@@ -115,20 +115,25 @@ test.describe('terminal', () => {
     await screen.click()
     await page.keyboard.type('echo needle-$((40+2))\n')
     await expect(screen.locator('.xterm-rows')).toContainText('needle-42')
+    await page.keyboard.type('echo needle-$((40+2)) again\n')
+    await expect(screen.locator('.xterm-rows')).toContainText('needle-42 again')
 
     const mac = await isMac(page)
     await page.keyboard.press(mac ? 'Meta+f' : 'Control+Shift+F')
     const find = panel.getByRole('searchbox', { name: 'Find in terminal' })
     await expect(find).toBeFocused()
     await find.fill('needle-42')
+    // The search starts from the newest output and goes up.
+    await expect(panel.locator('.term-find-count')).toHaveText('2 of 2')
     await find.press('Enter')
-    await expect(panel.locator('.term-find-count')).toHaveText(/of|found/)
+    await expect(panel.locator('.term-find-count')).toHaveText('1 of 2')
     await find.press('Escape')
     await expect(find).toBeHidden()
 
     await screen.click()
     await page.keyboard.press(mac ? 'Meta+Equal' : 'Control+Equal')
     await expect.poll(() => page.evaluate(() => localStorage.getItem('gc.terminal.fontSize'))).toBe('14')
+    await expect(panel.getByRole('status', { name: 'text size' })).toHaveText('14px')
     await page.keyboard.press(mac ? 'Meta+Digit0' : 'Control+Digit0')
     await expect.poll(() => page.evaluate(() => localStorage.getItem('gc.terminal.fontSize'))).toBeNull()
 
