@@ -98,6 +98,16 @@ describe('SessionMenu', () => {
     expect(screen.queryByRole('menu')).toBeNull()
   })
 
+  it('closes when a scroll moves the row away, not on a scroll that leaves it', async () => {
+    render(<Row />)
+    await userEvent.click(trigger())
+    fireEvent.scroll(window)
+    expect(screen.getByRole('menu')).toBeInTheDocument()
+    trigger().getBoundingClientRect = () => ({ top: 40 }) as DOMRect
+    fireEvent.scroll(window)
+    expect(screen.queryByRole('menu')).toBeNull()
+  })
+
   it('archives, or unarchives an archived session', async () => {
     const { unmount } = render(<Row />)
     await userEvent.click(trigger())
