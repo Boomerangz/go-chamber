@@ -5,7 +5,7 @@ import { listFolders } from './api'
 // null for the root or a path that isn't absolute.
 export function parentOf(path: string): { parent: string; name: string } | null {
   const p = path.trim().replace(/\/+$/, '')
-  if (!p.startsWith('/') || p === '') return null
+  if (!p.startsWith('/')) return null
   const cut = p.lastIndexOf('/')
   return { parent: cut === 0 ? '/' : p.slice(0, cut), name: p.slice(cut + 1) }
 }
@@ -15,29 +15,27 @@ export function parentOf(path: string): { parent: string; name: string } | null 
 // absolute path, or the server couldn't say). It asks a moment after the
 // path stops changing.
 export function useIsRepo(path: string, enabled = true): boolean | null {
-  const [known, setKnown] = useState<{ path: string; repo: boolean | null }>({ path: '', repo: null })
+  const [known, setKnown] = useState<{ path: string; repo: boolean } | null>(null)
   const where = enabled ? parentOf(path) : null
-  const parent = where?.parent
-  const name = where?.name
+  const key = where ? `${where.parent}/${where.name}` : null
   useEffect(() => {
-    if (parent === undefined || name === undefined) return
+    const at = key === null ? null : parentOf(key)
+    if (!at) return
     let live = true
     const timer = setTimeout(() => {
       Promise.resolve()
-        .then(() => listFolders(parent, true))
-        .then(
-          (listing) => {
-            const entry = listing?.folders?.find((f) => f.name === name)
-            if (live) setKnown({ path: `${parent}/${name}`, repo: entry ? Boolean(entry.repo) : null })
-          },
-          () => live && setKnown({ path: `${parent}/${name}`, repo: null }),
-        )
+        .then(() => listFolders(at.parent, true))
+        .then((listing) => {
+          const entry = listing.folders.find((f) => f.name === at.name)
+          if (live && entry) setKnown({ path: key!, repo: Boolean(entry.repo) })
+        })
+        // the server couldn't say: the answer stays unknown
+        .catch(() => {})
     }, 300)
     return () => {
       live = false
       clearTimeout(timer)
     }
-  }, [parent, name])
-  if (parent === undefined || name === undefined) return null
-  return known.path === `${parent}/${name}` ? known.repo : null
+  }, [key])
+  return known !== null && known.path === key ? known.repo : null
 }

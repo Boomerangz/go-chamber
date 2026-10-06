@@ -41,6 +41,21 @@ describe('useIsRepo', () => {
     expect(result.current).toBeNull()
   })
 
+  it('asks once a typed path settles, and ignores an answer about a path left behind', async () => {
+    let answer!: (l: api.FolderListing) => void
+    vi.mocked(api.listFolders).mockReturnValueOnce(new Promise((r) => (answer = r)))
+    vi.mocked(api.listFolders).mockResolvedValue(listing([{ name: 'b', path: '/w/b' }]))
+    const { result, rerender } = renderHook(({ p }) => useIsRepo(p), { initialProps: { p: ' /w/a// ' } })
+    await waitFor(() => expect(api.listFolders).toHaveBeenCalledWith('/w', true))
+    rerender({ p: '/w/b' })
+    answer(listing([{ name: 'a', path: '/w/a', repo: true }, { name: 'b', path: '/w/b', repo: true }]))
+    await waitFor(() => expect(result.current).toBe(false))
+    rerender({ p: '/w/x' })
+    rerender({ p: '/top' })
+    await waitFor(() => expect(api.listFolders).toHaveBeenLastCalledWith('/', true))
+    expect(api.listFolders).toHaveBeenCalledTimes(3)
+  })
+
   it('doesn’t ask while disabled or for a relative path', async () => {
     renderHook(() => useIsRepo('/w/app', false))
     renderHook(() => useIsRepo('app'))
