@@ -178,10 +178,10 @@ function TerminalTab({ terminal: t, selected }: { terminal: Terminal; selected: 
       )}
       {selected && draft === null && (
         <button type="button" className="btn btn-ghost btn-icon term-tab-rename" aria-label={`Rename terminal ${t.title}`} title="Rename" onClick={() => setDraft(t.title)}>
-          <Pencil {...icon(12)} />
+          <Pencil {...icon(14)} />
         </button>
       )}
-      <CloseTerminalButton terminal={t} size={13} />
+      <CloseTerminalButton terminal={t} />
     </li>
   )
 }
@@ -235,7 +235,7 @@ function NewTerminalButton({ sessionId, terminals }: { sessionId: string | null;
         aria-busy={busyHere || undefined}
         onClick={() => void open(here)}
       >
-        <Plus {...icon(15)} />
+        <Plus {...icon(16)} />
       </button>
       <button
         type="button"
@@ -246,7 +246,7 @@ function NewTerminalButton({ sessionId, terminals }: { sessionId: string | null;
         aria-haspopup="true"
         onClick={() => setMenu((m) => !m)}
       >
-        <ChevronDown {...icon(13)} />
+        <ChevronDown {...icon(14)} />
       </button>
       {menu && (
         <div className="term-new-menu">

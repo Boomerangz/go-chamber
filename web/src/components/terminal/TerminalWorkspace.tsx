@@ -125,7 +125,7 @@ export default function TerminalWorkspace({ sessions }: { sessions: Session[] })
                 aria-busy={opening[openKey({ cwd: dir })] || undefined}
                 onClick={() => void open({ cwd: dir })}
               >
-                <SquareTerminal {...icon(13)} />
+                <SquareTerminal {...icon(14)} />
                 <span className="chip-label">{basename(dir)}</span>
               </button>
             ))}

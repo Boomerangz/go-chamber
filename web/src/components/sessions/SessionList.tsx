@@ -208,7 +208,7 @@ function Group(props: {
           onClick={() => props.onMode(open ? 'collapsed' : 'recent')}
           disabled={props.searching}
         >
-          <ChevronDown {...icon(13)} className="icon chevron" />
+          <ChevronDown {...icon(14)} className="icon chevron" />
           <span className="group-name">{group.name}</span>
           <span className="sr-only"> {group.cwd}</span>
           <span className="group-count">{group.count}</span>
@@ -232,7 +232,7 @@ function Group(props: {
           aria-busy={(props.creating && props.creatingIn === group.cwd) || undefined}
           onClick={() => props.onCreateIn(group.cwd)}
         >
-          <Plus {...icon(15)} />
+          <Plus {...icon(16)} />
         </button>
       </header>
       {shown.length > 0 && (

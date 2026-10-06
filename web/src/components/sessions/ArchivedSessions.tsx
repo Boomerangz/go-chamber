@@ -40,7 +40,7 @@ export default function ArchivedSessions() {
   return (
     <details className="history archived" open={open} onToggle={(e) => setOpen(e.currentTarget.open)}>
       <summary className="section-title">
-        <ChevronRight {...icon(13)} className="icon chevron" />
+        <ChevronRight {...icon(14)} className="icon chevron" />
         Archived <span className="group-count">{nodes.length}</span>
         {waitingInside > 0 && (
           <span className="badge" title="Requests waiting for you">

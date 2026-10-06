@@ -32,7 +32,7 @@
 .diff-file-toggle .busy-mark { align-self: center; color: var(--ink-3); }
 .diff-file-actions { flex: none; display: inline-flex; gap: 2px; opacity: 0; transition: opacity var(--dur-fast); }
 .diff-file:hover .diff-file-actions, .diff-file-head:focus-within .diff-file-actions { opacity: 1; }
-.diff-file-actions .btn-icon, .diff-action-gap { width: 26px; height: 26px; }
+.diff-file-actions .btn-icon, .diff-action-gap { width: 24px; height: 24px; }
 .diff-action-gap { flex: none; }
 @media (hover: none) { .diff-file-actions { opacity: 1; } }
 /* status: a lowercase word after a square mark whose form is the status */

@@ -191,7 +191,7 @@ export default function AccountPanel({ agent, quietFailure = false }: { agent: A
               title="Copy code"
               onClick={copy}
             >
-              {copied ? <Check {...icon(13)} /> : <Copy {...icon(13)} />}
+              {copied ? <Check {...icon(14)} /> : <Copy {...icon(14)} />}
             </button>
             {copied && (
               <span className="copied" role="status">

@@ -62,7 +62,7 @@ export default function QuotaWidget() {
             </span>
           )
         })}
-        <ChevronDown {...icon(13)} className="icon chevron" />
+        <ChevronDown {...icon(14)} className="icon chevron" />
       </summary>
       <div className="quotas" aria-label="Quotas">
         {quotas.map((q) => {
@@ -135,7 +135,7 @@ function RefreshButton({ agents, label, onError }: { agents: AgentKind[]; label:
       title={pending ? 'Refreshing…' : 'Refresh'}
       onClick={() => void run()}
     >
-      {pending ? <span className="busy-mark" aria-hidden="true" /> : <RotateCw {...icon(13)} />}
+      {pending ? <span className="busy-mark" aria-hidden="true" /> : <RotateCw {...icon(14)} />}
     </button>
   )
 }

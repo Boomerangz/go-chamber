@@ -346,11 +346,11 @@ function FileRow(props: {
         </button>
         <span className="diff-file-actions">
           <button type="button" className="btn btn-ghost btn-icon" aria-label="Copy path" title="Copy path" onClick={() => void copy(f.path, 'path', 'copy-path')}>
-            <Copy {...icon(13)} />
+            <Copy {...icon(14)} />
           </button>
           {props.onView ? (
             <button type="button" className="btn btn-ghost btn-icon" aria-label="View file" title="View file" onClick={props.onView}>
-              <Eye {...icon(13)} />
+              <Eye {...icon(14)} />
             </button>
           ) : (
             // A deleted file has nothing to view; the gap keeps the counts in line.
