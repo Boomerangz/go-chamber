@@ -269,7 +269,7 @@ button.health { border: 0; background: none; padding: 0; }
   padding: 14px 0 0; background: var(--paper); border-right: 1px solid var(--rule);
 }
 .sidebar > * { margin-left: 14px; margin-right: 14px; }
-.new-session { display: grid; gap: 8px; }
+.new-session { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; }
 .new-session .btn-primary { width: 100%; }
 
 .segmented {
@@ -855,7 +855,7 @@ button.health { border: 0; background: none; padding: 0; }
 }
 .chip:hover { border-color: var(--ink); color: var(--ink); }
 .chip[aria-pressed='true'] { border-color: var(--ink); color: var(--ink); }
-.folder-chips { gap: 4px 6px; }
+.folder-chips { gap: 4px 6px; min-width: 0; }
 .folder-chips .chip { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: inline-block; line-height: 22px; }
 .field-hint { margin: -4px 0 0; color: var(--bad); font-size: 12.5px; }
 

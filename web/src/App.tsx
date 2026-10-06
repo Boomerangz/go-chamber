@@ -21,7 +21,7 @@ import { setAttentionIcon } from './lib/favicon'
 import { usePending } from './lib/pending'
 import { sessionTitle } from './lib/sessions'
 import { attentionTitle } from './lib/title'
-import { markVisited, unseenCount, useVisits } from './lib/visits'
+import { endedTurns, markEnded, markVisited, unseenCount, useVisits } from './lib/visits'
 import { useLayoutStore, visibleDock } from './stores/layout'
 import { useSessionStore } from './stores/session'
 import { useTerminalStore } from './stores/terminals'
@@ -217,8 +217,8 @@ function useAttentionTitle() {
     const active = s.sessions.find((x) => x.id === s.activeId)
     return active ? sessionTitle(active) : undefined
   })
-  const seen = useVisits((s) => s.seen)
-  const unseen = useSessionStore((s) => unseenCount(s.sessions, seen, s.activeId))
+  const visits = useVisits()
+  const unseen = useSessionStore((s) => unseenCount(s.sessions, visits, s.activeId))
   useEffect(() => {
     document.title = attentionTitle({ pending, running, session, unseen })
     setAttentionIcon(pending > 0)
@@ -227,9 +227,18 @@ function useAttentionTitle() {
 
 // useVisitMarks records that the open session has been seen as it is now,
 // so the list marks only what changed while the owner looked elsewhere.
+// A turn that ends in another session is marked as changed while away.
 function useVisitMarks() {
   const active = useSessionStore((s) => s.sessions.find((x) => x.id === s.activeId))
   useEffect(() => {
     if (active) markVisited(active)
   }, [active])
+  useEffect(
+    () =>
+      useSessionStore.subscribe((now, before) => {
+        if (now.sessions === before.sessions) return
+        for (const id of endedTurns(before.sessions, now.sessions)) if (id !== now.activeId) markEnded(id)
+      }),
+    [],
+  )
 }

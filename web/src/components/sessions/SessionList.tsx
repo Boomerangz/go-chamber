@@ -18,7 +18,7 @@ import type { SessionNode } from '../../lib/tree'
 import { settle } from '../../lib/motion'
 import { useJustFinished } from '../../lib/finished'
 import { useNow } from '../../lib/now'
-import { isUnseen, useVisits } from '../../lib/visits'
+import { isUnseen, useVisits, type Visits } from '../../lib/visits'
 import { useSessionStore } from '../../stores/session'
 import { LoadFailed, LoadingLine, Skeleton } from '../ui/Loading'
 
@@ -54,7 +54,7 @@ export default function SessionList({ onCreateIn, agent = 'claude', creating = f
   const loadSessions = useSessionStore((s) => s.loadSessions)
   const searchingMessages = useSessionStore((s) => s.searching)
   const searchError = useSessionStore((s) => s.searchError)
-  const seen = useVisits((s) => s.seen)
+  const seen = useVisits()
   // Relative times ("4m ago") must not freeze.
   const now = useNow(60_000)
   const input = useRef<HTMLInputElement>(null)
@@ -175,7 +175,7 @@ function Group(props: {
   agent: AgentKind
   creating: boolean
   creatingIn: string | null
-  seen: Record<string, number>
+  seen: Visits
   now: number
 }) {
   const { mode, activeId } = props
@@ -258,7 +258,7 @@ function pendingIn(node: SessionNode, bySession: Map<string, number>): number {
   return (bySession.get(node.session.id) ?? 0) + node.children.reduce((n, c) => n + pendingIn(c, bySession), 0)
 }
 
-function unseenIn(node: SessionNode, seen: Record<string, number>, activeId: string | null): number {
+function unseenIn(node: SessionNode, seen: Visits, activeId: string | null): number {
   const own = node.session.id !== activeId && isUnseen(node.session, seen) ? 1 : 0
   return own + node.children.reduce((n, c) => n + unseenIn(c, seen, activeId), 0)
 }
@@ -278,7 +278,7 @@ function SessionRow(props: {
   depth: number
   activeId: string | null
   pendingBySession: Map<string, number>
-  seen: Record<string, number>
+  seen: Visits
   onSelect: (id: string) => void
   now: number
 }) {

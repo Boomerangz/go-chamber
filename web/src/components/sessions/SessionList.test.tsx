@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Session } from '../../lib/api'
 import { resetStore, useSessionStore } from '../../stores/session'
 import SessionList from './SessionList'
-import { markVisited, resetVisits } from '../../lib/visits'
+import { markEnded, markVisited, resetVisits } from '../../lib/visits'
 
 beforeEach(() => {
   localStorage.clear()
@@ -173,6 +173,13 @@ describe('what changed while you were away', () => {
     expect(row.querySelector('.session-unseen')).toHaveTextContent('new')
     expect(screen.getByText('Two').closest('button')!.querySelector('.session-unseen')).toBeNull()
     expect(screen.getByTitle('1 changed since you last looked')).toHaveTextContent('1 new')
+  })
+
+  it('marks a session whose turn ended while you looked elsewhere', () => {
+    markEnded('s1')
+    useSessionStore.setState({ sessions: [session('s1', 'One')] })
+    render(<SessionList onCreateIn={() => {}} />)
+    expect(screen.getByText('One').closest('button')!.querySelector('.session-unseen')).toHaveTextContent('new')
   })
 
   it('does not mark the open session', () => {
