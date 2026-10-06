@@ -5,7 +5,7 @@ import { applyEvents, initialChat, type ChatState } from '../lib/events'
 import type { GroupMode } from '../lib/sessions'
 import { LiveList } from '../lib/live-list'
 import { chimeOnEvent } from '../lib/chime'
-import { fail, useNotices } from './notices'
+import { describeError, fail, useNotices } from './notices'
 
 export type Connection = 'connecting' | 'online' | 'offline'
 
@@ -35,6 +35,8 @@ export interface SessionStore {
   history: LoadStatus
   // searching is true while the server searches messages for the query.
   searching: boolean
+  // searchError is why the last message search failed; null when it didn't.
+  searchError: string | null
   // nextRetryAt is when the live socket tries again after a drop (ms epoch).
   nextRetryAt: number | null
 
@@ -210,6 +212,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
   sessionsStatus: 'loading',
   history: 'ready',
   searching: false,
+  searchError: null,
   nextRetryAt: null,
 
   setConnection: (connection) => set({ connection }),
@@ -267,15 +270,15 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
   async searchMessages(query) {
     const mine = ++searchGeneration
     if (query.trim().length < 2) {
-      set({ searchHits: [], searching: false })
+      set({ searchHits: [], searching: false, searchError: null })
       return
     }
-    set({ searching: true })
+    set({ searching: true, searchError: null })
     try {
       const hits = await api.searchMessages(query.trim())
       if (mine === searchGeneration) set({ searchHits: hits, searching: false })
-    } catch {
-      if (mine === searchGeneration) set({ searchHits: [], searching: false })
+    } catch (err) {
+      if (mine === searchGeneration) set({ searchHits: [], searching: false, searchError: describeError(err) })
     }
   },
 
@@ -718,6 +721,7 @@ export function resetStore(): void {
     sessionsStatus: 'loading',
     history: 'ready',
     searching: false,
+    searchError: null,
     nextRetryAt: null,
   })
 }

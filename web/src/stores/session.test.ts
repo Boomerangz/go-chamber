@@ -406,6 +406,10 @@ describe('session store', () => {
     useSessionStore.setState({ searchHits: [{ sessionId: 's', itemId: 'i', snippet: '', matches: 1 }] })
     await store().searchMessages('query')
     expect(store().searchHits).toEqual([])
+    expect(store().searchError).toBe('down')
+    ;(api.searchMessages as Mock).mockResolvedValue([])
+    await store().searchMessages('query')
+    expect(store().searchError).toBeNull()
   })
 
   it('loads models once per agent', async () => {

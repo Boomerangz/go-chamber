@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { Session } from './api'
-import { bucketOf, groupSessions, matchesQuery, relativeTime, sessionTitle, snippetParts, visibleInGroup } from './sessions'
+import { bucketOf, folderNames, groupSessions, matchesQuery, relativeTime, sessionTitle, snippetParts, visibleInGroup } from './sessions'
 
 const now = new Date('2026-09-25T12:00:00Z')
 const s = (id: string, cwd: string, activeAt: string, over: Partial<Session> = {}): Session => ({
@@ -107,7 +107,7 @@ describe('relativeTime', () => {
     expect(relativeTime('2026-09-25T11:15:00Z', now)).toBe('45m ago')
     expect(relativeTime('2026-09-25T09:00:00Z', now)).toBe('3h ago')
     expect(relativeTime('2026-09-22T12:00:00Z', now)).toBe('3d ago')
-    expect(relativeTime('2026-06-01T12:00:00Z', now)).toMatch(/2026|Jun/)
+    expect(relativeTime('2026-06-01T12:00:00Z', now)).toMatch(/Jun/)
     expect(relativeTime(undefined, now)).toBe('')
     expect(relativeTime('0001-01-01T00:00:00Z', now)).toBe('')
   })
@@ -146,5 +146,22 @@ describe('snippetParts', () => {
     expect(snippetParts('[[a]]')).toEqual([{ text: 'a', match: true }])
     expect(snippetParts('plain')).toEqual([{ text: 'plain', match: false }])
     expect(snippetParts('')).toEqual([])
+  })
+})
+
+describe('relativeTime dates', () => {
+  const now = new Date('2026-09-25T12:00:00Z')
+  it('leaves the year out for this year', () => {
+    expect(relativeTime('2026-06-01T12:00:00Z', now)).not.toMatch(/2026/)
+  })
+  it('keeps the year for an earlier year', () => {
+    expect(relativeTime('2025-06-01T12:00:00Z', now)).toMatch(/2025/)
+  })
+})
+
+describe('folderNames', () => {
+  it('names folders by their last part, adding the parent when two collide', () => {
+    const names = folderNames(['/src/app/web', '/src/site/web', '/src/api'])
+    expect([...names.values()]).toEqual(['app/web', 'site/web', 'api'])
   })
 })

@@ -4,8 +4,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Session } from '../../lib/api'
 import { resetStore, useSessionStore } from '../../stores/session'
 import SessionList from './SessionList'
+import { markVisited, resetVisits } from '../../lib/visits'
 
 beforeEach(() => {
+  localStorage.clear()
+  resetVisits()
   resetStore()
   useSessionStore.setState({ searchMessages: vi.fn(async () => {}), sessionsStatus: 'ready' })
   Element.prototype.scrollIntoView = vi.fn()
@@ -158,5 +161,68 @@ describe('session rows', () => {
       await vi.advanceTimersByTimeAsync(60_000)
     })
     expect(screen.getByText('3m ago')).toBeInTheDocument()
+  })
+})
+
+describe('what changed while you were away', () => {
+  it('marks a row whose activity is later than your last visit, and counts it on the group', () => {
+    markVisited({ ...session('s1', 'One'), activeAt: '2026-10-06T10:00:00Z' })
+    useSessionStore.setState({ sessions: [{ ...session('s1', 'One'), activeAt: '2026-10-06T11:00:00Z' }, session('s2', 'Two')] })
+    render(<SessionList onCreateIn={() => {}} />)
+    const row = screen.getByText('One').closest('button')!
+    expect(row.querySelector('.session-unseen')).toHaveTextContent('new')
+    expect(screen.getByText('Two').closest('button')!.querySelector('.session-unseen')).toBeNull()
+    expect(screen.getByTitle('1 changed since you last looked')).toHaveTextContent('1 new')
+  })
+
+  it('does not mark the open session', () => {
+    markVisited({ ...session('s1', 'One'), activeAt: '2026-10-06T10:00:00Z' })
+    useSessionStore.setState({ activeId: 's1', sessions: [{ ...session('s1', 'One'), activeAt: '2026-10-06T11:00:00Z' }] })
+    render(<SessionList onCreateIn={() => {}} />)
+    expect(document.querySelector('.session-unseen')).toBeNull()
+  })
+})
+
+describe('state on the row', () => {
+  it('draws a detached session with the dashed mark', () => {
+    useSessionStore.setState({ sessions: [{ ...session('s1', 'One'), status: 'detached' }] })
+    render(<SessionList onCreateIn={() => {}} />)
+    const mark = document.querySelector('.session-status-detached')!
+    expect(mark).toBeInTheDocument()
+    expect(mark).toHaveAccessibleName(/detached/)
+  })
+
+  it('says a session is waiting for you, and lists it first in its group', () => {
+    useSessionStore.setState({
+      sessions: [
+        { ...session('s1', 'Newest'), activeAt: '2026-10-06T11:00:00Z' },
+        { ...session('s2', 'Asks'), activeAt: '2026-10-01T11:00:00Z' },
+      ],
+      pendingRequests: [{ id: 'r1', sessionId: 's2', kind: 'permission' } as never],
+    })
+    render(<SessionList onCreateIn={() => {}} />)
+    const titles = [...document.querySelectorAll('.session-title')].map((e) => e.textContent)
+    expect(titles).toEqual(['Asks', 'Newest'])
+    expect(screen.getByText('Asks').closest('button')).toHaveTextContent('waiting for you')
+  })
+})
+
+describe('search failures and busy buttons', () => {
+  it('says a failed message search failed, with a retry', async () => {
+    const searchMessages = vi.fn(async () => {})
+    useSessionStore.setState({ query: 'zzz', searchError: 'boom', searchMessages })
+    render(<SessionList onCreateIn={() => {}} />)
+    expect(screen.getByText("Couldn't search messages: boom")).toBeInTheDocument()
+    expect(screen.queryByText('No matching sessions')).toBeNull()
+    searchMessages.mockClear()
+    await userEvent.click(screen.getByRole('button', { name: 'Retry' }))
+    expect(searchMessages).toHaveBeenCalledWith('zzz')
+  })
+
+  it('marks busy only the "+" that is starting a session', () => {
+    useSessionStore.setState({ sessions: [session('s1', 'One'), { ...session('s2', 'Two'), cwd: '/q' }] })
+    render(<SessionList creating creatingIn="/q" onCreateIn={() => {}} />)
+    expect(screen.getByRole('button', { name: 'New Claude session in /q' })).toHaveAttribute('aria-busy', 'true')
+    expect(screen.getByRole('button', { name: 'New Claude session in /p' })).not.toHaveAttribute('aria-busy')
   })
 })

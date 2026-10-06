@@ -51,14 +51,24 @@ export function groupSessions(sessions: Session[]): SessionGroup[] {
 // disambiguate names groups that share a folder name by their parent too
 // ("app/web", "site/web"), so two projects never look the same.
 function disambiguate(groups: SessionGroup[]): SessionGroup[] {
-  const count = new Map<string, number>()
-  for (const g of groups) count.set(g.name, (count.get(g.name) ?? 0) + 1)
-  for (const g of groups) {
-    if ((count.get(g.name) ?? 0) < 2) continue
-    const parts = g.cwd.split('/').filter(Boolean)
-    if (parts.length >= 2) g.name = parts.slice(-2).join('/')
-  }
+  const names = folderNames(groups.map((g) => g.cwd))
+  for (const g of groups) g.name = names.get(g.cwd) ?? g.name
   return groups
+}
+
+// folderNames gives each folder a short name: its last part, or its last
+// two parts when another folder has the same last part.
+export function folderNames(cwds: string[]): Map<string, string> {
+  const unique = [...new Set(cwds)]
+  const count = new Map<string, number>()
+  for (const cwd of unique) count.set(basename(cwd), (count.get(basename(cwd)) ?? 0) + 1)
+  const names = new Map<string, string>()
+  for (const cwd of unique) {
+    const parts = cwd.split('/').filter(Boolean)
+    const name = basename(cwd)
+    names.set(cwd, (count.get(name) ?? 0) >= 2 && parts.length >= 2 ? parts.slice(-2).join('/') : name)
+  }
+  return names
 }
 
 function contains(node: SessionNode, id: string): boolean {
@@ -106,7 +116,9 @@ export function relativeTime(iso: string | undefined, now: Date = new Date()): s
   if (hours < 24) return `${hours}h ago`
   const days = Math.floor(hours / 24)
   if (days < 7) return `${days}d ago`
-  return new Date(t).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
+  const date = new Date(t)
+  const sameYear = date.getFullYear() === now.getFullYear()
+  return date.toLocaleDateString(undefined, sameYear ? { month: 'short', day: 'numeric' } : { month: 'short', day: 'numeric', year: 'numeric' })
 }
 
 // matchesQuery is the client-side part of session search: title, folder
