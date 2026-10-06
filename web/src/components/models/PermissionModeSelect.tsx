@@ -31,6 +31,7 @@ export default function PermissionModeSelect({ session }: { session: Session }) 
   const [confirming, setConfirming] = useState<string | null>(null)
   const latest = useRef(0)
   const cancel = useRef<HTMLButtonElement>(null)
+  const select = useRef<HTMLSelectElement>(null)
   // The safe answer takes focus when the question appears.
   useEffect(() => {
     if (confirming) cancel.current?.focus()
@@ -46,6 +47,11 @@ export default function PermissionModeSelect({ session }: { session: Session }) 
     await setMode(session.id, mode)
     if (ticket === latest.current) setPending(null)
   }
+  // Dismissing the question hands focus back to the select it came from.
+  const dismiss = () => {
+    setConfirming(null)
+    select.current?.focus()
+  }
   const choose = (mode: string) => {
     if (isDangerousMode(mode) && !isDangerousMode(value)) setConfirming(mode)
     else void change(mode)
@@ -56,6 +62,7 @@ export default function PermissionModeSelect({ session }: { session: Session }) 
       <label className="reviewer">
         Mode
         <select
+          ref={select}
           className={`field field-sm${danger ? ' mode-danger' : ''}`}
           aria-label="permission mode"
           aria-busy={pending !== null || undefined}
@@ -80,15 +87,19 @@ export default function PermissionModeSelect({ session }: { session: Session }) 
           onKeyDown={(e) => {
             if (e.key === 'Escape') {
               e.stopPropagation()
-              setConfirming(null)
+              dismiss()
             }
           }}
         >
-          <span>{label(confirming)}: the agent won't ask before acting.</span>
+          <span>
+            {label(confirming)}: the agent won't ask before acting.
+            {/* Claude takes this mode only at start, so the session detaches. */}
+            {session.agent === 'claude' && ' It restarts to apply it.'}
+          </span>
           <button type="button" className="btn btn-xs btn-danger" onClick={() => void change(confirming)}>
             Switch
           </button>
-          <button type="button" className="btn btn-xs" ref={cancel} onClick={() => setConfirming(null)}>
+          <button type="button" className="btn btn-xs" ref={cancel} onClick={dismiss}>
             Cancel
           </button>
         </span>

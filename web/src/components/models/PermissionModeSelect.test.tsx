@@ -58,6 +58,8 @@ describe('PermissionModeSelect', () => {
     expect(select).toHaveValue('default')
     const confirm = screen.getByRole('group', { name: 'confirm bypass permissions' })
     expect(confirm).toHaveTextContent(/won't ask/)
+    // Claude takes this mode only at start: say why it will show detached.
+    expect(confirm).toHaveTextContent(/restarts/)
     expect(screen.getByRole('button', { name: 'Cancel' })).toHaveFocus()
     await userEvent.click(screen.getByRole('button', { name: 'Switch' }))
     expect(api.setPermissionMode).toHaveBeenCalledWith('s', 'bypassPermissions')
@@ -69,8 +71,11 @@ describe('PermissionModeSelect', () => {
     await userEvent.selectOptions(screen.getByLabelText('permission mode'), 'full-access')
     await userEvent.keyboard('{Escape}')
     expect(screen.queryByRole('group', { name: /confirm/ })).toBeNull()
+    // Focus goes back where the question came from, not to the page.
+    expect(screen.getByLabelText('permission mode')).toHaveFocus()
     await userEvent.selectOptions(screen.getByLabelText('permission mode'), 'full-access')
     await userEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+    expect(screen.getByLabelText('permission mode')).toHaveFocus()
     expect(api.setPermissionMode).not.toHaveBeenCalled()
     expect(screen.getByLabelText('permission mode')).toHaveValue('auto')
   })
