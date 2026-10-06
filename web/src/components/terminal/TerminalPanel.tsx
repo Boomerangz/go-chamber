@@ -23,6 +23,7 @@ export default function TerminalPanel({ sessionId }: { sessionId: string | null 
   const load = useTerminalStore((s) => s.load)
   const activeId = useTerminalStore((s) => s.activeId)
   const setMode = useLayoutStore((s) => s.setMode)
+  const select = useTerminalStore((s) => s.select)
   const sorted = sortForSession(terminals, sessionId)
   useTerminalSteps(sorted.map((t) => t.id))
   // A remembered or linked terminal attaches only once the list has it.
@@ -73,7 +74,7 @@ export default function TerminalPanel({ sessionId }: { sessionId: string | null 
             ))}
           </ul>
         )}
-        <NewTerminalButton sessionId={sessionId} />
+        <NewTerminalButton sessionId={sessionId} terminals={sorted} />
       </div>
       <OpenError />
       {loadError && (
@@ -82,9 +83,21 @@ export default function TerminalPanel({ sessionId }: { sessionId: string | null 
         </LoadFailed>
       )}
       {!loaded && terminals.length === 0 && !loadError && <LoadingLine>loading shells…</LoadingLine>}
+      {/* Nothing attaches unasked (each viewer answers the shell's queries), but the first is one click away. */}
       {loaded && !attached && (
         <p className="terminal-hint">
-          {terminals.length > 0 ? 'Pick a terminal tab to attach.' : sessionId ? 'No shells yet. + opens one in the session folder.' : 'No shells yet. + opens one in your home folder.'}
+          {sorted[0] ? (
+            <>
+              No shell attached.{' '}
+              <button type="button" className="act-link" onClick={() => select(sorted[0]!.id)}>
+                Attach {sorted[0].title}
+              </button>
+            </>
+          ) : sessionId ? (
+            'No shells yet. + opens one in the session folder.'
+          ) : (
+            'No shells yet. + opens one in your home folder.'
+          )}
         </p>
       )}
       {attached && <TerminalScreen id={attached} />}
@@ -99,6 +112,13 @@ function fadeOf(el: HTMLElement): Fade {
   const start = el.scrollLeft > 1
   const end = el.scrollLeft + el.clientWidth < el.scrollWidth - 1
   return start && end ? 'both' : start ? 'start' : end ? 'end' : null
+}
+
+// namesFolder is true when the title already says the folder ("repo60 2"
+// in repo60), so it isn't repeated beside it.
+function namesFolder(t: Terminal): boolean {
+  const folder = basename(t.cwd) || t.cwd
+  return t.title.toLowerCase().includes(folder.toLowerCase())
 }
 
 function TerminalTab({ terminal: t, selected }: { terminal: Terminal; selected: boolean }) {
@@ -151,7 +171,7 @@ function TerminalTab({ terminal: t, selected }: { terminal: Terminal; selected: 
           <span className="term-dot" data-mark={mark.form} aria-hidden="true" />
           <span className="term-tab-text">
             <span className="term-tab-title">{t.title}</span>
-            {folder !== t.title && <span className="term-tab-cwd">{folder}</span>}
+            {!namesFolder(t) && <span className="term-tab-cwd">{folder}</span>}
           </span>
           {t.status === 'exited' && <span className={t.exitCode === 0 ? 'term-exit' : 'term-exit term-bad'}>exited {t.exitCode}</span>}
         </button>
@@ -167,9 +187,12 @@ function TerminalTab({ terminal: t, selected }: { terminal: Terminal; selected: 
 }
 
 // NewTerminalButton opens a shell in the session folder (or home without a
-// session); its menu offers home and any other folder.
-function NewTerminalButton({ sessionId }: { sessionId: string | null }) {
+// session); its menu lists every shell (more than the strip shows) and
+// offers home and any other folder.
+function NewTerminalButton({ sessionId, terminals }: { sessionId: string | null; terminals: Terminal[] }) {
   const open = useTerminalStore((s) => s.open)
+  const select = useTerminalStore((s) => s.select)
+  const activeId = useTerminalStore((s) => s.activeId)
   const opening = useTerminalStore((s) => s.opening)
   const [menu, setMenu] = useState(false)
   const [cwd, setCwd] = useState('')
@@ -217,8 +240,8 @@ function NewTerminalButton({ sessionId }: { sessionId: string | null }) {
       <button
         type="button"
         className="btn btn-ghost btn-icon term-new-more"
-        aria-label="Open a terminal elsewhere"
-        title="Open a terminal elsewhere"
+        aria-label="More terminals"
+        title="All terminals, or open one elsewhere"
         aria-expanded={menu}
         aria-haspopup="true"
         onClick={() => setMenu((m) => !m)}
@@ -226,23 +249,46 @@ function NewTerminalButton({ sessionId }: { sessionId: string | null }) {
         <ChevronDown {...icon(13)} />
       </button>
       {menu && (
-        <div className="term-new-menu" role="group" aria-label="Open a terminal in">
-          <button type="button" className="btn btn-xs" aria-busy={busyHome || undefined} onClick={() => void openIn({})}>
-            {busyHome ? 'Opening…' : 'Home folder'}
-          </button>
-          <form
-            className="term-new-folder"
-            onSubmit={(e) => {
-              e.preventDefault()
-              const dir = cwd.trim()
-              if (dir) void openIn({ cwd: dir })
-            }}
-          >
-            <FolderField label="Terminal directory" placeholder="another folder" value={cwd} onChange={setCwd} />
-            <button type="submit" className="btn btn-xs" disabled={!cwd.trim()} aria-busy={busyFolder || undefined}>
-              {busyFolder ? 'Opening…' : 'Open'}
+        <div className="term-new-menu">
+          {terminals.length > 0 && (
+            <ul className="term-all" role="group" aria-label="All terminals">
+              {terminals.map((t) => (
+                <li key={t.id}>
+                  <button
+                    type="button"
+                    className="term-all-row"
+                    aria-current={t.id === activeId || undefined}
+                    title={t.cwd}
+                    onClick={() => {
+                      select(t.id)
+                      setMenu(false)
+                    }}
+                  >
+                    <span className="term-tab-title">{t.title}</span>
+                    {!namesFolder(t) && <span className="term-tab-cwd">{basename(t.cwd) || t.cwd}</span>}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+          <div className="term-new-in" role="group" aria-label="Open a terminal in">
+            <button type="button" className="btn btn-xs" aria-busy={busyHome || undefined} onClick={() => void openIn({})}>
+              {busyHome ? 'Opening…' : 'Home folder'}
             </button>
-          </form>
+            <form
+              className="term-new-folder"
+              onSubmit={(e) => {
+                e.preventDefault()
+                const dir = cwd.trim()
+                if (dir) void openIn({ cwd: dir })
+              }}
+            >
+              <FolderField label="Terminal directory" placeholder="another folder" value={cwd} onChange={setCwd} />
+              <button type="submit" className="btn btn-xs" disabled={!cwd.trim()} aria-busy={busyFolder || undefined}>
+                {busyFolder ? 'Opening…' : 'Open'}
+              </button>
+            </form>
+          </div>
         </div>
       )}
     </div>

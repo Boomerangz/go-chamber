@@ -74,6 +74,8 @@
 
 /* terminal mode on a phone: with a shell attached the list folds to one line */
 .term-switch { display: none; }
+.term-new-area { display: flex; flex-direction: column; gap: inherit; min-width: 0; }
+.term-new-area[data-folded] { display: none; }
 @media (max-width: 720px) {
   .term-switch {
     display: flex; align-items: center; gap: 8px; width: 100%; min-height: 36px; padding: 0 4px;
@@ -82,6 +84,14 @@
   .term-switch .section-title { margin: 0; }
   .term-switch-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--font-mono); font-size: 12.5px; }
   .term-switch[aria-expanded='true'] svg { transform: rotate(180deg); }
+  /* the switch stays over a long list, so it folds again from anywhere */
+  .term-switch[aria-expanded='true'] { position: sticky; top: -12px; z-index: 1; margin-top: -12px; padding-top: 12px; background: var(--paper); }
+  /* unfolded, the shells come first; a new one waits behind its own fold */
+  .term-new-toggle {
+    display: flex; align-items: center; justify-content: space-between; width: 100%; min-height: 36px; padding: 0 4px;
+    border: 0; border-top: 1px solid var(--rule); background: transparent; color: var(--ink-3); cursor: pointer;
+  }
+  .term-new-toggle[aria-expanded='true'] svg { transform: rotate(180deg); }
   .term-sidebar[data-collapsed] { max-height: none; padding-block: 4px; }
   .term-sidebar[data-collapsed] > :not(.term-switch) { display: none; }
 }
@@ -94,7 +104,18 @@
   display: grid; gap: 8px; padding: 10px;
   border: 1px solid var(--ink); border-radius: var(--r); background: var(--paper);
 }
-.term-new-menu > .btn { justify-self: start; }
+.term-new-in { display: grid; gap: 8px; }
+.term-new-in > .btn { justify-self: start; }
+/* every shell, also those past the strip's edge; the attached one marked */
+.term-all { list-style: none; margin: 0; padding: 0 0 8px; display: grid; gap: 1px; max-height: 240px; overflow: auto; border-bottom: 1px solid var(--rule); }
+.term-all > li { min-width: 0; }
+.term-all-row {
+  display: flex; align-items: baseline; gap: 6px; width: 100%; min-height: 28px; padding: 0 6px;
+  border: 0; border-radius: var(--r); background: none; color: var(--ink-2); font-family: var(--font-mono); font-size: 12.5px; text-align: left;
+}
+.term-all-row:hover, .term-all-row[aria-current='true'] { background: var(--paper-2); color: var(--ink); }
+.term-all-row .term-tab-title { flex: 0 1 auto; max-width: none; min-width: 0; }
+.term-all-row .term-tab-cwd { flex: none; }
 .term-new-folder { display: flex; gap: 6px; align-items: center; min-width: 0; }
 .term-new-folder .folder-field { flex: 1; min-width: 0; }
 

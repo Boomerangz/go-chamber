@@ -5,6 +5,7 @@ import { recentFolders } from '../../lib/folders'
 import { basename } from '../../lib/format'
 import { fail, notify } from '../../stores/notices'
 import { useState } from 'react'
+import { useMedia } from '../chat/useMedia'
 import { openKey, useTerminalStore } from '../../stores/terminals'
 import EditableTitle from '../title/EditableTitle'
 import { LoadFailed, LoadingLine } from '../ui/Loading'
@@ -44,6 +45,11 @@ export default function TerminalWorkspace({ sessions }: { sessions: Session[] })
   useTerminalSteps(terminals.map((t) => t.id))
   // On a phone the list folds to one line while a shell is attached.
   const [listOpen, setListOpen] = useState(false)
+  // There, unfolded, the shells come first and a new one waits behind "New shell".
+  const narrow = useMedia('(max-width: 720px)')
+  const [newOpen, setNewOpen] = useState(false)
+  const openError = useTerminalStore((s) => s.openError)
+  const foldNew = narrow && Boolean(active)
   const projects = recentFolders(sessions, 6)
 
   let list: React.ReactNode
@@ -102,45 +108,78 @@ export default function TerminalWorkspace({ sessions }: { sessions: Session[] })
     )
   }
 
+  const newArea = (
+    <div className="term-new-area" data-folded={(foldNew && !newOpen && !openError) || undefined}>
+      <NewTerminalForm />
+      {projects.length > 0 && (
+        <div className="term-projects">
+          <h2 className="section-title">Projects</h2>
+          <div className="term-chips">
+            {projects.map((dir) => (
+              <button
+                key={dir}
+                type="button"
+                className="chip"
+                title={dir}
+                aria-label={`Open terminal in ${basename(dir)}`}
+                aria-busy={opening[openKey({ cwd: dir })] || undefined}
+                onClick={() => void open({ cwd: dir })}
+              >
+                <SquareTerminal {...icon(13)} />
+                <span className="chip-label">{basename(dir)}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+
   return (
     // Nothing attached on a phone: the list is the content (CSS drops the hero).
     <section className="term-workspace" aria-label="Terminals" data-attached={active ? 'true' : undefined} data-missing={missingId ? 'true' : undefined}>
       <aside className="term-sidebar panel" data-collapsed={(active && !listOpen) || undefined}>
         {active && (
-          <button type="button" className="term-switch" aria-expanded={listOpen} onClick={() => setListOpen((o) => !o)}>
+          <button
+            type="button"
+            className="term-switch"
+            aria-expanded={listOpen}
+            onClick={() => {
+              setListOpen((o) => !o)
+              // the attached shell's row in view, however long the list
+              requestAnimationFrame(() => document.getElementById(`terminal-tab-${active.id}`)?.scrollIntoView?.({ block: 'nearest' }))
+            }}
+          >
             <span className="section-title">Shells</span>
             <span className="count">{terminals.length}</span>
             <span className="term-switch-title">{active.title}</span>
             <ChevronDown {...icon(14)} />
           </button>
         )}
-        <NewTerminalForm />
-        {projects.length > 0 && (
-          <div className="term-projects">
-            <h2 className="section-title">Projects</h2>
-            <div className="term-chips">
-              {projects.map((dir) => (
-                <button
-                  key={dir}
-                  type="button"
-                  className="chip"
-                  title={dir}
-                  aria-label={`Open terminal in ${basename(dir)}`}
-                  aria-busy={opening[openKey({ cwd: dir })] || undefined}
-                  onClick={() => void open({ cwd: dir })}
-                >
-                  <SquareTerminal {...icon(13)} />
-                  <span className="chip-label">{basename(dir)}</span>
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
+        {!foldNew && newArea}
         <h2 className="section-title">
           Shells {terminals.length > 0 && <span className="count">{terminals.length}</span>}
         </h2>
         {(loaded || terminals.length > 0) && failed}
         {list}
+        {foldNew && (
+          <>
+            <button
+              type="button"
+              className="term-new-toggle"
+              aria-expanded={newOpen}
+              onClick={(e) => {
+                const toggle = e.currentTarget
+                setNewOpen((o) => !o)
+                requestAnimationFrame(() => toggle.nextElementSibling?.scrollIntoView?.({ block: 'nearest' }))
+              }}
+            >
+              <span className="section-title">New shell</span>
+              <ChevronDown {...icon(14)} />
+            </button>
+            {newArea}
+          </>
+        )}
       </aside>
       <div className="term-main panel">
         {active ? (

@@ -42,6 +42,31 @@ test('a project chip shows its icon beside a shortened name, inside the list', a
   expect(c.x + c.width).toBeLessThanOrEqual(s.x + s.width)
 })
 
+test('the dock lists every shell under ▾ and attaches the one picked', async ({ page, isMobile }) => {
+  test.skip(isMobile, 'the dock is desktop-only')
+  await page.addInitScript(() => Object.defineProperty(window, 'RTCPeerConnection', { value: undefined }))
+  const dir = fs.realpathSync(fs.mkdtempSync(`${os.tmpdir()}/gc-dockall-`))
+  await startSession(page, dir)
+  await page.getByRole('toolbar', { name: 'Dock' }).getByRole('button', { name: /^Terminal/ }).click()
+  const panel = page.getByRole('region', { name: 'Terminals' })
+  await panel.getByRole('button', { name: 'New terminal in session dir' }).click()
+  await expect(panel.getByRole('tab', { selected: true })).toBeVisible()
+  await panel.getByRole('button', { name: 'New terminal in session dir' }).click()
+  const name = dir.split('/').pop()!
+  // the second shell's title names the folder: it isn't repeated beside it
+  await expect(panel.getByRole('tab', { name: new RegExp(`${name} 2`) }).locator('.term-tab-cwd')).toHaveCount(0)
+  await panel.getByRole('button', { name: 'More terminals' }).click()
+  const all = panel.getByRole('group', { name: 'All terminals' })
+  await expect(all.getByRole('button', { name: new RegExp(`^${name} 2`) })).toHaveAttribute('aria-current', 'true')
+  await all.getByRole('button', { name: new RegExp(`^${name}$`) }).click()
+  await expect(all).toBeHidden()
+  await expect(panel.getByRole('tab', { selected: true })).toHaveAccessibleName(new RegExp(`^${name}$`))
+  for (const t of [`${name} 2`, name]) {
+    await panel.getByRole('button', { name: `Close terminal ${t}`, exact: true }).click()
+    await panel.getByRole('group', { name: /^Close terminal / }).getByRole('button', { name: 'Close', exact: true }).click()
+  }
+})
+
 test('the quick switcher keeps titles readable beside a long folder', async ({ page }, info) => {
   test.skip(info.project.name === 'mobile', '⌘K is a keyboard matter')
   const dir = fs.realpathSync(fs.mkdtempSync(`${os.tmpdir()}/gc-fit-`))
