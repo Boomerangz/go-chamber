@@ -86,6 +86,18 @@ test('a draft of several lines gets the whole composer width', async ({ page }) 
   await expect(page.locator('form.composer')).not.toHaveClass(/multiline/)
 })
 
+test('cuts a long command to one line', async ({ page }) => {
+  await newSession(page)
+  const long = `bash ${'some/rather/long/path/segment '.repeat(12)}`.trim()
+  await page.getByLabel('message').fill(long)
+  await page.getByRole('button', { name: 'Send' }).click()
+  const code = page.locator('.item.command .item-line > code')
+  await expect(code).toHaveAttribute('title', `echo ${long}`)
+  const box = (await code.boundingBox())!
+  expect(box.height).toBeLessThan(24)
+  expect(await code.evaluate((el) => el.scrollWidth > el.clientWidth)).toBe(true)
+})
+
 test('brings sent messages back with ArrowUp', async ({ page }) => {
   await newSession(page)
   await say(page, 'first thing')

@@ -156,3 +156,7 @@
   .row .item.actions-shown .msg-copy { display: flex; }
 }
 .item.subagent.state-stopped .subagent-items { border-left-style: solid; }
+
+/* a command or a path is cut to one line; the whole of it shows on hover */
+.item code.line-cut { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.item.file > code.line-cut { min-width: 0; }

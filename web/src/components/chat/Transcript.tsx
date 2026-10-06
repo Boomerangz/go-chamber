@@ -114,7 +114,9 @@ function ItemView({ node, onStopTask, onRetry, onEdit }: ItemViewProps) {
             <Terminal {...icon(13)} />
           </ItemIcon>
           <span className="item-line">
-            <code>{commandText(item)}</code>
+            <code className="line-cut" title={commandText(item)}>
+              {commandText(item)}
+            </code>
             {item.exitCode !== undefined ? (
               <span className={`exit-tag${item.exitCode !== 0 ? ' exit-bad' : ''}`}>exit {item.exitCode}</span>
             ) : item.status === 'stopped' ? (
@@ -134,7 +136,9 @@ function ItemView({ node, onStopTask, onRetry, onEdit }: ItemViewProps) {
           <ItemIcon label="file change" item={item}>
             <FilePen {...icon(13)} />
           </ItemIcon>
-          <code>{item.path || item.name}</code>
+          <code className="line-cut" title={item.path || item.name}>
+            {item.path || item.name}
+          </code>
           {lines && lines.length > 0 ? (
             <DiffFold lines={lines} raw={item.diff} open={failed} />
           ) : (
