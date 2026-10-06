@@ -1,7 +1,10 @@
 import { lazy, Suspense, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
+import { WrapText } from 'lucide-react'
 import CopyButton from './CopyButton'
+import { icon } from '../icon'
 import { LoadingLine } from '../ui/Loading'
-import { fileKind, fileLine, filePath, fileUrl, langOf, MarkLine, SessionFiles } from '../../lib/files'
+import { fetchFile, fileKind, fileLine, filePath, fileUrl, langOf, MarkLine, PREVIEW_LIMIT, SessionFiles, type FetchedFile } from '../../lib/files'
+import { useLayoutStore } from '../../stores/layout'
 
 const Markdown = lazy(() => import('./Markdown'))
 
@@ -42,46 +45,70 @@ export function MdLink({ href, children }: { href?: string; children?: ReactNode
   )
 }
 
-type Loaded = { text: string } | { error: string }
+type Loaded = FetchedFile | { error: string }
 
-function FileViewer({
+const kib = (bytes: number) => (bytes >= 1048576 ? `${(bytes / 1048576).toFixed(1)} MB` : `${Math.round(bytes / 1024)} KB`)
+
+// FileViewer shows one file of the session folder in a dialog: images as
+// images, markdown rendered, anything else as text unless it is binary.
+// label is the path shown when path itself is longer (an absolute one).
+export function FileViewer({
   sessionId,
   path,
+  label = path,
   line,
   onClose,
 }: {
   sessionId: string
   path: string
+  label?: string
   line?: number
   onClose: () => void
 }) {
   const ref = useRef<HTMLDialogElement>(null)
   const kind = fileKind(path)
+  const wrap = useLayoutStore((s) => s.wrap)
+  const toggleWrap = useLayoutStore((s) => s.toggleWrap)
   const [loaded, setLoaded] = useState<Loaded>()
   useEffect(() => {
     const d = ref.current
-    if (d && !d.open) d.showModal()
+    if (d && !d.open) d.showModal?.()
   }, [])
   useEffect(() => {
     if (kind === 'image') return
     let live = true
-    fetch(fileUrl(sessionId, path), { credentials: 'same-origin' })
-      .then(async (r) => (r.ok ? { text: await r.text() } : { error: await problem(r) }))
-      .catch(() => ({ error: 'Could not load the file' }))
-      .then((l) => live && setLoaded(l))
+    fetchFile(sessionId, path).then(
+      (l) => live && setLoaded(l),
+      (err: unknown) => live && setLoaded({ error: err instanceof Error ? err.message : 'Could not load the file' }),
+    )
     return () => {
       live = false
     }
   }, [sessionId, path, kind])
+  const download = fileUrl(sessionId, path, true)
   return (
-    <dialog ref={ref} className="file-viewer" aria-label={path} onClose={onClose} onCancel={onClose}>
+    <dialog
+      ref={ref}
+      className="file-viewer"
+      aria-label={label}
+      data-wrap={wrap || undefined}
+      onClose={onClose}
+      onCancel={onClose}
+      // A click on the backdrop lands on the dialog itself.
+      onMouseDown={(e) => e.target === e.currentTarget && onClose()}
+    >
       <header className="file-viewer-bar">
-        <span className="file-viewer-path" title={path}>
-          {path}
+        <span className="file-viewer-path" title={label}>
+          {label}
           {line ? <span className="file-viewer-line">:{line}</span> : null}
         </span>
-        <CopyButton text={path} label="Copy path" className="file-viewer-copy" />
-        <a className="btn btn-ghost" href={fileUrl(sessionId, path, true)} download>
+        <CopyButton text={label} label="Copy path" className="file-viewer-copy" />
+        {kind !== 'image' && (
+          <button type="button" className="btn btn-ghost btn-icon" aria-label="Wrap long lines" title="Wrap long lines" aria-pressed={wrap} onClick={toggleWrap}>
+            <WrapText {...icon(14)} />
+          </button>
+        )}
+        <a className="btn btn-ghost" href={download} download>
           Download
         </a>
         <button type="button" className="btn btn-ghost" onClick={onClose}>
@@ -90,32 +117,54 @@ function FileViewer({
       </header>
       <div className="file-viewer-body">
         {kind === 'image' ? (
-          <img src={fileUrl(sessionId, path)} alt={path} />
+          <ImageView src={fileUrl(sessionId, path)} alt={label} />
         ) : !loaded ? (
           <LoadingLine>loading file…</LoadingLine>
         ) : 'error' in loaded ? (
           <p className="file-viewer-note" role="alert">
             {loaded.error}
           </p>
+        ) : 'binary' in loaded ? (
+          <p className="file-viewer-note">
+            This file is binary. <a href={download} download>Download it</a> to open it.
+          </p>
         ) : (
-          <MarkLine.Provider value={kind === 'markdown' ? undefined : line}>
-            <Suspense fallback={<pre>{loaded.text}</pre>}>
-              <Markdown text={kind === 'markdown' ? loaded.text : fence(loaded.text, langOf(path))} />
-            </Suspense>
-          </MarkLine.Provider>
+          <>
+            {loaded.truncated && (
+              <p className="file-viewer-note file-viewer-cut">
+                Showing the first {kib(PREVIEW_LIMIT)} of {kib(loaded.size)}. <a href={download} download>Download full file</a>
+              </p>
+            )}
+            <MarkLine.Provider value={kind === 'markdown' ? undefined : line}>
+              <Suspense fallback={<pre>{loaded.text}</pre>}>
+                <Markdown text={kind === 'markdown' ? loaded.text : fence(loaded.text, langOf(path))} />
+              </Suspense>
+            </MarkLine.Provider>
+          </>
         )}
       </div>
     </dialog>
   )
 }
 
+function ImageView({ src, alt }: { src: string; alt: string }) {
+  const [state, setState] = useState<'loading' | 'ready' | 'error'>('loading')
+  if (state === 'error') {
+    return (
+      <p className="file-viewer-note" role="alert">
+        Couldn’t load the image
+      </p>
+    )
+  }
+  return (
+    <>
+      {state === 'loading' && <LoadingLine>loading image…</LoadingLine>}
+      <img src={src} alt={alt} data-loading={state === 'loading' || undefined} onLoad={() => setState('ready')} onError={() => setState('error')} />
+    </>
+  )
+}
+
 function fence(text: string, lang = '') {
   const ticks = '`'.repeat(Math.max(3, ...[...text.matchAll(/`+/g)].map((m) => m[0].length + 1)))
   return `${ticks}${lang}\n${text}\n${ticks}`
-}
-
-async function problem(r: Response) {
-  if (r.status === 403) return 'This file is outside the session folder'
-  if (r.status === 404) return 'File not found'
-  return (await r.text()).trim() || `Error ${r.status}`
 }

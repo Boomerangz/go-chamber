@@ -1,4 +1,5 @@
 import { createContext } from 'react'
+import { UNAUTHORIZED_EVENT } from './api'
 
 // Files agents mention: links like [plan](/Users/me/proj/plan.md) or
 // [app.go:42](src/app.go#L42) open through the server, which only serves
@@ -36,27 +37,114 @@ export function fileLine(href: string | undefined): number | undefined {
 }
 
 const images = new Set(['png', 'jpg', 'jpeg', 'gif', 'webp'])
-const markdown = new Set(['md', 'markdown'])
+const markdown = new Set(['md', 'markdown', 'mdx'])
 const langs: Record<string, string> = {
-  go: 'go', ts: 'typescript', tsx: 'tsx', js: 'javascript', jsx: 'jsx', mjs: 'javascript', py: 'python', php: 'php',
-  rs: 'rust', java: 'java', kt: 'kotlin', swift: 'swift', c: 'c', h: 'c', cpp: 'cpp', rb: 'ruby', sh: 'bash',
-  bash: 'bash', zsh: 'bash', lua: 'lua', proto: 'proto', css: 'css', json: 'json', yaml: 'yaml', yml: 'yaml',
-  toml: 'toml', ini: 'ini', xml: 'xml', sql: 'sql', diff: 'diff', patch: 'diff',
+  go: 'go', ts: 'typescript', tsx: 'tsx', js: 'javascript', jsx: 'jsx', mjs: 'javascript', cjs: 'javascript', mts: 'typescript',
+  cts: 'typescript', py: 'python', php: 'php', rs: 'rust', java: 'java', kt: 'kotlin', swift: 'swift', c: 'c', h: 'c',
+  cpp: 'cpp', cc: 'cpp', hpp: 'cpp', rb: 'ruby', sh: 'bash', bash: 'bash', zsh: 'bash', lua: 'lua', proto: 'proto',
+  css: 'css', scss: 'css', sass: 'css', less: 'css', json: 'json', jsonc: 'jsonc', json5: 'jsonc', yaml: 'yaml',
+  yml: 'yaml', toml: 'toml', ini: 'ini', cfg: 'ini', conf: 'ini', xml: 'xml', sql: 'sql', diff: 'diff', patch: 'diff',
+  html: 'html', htm: 'html', vue: 'html', svelte: 'html', graphql: 'graphql', gql: 'graphql', mk: 'makefile',
+  dockerfile: 'dockerfile',
 }
-const plain = new Set(['txt', 'log', 'csv', 'mod', 'tl'])
+// Files known by their whole name rather than an extension.
+const names: Record<string, string | null> = {
+  makefile: 'makefile', gnumakefile: 'makefile', dockerfile: 'dockerfile', containerfile: 'dockerfile',
+  '.gitignore': null, '.dockerignore': null, '.gitattributes': null, '.editorconfig': 'ini', '.npmrc': 'ini',
+  license: null, readme: null, procfile: null, gemfile: 'ruby', rakefile: 'ruby', 'go.sum': null,
+}
+// Extensions that are never worth reading as text.
+const binary = new Set([
+  'svg', 'pdf', 'zip', 'gz', 'tgz', 'bz2', 'xz', 'zst', '7z', 'rar', 'tar', 'jar', 'war', 'class', 'exe', 'dll', 'so',
+  'dylib', 'o', 'a', 'wasm', 'bin', 'dmg', 'iso', 'img', 'woff', 'woff2', 'ttf', 'otf', 'eot', 'ico', 'icns', 'bmp',
+  'tif', 'tiff', 'psd', 'heic', 'avif', 'mp3', 'mp4', 'm4a', 'mov', 'avi', 'mkv', 'webm', 'wav', 'flac', 'ogg',
+  'sqlite', 'db', 'pyc', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'key', 'numbers', 'pages',
+])
 
-const extOf = (path: string) => /\.([^./]+)$/.exec(path)?.[1]?.toLowerCase() ?? ''
+const nameOf = (path: string) => (path.split('/').pop() ?? '').toLowerCase()
+const extOf = (path: string) => /\.([^./]+)$/.exec(nameOf(path))?.[1] ?? ''
+const envFile = (name: string) => name === '.env' || name.startsWith('.env.')
 
+// fileKind picks how the viewer shows a file. Anything not known to be
+// binary is previewed as text; the viewer still checks the content.
 export function fileKind(path: string): FileKind {
   const ext = extOf(path)
   if (images.has(ext)) return 'image'
   if (markdown.has(ext)) return 'markdown'
-  if (plain.has(ext) || ext in langs) return 'text'
-  return 'download'
+  if (binary.has(ext)) return 'download'
+  return 'text'
 }
 
 export function langOf(path: string): string | undefined {
+  const name = nameOf(path)
+  if (name in names) return names[name] ?? undefined
+  if (envFile(name)) return undefined
   return langs[extOf(path)]
+}
+
+// looksBinary is git's test: a NUL byte in the first 8000 bytes.
+export function looksBinary(bytes: Uint8Array): boolean {
+  return bytes.subarray(0, 8000).includes(0)
+}
+
+// PREVIEW_LIMIT is how much of a file the viewer reads; the rest is a
+// download away, so a huge log can't freeze the page.
+export const PREVIEW_LIMIT = 512 * 1024
+
+export type FetchedFile = { text: string; truncated: boolean; size: number } | { binary: true }
+
+// fetchFile reads up to PREVIEW_LIMIT bytes of a session file as text. A
+// refusal is thrown as a sentence; a 401 signs the page out like any other
+// API call.
+export async function fetchFile(sessionId: string, path: string): Promise<FetchedFile> {
+  let res: Response
+  try {
+    res = await fetch(fileUrl(sessionId, path), { credentials: 'same-origin' })
+  } catch {
+    throw new Error('Could not load the file')
+  }
+  if (res.status === 401) {
+    window.dispatchEvent(new Event(UNAUTHORIZED_EVENT))
+    throw new Error('Signed out')
+  }
+  if (res.status === 403) throw new Error('This file is outside the session folder')
+  if (res.status === 404) throw new Error('File not found')
+  if (!res.ok) throw new Error((await res.text().catch(() => '')).trim() || `Error ${res.status}`)
+  const length = Number(res.headers.get('Content-Length'))
+  const head = await readHead(res, PREVIEW_LIMIT)
+  if (looksBinary(head.bytes)) return { binary: true }
+  const size = Number.isFinite(length) && length > 0 ? length : head.size
+  const text = new TextDecoder().decode(head.bytes.subarray(0, PREVIEW_LIMIT))
+  return { text, truncated: head.size > PREVIEW_LIMIT || size > PREVIEW_LIMIT, size }
+}
+
+// readHead reads at most limit bytes (plus the chunk that crossed it) and
+// stops the download there.
+async function readHead(res: Response, limit: number): Promise<{ bytes: Uint8Array; size: number }> {
+  const reader = res.body?.getReader()
+  if (!reader) {
+    const all = new Uint8Array(await res.arrayBuffer())
+    return { bytes: all, size: all.byteLength }
+  }
+  const chunks: Uint8Array[] = []
+  let size = 0
+  for (;;) {
+    const { done, value } = await reader.read()
+    if (done) break
+    chunks.push(value)
+    size += value.byteLength
+    if (size > limit) {
+      void reader.cancel().catch(() => {})
+      break
+    }
+  }
+  const bytes = new Uint8Array(size)
+  let at = 0
+  for (const c of chunks) {
+    bytes.set(c, at)
+    at += c.byteLength
+  }
+  return { bytes, size }
 }
 
 export function fileUrl(sessionId: string, path: string, download = false): string {

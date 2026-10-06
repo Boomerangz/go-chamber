@@ -979,7 +979,7 @@ button.health { border: 0; background: none; padding: 0; }
 .item-output > summary:hover { color: var(--ink); }
 .item-output[open] > summary { margin-bottom: 4px; }
 
-.file-viewer { width: min(960px, calc(100vw - 32px)); max-height: calc(100vh - 48px); padding: 0; border: 1px solid var(--rule-strong); background: var(--paper); color: var(--ink); }
+.file-viewer { width: min(960px, calc(100vw - 32px)); max-height: calc(100vh - 48px); max-height: calc(100dvh - 48px); padding: 0; border: 1px solid var(--rule-strong); background: var(--paper); color: var(--ink); }
 .file-viewer::backdrop { background: color-mix(in srgb, var(--paper) 55%, transparent); }
 .file-viewer-bar { position: sticky; top: 0; display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-bottom: 1px solid var(--rule); background: var(--paper); }
 .file-viewer-path { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--font-mono); font-size: 13px; }
@@ -987,3 +987,7 @@ button.health { border: 0; background: none; padding: 0; }
 .file-viewer-body img { display: block; max-width: 100%; margin: 0 auto; }
 .file-viewer-body pre.md-code { white-space: pre; overflow-x: auto; }
 .file-viewer-note { color: var(--ink-3); }
+.file-viewer[data-wrap] .file-viewer-body pre.md-code { white-space: pre-wrap; overflow-wrap: anywhere; }
+.file-viewer-body img[data-loading] { visibility: hidden; height: 0; }
+.file-viewer-cut { margin: 0 0 8px; font-family: var(--font-mono); font-size: 12px; }
+.file-viewer-note a { color: var(--act); }
