@@ -49,16 +49,19 @@ function ApprovalReviewerSelect({ session }: { session: Session }) {
   )
 }
 
+// SessionUsage shows the session's total when the agent reports one (Codex);
+// otherwise all there is is the last turn's result (Claude), and it says so.
 function SessionUsage() {
   const usage = useSessionStore((s) => s.chat.usage)
   const result = useSessionStore((s) => s.chat.result)
-  const tokens = usage?.totalTokens ?? ((result?.inputTokens ?? 0) + (result?.outputTokens ?? 0))
-  const cost = usage?.costUsd ?? result?.costUsd
+  const total = usage !== undefined
+  const tokens = total ? (usage.totalTokens ?? 0) : (result?.inputTokens ?? 0) + (result?.outputTokens ?? 0)
+  const cost = total ? usage.costUsd : result?.costUsd
   if (!tokens && !cost) return null
+  const parts = [tokens ? `${tokens.toLocaleString()} tokens` : '', cost ? `$${cost.toFixed(4)}` : '', total ? '' : 'last turn']
   return (
-    <span className="usage" aria-label="session usage">
-      {tokens ? `${tokens.toLocaleString()} tokens` : ''}
-      {cost ? ` · $${cost.toFixed(4)}` : ''}
+    <span className="usage" aria-label={total ? 'session usage' : 'last turn usage'}>
+      {parts.filter(Boolean).join(' · ')}
     </span>
   )
 }
@@ -101,7 +104,6 @@ interface Props {
 // open behind "⋯" so the transcript keeps the screen.
 export default function ChatHeader({ session, status, loading, notFound, forking, onFork }: Props) {
   const renameSession = useSessionStore((s) => s.renameSession)
-  const connection = useSessionStore((s) => s.connection)
   const [open, setOpen] = useState(false)
   const toolsId = useId()
   const unguarded = isDangerousMode(session?.permissionMode)
@@ -137,7 +139,6 @@ export default function ChatHeader({ session, status, loading, notFound, forking
         <span className={`status status-${status}`} role="status">
           {status}
         </span>
-        {connection !== 'online' && <span className={`health health-${connection}`}>{connection}</span>}
         {unguarded && (
           <span className="no-approvals" title="The agent won't ask before running commands or editing files">
             no approvals

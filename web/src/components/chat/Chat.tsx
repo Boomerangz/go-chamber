@@ -503,7 +503,9 @@ function WorkingTail({ since, waiting, streaming, live }: { since: number | null
   const now = useNow(live && !waiting ? 1000 : null)
   const start = since ?? mounted
   const clock = elapsed(Math.max(0, now - start))
-  const text = waiting ? 'waiting for you' : !live ? 'last seen working' : streaming ? clock : `working · ${clock}`
+  // Live updates paused (the strip above the composer says so): the clock
+  // stops rather than run on for a turn the page can't see.
+  const text = waiting ? 'waiting for you' : !live ? 'working · paused' : streaming ? clock : `working · ${clock}`
   const cls = ['working-tail', waiting && 'waiting', !live && !waiting && 'stale', streaming && !waiting && live && 'streaming']
   return (
     <div className={cls.filter(Boolean).join(' ')} aria-hidden={waiting ? undefined : true}>

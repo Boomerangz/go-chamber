@@ -479,8 +479,26 @@ describe('live connection', () => {
 
   it('stops the turn clock: it cannot know the turn still runs', () => {
     setup({ chat: running([item('u1', 'user_message')]), connection: 'offline', nextRetryAt: null })
-    expect(screen.queryByText(/working ·/)).toBeNull()
-    expect(screen.getByText('last seen working')).toBeInTheDocument()
+    expect(screen.queryByText(/working · \d/)).toBeNull()
+    expect(screen.getByText('working · paused')).toBeInTheDocument()
+  })
+
+  it('says it once: the strip tells of the drop, the header keeps quiet', () => {
+    const { container } = setup({ chat: running([item('u1', 'user_message')]), connection: 'offline', nextRetryAt: null })
+    expect(container.querySelector('.chat-header')).not.toHaveTextContent('offline')
+    expect(container.querySelector('.chat-header .health')).toBeNull()
+  })
+})
+
+describe('usage in the header', () => {
+  it('names a turn result for what it is: the last turn', () => {
+    setup({ chat: chatOf([], { result: { inputTokens: 10, outputTokens: 20 } }) })
+    expect(screen.getByLabelText('last turn usage')).toHaveTextContent('30 tokens · last turn')
+  })
+
+  it('keeps the session total when the agent reports one', () => {
+    setup({ chat: chatOf([], { usage: { totalTokens: 1200 }, result: { inputTokens: 1, outputTokens: 2 } }) })
+    expect(screen.getByLabelText('session usage')).toHaveTextContent('1,200 tokens')
   })
 })
 
