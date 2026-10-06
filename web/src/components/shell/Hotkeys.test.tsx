@@ -89,3 +89,37 @@ describe('Hotkeys', () => {
   })
 })
 
+describe('QuickSwitcher', () => {
+  async function openSwitcher() {
+    render(<Hotkeys />)
+    await userEvent.keyboard('{Control>}k{/Control}')
+    return screen.getByRole('combobox', { name: 'Go to' })
+  }
+
+  it('marks the matched letters and tags the open session', async () => {
+    useSessionStore.setState({ activeId: 'a' })
+    const input = await openSwitcher()
+    await userEvent.type(input, 'aph')
+    const option = screen.getAllByRole('option')[0]!
+    expect([...option.querySelectorAll('.switcher-title mark')].map((m) => m.textContent)).toEqual(['a', 'ph'])
+    expect(option).toHaveTextContent('current')
+  })
+
+  it('starts a new session in a folder from the list', async () => {
+    const createSession = vi.fn(async () => true)
+    useSessionStore.setState({ createSession })
+    const input = await openSwitcher()
+    await userEvent.type(input, 'new codex')
+    await userEvent.click(screen.getByRole('option', { name: /New Codex session in b/ }))
+    expect(createSession).toHaveBeenCalledWith('codex', '/w/b')
+  })
+
+  it('says sessions are loading, then that there are none', async () => {
+    useSessionStore.setState({ sessions: [], sessionsStatus: 'loading' })
+    await openSwitcher()
+    expect(screen.getByText('loading sessions…')).toBeInTheDocument()
+    act(() => useSessionStore.setState({ sessionsStatus: 'ready' }))
+    expect(screen.getByText('No sessions yet')).toBeInTheDocument()
+  })
+})
+

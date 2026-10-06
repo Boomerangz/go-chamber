@@ -1,7 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { SquareTerminal } from 'lucide-react'
+import { Plus, SquareTerminal } from 'lucide-react'
 import { icon } from '../icon'
+import { useNow } from '../../lib/now'
+import { relativeTime } from '../../lib/sessions'
 import { switcherEntries, type SwitcherEntry } from '../../lib/switcher'
+import { LoadingLine } from '../ui/Loading'
 import { useLayoutStore } from '../../stores/layout'
 import { useSessionStore } from '../../stores/session'
 import { useTerminalStore } from '../../stores/terminals'
@@ -17,11 +20,15 @@ export default function QuickSwitcher({ onClose }: { onClose: () => void }) {
   const sessions = useSessionStore((s) => s.sessions)
   const requests = useSessionStore((s) => s.pendingRequests)
   const terminals = useTerminalStore((s) => s.terminals)
+  const activeId = useSessionStore((s) => s.activeId)
+  const status = useSessionStore((s) => s.sessionsStatus)
+  const now = useNow(60_000)
   const entries = useMemo(() => {
     const waiting = new Map<string, number>()
     for (const r of requests) waiting.set(r.sessionId, (waiting.get(r.sessionId) ?? 0) + 1)
-    return switcherEntries(sessions, terminals, waiting, query)
-  }, [sessions, terminals, requests, query])
+    return switcherEntries(sessions, terminals, waiting, query, { activeId })
+  }, [sessions, terminals, requests, query, activeId])
+  const loading = status === 'loading' && sessions.length === 0
   const current = Math.min(at, entries.length - 1)
 
   useEffect(() => {
@@ -37,6 +44,9 @@ export default function QuickSwitcher({ onClose }: { onClose: () => void }) {
     if (entry.kind === 'session') {
       useLayoutStore.getState().setMode('agents')
       void useSessionStore.getState().selectSession(entry.id)
+    } else if (entry.kind === 'new') {
+      useLayoutStore.getState().setMode('agents')
+      void useSessionStore.getState().createSession(entry.agent!, entry.cwd!)
     } else {
       useLayoutStore.getState().setMode('terminal')
       useTerminalStore.getState().select(entry.id)
@@ -91,15 +101,30 @@ export default function QuickSwitcher({ onClose }: { onClose: () => void }) {
           >
             {entry.kind === 'terminal' ? (
               <SquareTerminal {...icon(14)} />
+            ) : entry.kind === 'new' ? (
+              <Plus {...icon(14)} />
             ) : (
               <span className={`switcher-mark status status-${entry.status}`} aria-hidden="true" />
             )}
-            <span className="switcher-title">{entry.title}</span>
-            <span className="switcher-detail">{entry.detail}</span>
-            {entry.waiting > 0 && <span className="badge">{entry.waiting}</span>}
+            <span className="switcher-title">
+              <Marked text={entry.title} hits={entry.titleHits} />
+              {entry.current && <span className="switcher-current">current</span>}
+            </span>
+            <span className="switcher-detail" title={entry.kind === 'new' ? entry.cwd : undefined}>
+              {entry.kind === 'new' ? null : <Marked text={entry.detail} hits={entry.detailHits} />}
+              {entry.at && <span className="switcher-time">{relativeTime(entry.at, new Date(now))}</span>}
+            </span>
+            {entry.waiting > 0 ? <span className="badge">{entry.waiting}</span> : <span />}
           </li>
         ))}
-        {entries.length === 0 && <li className="switcher-empty">Nothing matches “{query}”</li>}
+        {loading && (
+          <li className="switcher-empty">
+            <LoadingLine>loading sessions…</LoadingLine>
+          </li>
+        )}
+        {!loading && entries.length === 0 && (
+          <li className="switcher-empty">{query.trim() ? `Nothing matches “${query}”` : 'No sessions yet'}</li>
+        )}
       </ul>
       <footer className="switcher-foot">
         <span><kbd>↑</kbd><kbd>↓</kbd> move</span>
@@ -108,4 +133,18 @@ export default function QuickSwitcher({ onClose }: { onClose: () => void }) {
       </footer>
     </dialog>
   )
+}
+
+// Marked prints text with the matched letters in <mark>.
+function Marked({ text, hits }: { text: string; hits: number[] }) {
+  if (hits.length === 0) return <>{text}</>
+  const set = new Set(hits)
+  const parts: { text: string; hit: boolean }[] = []
+  for (let i = 0; i < text.length; i++) {
+    const hit = set.has(i)
+    const last = parts[parts.length - 1]
+    if (last && last.hit === hit) last.text += text[i]
+    else parts.push({ text: text[i]!, hit })
+  }
+  return <>{parts.map((p, i) => (p.hit ? <mark key={i}>{p.text}</mark> : p.text))}</>
 }
