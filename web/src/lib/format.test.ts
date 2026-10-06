@@ -39,6 +39,8 @@ describe('resetLabel', () => {
     expect(resetLabel('2026-09-25T11:00:00Z', now)).toBe('reset 1h ago')
     expect(resetLabel('2026-09-25T11:48:00Z', now)).toBe('reset 12m ago')
     expect(resetLabel('2026-09-09T10:00:00Z', now)).toBe('reset 16d ago')
+    expect(resetLabel('2026-09-25T11:59:00Z', now)).toBe('reset 1m ago')
+    expect(resetLabel('2026-09-24T12:00:00Z', now)).toBe('reset 1d ago')
     expect(resetLabel('2026-09-25T12:12:30Z', now)).toBe('resets in 12m')
     expect(resetLabel('2026-09-25T12:00:30Z', now)).toBe('resets in 1m')
     expect(resetLabel('2026-09-25T14:14:00Z', now)).toBe('resets in 2h 14m')
