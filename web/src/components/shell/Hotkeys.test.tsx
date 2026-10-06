@@ -1,4 +1,4 @@
-import { act, render, screen } from '@testing-library/react'
+import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Session } from '../../lib/api'
@@ -32,6 +32,23 @@ describe('Hotkeys', () => {
     expect(screen.getByText('Next session that needs you')).toBeInTheDocument()
     expect(screen.getByText('In a terminal: find in the scrollback')).toBeInTheDocument()
     expect(screen.getByText('In a terminal: larger, smaller, default text')).toBeInTheDocument()
+  })
+
+  it('gives the focus back where it was when an overlay closes', async () => {
+    render(
+      <>
+        <button type="button">origin</button>
+        <Hotkeys />
+      </>,
+    )
+    const origin = screen.getByRole('button', { name: 'origin' })
+    origin.focus()
+    await userEvent.keyboard('{Shift>}?{/Shift}')
+    await userEvent.keyboard('?')
+    expect(screen.getByRole('dialog', { name: 'Keyboard shortcuts' })).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Close' }))
+    expect(screen.queryByRole('dialog')).toBeNull()
+    await waitFor(() => expect(origin).toHaveFocus())
   })
 
   it('groups the shortcut list and names the modes', async () => {

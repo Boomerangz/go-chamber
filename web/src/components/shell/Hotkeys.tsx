@@ -104,6 +104,26 @@ export default function Hotkeys() {
 
   useEffect(() => () => useOverlay.setState({ overlay: null }), [])
 
+  // Closing an overlay gives the focus back to what had it before it
+  // opened, unless something else (a chat the switcher opened) took it.
+  useEffect(() => {
+    let opener: HTMLElement | null = null
+    return useOverlay.subscribe((now, before) => {
+      if (now.overlay && !before.overlay) {
+        opener = document.activeElement instanceof HTMLElement && document.activeElement !== document.body ? document.activeElement : null
+        return
+      }
+      if (now.overlay || !before.overlay) return
+      const back = opener
+      opener = null
+      if (!back) return
+      requestAnimationFrame(() => {
+        const at = document.activeElement
+        if ((!at || at === document.body) && back.isConnected) back.focus()
+      })
+    })
+  }, [])
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       // Tab moves focus by the keyboard: whatever it lands on is no stray.

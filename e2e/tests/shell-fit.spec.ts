@@ -121,6 +121,25 @@ test('a word typed at a rail button just clicked fires no single-key shortcut', 
   await page.keyboard.press('f')
 })
 
+test.describe('the narrowest phone', () => {
+  test.use({ viewport: { width: 320, height: 640 } })
+  test('the modes, a shell count included, fit beside the health mark', async ({ page }) => {
+    const headers = { Authorization: `Bearer ${token}` }
+    const opened = await page.request.post('/api/terminals', { headers, data: { cwd: os.tmpdir() } })
+    const { id } = (await opened.json()) as { id: string }
+    try {
+      await page.goto(`/?token=${token}`)
+      const modes = page.getByRole('radiogroup', { name: 'Mode' })
+      await expect(modes.locator('.count')).toBeVisible()
+      expect(await modes.evaluate((e) => e.scrollWidth <= e.clientWidth)).toBe(true)
+      const [m, h] = [await box(modes), await box(page.locator('.topbar .health'))]
+      expect(m.x + m.width).toBeLessThanOrEqual(h.x)
+    } finally {
+      await page.request.delete(`/api/terminals/${id}`, { headers })
+    }
+  })
+})
+
 test('the quick switcher keeps titles readable beside a long folder', async ({ page }, info) => {
   test.skip(info.project.name === 'mobile', '⌘K is a keyboard matter')
   const dir = fs.realpathSync(fs.mkdtempSync(`${os.tmpdir()}/gc-fit-`))

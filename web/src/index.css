@@ -1028,6 +1028,7 @@ button.health { border: 0; background: none; padding: 0; }
   .topbar-end { grid-column: 2; grid-row: 1; gap: 4px; }
   .mode-switch { grid-column: 1; grid-row: 1; justify-self: start; min-width: 0; overflow-x: auto; scrollbar-width: none; }
   .segmented.mode-switch button { flex: none; padding: 0 10px; }
+  .mode-switch { max-width: 100%; }
   .layout { grid-template-columns: minmax(0, 1fr); padding-bottom: calc(56px + env(safe-area-inset-bottom)); }
   .layout > *, .layout > .chat.empty, .layout > .dock { display: none; }
   .layout[data-pane='sessions'] > .sidebar,
@@ -1085,6 +1086,14 @@ button.health { border: 0; background: none; padding: 0; }
   .panebar .badge { position: absolute; top: 6px; left: calc(50% + 6px); }
   /* without a transcript on screen: just above the pane bar */
   .notices { bottom: calc(64px + env(safe-area-inset-bottom)); right: 14px; left: 14px; width: auto; }
+}
+
+/* the narrowest phones: the three modes and the toggles fit on one row,
+   none under another, none scrolled away */
+@media (max-width: 360px) {
+  .topbar { gap: 0 4px; padding-left: 0; padding-right: 6px; }
+  .topbar-end { gap: 0; }
+  .segmented.mode-switch button { gap: 4px; padding: 0 4px; font-size: 12.5px; }
 }
 
 /* nothing moves or breathes; an animation only snaps to its end, so a
