@@ -46,6 +46,27 @@ describe('visits', () => {
     expect(unseenCount([s('a', later), s('b', later)], useVisits.getState().seen, 'b')).toBe(1)
   })
 
+  it('reads only well-formed visits from storage', () => {
+    localStorage.setItem('go-chamber:visited:good', '5')
+    localStorage.setItem('go-chamber:visited:bad', 'nope')
+    localStorage.setItem('go-chamber:visited:zero', '0')
+    localStorage.setItem('other:visited:x', '7')
+    resetVisits()
+    expect(useVisits.getState().seen).toEqual({ good: 5 })
+  })
+
+  it('falls back to the creation time, ignoring Go zero times', () => {
+    markVisited(s('a', { activeAt: '0001-01-01T00:00:00Z', createdAt: '2026-09-25T09:00:00Z' }))
+    expect(useVisits.getState().seen.a).toBe(Date.parse('2026-09-25T09:00:00Z'))
+    expect(isUnseen(s('a', { createdAt: '2026-09-25T09:00:00Z' }), useVisits.getState().seen)).toBe(false)
+    expect(isUnseen(s('a', { activeAt: 'garbage', createdAt: '2026-09-25T10:00:00Z' }), useVisits.getState().seen)).toBe(true)
+  })
+
+  it('uses the clock for a session with no times yet', () => {
+    markVisited(s('a'))
+    expect(useVisits.getState().seen.a).toBeGreaterThan(Date.parse('2026-01-01T00:00:00Z'))
+  })
+
   it('keeps working when storage throws', () => {
     const real = Object.getOwnPropertyDescriptor(globalThis, 'localStorage')!
     Object.defineProperty(globalThis, 'localStorage', {

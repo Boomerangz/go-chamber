@@ -57,6 +57,18 @@ describe('push', () => {
     expect(sub.unsubscribe).toHaveBeenCalled()
   })
 
+  it('passes on a service worker that failed to get ready', async () => {
+    install()
+    vi.stubGlobal('navigator', { serviceWorker: { ready: Promise.reject('broken'), register: vi.fn() } })
+    await expect(pushEnabled()).rejects.toThrow('broken')
+    vi.stubGlobal('navigator', { serviceWorker: { ready: Promise.reject(new TypeError('bad')), register: vi.fn() } })
+    await expect(pushEnabled()).rejects.toBeInstanceOf(TypeError)
+  })
+
+  it('names why notifications are unavailable', () => {
+    expect(new WorkerUnavailable().message).toBe("Notifications are unavailable: the service worker didn't start")
+  })
+
   it('gives up on a service worker that never becomes ready', async () => {
     install()
     vi.stubGlobal('navigator', { serviceWorker: { ready: new Promise(() => {}), register: vi.fn() } })
