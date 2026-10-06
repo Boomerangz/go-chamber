@@ -147,8 +147,9 @@ describe('a removed worktree', () => {
 
   it('marks the header: the branch stays, the folder is gone', () => {
     setup({ sessions: [gone] })
-    const tag = document.querySelector('.chat-path-line .worktree-removed')
-    expect(tag).toHaveTextContent('worktree removed')
+    const branch = document.querySelector('.chat-path-line .session-branch')
+    expect(branch).toHaveAttribute('data-removed')
+    expect(branch).toHaveAttribute('title', 'Worktree removed · branch chamber/fix kept')
   })
 })
 

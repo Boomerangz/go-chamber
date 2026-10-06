@@ -4,16 +4,13 @@
 .chat-path-line:hover .chat-path-copy, .chat-path-copy:focus-visible { opacity: 1; }
 @media (hover: none) { .chat-path-copy { opacity: 1; } }
 /* a worktree session: the repository's name gives way before the branch,
-   which keeps at least a readable start */
-.chat-path-line .chat-repo { flex: 0 100 auto; min-width: 3ch; }
-.chat-path-line .session-branch { flex: 0 1 auto; min-width: min(12ch, 50%); }
-/* tags printed in brackets: the folder is gone, the session is put away */
-.worktree-removed, .archived-tag {
-  flex: none; font-family: var(--font-mono); font-size: 11.5px; color: var(--ink-2); white-space: nowrap;
-}
-.worktree-removed::before, .archived-tag::before { content: '['; }
-.worktree-removed::after, .archived-tag::after { content: ']'; }
-.archived-tag { font-size: 12px; }
+   which is cut only past most of the line */
+.chat-path-line .chat-repo { flex: 0 1 auto; min-width: 3ch; }
+.chat-path-line .session-branch { flex: none; max-width: 70%; }
+/* the session is put away: a bracketed tag beside its status */
+.archived-tag { flex: none; font-family: var(--font-mono); font-size: 12px; color: var(--ink-2); white-space: nowrap; }
+.archived-tag::before { content: '['; }
+.archived-tag::after { content: ']'; }
 
 /* the composer's place once the worktree folder is gone: what is left, and
    where the conversation can go on */
@@ -25,7 +22,8 @@
 }
 .worktree-gone p { margin: 0; min-width: 0; overflow-wrap: anywhere; }
 .worktree-gone-kw { font-family: var(--font-mono); font-size: 12px; letter-spacing: 0.04em; text-transform: uppercase; color: var(--ink); }
-.worktree-gone-actions { display: flex; gap: 8px; margin-left: auto; }
+.worktree-gone-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-left: auto; min-width: 0; max-width: 100%; }
+.worktree-gone-actions .btn { min-width: 0; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* the first-message hint names the folder, which may be one long word */
 .chat-hint-where { overflow-wrap: anywhere; }

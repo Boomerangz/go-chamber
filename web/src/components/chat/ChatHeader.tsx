@@ -96,11 +96,11 @@ function ChatPath({ cwd, worktree }: { cwd: string; worktree?: Worktree }) {
           </span>
           <span
             className="session-branch"
+            data-removed={worktree.removed || undefined}
             title={worktree.removed ? `Worktree removed · branch ${worktree.branch} kept` : `In a worktree on ${worktree.branch} · ${worktree.path}`}
           >
             {worktree.branch.replace(/^chamber\//, '')}
           </span>
-          {worktree.removed && <span className="worktree-removed">worktree removed</span>}
         </>
       ) : (
         <PathText path={cwd} className="chat-path" />
