@@ -58,9 +58,16 @@ test('the dock stays on its rail without a session and remembers a dragged width
   test.skip(info.project.name === 'mobile', 'docks and splitters are desktop layout')
   await page.goto(`/?token=${token}`)
   const layout = page.locator('.layout')
-  await page.getByRole('toolbar', { name: 'Dock' }).getByRole('button', { name: 'Changes' }).click()
+  const changes = page.getByRole('toolbar', { name: 'Dock' }).getByRole('button', { name: 'Changes' })
+  await expect(changes).toBeDisabled()
+  await expect(changes).toHaveAttribute('title', 'Open a session to see its changes')
+  await page.keyboard.press('d')
   await expect(layout).toHaveAttribute('data-dock', 'closed')
-  await expect(page.getByText('Open a session to see its changes')).toBeHidden()
+  await expect(changes).toHaveAttribute('aria-pressed', 'false')
+  await expect(page.getByRole('button', { name: 'Collapse dock' })).toHaveCount(0)
+
+  const terminalButton = page.getByRole('toolbar', { name: 'Dock' }).getByRole('button', { name: 'Terminal' })
+  await expect(terminalButton).toHaveAttribute('title', 'Terminal (t)')
 
   await page.getByRole('toolbar', { name: 'Dock' }).getByRole('button', { name: 'Terminal' }).click()
   await expect(layout).toHaveAttribute('data-dock', 'terminal')
@@ -77,6 +84,12 @@ test('the dock stays on its rail without a session and remembers a dragged width
   await expect.poll(async () => Math.round((await page.locator('.dock').boundingBox())!.width)).toBe(Math.round(before + 82))
   await page.getByRole('separator', { name: 'Resize the dock' }).dblclick()
   await expect.poll(async () => Math.round((await page.locator('.dock').boundingBox())!.width)).toBe(Math.round(before))
+  // From the keyboard the handle shows the standard focus ring.
+  const focused = page.getByRole('separator', { name: 'Resize the dock' })
+  await terminalButton.focus()
+  for (let i = 0; i < 40 && !(await focused.evaluate((el) => el === document.activeElement)); i++) await page.keyboard.press('Shift+Tab')
+  await expect(focused).toBeFocused()
+  await expect(focused).toHaveCSS('outline-style', 'solid')
 
   await page.keyboard.press((await isMac(page)) ? 'Meta+b' : 'Control+b')
   await expect(layout).toHaveAttribute('data-sidebar', 'off')

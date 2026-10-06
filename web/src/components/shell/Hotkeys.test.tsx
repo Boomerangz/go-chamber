@@ -69,6 +69,10 @@ describe('Hotkeys', () => {
   it('opens and closes the changes dock with d', async () => {
     render(<Hotkeys />)
     await userEvent.keyboard('d')
+    // Without a session there are no changes to open.
+    expect(useLayoutStore.getState().dock).toBeNull()
+    act(() => useSessionStore.setState({ activeId: 's1' }))
+    await userEvent.keyboard('d')
     expect(useLayoutStore.getState().dock).toBe('changes')
     await userEvent.keyboard('d')
     expect(useLayoutStore.getState().dock).toBeNull()

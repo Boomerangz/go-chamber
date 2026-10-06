@@ -754,6 +754,7 @@ button.health { border: 0; background: none; padding: 0; }
   transition: color var(--dur-fast), border-color var(--dur-fast);
 }
 .rail-btn:hover { color: var(--ink); border-color: var(--rule); }
+.rail-btn:disabled { color: var(--ink-3); border-color: transparent; opacity: 0.5; cursor: default; }
 .rail-btn[aria-pressed='true'] { color: var(--ink); border-color: var(--ink); background: var(--paper); }
 .rail-count {
   position: absolute; top: -4px; right: -5px; min-width: 15px; height: 15px; padding: 0 3px;
@@ -770,7 +771,8 @@ button.health { border: 0; background: none; padding: 0; }
   position: absolute; top: 0; bottom: 0; z-index: 4; width: 4px; padding: 0;
   border: 0; background: transparent; cursor: col-resize; touch-action: none;
 }
-.splitter:hover, .splitter:active, .splitter:focus-visible { background: var(--rule-strong); outline: none; }
+.splitter:hover, .splitter:active, .splitter:focus-visible { background: var(--rule-strong); }
+.splitter:hover, .splitter:active { outline: none; }
 .splitter-dock { left: -3px; }
 .splitter-sidebar { left: calc(var(--sb) - 2px); }
 .sidebar-show {
