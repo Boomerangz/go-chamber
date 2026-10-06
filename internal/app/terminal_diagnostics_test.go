@@ -25,21 +25,20 @@ func TestTerminalDiagnosticsReportsBacklogWithoutOutput(t *testing.T) {
 	p.emit(t, "private shell output")
 	eventually(t, "queued output", func() bool {
 		reports := f.terms.Diagnostics()
-		return len(reports) == 1 && reports[0].QueuedChunks == 2
+		return len(reports) == 1 && reports[0].QueuedBytes == 2*len("private shell output")
 	})
 	p.emit(t, "second chunk")
 	eventually(t, "second queued output", func() bool {
-		return f.terms.Diagnostics()[0].QueuedChunks == 4
+		return f.terms.Diagnostics()[0].QueuedBytes == 2*len("private shell outputsecond chunk")
 	})
 	report := f.terms.Diagnostics()[0]
 	if report.ID != term.ID || report.OutputBytes != uint64(len("private shell outputsecond chunk")) || report.Clients != 2 {
 		t.Fatalf("report: %+v", report)
 	}
-	<-att.Output
-	<-att.Output
-	<-other.Output
-	<-other.Output
-	if f.terms.Diagnostics()[0].QueuedChunks != 0 {
-		t.Fatal("queue did not drain")
+	for _, sub := range []*TerminalAttachment{att, other} {
+		for got := 0; got < len("private shell outputsecond chunk"); {
+			got += len(<-sub.Output)
+		}
 	}
+	eventually(t, "drained queue", func() bool { return f.terms.Diagnostics()[0].QueuedBytes == 0 })
 }

@@ -171,7 +171,7 @@ func TestRTCTerminalStreamsInputOutputResizeAndPing(t *testing.T) {
 
 // A shell printing line by line (seq, logs) yields one tiny pty read per
 // line. Sending each as its own message let the client fall behind and get
-// dropped to the WebSocket fallback; queued output must go out coalesced.
+// dropped to the WebSocket fallback.
 func TestRTCTerminalKeepsUpWithLineByLineOutput(t *testing.T) {
 	e := newTermEnv(t)
 	term, err := e.terms.Open(context.Background(), app.OpenTerminal{Cwd: "/tmp"})

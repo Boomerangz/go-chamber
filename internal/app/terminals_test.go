@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -348,26 +349,84 @@ func TestDetachStopsDelivery(t *testing.T) {
 }
 
 func TestSlowSubscriberIsDropped(t *testing.T) {
-	f := newTermFixture(t)
+	f := newTermFixture(t, func(c *TerminalsConfig) { c.LagBytes = 8 })
 	term, _ := f.terms.Open(context.Background(), OpenTerminal{})
 	_, p := f.factory.last(t)
 	slow, _ := f.terms.Attach(term.ID)
 	fast, _ := f.terms.Attach(term.ID)
 	defer fast.Detach()
-	for i := range subscriberBuffer + 1 {
-		p.emit(t, "x")
-		if got := recv(t, fast.Output); got != "x" {
-			t.Fatalf("fast output %d = %q", i, got)
+	// The frame being delivered counts too: exactly LagBytes still fits.
+	for _, chunk := range []string{"12345", "678"} {
+		p.emit(t, chunk)
+		if got := recv(t, fast.Output); got != chunk {
+			t.Fatalf("fast output = %q, want %q", got, chunk)
 		}
+	}
+	if slow.Lagged() {
+		t.Fatal("dropped at the limit")
+	}
+	p.emit(t, "9")
+	if got := recv(t, fast.Output); got != "9" {
+		t.Fatalf("fast output = %q", got)
 	}
 	waitClosed(t, slow.Output)
 	if !slow.Lagged() || fast.Lagged() {
 		t.Fatalf("lagged: slow=%v fast=%v", slow.Lagged(), fast.Lagged())
 	}
+	if lagged := f.terms.Diagnostics()[0].LaggedClients; lagged != 1 {
+		t.Fatalf("lagged clients = %d, want 1", lagged)
+	}
 	if got, _ := f.terms.Get(term.ID); got.Status != domain.TerminalRunning {
 		t.Fatalf("terminal status = %s, want running", got.Status)
 	}
 	slow.Detach()
+}
+
+// A shell printing line by line yields one tiny read per line; a client on a
+// slower link must not be dropped while the backlog is small in bytes.
+func TestSlowSubscriberCatchesUpOnManyTinyChunks(t *testing.T) {
+	f := newTermFixture(t)
+	term, _ := f.terms.Open(context.Background(), OpenTerminal{})
+	_, p := f.factory.last(t)
+	slow, _ := f.terms.Attach(term.ID)
+	defer slow.Detach()
+	const chunks = 20_000
+	for range chunks {
+		p.emit(t, "x")
+	}
+	got := 0
+	for got < chunks {
+		got += len(recv(t, slow.Output))
+	}
+	if got != chunks || slow.Lagged() {
+		t.Fatalf("received %d of %d bytes, lagged=%v", got, chunks, slow.Lagged())
+	}
+}
+
+// Queued output reaches the client coalesced, one bounded frame at a time.
+func TestQueuedOutputIsCoalescedIntoBoundedFrames(t *testing.T) {
+	f := newTermFixture(t)
+	term, _ := f.terms.Open(context.Background(), OpenTerminal{})
+	_, p := f.factory.last(t)
+	a, _ := f.terms.Attach(term.ID)
+	defer a.Detach()
+	chunk := strings.Repeat("y", 1000)
+	const chunks = 600
+	for range chunks {
+		p.emit(t, chunk)
+	}
+	var total, frames int
+	for total < chunks*len(chunk) {
+		frame := recv(t, a.Output)
+		if len(frame) > maxOutputFrame {
+			t.Fatalf("frame of %d bytes exceeds %d", len(frame), maxOutputFrame)
+		}
+		total += len(frame)
+		frames++
+	}
+	if frames >= chunks/10 {
+		t.Fatalf("%d chunks arrived as %d frames", chunks, frames)
+	}
 }
 
 func TestTerminalExitClosesOutputAndRecordsCode(t *testing.T) {

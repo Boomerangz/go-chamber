@@ -86,15 +86,15 @@ export default function DiagnosticsPage() {
         <h3>Terminal queues</h3>
         {ids.length ? (
           <div className="diagnostics-table-wrap"><table>
-            <thead><tr><th>Terminal</th><th>Connection</th><th>Route</th><th>WebRTC attempt</th><th>WebRTC RTT</th><th>Browser pending</th><th>Browser peak</th><th>Reconnects</th><th>Server queued chunks</th><th>Lag disconnects</th><th>Clients</th></tr></thead>
+            <thead><tr><th>Terminal</th><th>Connection</th><th>Route</th><th>WebRTC attempt</th><th>WebRTC RTT</th><th>Browser pending</th><th>Browser peak</th><th>Reconnects</th><th>Server queued</th><th>Lag disconnects</th><th>Clients</th></tr></thead>
             <tbody>{ids.map((id) => {
               const local = client.terminals.find((t) => t.id === id)
               const remote = server?.terminals.find((t) => t.id === id)
-              return <tr key={id}><th>{terminalNames.find((t) => t.id === id)?.title ?? id}</th><td>{local?.transport ?? '—'}</td><td>{local?.transport === 'webrtc' ? `${local.route ?? 'unknown'} · ${local.protocol ?? 'unknown'}` : local?.transport === 'websocket' ? 'HTTP server' : '—'}</td><td>{local?.rtcAttempt ? `${local.rtcAttempt.stage}${local.rtcAttempt.error ? ` · ${local.rtcAttempt.error}` : ''}${local.rtcAttempt.httpStatus ? ` · HTTP ${local.rtcAttempt.httpStatus}` : ''} · ${ms(local.rtcAttempt.elapsedMs)}` : '—'}</td><td>{local?.transport === 'webrtc' ? ms(local.rtcRTTMs) : '—'}</td><td>{local ? bytes(local.pendingBytes) : '—'}</td><td>{local ? bytes(local.peakPendingBytes) : '—'}</td><td>{local?.reconnects ?? '—'}</td><td>{remote?.queuedChunks ?? '—'}</td><td>{remote?.laggedClients ?? '—'}</td><td>{remote?.clients ?? '—'}</td></tr>
+              return <tr key={id}><th>{terminalNames.find((t) => t.id === id)?.title ?? id}</th><td>{local?.transport ?? '—'}</td><td>{local?.transport === 'webrtc' ? `${local.route ?? 'unknown'} · ${local.protocol ?? 'unknown'}` : local?.transport === 'websocket' ? 'HTTP server' : '—'}</td><td>{local?.rtcAttempt ? `${local.rtcAttempt.stage}${local.rtcAttempt.error ? ` · ${local.rtcAttempt.error}` : ''}${local.rtcAttempt.httpStatus ? ` · HTTP ${local.rtcAttempt.httpStatus}` : ''} · ${ms(local.rtcAttempt.elapsedMs)}` : '—'}</td><td>{local?.transport === 'webrtc' ? ms(local.rtcRTTMs) : '—'}</td><td>{local ? bytes(local.pendingBytes) : '—'}</td><td>{local ? bytes(local.peakPendingBytes) : '—'}</td><td>{local?.reconnects ?? '—'}</td><td>{remote ? bytes(remote.queuedBytes) : '—'}</td><td>{remote?.laggedClients ?? '—'}</td><td>{remote?.clients ?? '—'}</td></tr>
             })}</tbody>
           </table></div>
         ) : <p>Open a terminal to collect output and queue measurements.</p>}
-        <p className="diagnostics-note">Browser pending bytes await xterm processing. Server queued chunks await WebSocket delivery, summed across attached clients.</p>
+        <p className="diagnostics-note">Browser pending bytes await xterm processing. Server queued bytes await delivery, summed across attached clients.</p>
       </section>
     </section>
   )

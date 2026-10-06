@@ -109,58 +109,13 @@ func (s *server) terminalPTY(w http.ResponseWriter, r *http.Request) {
 				s.terminalEnded(ctx, c, id, att.Lagged())
 				return
 			}
-			frame, open := coalesce(chunk, att.Output, maxTerminalFrame)
-			if err := c.Write(ctx, websocket.MessageBinary, frame); err != nil {
-				return
-			}
-			if !open {
-				s.terminalEnded(ctx, c, id, att.Lagged())
+			if err := c.Write(ctx, websocket.MessageBinary, chunk); err != nil {
 				return
 			}
 		case <-ctx.Done():
 			return
 		}
 	}
-}
-
-// maxTerminalFrame caps one output frame. A full-screen repaint arrives from
-// the pty in ~1 KiB reads; sending them as a few large frames saves the
-// per-frame cost on both ends.
-const maxTerminalFrame = 256 << 10
-
-// coalesce appends output already queued behind first, up to maxFrame bytes.
-// Chunks are shared with other clients, so it copies before appending. open
-// is false once the queue is closed.
-func coalesce(first []byte, out <-chan []byte, maxFrame int) (frame []byte, open bool) {
-	var chunks [][]byte
-	size := len(first)
-	open = true
-drain:
-	for size < maxFrame {
-		select {
-		case chunk, ok := <-out:
-			if !ok {
-				open = false
-				break drain
-			}
-			chunks = append(chunks, chunk)
-			size += len(chunk)
-		default:
-			break drain
-		}
-	}
-	if len(chunks) == 0 {
-		return first, open
-	}
-	// Allocate only the queued payload, once. Growing from a small capacity
-	// would repeatedly copy large repaints; reserving maxFrame wastes memory
-	// on the much more frequent small updates.
-	frame = make([]byte, len(first), size)
-	copy(frame, first)
-	for _, chunk := range chunks {
-		frame = append(frame, chunk...)
-	}
-	return frame, open
 }
 
 // terminalEnded tells the client why output stopped: the shell exited, the

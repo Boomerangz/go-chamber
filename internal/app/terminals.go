@@ -22,13 +22,12 @@ const (
 	defaultScrollback = 1 << 20
 	defaultCols       = 80
 	defaultRows       = 24
-	// subscriberBuffer is how many output chunks a client may lag behind
-	// before it is dropped; it reattaches and catches up from scrollback.
-	// A pty read is ~1 KiB (macOS) to 4 KiB (Linux), so a multi-megabyte
-	// full-screen repaint fits without forcing a reattach and replay.
-	// ponytail: counted in chunks, not bytes; ceiling is 4096 × the 32 KiB read
-	// buffer per client. Count queued bytes if that ever matters.
-	subscriberBuffer = 4096
+	// defaultLagBytes is how much output a client may lag behind before it is
+	// dropped; it reattaches and catches up from scrollback. Counted in bytes:
+	// a shell printing line by line yields one tiny pty read per line.
+	defaultLagBytes = 4 << 20
+	// maxOutputFrame caps one coalesced delivery to a client.
+	maxOutputFrame = 256 << 10
 )
 
 // PTY is a shell process attached to a pseudo-terminal. Read yields output
@@ -68,8 +67,10 @@ type TerminalsConfig struct {
 	Shell string
 	// ScrollbackBytes bounds replayed output per terminal; 1 MiB when zero.
 	ScrollbackBytes int
-	NewID           func() string
-	Now             func() time.Time
+	// LagBytes bounds output queued for one client; 4 MiB when zero.
+	LagBytes int
+	NewID    func() string
+	Now      func() time.Time
 }
 
 // OpenTerminal describes a terminal to open. SessionID, when set, opens it in
@@ -94,6 +95,9 @@ func NewTerminals(cfg TerminalsConfig) *Terminals {
 	}
 	if cfg.ScrollbackBytes == 0 {
 		cfg.ScrollbackBytes = defaultScrollback
+	}
+	if cfg.LagBytes == 0 {
+		cfg.LagBytes = defaultLagBytes
 	}
 	if cfg.NewID == nil {
 		cfg.NewID = randomID
@@ -137,8 +141,9 @@ func (t *Terminals) Open(ctx context.Context, req OpenTerminal) (domain.Terminal
 	}
 	rt := &runningTerminal{
 		term: term, pty: pty,
-		scroll: newScrollback(t.cfg.ScrollbackBytes),
-		subs:   map[*subscriber]struct{}{},
+		scroll:   newScrollback(t.cfg.ScrollbackBytes),
+		subs:     map[*subscriber]struct{}{},
+		lagBytes: t.cfg.LagBytes,
 	}
 	t.mu.Lock()
 	if t.closed {
@@ -188,7 +193,8 @@ func (t *Terminals) Get(id domain.TerminalID) (domain.Terminal, error) {
 }
 
 // TerminalAttachment is one client's view of a terminal: the buffered
-// scrollback followed by live output. Output is closed when the terminal
+// scrollback followed by live output. Output delivers queued output coalesced
+// into frames of at most maxOutputFrame bytes. It is closed when the terminal
 // exits or is closed, on Detach, or when the client falls too far behind.
 type TerminalAttachment struct {
 	Scrollback []byte
@@ -276,13 +282,72 @@ func (t *Terminals) running(id domain.TerminalID) (*runningTerminal, error) {
 	return rt, nil
 }
 
+// subscriber queues output for one client. publish appends to pending; the
+// forward goroutine hands it to out in coalesced frames.
 type subscriber struct {
-	ch     chan []byte
-	once   sync.Once
-	lagged bool // guarded by runningTerminal.mu
+	out  chan []byte
+	wake chan struct{}
+	done chan struct{}
+	once sync.Once
+	// guarded by runningTerminal.mu
+	pending []byte
+	held    int // bytes of the frame forward is delivering
+	ended   bool
+	lagged  bool
 }
 
-func (s *subscriber) close() { s.once.Do(func() { close(s.ch) }) }
+func (s *subscriber) notify() {
+	select {
+	case s.wake <- struct{}{}:
+	default:
+	}
+}
+
+// end stops delivery after what is already queued. Callers hold rt.mu.
+func (s *subscriber) end() {
+	s.ended = true
+	s.notify()
+}
+
+func (s *subscriber) detach() { s.once.Do(func() { close(s.done) }) }
+
+func (rt *runningTerminal) forward(s *subscriber) {
+	defer close(s.out)
+	for {
+		select {
+		case <-s.wake:
+		case <-s.done:
+			return
+		}
+		for {
+			rt.mu.Lock()
+			frame := s.pending
+			if len(frame) > maxOutputFrame {
+				frame = slices.Clone(frame[:maxOutputFrame])
+				s.pending = s.pending[maxOutputFrame:]
+			} else {
+				s.pending = nil
+			}
+			s.held = len(frame)
+			ended := s.ended
+			rt.mu.Unlock()
+			if len(frame) == 0 {
+				if ended {
+					return
+				}
+				break
+			}
+			select {
+			case s.out <- frame:
+			case <-s.done:
+				return
+			}
+			rt.mu.Lock()
+			s.held = 0
+			rt.mu.Unlock()
+		}
+	}
+}
 
 type runningTerminal struct {
 	pty PTY
@@ -291,6 +356,7 @@ type runningTerminal struct {
 	term          domain.Terminal
 	scroll        *scrollback
 	subs          map[*subscriber]struct{}
+	lagBytes      int
 	outputBytes   uint64
 	laggedClients uint64
 }
@@ -325,7 +391,7 @@ func (rt *runningTerminal) pump() {
 	defer rt.mu.Unlock()
 	_ = rt.term.Exit(code)
 	for s := range rt.subs {
-		s.close()
+		s.end()
 	}
 	clear(rt.subs)
 }
@@ -336,34 +402,37 @@ func (rt *runningTerminal) publish(chunk []byte) {
 	rt.outputBytes += uint64(len(chunk))
 	rt.scroll.Write(chunk)
 	for s := range rt.subs {
-		select {
-		case s.ch <- chunk:
-		default:
+		if len(s.pending)+s.held+len(chunk) > rt.lagBytes {
 			rt.laggedClients++
 			s.lagged = true
-			s.close()
+			s.pending = nil
+			s.end()
 			delete(rt.subs, s)
+			continue
 		}
+		s.pending = append(s.pending, chunk...)
+		s.notify()
 	}
 }
 
 func (rt *runningTerminal) attach() *TerminalAttachment {
-	s := &subscriber{ch: make(chan []byte, subscriberBuffer)}
+	s := &subscriber{out: make(chan []byte), wake: make(chan struct{}, 1), done: make(chan struct{})}
+	go rt.forward(s)
 	rt.mu.Lock()
 	defer rt.mu.Unlock()
 	if rt.term.Status == domain.TerminalExited {
-		s.close()
+		s.end()
 	} else {
 		rt.subs[s] = struct{}{}
 	}
 	return &TerminalAttachment{
 		Scrollback: rt.scroll.Bytes(),
-		Output:     s.ch,
+		Output:     s.out,
 		detach: func() {
 			rt.mu.Lock()
 			delete(rt.subs, s)
 			rt.mu.Unlock()
-			s.close()
+			s.detach()
 		},
 		lagged: func() bool {
 			rt.mu.Lock()
@@ -377,7 +446,7 @@ func (rt *runningTerminal) attach() *TerminalAttachment {
 type TerminalDiagnostic struct {
 	ID            domain.TerminalID `json:"id"`
 	Clients       int               `json:"clients"`
-	QueuedChunks  int               `json:"queuedChunks"`
+	QueuedBytes   int               `json:"queuedBytes"`
 	OutputBytes   uint64            `json:"outputBytes"`
 	LaggedClients uint64            `json:"laggedClients"`
 }
@@ -390,7 +459,7 @@ func (t *Terminals) Diagnostics() []TerminalDiagnostic {
 		rt.mu.Lock()
 		report := TerminalDiagnostic{ID: id, Clients: len(rt.subs), OutputBytes: rt.outputBytes, LaggedClients: rt.laggedClients}
 		for sub := range rt.subs {
-			report.QueuedChunks += len(sub.ch)
+			report.QueuedBytes += len(sub.pending) + sub.held
 		}
 		rt.mu.Unlock()
 		reports = append(reports, report)
