@@ -1,9 +1,19 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { UNAUTHORIZED_EVENT } from './api'
 import { fetchFile, fileKind, fileLine, filePath, fileUrl, langOf, looksBinary, PREVIEW_LIMIT } from './files'
 
 afterEach(() => vi.unstubAllGlobals())
 
 describe('fetchFile', () => {
+  it('signs out on 401 like every other call', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('', { status: 401 })))
+    const seen = vi.fn()
+    window.addEventListener(UNAUTHORIZED_EVENT, seen)
+    await expect(fetchFile('s1', 'a.txt')).rejects.toThrow()
+    window.removeEventListener(UNAUTHORIZED_EVENT, seen)
+    expect(seen).toHaveBeenCalledOnce()
+  })
+
   it('reads a small text file whole', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => new Response('hello')))
     expect(await fetchFile('s1', 'a.txt')).toEqual({ text: 'hello', truncated: false, size: 5 })

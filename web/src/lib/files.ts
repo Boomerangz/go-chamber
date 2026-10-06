@@ -1,4 +1,5 @@
 import { createContext } from 'react'
+import { requestRaw } from './api'
 
 // Files agents mention: links like [plan](/Users/me/proj/plan.md) or
 // [app.go:42](src/app.go#L42) open through the server, which only serves
@@ -93,12 +94,11 @@ export const PREVIEW_LIMIT = 512 * 1024
 export type FetchedFile = { text: string; truncated: boolean; size: number } | { binary: true }
 
 // fetchFile reads up to PREVIEW_LIMIT bytes of a session file as text. A
-// refusal is thrown as a sentence. (The raw fetch is the one place to swap
-// for api.requestRaw, which adds the 401 sign-out.)
+// refusal is thrown as a sentence; a 401 signs out as every API call does.
 export async function fetchFile(sessionId: string, path: string): Promise<FetchedFile> {
   let res: Response
   try {
-    res = await fetch(fileUrl(sessionId, path), { credentials: 'same-origin' })
+    res = await requestRaw(fileUrl(sessionId, path))
   } catch {
     throw new Error('Could not load the file')
   }
