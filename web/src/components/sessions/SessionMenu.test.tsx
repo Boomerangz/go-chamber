@@ -149,6 +149,14 @@ describe('SessionMenu', () => {
     expect(actions.deleteSession).toHaveBeenCalledWith('s1')
   })
 
+  it('reaches the delete question from the keyboard and keeps it', async () => {
+    render(<Row />)
+    await userEvent.click(trigger())
+    await userEvent.keyboard('{End}{Enter}')
+    expect(screen.getByRole('group', { name: 'Delete Release notes?' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Keep' })).toHaveFocus()
+  })
+
   it('shows the delete as busy while it is on its way', async () => {
     let release: (ok: boolean) => void = () => {}
     actions.deleteSession.mockReturnValueOnce(new Promise((r) => (release = r)))

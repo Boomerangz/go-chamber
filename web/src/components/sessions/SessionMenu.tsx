@@ -140,10 +140,12 @@ function MenuSheet(props: {
     setPos({ left, top })
   }, [anchor, step])
 
-  // The first item takes focus when the menu opens.
+  // The first item takes focus when the menu opens: once it is placed, as a
+  // hidden element can't take focus.
+  const placed = pos !== null
   useEffect(() => {
-    if (step === 'menu') sheet.current?.querySelector<HTMLElement>('[role="menuitem"]')?.focus()
-  }, [step])
+    if (placed && step === 'menu') sheet.current?.querySelector<HTMLElement>('[role="menuitem"]')?.focus()
+  }, [step, placed])
 
   // A click or a scroll elsewhere closes it; the sheet doesn't follow the list.
   useEffect(() => {
@@ -178,6 +180,13 @@ function MenuSheet(props: {
       return
     }
     if (step !== 'menu') return
+    if (e.key === 'Enter' || e.key === ' ') {
+      // Activate here: left to the browser, the same key press can land on
+      // the next step's focused button too (Keep, which would close it).
+      e.preventDefault()
+      ;(document.activeElement as HTMLElement | null)?.click()
+      return
+    }
     const items = [...(sheet.current?.querySelectorAll<HTMLElement>('[role="menuitem"]') ?? [])]
     const at = items.indexOf(document.activeElement as HTMLElement)
     const next = { ArrowDown: at + 1, ArrowUp: at - 1, Home: 0, End: items.length - 1 }[e.key]
