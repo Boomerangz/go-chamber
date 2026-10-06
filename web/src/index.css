@@ -528,7 +528,6 @@ button.health { border: 0; background: none; padding: 0; }
 }
 .items { list-style: none; padding-right: 0; margin-top: 0; margin-bottom: 0; display: flex; flex-direction: column; gap: 14px; }
 .row { display: flex; min-width: 0; position: relative; }
-.chat-hint { color: var(--ink-3); padding-top: 32px; padding-bottom: 32px; }
 
 .turn-no {
   position: absolute; left: -56px; top: 12px; width: 34px; text-align: right;
@@ -539,7 +538,6 @@ button.health { border: 0; background: none; padding: 0; }
 .row-user_message { padding-top: 10px; margin-top: 6px; border-top: 1px solid var(--rule); }
 .row-user_message:first-child { margin-top: 0; padding-top: 0; border-top: 0; }
 .row-user_message:first-child .turn-no { top: 2px; }
-.item.user { font-size: 15px; font-weight: 400; line-height: 1.55; color: var(--ink); margin-left: -13px; padding-left: 12px; border-left: 1px solid var(--ink); }
 .item.assistant { font-size: 15px; line-height: 1.6; color: var(--ink); }
 .item.tool, .item.command, .item.file, .item.subagent, .item.reasoning { font-size: 13px; }
 .item.tool, .item.command, .item.file {
@@ -556,15 +554,6 @@ button.health { border: 0; background: none; padding: 0; }
 .item.state-failed .item-icon, .item.state-failed code { color: var(--bad); }
 .item.state-pending .item-icon, .item.state-streaming .item-icon { color: var(--ink); }
 .item.state-pending code, .item.state-streaming code { text-decoration: underline dashed var(--rule-strong); text-underline-offset: 4px; }
-.item.reasoning summary {
-  cursor: pointer; list-style: none; display: inline-flex; align-items: center; gap: 6px;
-  font-family: var(--font-mono); font-size: 12px; color: var(--ink-3);
-}
-.item.reasoning summary::-webkit-details-marker { display: none; }
-.item.reasoning summary::before { content: '+'; width: 1ch; }
-.item.reasoning[open] summary::before { content: '−'; }
-.item.reasoning pre { background: transparent; border-left-style: dashed; color: var(--ink-3); font-family: var(--font-ui); font-size: 13px; }
-.item.reasoning .md { margin-top: 6px; padding-left: 12px; border-left: 1px dashed var(--rule-strong); color: var(--ink-3); font-size: 13px; }
 
 /* markdown: agent prose; code blocks coloured for the current sheet */
 .md { white-space: normal; }
@@ -747,7 +736,6 @@ button.health { border: 0; background: none; padding: 0; }
   white-space: pre-wrap; overflow-wrap: anywhere;
   background: var(--paper-2); border-left: 1px solid var(--rule-strong); color: var(--ink-2); font-size: 12.5px;
 }
-.request-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 4px; }
 .deny-form { display: flex; gap: 8px; }
 .deny-form .field { flex: 1; }
 
@@ -1043,13 +1031,11 @@ button.health { border: 0; background: none; padding: 0; }
   .term-workspace { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); }
   .term-sidebar { max-height: 38vh; padding: 12px; gap: 10px; border-right: 0; border-bottom: 1px solid var(--rule); }
   .term-main { padding: 10px; }
-  .chat-header { padding: 10px var(--gutter); }
   .scroll { padding: 14px var(--gutter) 10px; }
   .items, .scroll > .request, .scroll > .request-slot, .chat-hint { padding-left: 0; }
   .turn-no, .row-user_message:first-child .turn-no { position: static; flex: none; width: auto; margin: 3px 10px 0 0; }
   .chat-meta { margin-left: 0; width: 100%; gap: 12px; }
   .chat-header > .avatar { display: none; }
-  .item.user { margin-left: 0; }
   .composer { width: calc(100% - 2 * var(--gutter)); margin-bottom: 10px; }
   .field, .composer textarea, .session-search input { font-size: 16px; }
   .btn { height: 36px; }
@@ -1098,10 +1084,6 @@ button.health { border: 0; background: none; padding: 0; }
 .editable-title:hover .rename-btn, .rename-btn:focus-visible { color: var(--ink); }
 .title-input { font: inherit; color: inherit; background: var(--paper); border: 1px solid var(--rule-strong); border-radius: var(--r); padding: 1px 6px; min-width: 12ch; width: 100%; max-width: 40ch; }
 
-.item-output { grid-column: 1 / -1; margin-top: 4px; }
-.item-output > summary { cursor: pointer; color: var(--ink-3); font-size: 12px; user-select: none; }
-.item-output > summary:hover { color: var(--ink); }
-.item-output[open] > summary { margin-bottom: 4px; }
 
 .file-viewer { width: min(960px, calc(100vw - 32px)); max-height: calc(100vh - 48px); max-height: calc(100dvh - 48px); padding: 0; border: 1px solid var(--rule-strong); background: var(--paper); color: var(--ink); }
 .file-viewer[open] { display: flex; flex-direction: column; }

@@ -30,6 +30,10 @@
 .exit-tag.exit-bad { color: var(--bad); }
 
 /* folded output: label, then its last line while closed */
+.item-output { grid-column: 1 / -1; margin-top: 4px; }
+.item-output > summary { cursor: pointer; color: var(--ink-3); font-size: 12px; user-select: none; }
+.item-output > summary:hover { color: var(--ink); }
+.item-output[open] > summary { margin-bottom: 4px; }
 .item-output > summary { display: flex; align-items: baseline; gap: 10px; min-width: 0; list-style: none; }
 .item-output > summary::-webkit-details-marker { display: none; }
 .item-output > summary::before { content: '+'; flex: none; width: 1ch; }
@@ -71,6 +75,16 @@
 .item-output > .show-all { margin-top: 4px; }
 
 /* reasoning still on its way: the "not yet settled" dashed underline, then its newest line */
+/* reasoning: folded behind +/−, with a dashed rule */
+.item.reasoning summary {
+  cursor: pointer; list-style: none; display: inline-flex; align-items: center; gap: 6px;
+  font-family: var(--font-mono); font-size: 12px; color: var(--ink-3);
+}
+.item.reasoning summary::-webkit-details-marker { display: none; }
+.item.reasoning summary::before { content: '+'; width: 1ch; }
+.item.reasoning[open] summary::before { content: '−'; }
+.item.reasoning pre { background: transparent; border-left-style: dashed; color: var(--ink-3); font-family: var(--font-ui); font-size: 13px; }
+.item.reasoning .md { margin-top: 6px; padding-left: 12px; border-left: 1px dashed var(--rule-strong); color: var(--ink-3); font-size: 13px; }
 .item.reasoning summary { display: flex; max-width: 100%; min-width: 0; }
 .item.reasoning summary::before { flex: none; }
 .reasoning-label { flex: none; }
@@ -113,7 +127,11 @@
 }
 
 /* a message of the owner's: copy it, or take it back into the composer */
-.item.user { position: relative; }
+.item.user {
+  position: relative; margin-left: -13px; padding-left: 12px; border-left: 1px solid var(--ink);
+  font-size: 15px; font-weight: 400; line-height: 1.55; color: var(--ink);
+}
+@media (max-width: 720px) { .item.user { margin-left: 0; } }
 .msg-actions {
   position: absolute; top: -4px; right: 0; display: flex; gap: 2px; background: var(--paper);
   opacity: 0; transition: opacity var(--dur-fast);
