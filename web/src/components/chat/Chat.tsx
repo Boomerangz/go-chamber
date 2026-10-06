@@ -279,7 +279,9 @@ export default function Chat() {
     [respond, scrollRef],
   )
 
-  const notFound = !session && sessionsStatus === 'ready' && history === 'error'
+  // The sessions list has every session (subagents too); one it lacks once
+  // loaded doesn't exist, whatever its (empty) transcript says.
+  const notFound = !session && sessionsStatus === 'ready'
   const announcement = useAnnouncement(chat, history, status)
 
   const empty = !text.trim() && (busy || attachments.ids.length === 0)
@@ -304,7 +306,7 @@ export default function Chat() {
         <span key={announcement.n}>{announcement.text}</span>
       </div>
       <div className="scroll" ref={scrollRef}>
-        {history === 'loading' && chat.order.length === 0 ? (
+        {notFound ? null : history === 'loading' && chat.order.length === 0 ? (
           <div className="chat-loading">
             <Skeleton rows={4} label="loading transcript" />
           </div>
@@ -347,7 +349,7 @@ export default function Chat() {
             </LoadFailed>
           </div>
         )}
-        {history === 'ready' && chat.order.length === 0 && pendingSends.length === 0 && status !== 'interrupted' && !busy && (
+        {!notFound && history === 'ready' && chat.order.length === 0 && pendingSends.length === 0 && status !== 'interrupted' && !busy && (
           <div className="chat-hint">
             <p>Send a message to start. The agent runs in {session?.cwd ?? 'the session folder'}.</p>
             <p className="chat-hint-keys">

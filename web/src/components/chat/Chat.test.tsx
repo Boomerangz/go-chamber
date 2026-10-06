@@ -491,6 +491,13 @@ describe('session not loaded yet', () => {
     expect(screen.getByRole('status', { name: 'loading session' })).toBeInTheDocument()
   })
 
+  it('says so for an unknown session whose empty transcript loaded fine', () => {
+    setup({ sessions: [], sessionsStatus: 'ready', history: 'ready', chat: initialChat() })
+    expect(screen.getByRole('heading', { name: 'Session not found' })).toBeInTheDocument()
+    expect(screen.queryByText(/Send a message to start/)).toBeNull()
+    expect(screen.queryByRole('combobox', { name: 'message' })).toBeNull()
+  })
+
   it('says a session that does not exist was not found and leads back', async () => {
     setup({ sessions: [], sessionsStatus: 'ready', history: 'error', chat: initialChat() })
     expect(screen.getByRole('heading', { name: 'Session not found' })).toBeInTheDocument()

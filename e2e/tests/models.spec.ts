@@ -52,6 +52,7 @@ test('chooses the Codex model and remembers it for new sessions', async ({ page 
   await ask(page, 'model: fake-small effort: low')
 
   await newSession(page, 'Codex')
+  await showSessionDetails(page)
   await expect(page.getByRole('button', { name: 'Model: Fake-small · low' })).toBeVisible()
   await ask(page, 'model: fake-small effort: low')
 })
