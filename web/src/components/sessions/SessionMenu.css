@@ -42,6 +42,12 @@
 .session-menu-confirm { display: grid; gap: 8px; padding: 6px 6px 4px; max-width: 260px; }
 .session-menu-confirm p { margin: 0; font-size: 13px; color: var(--ink-2); line-height: 1.45; }
 .session-menu-actions { display: flex; gap: 6px; justify-content: flex-end; }
+/* a worktree's folder: paths break anywhere, the loss reads in ink, a failure in red */
+.session-menu-confirm p { overflow-wrap: anywhere; }
+.session-menu-confirm p.session-menu-warn { color: var(--ink); }
+.session-menu-confirm p.session-menu-error { color: var(--bad); }
+.session-menu-check { display: flex; gap: 8px; align-items: flex-start; font-size: 13px; color: var(--ink-2); line-height: 1.45; cursor: pointer; overflow-wrap: anywhere; }
+.session-menu-check input { flex: none; margin-top: 3px; }
 
 @media (max-width: 720px) {
   .session-menu-trigger { top: 4px; width: 36px; height: 36px; }

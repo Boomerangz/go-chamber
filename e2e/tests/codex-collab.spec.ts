@@ -12,6 +12,10 @@ test('shows a codex collab subagent as a child session', async ({ page }) => {
 
   await page.getByLabel('Message').fill('start collab')
   await page.getByRole('button', { name: 'Send' }).click()
+  // The parent's line says what the child was asked; that is no output.
+  const line = page.locator('.item.subagent').first()
+  await expect(line.locator('.subagent-name')).toHaveText('subagent: child task')
+  await expect(line.getByText('Output')).toHaveCount(0)
 
   await showPane(page, 'Sessions')
   const child = page.locator('.session-title', { hasText: 'child task' }).first()

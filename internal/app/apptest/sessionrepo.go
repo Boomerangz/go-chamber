@@ -28,7 +28,7 @@ func SessionRepoContract(t *testing.T, newRepo func(t *testing.T) app.SessionRep
 		PermissionMode:   "plan",
 		ForkOf:           "origin",
 		AutoContinue:     true,
-		Worktree:         &domain.Worktree{Repo: "/src/p", Path: "/p", Branch: "chamber/x", Base: "abc"},
+		Worktree:         &domain.Worktree{Repo: "/src/p", Path: "/p", Branch: "chamber/x", Base: "abc", Removed: true},
 		ArchivedAt:       reset.Add(30 * time.Minute),
 	}
 

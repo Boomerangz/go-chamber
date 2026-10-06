@@ -269,14 +269,17 @@ function SessionDiffPanel({ sessionId }: { sessionId: string | null }) {
           </button>
         </span>
       </header>
-      {session?.worktree && (
+      {session?.worktree && !session.worktree.removed && (
         <WorktreeBar session={session} worktree={session.worktree} changed={files.length} commits={changes?.commits ?? 0} />
       )}
+      {session?.worktree?.removed && <RemovedWorktree worktree={session.worktree} />}
       {listError && (
         <LoadFailed onRetry={refresh}>{`Couldn't load changes: ${listError}`}</LoadFailed>
       )}
       {!changes && loading && !listError && <LoadingLine>loading changes…</LoadingLine>}
-      {changes && !changes.repository && <p className="tray-empty">This folder is not a git repository.</p>}
+      {changes && !changes.repository && !changes.removed && !session?.worktree?.removed && (
+        <p className="tray-empty">This folder is not a git repository.</p>
+      )}
       {changes?.repository && files.length === 0 && <p className="tray-empty">No changes</p>}
       {changes?.repository && files.length > 0 && (
         <ul className="diff-files">
@@ -491,6 +494,25 @@ function lossOf(changed: number, commits: number): string {
   if (changed === 0) return 'It has uncommitted changes: they will be lost.'
   if (commits === 0) return `${changed} uncommitted ${changed === 1 ? 'change' : 'changes'} will be lost.`
   return 'Changes not yet committed will be lost.'
+}
+
+// RemovedWorktree stands for a worktree whose folder is gone: there is
+// nothing to list, but the branch it kept can still be merged.
+function RemovedWorktree({ worktree }: { worktree: api.Worktree }) {
+  const merge = `git -C ${worktree.repo} merge ${worktree.branch}`
+  return (
+    <div className="worktree-bar" role="status" aria-label="Worktree removed">
+      <p>
+        <span className="worktree-gone-kw">Worktree removed</span> · branch <code>{worktree.branch}</code> kept
+      </p>
+      <div className="merge-row">
+        <code className="merge-hint" title={merge}>{merge}</code>
+        <button type="button" className="btn btn-ghost btn-icon" aria-label="Copy merge command" title="Copy merge command" onClick={() => void copy(merge, 'merge command', 'copy-merge')}>
+          <Copy {...icon(14)} />
+        </button>
+      </div>
+    </div>
+  )
 }
 
 function WorktreeBar({ session, worktree, changed, commits }: { session: api.Session; worktree: api.Worktree; changed: number; commits: number }) {

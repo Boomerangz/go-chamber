@@ -4,7 +4,7 @@ import { createPortal } from 'react-dom'
 import { interrupt, type Session } from '../../lib/api'
 import { usePending } from '../../lib/pending'
 import { sessionTitle } from '../../lib/sessions'
-import { fail, notify } from '../../stores/notices'
+import { describeError, fail, notify } from '../../stores/notices'
 import { useSessionStore } from '../../stores/session'
 import { icon } from '../icon'
 import './SessionMenu.css'
@@ -17,7 +17,7 @@ interface Anchor {
   alignRight: boolean
 }
 
-type Step = 'menu' | 'rename' | 'delete'
+type Step = 'menu' | 'rename' | 'delete' | 'worktree'
 
 // the sheet keeps this far from the window's edges (a phone's gutter there)
 const edge = () => (window.innerWidth <= 720 ? 14 : 8)
@@ -39,7 +39,8 @@ function neighbourOf(trigger: React.RefObject<HTMLElement | null>): () => void {
 }
 
 // SessionMenu is a session row's "⋯" button and its menu: Rename, Archive
-// or Unarchive, and Delete after an in-place question. Right-clicking the
+// or Unarchive, Remove worktree (a worktree session) and Delete after an
+// in-place question. Right-clicking the
 // row (the list item the menu sits in) opens it too. It renders next to
 // the row's button, inside the row's list item.
 export default function SessionMenu({ session }: { session: Session }) {
@@ -124,6 +125,9 @@ function MenuSheet(props: {
   const [pos, setPos] = useState<{ left: number; top: number } | null>(null)
   const archived = Boolean(session.archivedAt)
   const running = session.status === 'running'
+  // A worktree whose folder is still there can go, with or without the session.
+  const worktree = session.worktree && !session.worktree.removed ? session.worktree : undefined
+  const [withFolder, setWithFolder] = useState(false)
 
   const renameSession = useSessionStore((s) => s.renameSession)
   const archiveSession = useSessionStore((s) => s.archiveSession)
@@ -169,13 +173,13 @@ function MenuSheet(props: {
   const [remove, deleting] = usePending(
     useCallback(async () => {
       const refocus = neighbourOf(trigger)
-      const ok = await deleteSession(session.id)
+      const ok = await (withFolder ? deleteSession(session.id, { removeWorktree: true }) : deleteSession(session.id))
       if (ok) {
         onClose()
         refocus()
       }
       return ok
-    }, [deleteSession, onClose, session.id, trigger]),
+    }, [deleteSession, onClose, session.id, trigger, withFolder]),
     { holdOnSuccess: true },
   )
 
@@ -281,6 +285,19 @@ function MenuSheet(props: {
           <button type="button" role="menuitem" tabIndex={-1} aria-busy={archiving || undefined} onClick={() => void archive()}>
             {archiving ? (archived ? 'Unarchiving…' : 'Archiving…') : archived ? 'Unarchive' : 'Archive'}
           </button>
+          {worktree && (
+            <button
+              type="button"
+              role="menuitem"
+              tabIndex={-1}
+              className="session-menu-danger"
+              aria-disabled={running || undefined}
+              onClick={() => !running && setStep('worktree')}
+            >
+              Remove worktree…
+              {running && <span className="session-menu-hint">stop first</span>}
+            </button>
+          )}
           <button
             type="button"
             role="menuitem"
@@ -308,6 +325,12 @@ function MenuSheet(props: {
           <p>
             Delete from go-chamber? The agent's transcript on disk stays.
           </p>
+          {worktree && (
+            <label className="session-menu-check">
+              <input type="checkbox" checked={withFolder} onChange={(e) => setWithFolder(e.target.checked)} />
+              Also remove the worktree folder (branch {worktree.branch} kept)
+            </label>
+          )}
           <div className="session-menu-actions">
             <button type="button" className="btn btn-danger btn-xs" aria-busy={deleting || undefined} onClick={() => void remove()}>
               {deleting ? 'Deleting…' : 'Delete'}
@@ -318,6 +341,57 @@ function MenuSheet(props: {
           </div>
         </div>
       )}
+      {step === 'worktree' && worktree && (
+        <RemoveWorktree session={session} title={title} worktree={worktree} onDone={() => onClose(true)} />
+      )}
+    </div>
+  )
+}
+
+// RemoveWorktree asks before removing a session's worktree folder; its
+// branch stays. Uncommitted changes the server finds ask once more.
+function RemoveWorktree({ session, title, worktree, onDone }: { session: Session; title: string; worktree: NonNullable<Session['worktree']>; onDone: () => void }) {
+  const removeWorktree = useSessionStore((s) => s.removeWorktree)
+  const [dirty, setDirty] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [remove, removing] = usePending(
+    useCallback(
+      async (force: boolean) => {
+        setError(null)
+        try {
+          await removeWorktree(session.id, force)
+        } catch (err) {
+          const msg = describeError(err)
+          if (!force && msg.includes('uncommitted')) setDirty(true)
+          else setError(msg)
+          return false
+        }
+        notify({ kind: 'info', text: `Worktree removed, branch ${worktree.branch} kept` })
+        onDone()
+        return true
+      },
+      [removeWorktree, session.id, worktree.branch, onDone],
+    ),
+  )
+  return (
+    <div className="session-menu-confirm" role="group" aria-label={`Remove the worktree of ${title}?`}>
+      <p>
+        Remove the worktree folder {worktree.path}? Branch {worktree.branch} is kept.
+      </p>
+      {dirty && <p className="session-menu-warn">It has uncommitted changes: they will be lost.</p>}
+      {error && (
+        <p className="session-menu-error" role="alert">
+          {error}
+        </p>
+      )}
+      <div className="session-menu-actions">
+        <button type="button" className="btn btn-danger btn-xs" aria-busy={removing || undefined} onClick={() => void remove(dirty)}>
+          {removing ? 'Removing…' : dirty ? 'Remove anyway' : 'Remove'}
+        </button>
+        <button type="button" className="btn btn-xs" autoFocus disabled={removing} onClick={onDone}>
+          Keep
+        </button>
+      </div>
     </div>
   )
 }

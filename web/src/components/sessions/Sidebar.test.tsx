@@ -1,6 +1,7 @@
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { fail } from '../../stores/notices'
 import { resetStore, useSessionStore } from '../../stores/session'
 import type { Session } from '../../lib/api'
 import Sidebar from './Sidebar'
@@ -103,14 +104,60 @@ describe('Sidebar new session', () => {
     expect(await screen.findByRole('button', { name: 'New session' })).not.toHaveAttribute('aria-busy')
   })
 
-  it('clears the branch after a worktree session starts', async () => {
+  it('clears the branch and unticks the worktree after a worktree session starts', async () => {
     const onCreate = setup()
     await userEvent.type(screen.getByLabelText('Working directory'), '/repo')
     await userEvent.click(screen.getByLabelText('In a new worktree'))
     await userEvent.type(screen.getByLabelText('Branch name'), 'fix-it')
     await userEvent.click(screen.getByRole('button', { name: 'New session' }))
     expect(onCreate).toHaveBeenCalledWith('claude', '/repo', 'fix-it')
-    await waitFor(() => expect(screen.getByLabelText('Branch name')).toHaveValue(''))
+    await waitFor(() => expect(screen.getByLabelText('In a new worktree')).not.toBeChecked())
+    expect(screen.queryByLabelText('Branch name')).toBeNull()
+    await userEvent.click(screen.getByLabelText('In a new worktree'))
+    expect(screen.getByLabelText('Branch name')).toHaveValue('')
+  })
+
+  it('shows the branch the name becomes', async () => {
+    setup()
+    await userEvent.type(screen.getByLabelText('Working directory'), '/repo')
+    await userEvent.click(screen.getByLabelText('In a new worktree'))
+    const field = screen.getByLabelText('Branch name')
+    await userEvent.type(field, 'fix/ws')
+    expect(field).toHaveAccessibleDescription('→ chamber/fix-ws')
+    await userEvent.clear(field)
+    await userEvent.type(field, 'Фича test')
+    expect(field).toHaveAccessibleDescription('→ chamber/test · only latin letters, digits, . and _ are kept')
+  })
+
+  it('refuses a branch name with nothing a branch can be made of, in place', async () => {
+    const onCreate = setup()
+    await userEvent.type(screen.getByLabelText('Working directory'), '/repo')
+    await userEvent.click(screen.getByLabelText('In a new worktree'))
+    const field = screen.getByLabelText('Branch name')
+    await userEvent.type(field, 'Фича тест')
+    expect(field).toHaveAccessibleDescription('Use latin letters or digits')
+    await userEvent.click(screen.getByRole('button', { name: 'New session' }))
+    expect(onCreate).not.toHaveBeenCalled()
+    expect(field).toHaveFocus()
+    expect(field).toHaveAttribute('aria-invalid', 'true')
+  })
+
+  it('says under the branch why the server refused it', async () => {
+    setup(vi.fn(async () => {
+      fail("Couldn't start the session", new Error('branch already exists: chamber/fix-it'), undefined, { quiet: true })
+      return false
+    }))
+    await userEvent.type(screen.getByLabelText('Working directory'), '/repo')
+    await userEvent.click(screen.getByLabelText('In a new worktree'))
+    const field = screen.getByLabelText('Branch name')
+    await userEvent.type(field, 'fix-it')
+    await userEvent.click(screen.getByRole('button', { name: 'New session' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('Branch chamber/fix-it already exists')
+    expect(field).toHaveAttribute('aria-invalid', 'true')
+    expect(field).toHaveAccessibleDescription('Branch chamber/fix-it already exists')
+    await userEvent.type(field, '2')
+    expect(screen.queryByRole('alert')).toBeNull()
+    expect(field).toHaveAccessibleDescription('→ chamber/fix-it2')
   })
 
   it('keeps the branch when the start failed', async () => {

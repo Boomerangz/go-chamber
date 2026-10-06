@@ -47,6 +47,26 @@ describe('errors', () => {
   })
 })
 
+describe('an unanswered question', () => {
+  it('keeps the question readable once its turn was cut off', () => {
+    const input = {
+      questions: [
+        { question: 'Which database should we use?', header: 'DB', options: [{ label: 'Postgres' }, { label: 'SQLite' }] },
+        { question: 'Ship today?', options: [{ label: 'Yes' }] },
+      ],
+    }
+    const { container } = show(item({ kind: 'tool_call', name: 'AskUserQuestion', status: 'stopped', input }))
+    const asked = container.querySelectorAll('.question-asked')
+    expect([...asked].map((q) => q.textContent)).toEqual(['Which database should we use?', 'Ship today?'])
+    expect(container.querySelector('.tool-line')).toBeNull()
+  })
+
+  it('reads a question without questions as a plain tool line', () => {
+    const { container } = show(item({ kind: 'tool_call', name: 'AskUserQuestion', status: 'stopped', input: { questions: 'odd' } }))
+    expect(container.querySelector('.question-asked')).toBeNull()
+  })
+})
+
 describe('tool calls', () => {
   it('says what a tool works on after its name, with the full input folded', () => {
     const { container } = show(item({ name: 'Read', input: { file_path: '/src/app.go', limit: 5 } }))
@@ -222,6 +242,15 @@ describe('subagents', () => {
     const { container } = show(item({ kind: 'subagent', name: 'Task', status: 'streaming', input: { subagent_type: 'Explore', description: 'find usages' } }))
     expect(screen.getByText('subagent: Explore')).toBeInTheDocument()
     expect(container.querySelector('.subagent-head .item-summary')).toHaveTextContent('find usages')
+  })
+
+  it('names an untyped subagent (Codex) by what it was asked, and folds only what it returned', () => {
+    const { container, rerender, props } = show(item({ kind: 'subagent', name: 'agent', status: 'streaming', input: { prompt: 'child task' } }))
+    expect(container.querySelector('.subagent-name')).toHaveTextContent(/^subagent: child task$/)
+    expect(container.querySelector('.subagent-head .item-summary')).toBeNull()
+    expect(container.querySelector('.subagent details')).toBeNull()
+    rerender(<ol><Row {...props} node={{ item: item({ kind: 'subagent', name: 'agent', status: 'completed', input: { prompt: 'child task' }, text: 'all done' }), children: [] }} /></ol>)
+    expect(container.querySelector('.subagent details')).toHaveTextContent(/Output/)
   })
 
   it('stops a subagent once, however often Stop is pressed', async () => {
@@ -498,5 +527,19 @@ describe('turn footer', () => {
     expect(foot.querySelector('.stop-kw')).toHaveTextContent('turn stopped')
     rerender(<ol><Row {...props} result={{ stopped: true, outputTokens: 5 }} /></ol>)
     expect(container.querySelector('.turn-foot')).toHaveTextContent('turn stopped · 5 out')
+  })
+
+  it('records a turn that was cut off, and why', () => {
+    const { container, rerender, props } = show(item({ kind: 'assistant_message', text: 'half' }), { result: { interruptionReason: 'crashed' } })
+    const foot = container.querySelector('.turn-foot')!
+    expect(foot).toHaveTextContent(/^turn interrupted · the agent exited$/)
+    expect(foot.querySelector('.stop-kw')).toHaveTextContent('turn interrupted')
+    expect(foot).toHaveAccessibleName('Turn interrupted')
+    rerender(<ol><Row {...props} result={{ interruptionReason: 'server_restart' }} /></ol>)
+    expect(container.querySelector('.turn-foot')).toHaveTextContent(/^turn interrupted · go-chamber restarted$/)
+    rerender(<ol><Row {...props} result={{ interruptionReason: 'quota' }} /></ol>)
+    expect(container.querySelector('.turn-foot')).toHaveTextContent(/^turn interrupted · the subscription limit was reached$/)
+    rerender(<ol><Row {...props} result={{ interruptionReason: 'idle_timeout' }} /></ol>)
+    expect(container.querySelector('.turn-foot')).toHaveTextContent(/^turn interrupted$/)
   })
 })

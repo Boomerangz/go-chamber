@@ -258,6 +258,14 @@ func TestSendMessageWhileRunningConflicts(t *testing.T) {
 	}
 }
 
+func TestSendMessageToARemovedWorktreeConflicts(t *testing.T) {
+	h := newSessionsServer(&fakeSessions{err: domain.ErrWorktreeRemoved}, nil)
+	rec := do(h, authed("POST", "/api/sessions/a/messages", `{"text":"hi"}`))
+	if rec.Code != http.StatusConflict || !strings.Contains(rec.Body.String(), "worktree was removed") {
+		t.Fatalf("code = %d %s", rec.Code, rec.Body.String())
+	}
+}
+
 func TestInterruptEndpoint(t *testing.T) {
 	f := &fakeSessions{}
 	h := newSessionsServer(f, nil)

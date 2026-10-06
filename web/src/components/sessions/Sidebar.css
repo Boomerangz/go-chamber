@@ -1,2 +1,5 @@
 .worktree-branch .field[aria-invalid='true'] { border-color: var(--bad); }
 .worktree-branch .field[aria-invalid='true']:focus { box-shadow: 0 0 0 1px var(--bad); }
+/* the branch a typed name becomes, under the field, before it is made */
+.branch-preview { margin: -4px 0 0; font-family: var(--font-mono); font-size: 12px; color: var(--ink-3); overflow-wrap: anywhere; }
+.new-session .field-hint { overflow-wrap: anywhere; }

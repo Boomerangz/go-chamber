@@ -46,10 +46,16 @@ test('a crash keeps what the agent already wrote', async ({ page }, info) => {
   await newSession(page)
   const text = `crash now please ${info.project.name}`
   await send(page, text)
-  await expect(page.getByText('Turn interrupted')).toBeVisible()
+  await expect(page.locator('.banner', { hasText: 'Turn interrupted' })).toBeVisible()
   await expect(page.locator('.item.assistant', { hasText: `echo: ${text}` })).toBeVisible()
   await page.reload()
   await expect(page.locator('.item.assistant', { hasText: `echo: ${text}` })).toBeVisible()
+  // The cut-off turn keeps its record once the next one starts.
+  await expect(page.locator('.turn-foot', { hasText: 'turn interrupted' })).toHaveText('turn interrupted · the agent exited')
+  await send(page, `after the cut ${info.project.name}`)
+  await expect(page.locator('.item.assistant', { hasText: `echo: after the cut ${info.project.name}` })).toBeVisible()
+  await expect(page.locator('.banner', { hasText: 'Turn interrupted' })).toHaveCount(0)
+  await expect(page.locator('.turn-foot', { hasText: 'turn interrupted' })).toHaveText('turn interrupted · the agent exited')
 })
 
 test('transcript, working tail, request card and composer share one column', async ({ page }, info) => {

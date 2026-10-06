@@ -35,6 +35,10 @@ func (s *server) archiveRoutes() {
 	}
 	if d, ok := s.cfg.Sessions.(SessionDeleter); ok {
 		s.mux.HandleFunc("DELETE /api/sessions/{id}", func(w http.ResponseWriter, req *http.Request) {
+			if req.URL.Query().Get("worktree") == "remove" {
+				s.deleteWithWorktree(w, req)
+				return
+			}
 			if err := d.DeleteSession(req.Context(), sessionID(req)); err != nil {
 				s.fail(w, err)
 				return
@@ -42,4 +46,17 @@ func (s *server) archiveRoutes() {
 			w.WriteHeader(http.StatusNoContent)
 		})
 	}
+}
+
+// deleteWithWorktree removes the session together with its worktree folder.
+func (s *server) deleteWithWorktree(w http.ResponseWriter, req *http.Request) {
+	if s.cfg.Worktrees == nil {
+		writeJSON(w, http.StatusNotImplemented, errorBody{"removing worktrees is not supported"})
+		return
+	}
+	if err := s.cfg.Worktrees.Delete(req.Context(), sessionID(req), true); err != nil {
+		s.failWorktree(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }

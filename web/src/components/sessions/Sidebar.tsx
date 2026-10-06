@@ -9,10 +9,12 @@ import ArchivedSessions from './ArchivedSessions'
 import { SignOut } from '../shell/Shell'
 import HistoryPanel from './HistoryPanel'
 import SessionList from './SessionList'
+import { branchError, branchPreview } from '../../lib/branch'
 import { recentFolders } from '../../lib/folders'
 import { usePending } from '../../lib/pending'
 import { useIsRepo } from '../../lib/useIsRepo'
-import { recentProjects } from '../../lib/sessions'
+import { recentProjects, startFolder } from '../../lib/sessions'
+import { lastError } from '../../stores/notices'
 import { useSessionStore } from '../../stores/session'
 import './Sidebar.css'
 import type { AgentKind, Session } from '../../lib/api'
@@ -70,7 +72,7 @@ export default function Sidebar(props: SidebarProps) {
   // A worktree session offers its repository: a worktree of a worktree isn't wanted.
   const activeCwd = useSessionStore((s) => {
     const active = s.sessions.find((x) => x.id === s.activeId)
-    return active?.worktree?.repo ?? active?.cwd
+    return active && startFolder(s.sessions)(active)
   })
   const [remembered, setRemembered] = useState(lastFolder)
   const cwd = typed ?? activeCwd ?? remembered
@@ -83,6 +85,9 @@ export default function Sidebar(props: SidebarProps) {
   const repo = useIsRepo(cwd)
   const inWorktree = wantWorktree && repo !== false
   const [branch, setBranch] = useState('')
+  // refused is why the server turned the branch down, until it is edited.
+  const [refused, setRefused] = useState<string | null>(null)
+  const preview = branchPreview(branch)
   // A new search reads from the top: what matches is above, not scrolled past.
   const body = useRef<HTMLDivElement>(null)
   const query = useSessionStore((s) => s.query)
@@ -108,7 +113,16 @@ export default function Sidebar(props: SidebarProps) {
         rememberFolder(dir)
         setRemembered(dir)
       }
-      if (ok && branch) setBranch('')
+      // A worktree is asked for each time: the next session starts plain.
+      if (ok && branch) {
+        setBranch('')
+        setInWorktree(false)
+      }
+      // The form says why a worktree was refused, under its branch.
+      if (!ok && branch) {
+        setRefused(branchError(lastError() ?? "Couldn't start the session"))
+        branchInput.current?.focus()
+      }
       if (ok) setComposing(false)
       return ok
     },
@@ -131,7 +145,7 @@ export default function Sidebar(props: SidebarProps) {
       folderInput.current?.focus()
       return
     }
-    if (inWorktree && !branch.trim()) {
+    if (inWorktree && (!branch.trim() || preview.error)) {
       setMissing('branch')
       branchInput.current?.focus()
       return
@@ -233,22 +247,19 @@ export default function Sidebar(props: SidebarProps) {
               ref={branchInput}
               className="field"
               aria-label="Branch name"
-              aria-invalid={missing === 'branch' || undefined}
-              aria-describedby={missing === 'branch' ? 'new-session-branch-hint' : undefined}
+              aria-invalid={(missing === 'branch' || refused !== null) || undefined}
+              aria-describedby="new-session-branch-hint"
               placeholder="branch name"
               value={branch}
               onChange={(e) => {
                 setBranch(e.target.value)
+                setRefused(null)
                 if (missing === 'branch' && e.target.value.trim()) setMissing(null)
               }}
             />
           </label>
         )}
-        {inWorktree && missing === 'branch' && (
-          <p className="field-hint" id="new-session-branch-hint" role="alert">
-            Name the branch
-          </p>
-        )}
+        {inWorktree && <BranchHint id="new-session-branch-hint" missing={missing === 'branch'} refused={refused} preview={preview} />}
         <button type="submit" className="btn btn-primary" title="New session (n)" aria-busy={(creating && !creatingIn) || undefined}>
           {creating && !creatingIn ? 'Starting…' : 'New session'}
         </button>
@@ -264,5 +275,25 @@ export default function Sidebar(props: SidebarProps) {
         <SignOut className="sidebar-signout" />
       </footer>
     </aside>
+  )
+}
+
+// BranchHint says under the branch field what the name becomes, or why it
+// can't be used: missing, nothing a branch can be made of, or refused.
+function BranchHint({ id, missing, refused, preview }: { id: string; missing: boolean; refused: string | null; preview: ReturnType<typeof branchPreview> }) {
+  const problem = refused ?? preview.error ?? (missing ? 'Name the branch' : null)
+  if (problem) {
+    // Typing a name that can't be used is said quietly; a refused submit alerts.
+    return (
+      <p className="field-hint" id={id} role={refused || missing ? 'alert' : undefined}>
+        {problem}
+      </p>
+    )
+  }
+  if (!preview.branch) return null
+  return (
+    <p className="branch-preview" id={id}>
+      {`→ ${preview.branch}${preview.note ? ` · ${preview.note}` : ''}`}
+    </p>
   )
 }

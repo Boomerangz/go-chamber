@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/igorzygin/go-chamber/internal/domain"
@@ -71,7 +72,7 @@ func (g *fakeGit) FileDiff(_ context.Context, dir, base, path string) (string, e
 
 func newTestWorktrees(t *testing.T) (*Worktrees, *Manager, *fakeGit, *fakeBus) {
 	t.Helper()
-	m, _, bus, _, _ := newTestManager(t)
+	m, _, bus, _ := newArchiveManager(t)
 	git := &fakeGit{top: "/src/app"}
 	return NewWorktrees(WorktreesConfig{Sessions: m, Git: git, Root: "/data/worktrees"}), m, git, bus
 }
@@ -101,7 +102,7 @@ func TestCreateWorktreeSession(t *testing.T) {
 
 func TestCreateWorktreeRejectsEmptyName(t *testing.T) {
 	w, _, git, _ := newTestWorktrees(t)
-	if _, err := w.Create(context.Background(), domain.AgentClaude, "/src/app", " !! "); !errors.Is(err, domain.ErrInvalidSession) {
+	if _, err := w.Create(context.Background(), domain.AgentClaude, "/src/app", " !! "); !errors.Is(err, ErrInvalidBranch) {
 		t.Fatalf("err = %v", err)
 	}
 	if len(git.added) != 0 {
@@ -132,25 +133,154 @@ func TestCreateWorktreeCleansUpWhenTheSessionFails(t *testing.T) {
 }
 
 func TestRemoveWorktreeKeepsTheSession(t *testing.T) {
-	w, _, git, _ := newTestWorktrees(t)
+	w, m, git, bus := newTestWorktrees(t)
 	ctx := context.Background()
 	snap, _ := w.Create(ctx, domain.AgentClaude, "/src/app", "x")
 	git.removeEr = ErrWorktreeDirty
 	if _, err := w.Remove(ctx, snap.ID, false); !errors.Is(err, ErrWorktreeDirty) {
 		t.Fatalf("dirty: err = %v", err)
 	}
+	if got, _ := m.GetSession(ctx, snap.ID); got.Worktree.Removed {
+		t.Fatal("a refused removal marked the worktree removed")
+	}
 	after, err := w.Remove(ctx, snap.ID, true)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if after.Worktree != nil || after.ID != snap.ID {
-		t.Fatalf("after = %+v", after)
+	if after.Worktree == nil || !after.Worktree.Removed || after.Worktree.Branch != "chamber/x" || after.ID != snap.ID {
+		t.Fatalf("after = %+v", after.Worktree)
+	}
+	if got, _ := m.GetSession(ctx, snap.ID); got.Worktree == nil || !got.Worktree.Removed {
+		t.Fatalf("stored = %+v", got.Worktree)
+	}
+	evs := bus.snapshot()
+	if last := evs[len(evs)-1]; last.Session == nil || last.Session.Worktree == nil || !last.Session.Worktree.Removed {
+		t.Fatalf("last event = %+v", last)
 	}
 	if _, err := w.Remove(ctx, snap.ID, true); !errors.Is(err, ErrNoWorktree) {
 		t.Fatalf("second remove: err = %v", err)
 	}
+	if len(git.removed) != 1 {
+		t.Fatalf("git removed %d times", len(git.removed))
+	}
+	plain, _ := m.CreateSession(ctx, domain.AgentClaude, "/src/app")
+	if _, err := w.Remove(ctx, plain.ID, true); !errors.Is(err, ErrNoWorktree) {
+		t.Fatalf("plain: err = %v", err)
+	}
 	if _, err := w.Remove(ctx, "missing", true); !errors.Is(err, ErrSessionNotFound) {
 		t.Fatalf("missing: err = %v", err)
+	}
+}
+
+func TestRemoveWorktreeRefusesARunningTurn(t *testing.T) {
+	m, _, _, factory := newArchiveManager(t)
+	git := &fakeGit{top: "/src/app"}
+	w := NewWorktrees(WorktreesConfig{Sessions: m, Git: git, Root: "/data/worktrees"})
+	ctx := context.Background()
+	snap, _ := w.Create(ctx, domain.AgentClaude, "/src/app", "x")
+	rt := newFakeRuntime("n1")
+	factory.runtimes = []*fakeRuntime{rt}
+	if err := m.SendMessage(ctx, snap.ID, "go"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := w.Remove(ctx, snap.ID, true); !errors.Is(err, domain.ErrSessionBusy) {
+		t.Fatalf("err = %v", err)
+	}
+	if len(git.removed) != 0 {
+		t.Fatal("git removed the folder under a running turn")
+	}
+	rt.events <- domain.Event{SessionID: snap.ID, Type: domain.EventTurnEnded}
+	eventually(t, "idle", func() bool {
+		got, _ := m.GetSession(ctx, snap.ID)
+		return got.Status == domain.StatusIdle
+	})
+	if _, err := w.Remove(ctx, snap.ID, true); err != nil {
+		t.Fatal(err)
+	}
+	eventually(t, "agent closed", func() bool {
+		rt.mu.Lock()
+		defer rt.mu.Unlock()
+		return rt.closed
+	})
+}
+
+func TestRemovedWorktreeSessionRefusesWork(t *testing.T) {
+	w, m, git, _ := newTestWorktrees(t)
+	ctx := context.Background()
+	snap, _ := w.Create(ctx, domain.AgentClaude, "/src/app", "x")
+	if _, err := w.Remove(ctx, snap.ID, true); err != nil {
+		t.Fatal(err)
+	}
+	if err := m.SendMessage(ctx, snap.ID, "hi"); !errors.Is(err, domain.ErrWorktreeRemoved) {
+		t.Fatalf("send: err = %v", err)
+	}
+	git.gotDir = ""
+	ch, err := w.Changes(ctx, snap.ID)
+	if err != nil || !ch.Removed || ch.Branch != "chamber/x" || ch.Files == nil || len(ch.Files) != 0 {
+		t.Fatalf("changes = %+v err = %v", ch, err)
+	}
+	if git.gotDir != "" {
+		t.Fatal("asked git about a folder that is gone")
+	}
+	if _, err := w.FileDiff(ctx, snap.ID, "a.go"); !errors.Is(err, domain.ErrWorktreeRemoved) {
+		t.Fatalf("diff: err = %v", err)
+	}
+}
+
+func TestDeleteWorktreeSessionCanTakeTheFolder(t *testing.T) {
+	w, m, git, _ := newTestWorktrees(t)
+	ctx := context.Background()
+	keep, _ := w.Create(ctx, domain.AgentClaude, "/src/app", "keep")
+	if err := w.Delete(ctx, keep.ID, false); err != nil {
+		t.Fatal(err)
+	}
+	if len(git.removed) != 0 {
+		t.Fatal("the folder went without being asked")
+	}
+	if _, err := m.GetSession(ctx, keep.ID); !errors.Is(err, ErrSessionNotFound) {
+		t.Fatalf("kept session: err = %v", err)
+	}
+
+	dirty, _ := w.Create(ctx, domain.AgentClaude, "/src/app", "dirty")
+	git.removeEr = ErrWorktreeDirty
+	if err := w.Delete(ctx, dirty.ID, true); !errors.Is(err, ErrWorktreeDirty) {
+		t.Fatalf("dirty: err = %v", err)
+	}
+	if _, err := m.GetSession(ctx, dirty.ID); err != nil {
+		t.Fatalf("dirty session was deleted: %v", err)
+	}
+	git.removeEr = nil
+	if err := w.Delete(ctx, dirty.ID, true); err != nil {
+		t.Fatal(err)
+	}
+	if len(git.removed) != 1 || git.forced[0] {
+		t.Fatalf("removed = %v forced = %v", git.removed, git.forced)
+	}
+	if _, err := m.GetSession(ctx, dirty.ID); !errors.Is(err, ErrSessionNotFound) {
+		t.Fatalf("err = %v", err)
+	}
+
+	gone, _ := w.Create(ctx, domain.AgentClaude, "/src/app", "gone")
+	_, _ = w.Remove(ctx, gone.ID, true)
+	plain, _ := m.CreateSession(ctx, domain.AgentClaude, "/src/app")
+	for _, id := range []domain.SessionID{gone.ID, plain.ID} {
+		if err := w.Delete(ctx, id, true); err != nil {
+			t.Fatalf("%s: %v", id, err)
+		}
+	}
+	if len(git.removed) != 2 {
+		t.Fatalf("removed = %v", git.removed)
+	}
+	if err := w.Delete(ctx, "missing", true); !errors.Is(err, ErrSessionNotFound) {
+		t.Fatalf("missing: err = %v", err)
+	}
+}
+
+func TestCreateWorktreeExplainsTheBranchName(t *testing.T) {
+	w, _, _, _ := newTestWorktrees(t)
+	_, err := w.Create(context.Background(), domain.AgentClaude, "/src/app", "Фича тест")
+	if !errors.Is(err, ErrInvalidBranch) || !strings.Contains(err.Error(), "latin letters or digits") {
+		t.Fatalf("err = %v", err)
 	}
 }
 

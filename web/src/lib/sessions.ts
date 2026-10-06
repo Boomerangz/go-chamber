@@ -66,14 +66,24 @@ export function projectOf(sessions: Session[]): (s: Session) => string {
   }
 }
 
+// startFolder is the folder a new session would start in for one like s:
+// a worktree's repository (a worktree of a worktree isn't wanted), and the
+// repository too for any session left in a worktree folder since removed.
+export function startFolder(sessions: Session[]): (s: Session) => string {
+  const removed = new Map<string, string>()
+  for (const s of sessions) if (s.worktree?.removed) removed.set(s.worktree.path, s.worktree.repo)
+  return (s) => s.worktree?.repo ?? removed.get(s.cwd) ?? s.cwd
+}
+
 // recentProjects are the folders sessions were last started in, newest
 // first: archived sessions count (their project is still recent), and a
 // worktree counts as its repository.
 export function recentProjects(sessions: Session[], limit: number): { cwd: string; name: string }[] {
   const latest = new Map<string, number>()
+  const folder = startFolder(sessions)
   for (const s of sessions) {
     if (s.parentId) continue
-    const cwd = s.worktree?.repo ?? s.cwd
+    const cwd = folder(s)
     latest.set(cwd, Math.max(latest.get(cwd) ?? 0, activity(s)))
   }
   const cwds = [...latest].sort((a, b) => b[1] - a[1]).slice(0, limit).map(([cwd]) => cwd)

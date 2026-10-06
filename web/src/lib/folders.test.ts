@@ -58,4 +58,10 @@ describe('recentFolders', () => {
     const w: Session = { ...s('/data/worktrees/app/x'), worktree: { repo: '/p/app', path: '/data/worktrees/app/x', branch: 'chamber/x', base: 'main' } }
     expect(recentFolders([s('/p/app'), w], 3)).toEqual(['/p/app'])
   })
+
+  it('never offers a removed worktree’s folder, even through a fork made in it', () => {
+    const gone: Session = { ...s('/data/worktrees/app/x'), worktree: { repo: '/p/app', path: '/data/worktrees/app/x', branch: 'chamber/x', base: 'main', removed: true } }
+    const fork: Session = { ...s('/data/worktrees/app/x'), id: 'fork' }
+    expect(recentFolders([s('/p/other'), gone, fork], 3)).toEqual(['/p/app', '/p/other'])
+  })
 })

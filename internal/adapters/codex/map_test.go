@@ -116,8 +116,18 @@ func TestMapSubagent(t *testing.T) {
 	m := NewMapper("s1")
 	events := feedCodex(t, m, "item/started", `{"threadId":"th","turnId":"t1","item":{"type":"collabAgentToolCall","id":"a1","prompt":"do it","receiverThreadIds":["thread-2"],"senderThreadId":"th"}}`)
 	item := lastItem(t, events, domain.ItemSubagent)
-	if item.Text != "do it" {
-		t.Fatalf("item = %+v", item)
+	// The prompt says what the child does; it is not the child's output.
+	if item.Text != "" || string(item.Input) != `{"prompt":"do it"}` || item.Name != "agent" {
+		t.Fatalf("item = %+v input = %s", item, item.Input)
+	}
+	done := feedCodex(t, m, "item/completed", `{"threadId":"th","turnId":"t1","item":{"type":"collabAgentToolCall","id":"a1","tool":"wait","prompt":"do it","receiverThreadIds":["thread-2"],"senderThreadId":"th","status":"completed","agentsStates":{"thread-2":{"status":"completed","message":"all done"}}}}`)
+	item = lastItem(t, done, domain.ItemSubagent)
+	if item.Text != "all done" {
+		t.Fatalf("returned item = %+v", item)
+	}
+	bare := feedCodex(t, m, "item/started", `{"threadId":"th","turnId":"t1","item":{"type":"subAgentActivity","id":"sa1","agentThreadId":"t2","kind":"started"}}`)
+	if item := lastItem(t, bare, domain.ItemSubagent); item.Input != nil || item.Text != "" {
+		t.Fatalf("activity = %+v", item)
 	}
 }
 

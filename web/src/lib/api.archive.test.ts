@@ -30,6 +30,8 @@ describe('archive API', () => {
     await deleteSession('s a')
     expect(fn.mock.calls[0]![0]).toBe('/api/sessions/s%20a')
     expect(fn.mock.calls[0]![1]).toMatchObject({ method: 'DELETE' })
+    await deleteSession('s1', { removeWorktree: true })
+    expect(fn.mock.calls[1]![0]).toBe('/api/sessions/s1?worktree=remove')
   })
 
   it('reports a refused delete', async () => {

@@ -174,9 +174,12 @@ function ItemView({ node, onStopTask, onRetry, onEdit }: ItemViewProps) {
           </span>
         </>
       )
+      // A question left unanswered (its turn was cut off) keeps its words in
+      // view; its raw input says nothing more.
+      const asked = item.name && QUESTIONS.has(item.name) ? questionsOf(item.input) : []
       // The diff shows what an edit's input says; other input folds behind
       // the line itself rather than a row of its own.
-      const input = diffed ? undefined : toolInput(item.input)
+      const input = diffed || asked.length > 0 ? undefined : toolInput(item.input)
       return (
         <div className={`item tool state-${item.status}`}>
           {input ? (
@@ -190,12 +193,24 @@ function ItemView({ node, onStopTask, onRetry, onEdit }: ItemViewProps) {
           ) : (
             head
           )}
+          {asked.map((q, i) => (
+            <p key={i} className="question-asked">
+              {q}
+            </p>
+          ))}
           {diffed && <DiffFold lines={edit} />}
           {item.text && <Folded label="Output" text={item.text} open={failed} streaming={live(item)} preview />}
         </div>
       )
     }
   }
+}
+
+// questionsOf reads the question texts an AskUserQuestion input carries.
+function questionsOf(input: unknown): string[] {
+  const list = input && typeof input === 'object' ? (input as { questions?: unknown }).questions : undefined
+  if (!Array.isArray(list)) return []
+  return list.map((q) => inputString(q, 'question')).filter((q): q is string => !!q)
 }
 
 function InputFold({ input }: { input: unknown }) {
@@ -369,7 +384,11 @@ function SubagentView({ node, onStopTask }: { node: ItemNode; onStopTask: StopTa
   const item = node.item
   const type = inputString(item.input, 'subagent_type')
   const summary = toolSummary(item)
-  const about = summary !== type ? summary : undefined
+  // A subagent without a type or a tool name (Codex's "agent") is named by
+  // what it was asked.
+  const named = item.name && item.name !== 'agent' ? item.name : undefined
+  const name = type || named || summary || 'agent'
+  const about = summary !== name ? summary : undefined
   const finished = item.status === 'completed' || item.status === 'failed' || item.status === 'stopped'
   // Stopping removes the button when the task ends, so it stays busy after
   // the request went through.
@@ -390,7 +409,9 @@ function SubagentView({ node, onStopTask }: { node: ItemNode; onStopTask: StopTa
         <ItemIcon label="" item={item}>
           <Workflow {...icon(13)} />
         </ItemIcon>
-        <span className="subagent-name">subagent: {type || item.name || 'agent'}</span>
+        <span className="subagent-name" title={type || named ? undefined : name}>
+          subagent: {name}
+        </span>
         {about && (
           <span className="item-summary" title={about}>
             {about}
@@ -460,18 +481,29 @@ function GroupView({ nodes, onStopTask }: { nodes: ItemNode[]; onStopTask: StopT
 
 const numberFormat = new Intl.NumberFormat('en-US')
 
+// cutOff says why a turn ended before it was done, after its keyword.
+const cutOff: Record<string, string> = {
+  crashed: 'the agent exited',
+  server_restart: 'go-chamber restarted',
+  quota: 'the subscription limit was reached',
+}
+
 // TurnFoot closes a finished turn with what its result says it cost, and
-// records a turn the owner stopped (in ink: nothing failed).
+// records a turn the owner stopped or one that was cut off (in ink: the
+// banner that said so goes once the next turn starts, this stays).
 function TurnFoot({ result }: { result: TurnResult }) {
   const parts: string[] = []
   if (result.inputTokens) parts.push(`${numberFormat.format(result.inputTokens)} in`)
   if (result.outputTokens) parts.push(`${numberFormat.format(result.outputTokens)} out`)
   if (result.costUsd) parts.push(`$${result.costUsd.toFixed(4)}`)
-  if (parts.length === 0 && !result.stopped) return null
+  const interrupted = !result.stopped && !!result.interruptionReason
+  const keyword = result.stopped ? 'turn stopped' : interrupted ? 'turn interrupted' : ''
+  if (interrupted && cutOff[result.interruptionReason!]) parts.unshift(cutOff[result.interruptionReason!]!)
+  if (parts.length === 0 && !keyword) return null
   return (
-    <li className="turn-foot" aria-label={result.stopped ? 'Turn stopped' : 'Turn usage'}>
-      {result.stopped && <span className="stop-kw">turn stopped</span>}
-      {result.stopped && parts.length > 0 && ' · '}
+    <li className="turn-foot" aria-label={result.stopped ? 'Turn stopped' : interrupted ? 'Turn interrupted' : 'Turn usage'}>
+      {keyword && <span className="stop-kw">{keyword}</span>}
+      {keyword && parts.length > 0 && ' · '}
       {parts.join(' · ')}
     </li>
   )

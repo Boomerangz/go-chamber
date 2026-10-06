@@ -68,7 +68,12 @@ func (n *Notifications) For(ctx context.Context, ev domain.Event) *Notification 
 	out := &Notification{Title: name + " finished", URL: url, Tag: "turn-" + string(ev.SessionID)}
 	if r := ev.Result; r != nil {
 		out.Body = clip(r.Text)
-		if r.IsError {
+		switch {
+		case r.InterruptionReason == domain.ExitServerRestart:
+			return nil // the owner restarted go-chamber and knows
+		case r.InterruptionReason == domain.ExitCrashed && !r.IsError:
+			out.Title, out.Body = name+" was interrupted", "the agent exited"
+		case r.IsError:
 			out.Title, out.Body = name+" failed", clip(r.Error)
 		}
 	}

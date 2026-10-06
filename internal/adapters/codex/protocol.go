@@ -48,6 +48,15 @@ type rpcItem struct {
 	AgentPath         string          `json:"agentPath"`
 	AgentThreadID     string          `json:"agentThreadId"`
 	Kind              string          `json:"kind"`
+	// AgentsStates is a collab call's last known state of its child agents.
+	AgentsStates map[string]rpcAgentState `json:"agentsStates"`
+}
+
+// rpcAgentState is CollabAgentState: a child agent's status and, once it
+// returned, its message.
+type rpcAgentState struct {
+	Status  string  `json:"status"`
+	Message *string `json:"message"`
 }
 
 type rpcFileChange struct {

@@ -19,6 +19,13 @@ type stubWorktrees struct {
 	force     bool
 	path      string
 	err       error
+	deleted   domain.SessionID
+	folder    bool
+}
+
+func (s *stubWorktrees) Delete(_ context.Context, id domain.SessionID, removeFolder bool) error {
+	s.deleted, s.folder = id, removeFolder
+	return s.err
 }
 
 func (s *stubWorktrees) Create(_ context.Context, agent domain.AgentKind, dir, name string) (domain.SessionSnapshot, error) {
@@ -91,15 +98,21 @@ func TestWorktreeErrors(t *testing.T) {
 		{app.ErrInvalidPath, http.StatusBadRequest},
 		{app.ErrWorktreeDirty, http.StatusConflict},
 		{app.ErrNoWorktree, http.StatusConflict},
+		{app.ErrInvalidBranch, http.StatusBadRequest},
+		{app.ErrBranchExists, http.StatusConflict},
+		{app.ErrWorktreeExists, http.StatusConflict},
+		{domain.ErrWorktreeRemoved, http.StatusConflict},
+		{domain.ErrSessionBusy, http.StatusConflict},
 		{app.ErrSessionNotFound, http.StatusNotFound},
 		{errors.New("boom"), http.StatusInternalServerError},
 	} {
-		h := newWorktreeServer(&stubWorktrees{err: tc.err}, nil)
+		h := newWorktreeServer(&stubWorktrees{err: tc.err}, archivingSessions{fakeSessions: &fakeSessions{}, deleted: map[domain.SessionID]bool{}})
 		for _, r := range []*http.Request{
 			authed("POST", "/api/worktrees", `{"agent":"claude","cwd":"/x","branch":"b"}`),
 			authed("DELETE", "/api/sessions/s1/worktree", ""),
 			authed("GET", "/api/sessions/s1/changes", ""),
 			authed("GET", "/api/sessions/s1/changes/diff?path=a", ""),
+			authed("DELETE", "/api/sessions/s1?worktree=remove", ""),
 		} {
 			if rec := do(h, r); rec.Code != tc.code {
 				t.Errorf("%v %s %s: code %d, want %d", tc.err, r.Method, r.URL.Path, rec.Code, tc.code)
@@ -112,5 +125,25 @@ func TestWorktreeRoutesNeedAWorktreeService(t *testing.T) {
 	h := NewServer(Config{Token: testToken, Static: fstest.MapFS{}})
 	if rec := do(h, authed("GET", "/api/sessions/s1/changes", "")); rec.Code == http.StatusOK {
 		t.Fatalf("route served without a service: %d", rec.Code)
+	}
+}
+
+func TestDeleteSessionWithItsWorktree(t *testing.T) {
+	stub := &stubWorktrees{}
+	sessions := archivingSessions{fakeSessions: &fakeSessions{}, archived: map[domain.SessionID]bool{}, deleted: map[domain.SessionID]bool{}}
+	h := newWorktreeServer(stub, sessions)
+	if rec := do(h, authed("DELETE", "/api/sessions/s1?worktree=remove", "")); rec.Code != http.StatusNoContent || stub.deleted != "s1" || !stub.folder {
+		t.Fatalf("delete with worktree: %d %+v", rec.Code, stub)
+	}
+	if sessions.deleted["s1"] {
+		t.Fatal("deleted past the worktree service")
+	}
+	stub.deleted = ""
+	if rec := do(h, authed("DELETE", "/api/sessions/s1", "")); rec.Code != http.StatusNoContent || stub.deleted != "" || !sessions.deleted["s1"] {
+		t.Fatalf("plain delete: %d %+v", rec.Code, stub)
+	}
+	plain := newSessionsServer(sessions, nil)
+	if rec := do(plain, authed("DELETE", "/api/sessions/s1?worktree=remove", "")); rec.Code != http.StatusNotImplemented {
+		t.Fatalf("without worktrees: %d", rec.Code)
 	}
 }

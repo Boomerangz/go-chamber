@@ -47,6 +47,8 @@ export interface Worktree {
   path: string
   branch: string
   base: string
+  // removed is set once the folder is gone; the branch stays in repo.
+  removed?: boolean
 }
 
 export type ItemKind =
@@ -397,8 +399,14 @@ export function unarchiveSession(id: string): Promise<Session> {
 
 // deleteSession removes go-chamber's record of a session; the agent's own
 // transcript on disk stays.
-export function deleteSession(id: string): Promise<void> {
-  return request<void>(`/api/sessions/${encodeURIComponent(id)}`, { method: 'DELETE' })
+export interface DeleteOptions {
+  // removeWorktree takes the session's worktree folder too; its branch stays.
+  removeWorktree?: boolean
+}
+
+export function deleteSession(id: string, opts?: DeleteOptions): Promise<void> {
+  const query = opts?.removeWorktree ? '?worktree=remove' : ''
+  return request<void>(`/api/sessions/${encodeURIComponent(id)}${query}`, { method: 'DELETE' }, opts?.removeWorktree ? LONG_MS : undefined)
 }
 
 export function setPermissionMode(id: string, mode: string): Promise<Session> {
@@ -514,6 +522,9 @@ export interface Changes {
   files: FileChange[]
   // commits counts a worktree branch's commits since base.
   commits?: number
+  // removed: the session's worktree folder is gone; branch is the one kept.
+  removed?: boolean
+  branch?: string
 }
 
 export function createWorktreeSession(agent: AgentKind, cwd: string, branch: string, choice?: ModelChoice): Promise<Session> {

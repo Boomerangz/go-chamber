@@ -44,7 +44,8 @@ export function applyEvent(state: ChatState, ev: SessionEvent): ChatState {
       next.lastTurnFailed = false
       return next
     case 'turn.ended': {
-      next.status = 'idle'
+      // A turn cut off (the agent exited, a restart) ended unfinished.
+      next.status = ev.result?.interruptionReason ? 'interrupted' : 'idle'
       if (ev.result) next.result = ev.result
       const ended = endTurn(next, ev)
       return ev.result ? withTurnResult(ended, ev.result) : ended
@@ -103,7 +104,7 @@ export function applyEvents(state: ChatState, events: readonly SessionEvent[]): 
 
 // endTurn notes whether the turn failed and writes the failure into the
 // transcript, unless the agent already reported an error item in this turn
-// (Codex does). An interrupted turn is shown by its banner instead, a
+// (Codex does). An interrupted turn is shown by its banner and its foot, a
 // stopped one by its foot.
 function endTurn(state: ChatState, ev: SessionEvent): ChatState {
   const result = ev.result

@@ -408,7 +408,11 @@ function SessionRow(props: {
               </span>
             )}
             {s.worktree && (
-              <span className="session-branch" title={`In a worktree on ${s.worktree.branch} · ${s.worktree.path}`}>
+              <span
+                className="session-branch"
+                data-removed={s.worktree.removed || undefined}
+                title={s.worktree.removed ? `Worktree removed · branch ${s.worktree.branch} kept` : `In a worktree on ${s.worktree.branch} · ${s.worktree.path}`}
+              >
                 {s.worktree.branch.replace(/^chamber\//, '')}
               </span>
             )}

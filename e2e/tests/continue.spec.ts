@@ -17,13 +17,13 @@ test('continues a turn cut off by a crash', async ({ page }, info) => {
   await newSession(page)
   await page.getByLabel('Message').fill(`crash now ${info.project.name}`)
   await page.getByRole('button', { name: 'Send' }).click()
-  await expect(page.getByText('Turn interrupted')).toBeVisible()
+  await expect(page.locator('.banner', { hasText: 'Turn interrupted' })).toBeVisible()
   await expect(page.getByText(/exited unexpectedly/)).toBeVisible()
 
   await page.getByRole('button', { name: 'Continue', exact: true }).click()
   await expect(page.getByText('echo: Continue from where you stopped.')).toBeVisible()
   await expect(page.locator('.chat-meta .status', { hasText: 'idle' })).toBeVisible()
-  await expect(page.getByText('Turn interrupted')).toHaveCount(0)
+  await expect(page.locator('.banner', { hasText: 'Turn interrupted' })).toHaveCount(0)
 })
 
 test('forks a session and keeps talking on the branch', async ({ page }, info) => {

@@ -157,6 +157,7 @@ func (m *Manager) Restore(ctx context.Context) ([]domain.SessionSnapshot, error)
 		}
 		if snap.Status == domain.StatusRunning {
 			m.stopLeftoverItems(cur.ID)
+			m.publishInterrupted(cur.ID, domain.ExitServerRestart)
 		}
 		if cur.AutoContinue {
 			m.armAutoContinue(cur.ID, true, cur.Interruption.ResumeAfter)
@@ -238,6 +239,12 @@ func (m *Manager) SendMessage(ctx context.Context, id domain.SessionID, text str
 // take images when there are any.
 func (m *Manager) SendInput(ctx context.Context, id domain.SessionID, text string, images []Image) error {
 	s, err := m.session(ctx, id)
+	if err != nil {
+		return err
+	}
+	m.mu.Lock()
+	err = s.Workable()
+	m.mu.Unlock()
 	if err != nil {
 		return err
 	}
@@ -807,7 +814,8 @@ func (m *Manager) detach(s *domain.Session, rt AgentRuntime, open map[domain.Ite
 	delete(m.runtimes, s.ID())
 	stale := m.takeStale(s.ID())
 	reason := domain.ExitCrashed
-	if s.Status() != domain.StatusRunning {
+	cutOff := s.Status() == domain.StatusRunning
+	if !cutOff {
 		reason = domain.ExitIdleTimeout
 	}
 	s.RuntimeExited(reason)
@@ -827,8 +835,18 @@ func (m *Manager) detach(s *domain.Session, rt AgentRuntime, open map[domain.Ite
 			m.cfg.Bus.Publish(domain.Event{SessionID: s.ID(), Type: domain.EventItemUpdated, Item: &item})
 		}
 	}
+	if cutOff {
+		m.publishInterrupted(s.ID(), reason)
+	}
 	_ = m.cfg.Repo.Save(context.Background(), snap)
 	m.cfg.Bus.Publish(domain.Event{SessionID: s.ID(), Type: domain.EventSessionState, Session: &snap})
+}
+
+// publishInterrupted ends a turn that was cut off, so the transcript keeps
+// a record of it after the next turn starts.
+func (m *Manager) publishInterrupted(id domain.SessionID, reason domain.ExitReason) {
+	m.cfg.Bus.Publish(domain.Event{SessionID: id, Type: domain.EventTurnEnded,
+		Result: &domain.TurnResult{InterruptionReason: reason}})
 }
 
 // takeStale removes and returns pending requests belonging to a session.

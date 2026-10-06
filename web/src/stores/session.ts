@@ -86,8 +86,9 @@ export interface SessionStore {
   // brings it back.
   archiveSession: (sessionId: string) => Promise<boolean>
   unarchiveSession: (sessionId: string) => Promise<boolean>
-  // deleteSession removes go-chamber's record of a session and its subagents.
-  deleteSession: (sessionId: string) => Promise<boolean>
+  // deleteSession removes go-chamber's record of a session and its
+  // subagents; removeWorktree takes its worktree folder too (branch kept).
+  deleteSession: (sessionId: string, opts?: api.DeleteOptions) => Promise<boolean>
   setPermissionMode: (sessionId: string, mode: string) => Promise<boolean>
   removeWorktree: (sessionId: string, force: boolean) => Promise<void>
   respond: (sessionId: string, requestId: string, answer: api.RequestAnswerInput) => Promise<boolean>
@@ -373,7 +374,8 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       await get().selectSession(created.id)
       return true
     } catch (err) {
-      fail("Couldn't start the session", err)
+      // A refused worktree is explained by the form, under its branch.
+      fail("Couldn't start the session", err, undefined, { quiet: Boolean(branch) })
       return false
     }
   },
@@ -472,9 +474,9 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     }
   },
 
-  async deleteSession(sessionId) {
+  async deleteSession(sessionId, opts) {
     try {
-      await api.deleteSession(sessionId)
+      await (opts ? api.deleteSession(sessionId, opts) : api.deleteSession(sessionId))
     } catch (err) {
       fail("Couldn't delete the session", err)
       return false

@@ -399,3 +399,57 @@ func TestAnswerInFlightWhenTheRuntimeDiesGoesStale(t *testing.T) {
 	}
 	t.Fatal("claimed request never went stale")
 }
+
+// turnEnds returns the results of the turn.ended events on the bus.
+func turnEnds(bus *fakeBus, id domain.SessionID) []domain.TurnResult {
+	var out []domain.TurnResult
+	for _, ev := range bus.snapshot() {
+		if ev.Type == domain.EventTurnEnded && ev.SessionID == id && ev.Result != nil {
+			out = append(out, *ev.Result)
+		}
+	}
+	return out
+}
+
+func TestCrashEndsTheTurnAsInterrupted(t *testing.T) {
+	m, _, bus, factory, _ := newTestManager(t)
+	snap := createClaude(t, m)
+	rt := newFakeRuntime("n1")
+	startWith(t, m, factory, snap.ID, rt)
+	_ = rt.Close()
+	eventually(t, "interrupted", func() bool { return currentStatus(m, snap.ID) == domain.StatusInterrupted })
+	if got := turnEnds(bus, snap.ID); len(got) != 1 || got[0].InterruptionReason != domain.ExitCrashed {
+		t.Fatalf("turn ends = %+v", got)
+	}
+}
+
+func TestIdleExitEndsNoTurn(t *testing.T) {
+	m, _, bus, factory, _ := newTestManager(t)
+	snap := createClaude(t, m)
+	rt := newFakeRuntime("n1")
+	startWith(t, m, factory, snap.ID, rt)
+	rt.events <- domain.Event{SessionID: snap.ID, Type: domain.EventTurnEnded}
+	eventually(t, "idle", func() bool { return currentStatus(m, snap.ID) == domain.StatusIdle })
+	_ = rt.Close()
+	eventually(t, "detached", func() bool { return currentStatus(m, snap.ID) == domain.StatusDetached })
+	if got := turnEnds(bus, snap.ID); len(got) != 0 {
+		t.Fatalf("turn ends = %+v", got)
+	}
+}
+
+func TestRestoreEndsARunningTurnAsInterrupted(t *testing.T) {
+	repo, bus := newMemRepo(), newFakeBus()
+	m := NewManager(ManagerConfig{Repo: repo, Runtimes: &fakeFactory{}, Bus: bus})
+	ctx := context.Background()
+	_ = repo.Save(ctx, domain.SessionSnapshot{ID: "run", Agent: domain.AgentClaude, Cwd: "/p", NativeID: "n", Status: domain.StatusRunning})
+	_ = repo.Save(ctx, domain.SessionSnapshot{ID: "idle", Agent: domain.AgentClaude, Cwd: "/p", NativeID: "n", Status: domain.StatusIdle})
+	if _, err := m.Restore(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if got := turnEnds(bus, "run"); len(got) != 1 || got[0].InterruptionReason != domain.ExitServerRestart {
+		t.Fatalf("turn ends = %+v", got)
+	}
+	if got := turnEnds(bus, "idle"); len(got) != 0 {
+		t.Fatalf("idle turn ends = %+v", got)
+	}
+}
