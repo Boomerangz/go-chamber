@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { diagnostics, resetDiagnostics, type MetricKey } from '../../lib/diagnostics'
+import { rtcEnabled, setRTCEnabled } from '../../lib/transport'
 import { useSessionStore } from '../../stores/session'
 import { useTerminalStore } from '../../stores/terminals'
 import { useDiagnostics } from './useDiagnostics'
@@ -19,6 +20,7 @@ const bytes = (value: number) => value >= 1048576 ? `${(value / 1048576).toFixed
 
 export default function DiagnosticsPage() {
   const [enabled, setEnabled] = useState(true)
+  const [rtc, setRTC] = useState(rtcEnabled)
   const { client, server, error, socketStatus } = useDiagnostics(enabled)
   const connection = useSessionStore((s) => s.connection)
   const terminalNames = useTerminalStore((s) => s.terminals)
@@ -84,6 +86,15 @@ export default function DiagnosticsPage() {
       </section>
       <section className="panel diagnostics-terminals" aria-label="Terminal diagnostics">
         <h3>Terminal queues</h3>
+        <label className="diagnostics-toggle">
+          <input
+            type="checkbox"
+            checked={rtc}
+            onChange={(e) => { setRTCEnabled(e.target.checked); setRTC(e.target.checked) }}
+          />
+          Use WebRTC for terminals on this device
+        </label>
+        <p className="diagnostics-note">Off keeps terminals on the WebSocket through the server. Open terminals switch right away.</p>
         {ids.length ? (
           <div className="diagnostics-table-wrap"><table>
             <thead><tr><th>Terminal</th><th>Connection</th><th>Route</th><th>WebRTC attempt</th><th>WebRTC RTT</th><th>Browser pending</th><th>Browser peak</th><th>Reconnects</th><th>Server queued</th><th>Lag disconnects</th><th>Clients</th></tr></thead>

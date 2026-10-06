@@ -2,6 +2,7 @@ import { afterEach, expect, it, vi } from 'vitest'
 import { connectTerminal } from './terminal'
 import { connectRTC } from './rtc'
 import { diagnostics } from './diagnostics'
+import { setRTCEnabled } from './transport'
 vi.mock('./rtc', () => ({ connectRTC: vi.fn(() => ({ send: vi.fn(), close: vi.fn() })) }))
 class Socket {
  static OPEN = 1
@@ -14,7 +15,7 @@ class Socket {
  close = vi.fn()
  constructor() { Socket.instances.push(this) }
 }
-afterEach(() => { vi.clearAllMocks(); vi.unstubAllGlobals(); Socket.instances = [] })
+afterEach(() => { vi.clearAllMocks(); vi.unstubAllGlobals(); Socket.instances = []; setRTCEnabled(true); localStorage.clear() })
 it('upgrades without mixing streams and falls back after a lost peer', () => {
  vi.stubGlobal('WebSocket', Socket); vi.stubGlobal('RTCPeerConnection', class {})
  const handlers = { onOutput: vi.fn(), onReady: vi.fn(), onReset: vi.fn(), onExit: vi.fn(), onGiveUp: vi.fn() }
@@ -96,5 +97,71 @@ it('handles an explicit lag fallback and a terminal close without retrying RTC',
  Socket.instances[1].onmessage?.({ data: '{"type":"ready"}' })
  expect(connectRTC).toHaveBeenCalledOnce()
  expect(Socket.instances).toHaveLength(2)
+ conn.close()
+})
+
+it('stays on WebSocket while WebRTC is turned off on this device', () => {
+ vi.stubGlobal('WebSocket', Socket); vi.stubGlobal('RTCPeerConnection', class {})
+ setRTCEnabled(false)
+ const handlers = { onOutput: vi.fn(), onReady: vi.fn(), onReset: vi.fn(), onExit: vi.fn(), onGiveUp: vi.fn() }
+ const conn = connectTerminal('off', handlers)
+ Socket.instances[0].onmessage?.({ data: '{"type":"ready"}' })
+ expect(connectRTC).not.toHaveBeenCalled()
+ conn.close()
+ setRTCEnabled(true)
+ expect(connectRTC).not.toHaveBeenCalled()
+})
+
+it('switches an open terminal between WebRTC and WebSocket when the setting changes', () => {
+ vi.stubGlobal('WebSocket', Socket); vi.stubGlobal('RTCPeerConnection', class {})
+ const handlers = { onOutput: vi.fn(), onReady: vi.fn(), onReset: vi.fn(), onExit: vi.fn(), onGiveUp: vi.fn() }
+ const conn = connectTerminal('toggle', handlers)
+ Socket.instances[0].onmessage?.({ data: '{"type":"ready"}' })
+ const peer = vi.mocked(connectRTC).mock.results[0].value
+ vi.mocked(connectRTC).mock.calls[0][1].onOpen()
+ setRTCEnabled(false)
+ expect(peer.close).toHaveBeenCalledOnce()
+ expect(Socket.instances).toHaveLength(2)
+ const socket = Socket.instances[1]
+ socket.onopen?.()
+ conn.send('ws input')
+ expect(socket.send).toHaveBeenCalledWith(new TextEncoder().encode('ws input'))
+ setRTCEnabled(true)
+ expect(connectRTC).toHaveBeenCalledOnce()
+ socket.onmessage?.({ data: '{"type":"ready"}' })
+ expect(connectRTC).toHaveBeenCalledTimes(2)
+ vi.mocked(connectRTC).mock.calls[1][1].onOpen()
+ expect(socket.close).toHaveBeenCalledOnce()
+ conn.close()
+})
+
+it('retries WebRTC on a ready WebSocket when it is turned back on', () => {
+ vi.stubGlobal('WebSocket', Socket); vi.stubGlobal('RTCPeerConnection', class {})
+ setRTCEnabled(false)
+ const handlers = { onOutput: vi.fn(), onReady: vi.fn(), onReset: vi.fn(), onExit: vi.fn(), onGiveUp: vi.fn() }
+ const conn = connectTerminal('later', handlers)
+ Socket.instances[0].onmessage?.({ data: '{"type":"ready"}' })
+ setRTCEnabled(true)
+ expect(connectRTC).toHaveBeenCalledOnce()
+ const pending = vi.mocked(connectRTC).mock.results[0].value
+ setRTCEnabled(false)
+ expect(pending.close).toHaveBeenCalledOnce()
+ expect(Socket.instances).toHaveLength(1)
+ conn.close()
+ setRTCEnabled(true)
+})
+
+it('waits for the replay before upgrading and keeps a single peer', () => {
+ vi.stubGlobal('WebSocket', Socket); vi.stubGlobal('RTCPeerConnection', class {})
+ setRTCEnabled(false)
+ const handlers = { onOutput: vi.fn(), onReady: vi.fn(), onReset: vi.fn(), onExit: vi.fn(), onGiveUp: vi.fn() }
+ const conn = connectTerminal('replay', handlers)
+ setRTCEnabled(true)
+ expect(connectRTC).not.toHaveBeenCalled()
+ Socket.instances[0].onmessage?.({ data: '{"type":"ready"}' })
+ expect(connectRTC).toHaveBeenCalledOnce()
+ vi.mocked(connectRTC).mock.calls[0][1].onOpen()
+ setRTCEnabled(true)
+ expect(connectRTC).toHaveBeenCalledOnce()
  conn.close()
 })

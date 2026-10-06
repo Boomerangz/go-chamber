@@ -99,7 +99,10 @@ export function connectTerminal(
   let generation = 0
   let size: { cols: number; rows: number } | undefined
   const encoder = new TextEncoder()
-  const close = () => { if (!stopped) { stopped = true; socket.close(); peer?.close() } }
+  // socketReady: the current WebSocket replayed the scrollback, so an
+  // upgrade can start.
+  let socketReady = false
+  const close = () => { if (!stopped) { stopped = true; unsubscribe(); socket.close(); peer?.close() } }
   const fallback = () => {
     if (stopped) return
     const wasActive = active === 'webrtc'
@@ -107,7 +110,7 @@ export function connectTerminal(
     if (wasActive) { active = 'websocket'; openSocket(true) }
   }
   const tryRTC = () => {
-    if (tried || stopped || options.rtc === false || typeof RTCPeerConnection === 'undefined') return
+    if (tried || stopped || options.rtc === false || !rtcEnabled() || typeof RTCPeerConnection === 'undefined') return
     tried = true
     peer = connectRTC(id, {
       onOpen() {
@@ -137,17 +140,25 @@ export function connectTerminal(
   }
   function openSocket(reset: boolean) {
     const ownGeneration = ++generation
+    socketReady = false
     recordTerminalTransport(id, 'websocket')
     const current = () => !stopped && active === 'websocket' && generation === ownGeneration
     socket = connectWebSocketTerminal(id, {
       onOutput(data) { if (current()) handlers.onOutput(data) },
-      onReady() { if (current()) { handlers.onReady(); tryRTC() } },
+      onReady() { if (current()) { socketReady = true; handlers.onReady(); tryRTC() } },
       onReset() { if (current()) handlers.onReset() },
       onExit(code) { if (current()) { handlers.onExit(code); close() } },
       onGiveUp() { if (current()) { handlers.onGiveUp(); close() } },
     }, { ...options, resetOnOpen: reset })
     if (size) socket.resize(size.cols, size.rows)
   }
+  // Turning WebRTC off moves an open terminal back to the WebSocket;
+  // turning it on upgrades again, even after an earlier attempt failed.
+  const unsubscribe = onRTCChange((on) => {
+    if (!on) { fallback(); return }
+    tried = false
+    if (active === 'websocket' && socketReady) tryRTC()
+  })
   openSocket(false)
   return {
     send(text) { if (!stopped) { if (active === 'webrtc') peer?.send(encoder.encode(text)); else socket.send(text) } },
@@ -235,3 +246,4 @@ function connectWebSocketTerminal(
 }
 import { connectRTC, type RTCConnection } from './rtc'
 import { recordTerminalTransport } from './diagnostics'
+import { onRTCChange, rtcEnabled } from './transport'
