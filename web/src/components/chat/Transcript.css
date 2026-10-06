@@ -10,6 +10,16 @@
 }
 .subagent-head .subagent-name { flex: none; white-space: nowrap; }
 
+/* a tool line that folds its input behind itself: one row until opened */
+.tool-line { grid-column: 1 / -1; min-width: 0; }
+.tool-line > summary {
+  display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: 8px; align-items: baseline;
+  cursor: pointer; list-style: none;
+}
+.tool-line > summary::-webkit-details-marker { display: none; }
+.tool-line > summary:hover code { text-decoration: underline; text-decoration-color: var(--rule-strong); text-underline-offset: 4px; }
+.tool-line[open] > summary { margin-bottom: 4px; }
+
 /* an exit code is a tag on the line, bracketed like a hook outcome */
 .exit-tag {
   flex: none; font-family: var(--font-mono); font-size: 11.5px; letter-spacing: 0.04em; text-transform: uppercase;
@@ -103,8 +113,10 @@
 }
 .row:hover .msg-actions, .msg-actions:focus-within { opacity: 1; }
 .msg-actions .msg-action { white-space: normal; }
+/* no hover on a touch screen: a tap on the message shows its actions */
 @media (hover: none), (pointer: coarse) {
-  .msg-actions { position: static; justify-content: flex-end; margin-top: 2px; opacity: 1; background: none; }
+  .msg-actions { position: static; display: none; justify-content: flex-end; margin-top: 2px; opacity: 1; background: none; }
+  .item.actions-shown .msg-actions { display: flex; }
 }
 
 /* a streaming answer ends in a breathing ink block; reduced motion holds it still */
@@ -137,3 +149,9 @@
 .act-link:hover { color: var(--ink); }
 /* inside a subagent there is no margin: the icon sits under the answer */
 .subagent-items .msg-copy { position: static; display: flex; margin: 2px 0 0 auto; }
+
+/* no hover on a touch screen: a tap on the answer shows its copy button */
+@media (hover: none), (pointer: coarse) {
+  .row .item .msg-copy { display: none; }
+  .row .item.actions-shown .msg-copy { display: flex; }
+}

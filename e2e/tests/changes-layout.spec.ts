@@ -4,7 +4,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { token } from '../playwright.config'
-import { showPane } from './pane'
+import { openNewSession, showPane } from './pane'
 
 const env = { ...process.env, GIT_AUTHOR_NAME: 't', GIT_AUTHOR_EMAIL: 't@t', GIT_COMMITTER_NAME: 't', GIT_COMMITTER_EMAIL: 't@t' }
 const LONG = 'some_really_long_file_name_that_goes_on_and_on_here.go'
@@ -31,6 +31,7 @@ function repo(): string {
 async function openChanges(page: Page, dir: string) {
   await page.goto(`/?token=${token}`)
   await showPane(page, 'Sessions')
+  await openNewSession(page)
   await page.getByLabel('Working directory').fill(dir)
   await page.getByRole('button', { name: 'New session', exact: true }).click()
   await expect(page.getByLabel('message')).toBeVisible()

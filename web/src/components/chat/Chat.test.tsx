@@ -109,7 +109,9 @@ describe('transcript loading', () => {
     expect(document.querySelector('.chat-meta .status')).toHaveTextContent('done')
     act(() => useSessionStore.setState({ chat: running([item('u1', 'user_message')], { lastSeq: 6 }) }))
     act(() => useSessionStore.setState({ chat: chatOf([item('u1', 'user_message')], { lastSeq: 7, lastTurnFailed: true }) }))
-    expect(document.querySelector('.chat-meta .status')).toHaveTextContent('idle')
+    // The header says what the transcript shows: the turn failed.
+    expect(document.querySelector('.chat-meta .status')).toHaveTextContent('failed')
+    expect(document.querySelector('.chat-meta .status')).toHaveClass('status-failed')
   })
 })
 
@@ -158,6 +160,30 @@ describe('sending', () => {
     await userEvent.type(box(), 'second')
     await userEvent.click(screen.getByRole('button', { name: 'Steer' }))
     expect(fns.steer).toHaveBeenCalledWith('second')
+  })
+
+  it('takes the text out of the composer while it is on its way, and back if it fails', async () => {
+    let accept: (ok: boolean) => void = () => {}
+    setup()
+    fns.send.mockImplementationOnce(() => new Promise<boolean>((r) => (accept = r)))
+    await userEvent.type(box(), 'first')
+    await userEvent.click(screen.getByRole('button', { name: 'Send' }))
+    // Shown once: in the transcript as sending, not also in the box.
+    expect(box()).toHaveValue('')
+    expect(screen.getByText('sending…')).toBeInTheDocument()
+    await act(async () => accept(false))
+    expect(box()).toHaveValue('first')
+  })
+
+  it('keeps what the owner typed meanwhile when a send fails', async () => {
+    let accept: (ok: boolean) => void = () => {}
+    setup()
+    fns.send.mockImplementationOnce(() => new Promise<boolean>((r) => (accept = r)))
+    await userEvent.type(box(), 'first')
+    await userEvent.click(screen.getByRole('button', { name: 'Send' }))
+    await userEvent.type(box(), 'other')
+    await act(async () => accept(false))
+    expect(box()).toHaveValue('first\n\nother')
   })
 
   it('goes back to Send when the started turn already ended', async () => {
@@ -479,8 +505,26 @@ describe('live connection', () => {
 
   it('stops the turn clock: it cannot know the turn still runs', () => {
     setup({ chat: running([item('u1', 'user_message')]), connection: 'offline', nextRetryAt: null })
-    expect(screen.queryByText(/working ·/)).toBeNull()
-    expect(screen.getByText('last seen working')).toBeInTheDocument()
+    expect(screen.queryByText(/working · \d/)).toBeNull()
+    expect(screen.getByText('working · paused')).toBeInTheDocument()
+  })
+
+  it('says it once: the strip tells of the drop, the header keeps quiet', () => {
+    const { container } = setup({ chat: running([item('u1', 'user_message')]), connection: 'offline', nextRetryAt: null })
+    expect(container.querySelector('.chat-header')).not.toHaveTextContent('offline')
+    expect(container.querySelector('.chat-header .health')).toBeNull()
+  })
+})
+
+describe('usage in the header', () => {
+  it('names a turn result for what it is: the last turn', () => {
+    setup({ chat: chatOf([], { result: { inputTokens: 10, outputTokens: 20 } }) })
+    expect(screen.getByLabelText('last turn usage')).toHaveTextContent('30 tokens · last turn')
+  })
+
+  it('keeps the session total when the agent reports one', () => {
+    setup({ chat: chatOf([], { usage: { totalTokens: 1200 }, result: { inputTokens: 1, outputTokens: 2 } }) })
+    expect(screen.getByLabelText('session usage')).toHaveTextContent('1,200 tokens')
   })
 })
 

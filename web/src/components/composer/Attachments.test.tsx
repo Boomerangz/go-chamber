@@ -113,8 +113,21 @@ describe('Attachments', () => {
   it('locks attaching while a turn runs: images go with the next message', () => {
     render(<Harness locked />)
     const attach = screen.getByRole('button', { name: 'Attach' })
-    expect(attach).toBeDisabled()
+    expect(attach).toHaveAttribute('aria-disabled', 'true')
     expect(attach).toHaveAttribute('title', 'Images go with the next message')
+    // A tap on it says why, in place: a tooltip never shows on a phone.
+    expect(screen.queryByRole('status')).toBeNull()
+    fireEvent.click(attach)
+    expect(screen.getByRole('status')).toHaveTextContent('images go with the next message')
+    expect(document.querySelector('input[type=file]')).toBeInTheDocument()
+  })
+
+  it('lets the note go once the turn is over', () => {
+    const { rerender } = render(<Harness locked />)
+    fireEvent.click(screen.getByRole('button', { name: 'Attach' }))
+    rerender(<Harness />)
+    expect(screen.queryByText('images go with the next message')).toBeNull()
+    expect(screen.getByRole('button', { name: 'Attach' })).not.toHaveAttribute('aria-disabled')
   })
 
   it('shows the picture of an image still uploading and lets it go after', async () => {

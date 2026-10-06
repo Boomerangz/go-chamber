@@ -259,6 +259,31 @@ func TestCrashFailsUnfinishedItems(t *testing.T) {
 	}
 }
 
+func TestCrashKeepsStreamedTextOfUnfinishedItems(t *testing.T) {
+	m, _, bus, factory, _ := newTestManager(t)
+	snap := createClaude(t, m)
+	rt := newFakeRuntime("n1")
+	startWith(t, m, factory, snap.ID, rt)
+	rt.events <- domain.Event{SessionID: snap.ID, Type: domain.EventItemUpdated,
+		Item: &domain.Item{ID: "a1", SessionID: snap.ID, Kind: domain.ItemAssistantMessage, Status: domain.ItemStreaming}}
+	rt.events <- domain.Event{SessionID: snap.ID, Type: domain.EventTextDelta, Delta: &domain.Delta{ItemID: "a1", Text: "Hello, "}}
+	rt.events <- domain.Event{SessionID: snap.ID, Type: domain.EventTextDelta, Delta: &domain.Delta{ItemID: "a1", Text: "world"}}
+	// A delta for an item already finished must not resurrect it.
+	rt.events <- domain.Event{SessionID: snap.ID, Type: domain.EventTextDelta, Delta: &domain.Delta{ItemID: "gone", Text: "x"}}
+	_ = rt.Close()
+	eventually(t, "interrupted", func() bool { return currentStatus(m, snap.ID) == domain.StatusInterrupted })
+
+	var failed []domain.Item
+	for _, ev := range bus.snapshot() {
+		if ev.Type == domain.EventItemUpdated && ev.Item.Status == domain.ItemFailed {
+			failed = append(failed, *ev.Item)
+		}
+	}
+	if len(failed) != 1 || failed[0].ID != "a1" || failed[0].Text != "Hello, world" {
+		t.Fatalf("failed items = %+v", failed)
+	}
+}
+
 func newQuotaManager(t *testing.T) (*Manager, *fakeQuotaRepo, *fakeBus, *fakeFactory, domain.SessionSnapshot) {
 	t.Helper()
 	quotas, bus, factory := &fakeQuotaRepo{}, newFakeBus(), &fakeFactory{}

@@ -292,7 +292,9 @@ function SessionRow(props: {
   const s = props.node.session
   const waiting = props.pendingBySession.get(s.id) ?? 0
   const reduced = useReducedMotion() ?? false
-  const finished = useJustFinished(s.status)
+  // The open session knows whether its turn failed; a failure isn't "done".
+  const failed = useSessionStore((st) => st.activeId === s.id && !!st.chat.lastTurnFailed)
+  const finished = useJustFinished(s.status, failed)
   const active = s.id === props.activeId
   const ref = useScrolledIntoView(active)
   const title = sessionTitle(s)

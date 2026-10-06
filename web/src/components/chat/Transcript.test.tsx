@@ -53,8 +53,18 @@ describe('tool calls', () => {
     const summary = container.querySelector('.item-summary')!
     expect(summary).toHaveTextContent('/src/app.go')
     expect(summary).toHaveAttribute('title', '/src/app.go')
-    const input = screen.getByText(/^Input/).closest('details')!
-    expect(input.querySelector('pre')!.textContent).toContain('"limit": 5')
+    // One line: the input folds behind the tool line itself, not a row of its own.
+    expect(screen.queryByText(/^Input/)).toBeNull()
+    const line = container.querySelector('details.tool-line') as HTMLDetailsElement
+    expect(line.open).toBe(false)
+    expect(line.querySelector('summary')).toHaveTextContent('Read/src/app.go')
+    expect(line.querySelector('pre')!.textContent).toContain('"limit": 5')
+  })
+
+  it('draws a tool without input as a plain line', () => {
+    const { container } = show(item({ name: 'TodoWrite' }))
+    expect(container.querySelector('details.tool-line')).toBeNull()
+    expect(container.querySelector('.item-line')).toHaveTextContent('TodoWrite')
   })
 
   it('names MCP tools by server and tool', () => {
@@ -77,6 +87,18 @@ describe('output', () => {
     const tag = screen.getByText('exit 2')
     expect(tag).toHaveClass('exit-tag', 'exit-bad')
     expect(container.querySelector('.item-output-preview')).toHaveTextContent('error: boom')
+  })
+
+  it('says a denied command never ran, without an exit code or a failure', () => {
+    const { container } = show(item({ kind: 'command', input: { command: 'rm x' }, text: 'not now' }))
+    expect(screen.getByText('not run')).toHaveClass('exit-tag')
+    expect(screen.getByText('not run')).not.toHaveClass('exit-bad')
+    expect(container.querySelector('.item.command')).not.toHaveClass('state-failed')
+  })
+
+  it('keeps a running command free of tags', () => {
+    show(item({ kind: 'command', status: 'streaming', input: { command: 'make' } }))
+    expect(screen.queryByText('not run')).toBeNull()
   })
 
   it('keeps successful output folded and its exit code quiet', () => {
@@ -105,6 +127,25 @@ describe('output', () => {
 })
 
 describe('messages', () => {
+  it("shows a message's actions on a tap of the message, for a touch screen", () => {
+    const { container } = show(item({ kind: 'user_message', text: 'hello' }), { onEdit: vi.fn() })
+    const msg = container.querySelector('.item.user')!
+    expect(msg).not.toHaveClass('actions-shown')
+    fireEvent.click(screen.getByText('hello'))
+    expect(msg).toHaveClass('actions-shown')
+    // A tap on an action does its job and leaves the row as it is.
+    fireEvent.click(screen.getByRole('button', { name: 'Edit' }))
+    expect(msg).toHaveClass('actions-shown')
+    fireEvent.click(screen.getByText('hello'))
+    expect(msg).not.toHaveClass('actions-shown')
+  })
+
+  it("shows an answer's copy button on a tap of the answer", () => {
+    const { container } = show(item({ kind: 'assistant_message', text: 'done here' }))
+    fireEvent.click(screen.getByText('done here'))
+    expect(container.querySelector('.item.assistant')).toHaveClass('actions-shown')
+  })
+
   it('marks a streaming answer so it shows a caret', () => {
     const { container, rerender, props } = show(item({ kind: 'assistant_message', status: 'streaming', text: 'Hel' }))
     expect(container.querySelector('.item.assistant')).toHaveClass('streaming')
@@ -245,8 +286,14 @@ describe('diffs', () => {
     expect(fold.querySelector('.idiff-add')).toHaveTextContent('x := 2')
     await act(async () => fireEvent.click(within(fold).getByRole('button', { name: 'Copy' })))
     expect(writeText).toHaveBeenCalledWith('-x := 1\n+x := 2')
-    const input = screen.getByText(/^Input/).closest('details')!
-    expect(input.querySelector('pre')!.textContent).toContain('"old_string": "x := 1"')
+    // The diff says what the input says; no second fold repeats it.
+    expect(screen.queryByText(/^Input/)).toBeNull()
+  })
+
+  it("folds an edit tool call's input behind its diff only", () => {
+    const { container } = show(item({ name: 'Edit', input: { file_path: '/a.go', old_string: 'a', new_string: 'b' } }))
+    expect(screen.getByText(/^Diff/)).toBeInTheDocument()
+    expect(container.querySelector('details.tool-line')).toBeNull()
   })
 
   it('draws a Write tool call as added lines', () => {
@@ -356,6 +403,14 @@ describe('tool groups', () => {
 })
 
 describe('decision records', () => {
+  it('records a skipped question as skipped, in ink', () => {
+    const { container } = show(item({ kind: 'decision', decision: 'denied', name: 'Question' }))
+    expect(container.querySelector('.decision-kw')).toHaveTextContent('skipped')
+    expect(container.querySelector('.decision')).toHaveClass('decision-skipped')
+    expect(container.querySelector('.decision')).not.toHaveClass('decision-denied')
+    expect(container.querySelector('.decision-name')).toBeNull()
+  })
+
   it('strikes a named request after its outcome', () => {
     const { container } = show(item({ kind: 'decision', decision: 'denied', name: 'Run command', text: 'not now' }))
     expect(container.querySelector('.decision-kw')).toHaveTextContent('denied')

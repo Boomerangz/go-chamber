@@ -151,6 +151,18 @@ function PermissionBody({ toolName, input }: { toolName?: string; input: Record<
 
 const EDIT_TOOLS = new Set(['Edit', 'MultiEdit', 'Write', 'NotebookEdit'])
 
+// repeatsCommand: the prompt is only "<agent> wants to run: <command>" and
+// the command block under it shows the command anyway.
+function repeatsCommand(prompt: string, input: unknown): boolean {
+  const command = (input as { command?: unknown } | undefined)?.command
+  if (typeof command !== 'string' || !command.trim()) return false
+  const flat = (text: string) => text.replace(/\s+/g, ' ').trim()
+  const said = flat(prompt)
+  const cmd = flat(command)
+  if (!said.endsWith(cmd)) return false
+  return /^(\S+ )?wants to (run|execute)\s*:?\s*$/i.test(said.slice(0, said.length - cmd.length))
+}
+
 function PermissionCard({ request, agent, position, acting, error, answer }: CardProps) {
   const [denying, setDenying] = useState(false)
   const [reason, setReason] = useState('')
@@ -184,7 +196,9 @@ function PermissionCard({ request, agent, position, acting, error, answer }: Car
         <span>{request.title || toolName || 'Permission required'}</span>
         <Position position={position} />
       </header>
-      {request.prompt && <p className="request-prompt">{request.prompt}</p>}
+      {request.prompt && !repeatsCommand(request.prompt, request.payload?.input) && (
+        <p className="request-prompt">{request.prompt}</p>
+      )}
       {toolName && <code className="request-tool">{toolName}</code>}
       {plan !== null ? (
         <div className="request-plan">

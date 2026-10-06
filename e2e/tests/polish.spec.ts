@@ -139,10 +139,6 @@ test('phone controls are finger-sized', async ({ page }, info) => {
   const fold = page.locator('.items summary').first()
   await expect(fold).toBeVisible()
   expect((await sizeOf('.items summary')).h).toBeGreaterThanOrEqual(36)
-  const copy = page.locator('.msg-copy').first()
-  await expect(copy).toBeVisible()
-  const c = await sizeOf('.msg-copy')
-  expect(Math.min(c.w, c.h)).toBeGreaterThanOrEqual(36)
   await showSessionDetails(page)
   for (const selector of ['.chat-path-copy', '.model-button', 'select.field-sm']) {
     const { h } = await sizeOf(selector)

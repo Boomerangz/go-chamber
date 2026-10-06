@@ -627,6 +627,13 @@ func (m *Manager) consume(s *domain.Session, rt AgentRuntime) {
 			} else {
 				open[ev.Item.ID] = *ev.Item
 			}
+		case domain.EventTextDelta:
+			// Keep the streamed text, so a crash fails the item with it
+			// rather than with the empty snapshot taken at its start.
+			if item, ok := open[ev.Delta.ItemID]; ok {
+				item.AppendText(ev.Delta.Text)
+				open[ev.Delta.ItemID] = item
+			}
 		case domain.EventQuota:
 			ev.Quota = m.cacheQuota(context.Background(), *ev.Quota)
 			quotaStop = ev.Quota.Reached && s.QuotaExhausted(ev.Quota.ResetsAt()) == nil
