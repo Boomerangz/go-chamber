@@ -1,4 +1,4 @@
-import { CornerLeftUp, Folder, FolderGit2, X } from 'lucide-react'
+import { CornerLeftUp, Folder, FolderGit2, FolderOpen, X } from 'lucide-react'
 import { icon } from '../icon'
 import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { createPortal } from 'react-dom'
@@ -6,7 +6,7 @@ import { listFolders, type FolderListing } from '../../lib/api'
 import { crumbs, filterFolders, isPathInput } from '../../lib/folders'
 import { basename } from '../../lib/format'
 import { describeError } from '../../stores/notices'
-import { LoadingLine } from '../ui/Loading'
+import { LoadFailed, LoadingLine } from '../ui/Loading'
 import './FolderPicker.css'
 
 const HIDDEN_KEY = 'gc.folders.hidden'
@@ -45,6 +45,11 @@ export default function FolderPicker({ start = '', recent = [], onPick, onClose 
   const [query, setQuery] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
+  // target is the folder being listed; failed is the last one that failed.
+  const [target, setTarget] = useState<string | null>(null)
+  const [failed, setFailed] = useState<{ path: string; hidden: boolean } | null>(null)
+  // missing names a start folder that wasn't there, so home is shown.
+  const [missing, setMissing] = useState<string | null>(null)
   const filter = useRef<HTMLInputElement>(null)
   const list = useRef<HTMLUListElement>(null)
   // generation makes the last navigation win: a slow listing of a folder
@@ -54,17 +59,25 @@ export default function FolderPicker({ start = '', recent = [], onPick, onClose 
   const go = (path: string, showHidden = hidden) => {
     const mine = ++generation.current
     setLoading(true)
+    setTarget(path)
     listFolders(path, showHidden)
       .then((l) => {
         if (mine !== generation.current) return
         setListing(l)
         setQuery('')
         setError(null)
+        setFailed(null)
+        setMissing(null)
       })
-      .catch((e: unknown) => mine === generation.current && setError(describeError(e)))
+      .catch((e: unknown) => {
+        if (mine !== generation.current) return
+        setError(describeError(e))
+        setFailed({ path, hidden: showHidden })
+      })
       .finally(() => {
         if (mine !== generation.current) return
         setLoading(false)
+        setTarget(null)
         filter.current?.focus()
       })
   }
@@ -75,7 +88,12 @@ export default function FolderPicker({ start = '', recent = [], onPick, onClose 
     const current = () => alive && mine === generation.current
     const showHidden = hiddenRemembered()
     listFolders(start, showHidden)
-      .catch(() => listFolders('', showHidden))
+      .catch(() =>
+        listFolders('', showHidden).then((l) => {
+          if (current() && start) setMissing(start)
+          return l
+        }),
+      )
       .then((l) => current() && setListing(l))
       .catch((e: unknown) => current() && setError(describeError(e)))
       .finally(() => current() && setLoading(false))
@@ -185,9 +203,14 @@ export default function FolderPicker({ start = '', recent = [], onPick, onClose 
           <div className="recent" aria-label="Recent folders">
             <span className="section-title">Recent</span>
             {recent.map((p) => (
-              <button type="button" key={p} className="chip" title={p} onClick={() => go(p)}>
-                {basename(p)}
-              </button>
+              <span key={p} className="recent-folder">
+                <button type="button" className="chip" title={`Use ${p}`} onClick={() => onPick(p)}>
+                  {basename(p)}
+                </button>
+                <button type="button" className="btn btn-ghost btn-icon recent-open" aria-label={`Open ${p}`} title={`Open ${p}`} onClick={() => go(p)}>
+                  <FolderOpen {...icon(13)} />
+                </button>
+              </span>
             ))}
           </div>
         )}
@@ -211,6 +234,7 @@ export default function FolderPicker({ start = '', recent = [], onPick, onClose 
               <button
                 type="button"
                 className="folder-row"
+                aria-busy={target === f.path || undefined}
                 title={`${f.path} · double-click to select`}
                 onClick={() => go(f.path)}
                 onDoubleClick={() => onPick(f.path)}
@@ -233,7 +257,9 @@ export default function FolderPicker({ start = '', recent = [], onPick, onClose 
           )}
         </ul>
 
-        {error && (
+        {missing && listing && !error && <p className="picker-note">{`${missing} not found, showing home`}</p>}
+        {error && listing && failed && <LoadFailed onRetry={() => go(failed.path, failed.hidden)}>{error}</LoadFailed>}
+        {error && !(listing && failed) && (
           <p className="error picker-error" role="alert">
             {error}
             {!listing && (
@@ -263,7 +289,13 @@ export default function FolderPicker({ start = '', recent = [], onPick, onClose 
           <button type="button" className="btn btn-ghost" onClick={onClose}>
             Cancel
           </button>
-          <button type="button" className="btn btn-primary" disabled={!listing} onClick={() => listing && onPick(listing.path)}>
+          <button
+            type="button"
+            className="btn btn-primary"
+            disabled={!listing || loading}
+            aria-busy={(listing && loading) || undefined}
+            onClick={() => listing && !loading && onPick(listing.path)}
+          >
             Use this folder
           </button>
         </footer>

@@ -89,9 +89,10 @@ describe('FolderPicker', () => {
     expect(await screen.findByText('No subfolders')).toBeInTheDocument()
   })
 
-  it('falls back to home when the start folder is gone', async () => {
+  it('falls back to home when the start folder is gone, and says so', async () => {
     setup({ start: '/gone' })
     expect(await screen.findByRole('button', { name: 'dev' })).toBeInTheDocument()
+    expect(screen.getByText('/gone not found, showing home')).toBeInTheDocument()
   })
 
   it('reports a failing initial listing', async () => {
@@ -105,8 +106,41 @@ describe('FolderPicker', () => {
     await screen.findByRole('button', { name: 'dev' })
     await userEvent.click(screen.getByLabelText('Hidden'))
     expect(api.listFolders).toHaveBeenLastCalledWith('/Users/me', true)
-    await userEvent.click(screen.getByRole('button', { name: 'tmp' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Open /tmp' }))
     expect(api.listFolders).toHaveBeenLastCalledWith('/tmp', true)
+  })
+
+  it('picks a recent folder with one click', async () => {
+    const { onPick } = setup({ recent: ['/tmp'] })
+    await screen.findByRole('button', { name: 'dev' })
+    await userEvent.click(screen.getByRole('button', { name: 'tmp' }))
+    expect(onPick).toHaveBeenCalledWith('/tmp')
+  })
+
+  it('holds "Use this folder" while the next listing loads, marking the clicked row', async () => {
+    const { onPick } = setup()
+    await screen.findByRole('button', { name: 'dev' })
+    let slow!: (l: api.FolderListing) => void
+    vi.mocked(api.listFolders).mockReturnValueOnce(new Promise((r) => (slow = r)))
+    await userEvent.click(screen.getByRole('button', { name: 'dev' }))
+    expect(screen.getByRole('button', { name: 'dev' })).toHaveAttribute('aria-busy', 'true')
+    const use = screen.getByRole('button', { name: 'Use this folder' })
+    expect(use).toBeDisabled()
+    expect(use).toHaveAttribute('aria-busy', 'true')
+    await act(async () => slow(listings['/Users/me/dev']))
+    await userEvent.click(screen.getByRole('button', { name: 'Use this folder' }))
+    expect(onPick).toHaveBeenCalledWith('/Users/me/dev')
+  })
+
+  it('retries a failed move with the listing still shown', async () => {
+    setup()
+    await screen.findByRole('button', { name: 'dev' })
+    vi.mocked(api.listFolders).mockRejectedValueOnce(new Error('timed out'))
+    await userEvent.click(screen.getByRole('button', { name: 'dev' }))
+    expect(await screen.findByText(/timed out/)).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Retry' }))
+    expect(await screen.findByText('No subfolders')).toBeInTheDocument()
+    expect(screen.queryByText(/timed out/)).toBeNull()
   })
 
   it('closes on Escape, Cancel, the close button and the backdrop', async () => {
