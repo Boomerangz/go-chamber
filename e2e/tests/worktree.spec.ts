@@ -59,6 +59,27 @@ test('works in a new worktree and shows its changes', async ({ page }, info) => 
   expect(execFileSync('git', ['branch', '--list', `chamber/${branch}`], { cwd: repo, encoding: 'utf8' })).toContain(branch)
 })
 
+test('a worktree session sits in its repository’s group, by branch; recent folders keep the repository', async ({ page }, info) => {
+  const repo = newRepo()
+  const headers = { Authorization: `Bearer ${token}` }
+  const branch = `group-${info.project.name}`
+  const res = await page.request.post('/api/worktrees', { headers, data: { agent: 'claude', cwd: repo, branch } })
+  const { id } = (await res.json()) as { id: string }
+  await page.goto(`/s/${id}?token=${token}`)
+  await showPane(page, 'Sessions')
+  const row = page.locator('.groups button.session[aria-current="true"]')
+  await expect(row.locator('.session-branch')).toHaveText(branch)
+  await expect(page.locator('.group', { has: page.locator('button.session[aria-current="true"]') }).locator('.group-toggle')).toHaveAttribute('title', repo)
+  // the only session of the project is archived: the project stays a recent folder, as the repository
+  await page.request.post(`/api/sessions/${id}/archive`, { headers })
+  await page.reload()
+  await showPane(page, 'Sessions')
+  await openNewSession(page)
+  const chips = page.getByRole('group', { name: 'Recent folders' })
+  await expect(chips.locator(`button[title="${repo}"]`)).toHaveCount(1)
+  await expect(chips.locator('button[title*="/worktrees/"]')).toHaveCount(0)
+})
+
 test('a worktree asks for its branch by name, and only a repository offers one', async ({ page }) => {
   const repo = newRepo()
   const plain = realpathSync(mkdtempSync(path.join(tmpdir(), 'gc-plain-')))

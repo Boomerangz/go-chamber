@@ -320,3 +320,20 @@ describe('search failures and busy buttons', () => {
     expect(screen.getByRole('button', { name: 'New Claude session in /p' })).not.toHaveAttribute('aria-busy')
   })
 })
+
+describe('worktree sessions', () => {
+  it('sit in their repository’s group, named by their branch', () => {
+    const wt = {
+      ...session('w', 'Fix the readme'),
+      cwd: '/data/worktrees/p/fix-readme',
+      worktree: { repo: '/p', path: '/data/worktrees/p/fix-readme', branch: 'chamber/fix-readme', base: 'main' },
+    }
+    useSessionStore.setState({ sessions: [session('s1', 'One'), wt] })
+    render(<SessionList onCreateIn={() => {}} />)
+    expect(screen.getAllByRole('region')).toHaveLength(1)
+    const row = screen.getByRole('button', { name: /^Fix the readme/ })
+    const tag = row.querySelector('.session-branch')!
+    expect(tag).toHaveTextContent('fix-readme')
+    expect(tag).toHaveAttribute('title', expect.stringContaining('chamber/fix-readme'))
+  })
+})

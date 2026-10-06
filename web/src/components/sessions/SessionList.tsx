@@ -357,6 +357,11 @@ function SessionRow(props: {
                 new
               </span>
             )}
+            {s.worktree && (
+              <span className="session-branch" title={`In a worktree on ${s.worktree.branch} · ${s.worktree.path}`}>
+                {s.worktree.branch.replace(/^chamber\//, '')}
+              </span>
+            )}
             {s.forkOf && (
               <span className="session-fork" title="Forked from another session">
                 fork

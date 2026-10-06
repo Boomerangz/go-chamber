@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { Session } from './api'
-import { archivedSessions, bucketOf, matchingTree, folderNames, groupSessions, matchesQuery, relativeTime, sessionTitle, snippetParts, visibleInGroup } from './sessions'
+import { archivedSessions, bucketOf, matchingTree, recentProjects, folderNames, groupSessions, matchesQuery, relativeTime, sessionTitle, snippetParts, visibleInGroup } from './sessions'
 
 const now = new Date('2026-09-25T12:00:00Z')
 const s = (id: string, cwd: string, activeAt: string, over: Partial<Session> = {}): Session => ({
@@ -211,5 +211,44 @@ describe('matchingTree', () => {
     expect(kept.map((n) => n.session.id)).toEqual(['a', 'b'])
     expect(kept[1]!.children.map((n) => n.session.id)).toEqual(['c'])
     expect(matchingTree(tree as never, '  ')).toBe(tree)
+  })
+})
+
+describe('worktree sessions', () => {
+  const wt = (id: string, branch: string, at: string, over: Partial<Session> = {}) =>
+    s(id, `/data/worktrees/app/${branch}`, at, { worktree: { repo: '/p/app', path: `/data/worktrees/app/${branch}`, branch: `chamber/${branch}`, base: 'main' }, ...over })
+
+  it('group under their repository, with their subagents', () => {
+    const groups = groupSessions([
+      s('main', '/p/app', '2026-09-20T10:00:00Z'),
+      wt('fix', 'fix-readme', '2026-09-24T10:00:00Z'),
+      s('helper', '/data/worktrees/app/fix-readme', '2026-09-24T10:30:00Z', { parentId: 'fix' }),
+    ])
+    expect(groups.map((g) => g.cwd)).toEqual(['/p/app'])
+    expect(groups[0]!.nodes.map((n) => n.session.id)).toEqual(['fix', 'main'])
+    expect(groups[0]!.nodes[0]!.children.map((n) => n.session.id)).toEqual(['helper'])
+  })
+
+  it('are found by their branch', () => {
+    expect(matchesQuery(wt('fix', 'fix-readme', ''), 'readme')).toBe(true)
+  })
+})
+
+describe('recentProjects', () => {
+  it('lists projects newest first, archived included, worktrees as their repository', () => {
+    const projects = recentProjects(
+      [
+        s('a', '/p/alpha', '2026-09-20T10:00:00Z'),
+        s('gone', '/p/beta', '2026-09-23T10:00:00Z', { archivedAt: '2026-09-24T10:00:00Z' }),
+        s('w', '/data/worktrees/alpha/x', '2026-09-25T10:00:00Z', { worktree: { repo: '/p/alpha', path: '/data/worktrees/alpha/x', branch: 'chamber/x', base: 'main' } }),
+        s('sub', '/p/sub', '2026-09-26T10:00:00Z', { parentId: 'a' }),
+        s('c', '/p/gamma', '2026-09-21T10:00:00Z'),
+      ],
+      2,
+    )
+    expect(projects).toEqual([
+      { cwd: '/p/alpha', name: 'alpha' },
+      { cwd: '/p/beta', name: 'beta' },
+    ])
   })
 })

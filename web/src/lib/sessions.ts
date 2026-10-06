@@ -51,6 +51,36 @@ export function archivedSessions(sessions: Session[]): SessionNode[] {
   )
 }
 
+// projectOf finds the project folder a session belongs to: a session in a
+// worktree (and the subagents under it) belongs to the worktree's repository.
+export function projectOf(sessions: Session[]): (s: Session) => string {
+  const byId = new Map(sessions.map((s) => [s.id, s]))
+  return (s) => {
+    let top = s
+    for (let depth = 0; top.parentId && depth < sessions.length; depth++) {
+      const parent = byId.get(top.parentId)
+      if (!parent) break
+      top = parent
+    }
+    return top.worktree?.repo ?? s.worktree?.repo ?? s.cwd
+  }
+}
+
+// recentProjects are the folders sessions were last started in, newest
+// first: archived sessions count (their project is still recent), and a
+// worktree counts as its repository.
+export function recentProjects(sessions: Session[], limit: number): { cwd: string; name: string }[] {
+  const latest = new Map<string, number>()
+  for (const s of sessions) {
+    if (s.parentId) continue
+    const cwd = s.worktree?.repo ?? s.cwd
+    latest.set(cwd, Math.max(latest.get(cwd) ?? 0, activity(s)))
+  }
+  const cwds = [...latest].sort((a, b) => b[1] - a[1]).slice(0, limit).map(([cwd]) => cwd)
+  const names = folderNames(cwds)
+  return cwds.map((cwd) => ({ cwd, name: names.get(cwd) ?? basename(cwd) }))
+}
+
 // matchingTree keeps the nodes that match a query, or hold a child that
 // does, so a matching subagent stays under its parent.
 export function matchingTree(nodes: SessionNode[], query: string): SessionNode[] {
@@ -68,12 +98,14 @@ export function matchingTree(nodes: SessionNode[], query: string): SessionNode[]
 // subagent sessions stay nested under their parent.
 export function groupSessions(sessions: Session[]): SessionGroup[] {
   const shelved = shelvedIds(sessions)
+  const project = projectOf(sessions)
   const byCwd = new Map<string, Session[]>()
   for (const s of sessions) {
     if (shelved.has(s.id)) continue
-    const list = byCwd.get(s.cwd) ?? []
+    const key = project(s)
+    const list = byCwd.get(key) ?? []
     list.push(s)
-    byCwd.set(s.cwd, list)
+    byCwd.set(key, list)
   }
   const groups: SessionGroup[] = []
   for (const [cwd, list] of byCwd) {
@@ -168,7 +200,7 @@ export function relativeTime(iso: string | undefined, now: Date = new Date()): s
 export function matchesQuery(session: Session, query: string): boolean {
   const q = query.trim().toLowerCase()
   if (!q) return true
-  return [session.title ?? '', session.cwd, session.agent].some((v) => v.toLowerCase().includes(q))
+  return [session.title ?? '', session.cwd, session.agent, session.worktree?.branch ?? ''].some((v) => v.toLowerCase().includes(q))
 }
 
 const agentName: Record<AgentKind, string> = { claude: 'Claude', codex: 'Codex' }

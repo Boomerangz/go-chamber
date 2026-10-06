@@ -12,7 +12,7 @@ import SessionList from './SessionList'
 import { recentFolders } from '../../lib/folders'
 import { usePending } from '../../lib/pending'
 import { useIsRepo } from '../../lib/useIsRepo'
-import { groupSessions } from '../../lib/sessions'
+import { recentProjects } from '../../lib/sessions'
 import { useSessionStore } from '../../stores/session'
 import './Sidebar.css'
 import type { AgentKind, Session } from '../../lib/api'
@@ -119,7 +119,7 @@ export default function Sidebar(props: SidebarProps) {
       setCreatingIn(null)
     }
   }
-  const chips = groupSessions(props.sessions.filter((s) => !s.parentId)).slice(0, CHIPS)
+  const chips = recentProjects(props.sessions, CHIPS)
 
   const submit = () => {
     if (!cwd.trim()) {
