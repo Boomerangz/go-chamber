@@ -24,7 +24,7 @@ import { enter } from '../../lib/motion'
 import { useJustFinished } from '../../lib/finished'
 import { useNow } from '../../lib/now'
 import { usePending } from '../../lib/pending'
-import { firstUnseen, loadSeen, saveSeen } from '../../lib/seen'
+import { useUnseen } from '../../lib/seen'
 import { isBlank, itemTree } from '../../lib/tree'
 import { turnNumbers } from '../../lib/turns'
 import { loadDraft, saveDraft } from '../../stores/drafts'
@@ -162,7 +162,9 @@ export default function Chat() {
   const nodes = useMemo(() => itemTree(chat.order, chat.items).filter((node) => !isBlank(node.item)), [chat.order, chat.items])
   const turns = useMemo(() => turnNumbers(nodes), [nodes])
   const [scrollRef, stick] = useStickToBottom(chat, chat.order.length)
-  const unseen = useUnseen(sessionId, chat.order, stick.pinned, stick.isPinned)
+  const unseen = useUnseen({
+    sessionId, order: chat.order, items: chat.items, ready: history === 'ready', pinned: stick.pinned, isPinned: stick.isPinned,
+  })
   const lastItem = chat.order.length ? chat.items[chat.order[chat.order.length - 1]!] : undefined
   const streaming = lastItem?.status === 'streaming'
   const lastUserText = useMemo(() => {
@@ -439,32 +441,6 @@ function elapsed(ms: number): string {
   const m = Math.floor((total % 3600) / 60)
   const s = String(total % 60).padStart(2, '0')
   return h ? `${h}:${String(m).padStart(2, '0')}:${s}` : `${m}:${s}`
-}
-
-// useUnseen remembers where the user stopped reading this session and returns
-// the first item that arrived since, for the "new since you left" mark. What
-// counts as read is what was on screen: the page visible and the end in view.
-function useUnseen(sessionId: string | undefined, order: string[], pinned: boolean, isPinned: () => boolean): string | null {
-  // Read once: the mark stays where the user left, while new items stream in.
-  const [seen] = useState(() => (sessionId ? loadSeen(sessionId) : null))
-  const visible = useVisible()
-  const last = order[order.length - 1]
-  useEffect(() => {
-    // isPinned, not pinned: landing on the mark unpins in this very commit.
-    if (sessionId && last && pinned && visible && isPinned()) saveSeen(sessionId, last)
-  }, [sessionId, last, pinned, visible, isPinned])
-  return firstUnseen(order, seen)
-}
-
-function useVisible(): boolean {
-  const read = () => typeof document === 'undefined' || document.visibilityState !== 'hidden'
-  const [visible, setVisible] = useState(read)
-  useEffect(() => {
-    const update = () => setVisible(read())
-    document.addEventListener('visibilitychange', update)
-    return () => document.removeEventListener('visibilitychange', update)
-  }, [])
-  return visible
 }
 
 // resolve strikes the answered request through, then folds it away.
