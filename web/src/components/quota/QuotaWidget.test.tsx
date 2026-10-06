@@ -18,16 +18,65 @@ const snapshot = (updatedAt?: string): api.QuotaSnapshot => ({
   windows: [{ name: 'primary', usedPct: 25, status: '300m' } as api.QuotaWindow],
 })
 
+const realLoadQuotas = useSessionStore.getState().loadQuotas
+
 beforeEach(() => {
   vi.clearAllMocks()
   resetStore()
+  useSessionStore.setState({ loadQuotas: realLoadQuotas })
 })
 afterEach(() => vi.useRealTimers())
 
 describe('QuotaWidget', () => {
   it('keeps its line while no quotas are known', () => {
+    useSessionStore.setState({ quotasStatus: 'ready' })
     render(<QuotaWidget />)
     expect(screen.getByText(/no quotas reported yet/i)).toBeInTheDocument()
+  })
+
+  it('says quotas are loading before saying there are none', () => {
+    render(<QuotaWidget />)
+    expect(screen.getByText('loading quotas…')).toBeInTheDocument()
+    expect(screen.queryByText(/no quotas reported yet/i)).toBeNull()
+  })
+
+  it('says loading quotas failed, with a retry', async () => {
+    const loadQuotas = vi.fn(async () => {})
+    useSessionStore.setState({ quotasStatus: 'error', loadQuotas })
+    render(<QuotaWidget />)
+    await userEvent.click(screen.getByRole('button', { name: 'Retry' }))
+    expect(loadQuotas).toHaveBeenCalled()
+  })
+
+  it('asks the agents for numbers when none were reported', async () => {
+    vi.mocked(api.refreshQuota).mockImplementation(async (agent) => {
+      if (agent === 'claude') throw new Error('unsupported')
+      return snapshot()
+    })
+    vi.mocked(api.getQuotas).mockResolvedValue([snapshot()])
+    useSessionStore.setState({ quotasStatus: 'ready' })
+    render(<QuotaWidget />)
+    await userEvent.click(screen.getByRole('button', { name: 'Refresh quotas' }))
+    expect(api.refreshQuota).toHaveBeenCalledWith('codex')
+    expect((await screen.findAllByText('25%')).length).toBeGreaterThan(0)
+  })
+
+  it('says why asking for numbers failed when every agent refused', async () => {
+    vi.mocked(api.refreshQuota).mockRejectedValue(new Error('unsupported'))
+    useSessionStore.setState({ quotasStatus: 'ready' })
+    render(<QuotaWidget />)
+    await userEvent.click(screen.getByRole('button', { name: 'Refresh quotas' }))
+    expect(await screen.findByText('unsupported')).toBeInTheDocument()
+  })
+
+  it('names the fullest window and when it resets in the summary', () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    vi.setSystemTime(new Date('2026-10-06T12:00:00Z'))
+    useSessionStore.setState({
+      quotas: [{ ...snapshot(), windows: [{ name: 'primary', usedPct: 25, status: '300m', resetsAt: '2026-10-06T13:20:00Z' } as api.QuotaWindow] }],
+    })
+    render(<QuotaWidget />)
+    expect(document.querySelector('summary')).toHaveTextContent('5h · resets in 1h 20m')
   })
 
   it('lets screen readers read the summary numbers', () => {

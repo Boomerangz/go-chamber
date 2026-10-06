@@ -37,6 +37,8 @@ export interface SessionStore {
   searching: boolean
   // searchError is why the last message search failed; null when it didn't.
   searchError: string | null
+  // quotasStatus tells quotas still loading (or failed) from none reported.
+  quotasStatus: LoadStatus
   // nextRetryAt is when the live socket tries again after a drop (ms epoch).
   nextRetryAt: number | null
 
@@ -213,6 +215,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
   history: 'ready',
   searching: false,
   searchError: null,
+  quotasStatus: 'loading',
   nextRetryAt: null,
 
   setConnection: (connection) => set({ connection }),
@@ -309,8 +312,9 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
   async loadQuotas() {
     try {
       const quotas = await quotaLists.load(api.getQuotas)
-      if (quotas) set({ quotas })
+      if (quotas) set({ quotas, quotasStatus: 'ready' })
     } catch (err) {
+      if (get().quotasStatus !== 'ready') set({ quotasStatus: 'error' })
       fail("Couldn't load quotas", err, 'load-quotas')
     }
   },
@@ -722,6 +726,7 @@ export function resetStore(): void {
     history: 'ready',
     searching: false,
     searchError: null,
+    quotasStatus: 'loading',
     nextRetryAt: null,
   })
 }

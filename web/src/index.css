@@ -408,7 +408,7 @@ button.health { border: 0; background: none; padding: 0; }
   .group-more { min-height: 40px; }
   .group-toggle { height: 40px; }
   .session-search { height: 40px; }
-  .session-search .search-clear, .quota .refresh, .account .copy-code { width: 40px; height: 40px; }
+  .session-search .search-clear, .quota .refresh, .quotas-none .refresh, .account .copy-code { width: 40px; height: 40px; }
   .folder-chips .chip { height: 36px; line-height: 34px; }
   .rename-btn { min-width: 36px; min-height: 36px; justify-content: center; }
   .crumb button { min-height: 40px; }
@@ -421,7 +421,7 @@ button.health { border: 0; background: none; padding: 0; }
 .account .device-code code { padding: 0 4px; font-size: 14px; letter-spacing: 0.1em; color: var(--ink); background: var(--act-wash); }
 
 .quotas-details summary {
-  display: flex; align-items: center; gap: 14px; cursor: pointer; list-style: none;
+  display: flex; align-items: center; flex-wrap: wrap; gap: 4px 14px; cursor: pointer; list-style: none;
   font-family: var(--font-mono); font-size: 12px; color: var(--ink-2);
 }
 .quotas-details summary::-webkit-details-marker { display: none; }

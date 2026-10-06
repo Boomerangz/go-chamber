@@ -8,6 +8,7 @@ import { usePending } from '../../lib/pending'
 import { relativeTime } from '../../lib/sessions'
 import { describeError } from '../../stores/notices'
 import { useSessionStore } from '../../stores/session'
+import { LoadFailed, LoadingLine } from '../ui/Loading'
 import './QuotaWidget.css'
 
 const agentName: Record<string, string> = { claude: 'Claude', codex: 'Codex' }
@@ -15,18 +16,33 @@ const agentName: Record<string, string> = { claude: 'Claude', codex: 'Codex' }
 // QuotaWidget shows subscription rate-limit bars for every known agent.
 export default function QuotaWidget() {
   const quotas = useSessionStore((s) => s.quotas)
+  const status = useSessionStore((s) => s.quotasStatus)
+  const loadQuotas = useSessionStore((s) => s.loadQuotas)
   const now = useNow(60_000)
   const [error, setError] = useState<string | null>(null)
 
   // The line stays when nothing is known yet, so the footer doesn't jump
   // once the first numbers arrive.
-  if (quotas.length === 0) return <p className="quotas-none">no quotas reported yet</p>
+  if (quotas.length === 0) {
+    if (status === 'loading') return <LoadingLine>loading quotas…</LoadingLine>
+    if (status === 'error') return <LoadFailed onRetry={() => void loadQuotas()}>Couldn't load quotas</LoadFailed>
+    return (
+      <div className="quotas-none">
+        <span>no quotas reported yet</span>
+        <RefreshButton agents={['claude', 'codex']} label="Refresh quotas" onError={setError} />
+        {error && <span className="error" role="alert">{error}</span>}
+      </div>
+    )
+  }
 
   return (
     <details className="quotas-details">
       <summary>
         {quotas.map((q) => {
-          const top = Math.max(0, ...q.windows.map((w) => Math.min(100, w.usedPct)))
+          // The fullest window is the one that limits: name it and its reset.
+          const fullest = q.windows.reduce<(typeof q.windows)[number] | undefined>((a, w) => (!a || w.usedPct > a.usedPct ? w : a), undefined)
+          const top = Math.max(0, Math.min(100, fullest?.usedPct ?? 0))
+          const reset = fullest ? resetLabel(fullest.resetsAt, new Date(now)) : null
           return (
             <span key={q.agent} className="quota-mini">
               <span>{agentName[q.agent] ?? q.agent}</span>
@@ -34,6 +50,12 @@ export default function QuotaWidget() {
                 <span className="fill" style={{ transform: `scaleX(${top / 100})` }} />
               </span>
               <span className="pct">{Math.round(top)}%</span>
+              {fullest && (
+                <span className="quota-when">
+                  {windowLabel(fullest).replace(/ window$/, '')}
+                  {reset && ` · ${reset}`}
+                </span>
+              )}
             </span>
           )
         })}
@@ -50,7 +72,7 @@ export default function QuotaWidget() {
                   {q.plan && <span className="plan">{q.plan}</span>}
                 </span>
                 {age && <span className="quota-age">updated {age}</span>}
-                <RefreshButton agent={q.agent} onError={setError} />
+                <RefreshButton agents={[q.agent]} label={`refresh ${q.agent} quotas`} onError={setError} />
               </header>
               {q.windows.map((w) => {
                 const pct = Math.min(100, Math.max(0, w.usedPct))
@@ -77,23 +99,25 @@ export default function QuotaWidget() {
   )
 }
 
-// RefreshButton asks the agent for fresh numbers; one request at a time.
-function RefreshButton({ agent, onError }: { agent: AgentKind; onError: (e: string | null) => void }) {
+// RefreshButton asks agents for fresh numbers; one request at a time. It
+// fails only when every agent it asked refused.
+function RefreshButton({ agents, label, onError }: { agents: AgentKind[]; label: string; onError: (e: string | null) => void }) {
   const loadQuotas = useSessionStore((s) => s.loadQuotas)
   const refresh = useCallback(async () => {
-    try {
-      await refreshQuota(agent)
-      onError(null)
-      await loadQuotas()
-    } catch (e) {
-      onError(describeError(e))
+    const results = await Promise.allSettled(agents.map((a) => refreshQuota(a)))
+    const refused = results.find((r): r is PromiseRejectedResult => r.status === 'rejected')
+    if (refused && results.every((r) => r.status === 'rejected')) {
+      onError(describeError(refused.reason))
+      return
     }
-  }, [agent, loadQuotas, onError])
+    onError(null)
+    await loadQuotas()
+  }, [agents, loadQuotas, onError])
   const [run, pending] = usePending(refresh)
   return (
     <button
       className="btn btn-ghost btn-icon refresh"
-      aria-label={`refresh ${agent} quotas`}
+      aria-label={label}
       aria-busy={pending || undefined}
       title={pending ? 'Refreshing…' : 'Refresh'}
       onClick={() => void run()}

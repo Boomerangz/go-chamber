@@ -685,9 +685,23 @@ describe('request handling', () => {
   })
 
   it('loads quotas', async () => {
+    expect(store().quotasStatus).toBe('loading')
     ;(api.getQuotas as Mock).mockResolvedValue([{ agent: 'codex', windows: [] }])
     await store().loadQuotas()
     expect(store().quotas.map((q) => q.agent)).toEqual(['codex'])
+    expect(store().quotasStatus).toBe('ready')
+  })
+
+  it('tells failed quotas from none, until a load succeeds', async () => {
+    ;(api.getQuotas as Mock).mockRejectedValueOnce(new Error('down'))
+    await store().loadQuotas()
+    expect(store().quotasStatus).toBe('error')
+    ;(api.getQuotas as Mock).mockResolvedValueOnce([])
+    await store().loadQuotas()
+    expect(store().quotasStatus).toBe('ready')
+    ;(api.getQuotas as Mock).mockRejectedValueOnce(new Error('down'))
+    await store().loadQuotas()
+    expect(store().quotasStatus).toBe('ready')
   })
 
   it('upserts quotas from live events', () => {
