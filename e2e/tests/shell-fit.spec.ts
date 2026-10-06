@@ -200,6 +200,53 @@ test.describe('the quick switcher on a short, narrow window', () => {
   })
 })
 
+test('a path shortened at its start lines up with the title above it', async ({ page }, info) => {
+  test.skip(info.project.name === 'mobile', 'the same rule; the desktop list is enough')
+  await page.addInitScript(() => Object.defineProperty(window, 'RTCPeerConnection', { value: undefined }))
+  const base = fs.realpathSync(fs.mkdtempSync(`${os.tmpdir()}/gc-align-with-a-long-folder-name-`))
+  await page.goto(`/?token=${token}`)
+  const ids: string[] = []
+  for (const n of ['billing-service', 'docs']) {
+    fs.mkdirSync(`${base}/projects/${n}`, { recursive: true })
+    const r = await page.request.post('/api/terminals', { data: { cwd: `${base}/projects/${n}` } })
+    ids.push(((await r.json()) as { id: string }).id)
+  }
+  try {
+    await page.reload()
+    await page.getByRole('radio', { name: /^Terminal/ }).click()
+    for (const name of ['billing-service', 'docs']) {
+      const row = page.locator('.term-sidebar [role="tab"]').filter({ hasText: `projects/${name}` })
+      const [title, path] = [await box(row.locator('.term-title')), await box(row.locator('.path-text'))]
+      expect(await row.locator('.path-head').evaluate((e) => e.scrollWidth > e.clientWidth)).toBe(true)
+      // where the ink starts: the title's first letter, the path's "…"
+      const clip = { x: title.x - 4, y: title.y, width: 40, height: path.y + path.height - title.y }
+      const png = (await page.screenshot({ clip })).toString('base64')
+      const [t, p] = await page.evaluate(
+        async ({ src, split }) => {
+          const img = new Image()
+          img.src = src
+          await img.decode()
+          const c = document.createElement('canvas')
+          c.width = img.width
+          c.height = img.height
+          const g = c.getContext('2d')!
+          g.drawImage(img, 0, 0)
+          const d = g.getImageData(0, 0, c.width, c.height).data
+          const left = (y0: number, y1: number) => {
+            for (let x = 0; x < c.width; x++) for (let y = y0; y < y1; y++) if (d[(y * c.width + x) * 4]! < 170) return x
+            return -1
+          }
+          return [left(0, split), left(split, c.height)]
+        },
+        { src: `data:image/png;base64,${png}`, split: Math.round(path.y - title.y) },
+      )
+      expect(Math.abs(p! - t!)).toBeLessThanOrEqual(2)
+    }
+  } finally {
+    for (const id of ids) await page.request.delete(`/api/terminals/${id}`)
+  }
+})
+
 test('the dock terminal tabs scroll sideways only: no stray vertical scrollbar', async ({ page, isMobile }) => {
   test.skip(isMobile, 'the dock is desktop-only')
   await page.addInitScript(() => Object.defineProperty(window, 'RTCPeerConnection', { value: undefined }))
