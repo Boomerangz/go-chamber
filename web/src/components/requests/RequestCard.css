@@ -45,4 +45,5 @@
 
 /* option numbers: the keys that pick them */
 .option-label kbd { margin-left: 8px; font-weight: 400; opacity: 0.6; }
-@media (hover: none), (pointer: coarse) { .option-label kbd { display: none; } }
+/* key hints mean nothing without a keyboard */
+@media (hover: none), (pointer: coarse) { .option-label kbd, .request-actions kbd { display: none; } }

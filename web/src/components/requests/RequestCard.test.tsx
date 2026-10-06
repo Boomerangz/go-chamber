@@ -74,6 +74,19 @@ describe('RequestCard permission', () => {
   })
 })
 
+describe('RequestCard prompt', () => {
+  it('drops a prompt that only repeats the command shown below it', () => {
+    const { container } = setup({ ...permission, prompt: 'Claude wants to run:  rm -rf build\n&& ls', payload: { toolName: 'Bash', input: { command: 'rm -rf build && ls' } } })
+    expect(container.querySelector('.request-prompt')).toBeNull()
+    expect(container.querySelector('.request-cmd, pre')).toHaveTextContent('rm -rf build && ls')
+  })
+
+  it('keeps a prompt that says more than the command', () => {
+    const { container } = setup({ ...permission, prompt: 'Claude wants to delete the build folder', payload: { toolName: 'Bash', input: { command: 'rm -rf build' } } })
+    expect(container.querySelector('.request-prompt')).toHaveTextContent('delete the build folder')
+  })
+})
+
 describe('RequestCard question', () => {
   it('submits a single-choice answer', async () => {
     const { onRespond } = setup(question)
