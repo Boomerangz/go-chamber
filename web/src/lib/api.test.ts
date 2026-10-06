@@ -20,6 +20,7 @@ import {
   searchMessages,
   listModels,
   setModel,
+  UNAUTHORIZED_EVENT,
 } from './api'
 
 afterEach(() => vi.unstubAllGlobals())
@@ -64,6 +65,15 @@ describe('fetchHealth', () => {
 })
 
 describe('session API', () => {
+  it('announces an expired login when the API answers 401', async () => {
+    stubFetch(async () => new Response('unauthorized', { status: 401 }))
+    const seen = vi.fn()
+    window.addEventListener(UNAUTHORIZED_EVENT, seen)
+    await expect(listSessions()).rejects.toThrow('Signed out')
+    window.removeEventListener(UNAUTHORIZED_EVENT, seen)
+    expect(seen).toHaveBeenCalledTimes(1)
+  })
+
   it('lists sessions', async () => {
     const fn = stubFetch(async () => json([{ id: 'a' }]))
     expect(await listSessions()).toEqual([{ id: 'a' }])

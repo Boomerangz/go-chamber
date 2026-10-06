@@ -10,9 +10,10 @@ import RequestTray from './components/requests/RequestTray'
 import Sidebar from './components/sessions/Sidebar'
 import { DockRail, HealthStatus, ModeSwitch, PaneBar } from './components/shell/Shell'
 import Notices from './components/shell/Notices'
+import Hotkeys from './components/shell/Hotkeys'
 import TerminalPanel from './components/terminal/TerminalPanel'
 import TerminalWorkspace from './components/terminal/TerminalWorkspace'
-import { fetchHealth, type Health } from './lib/api'
+import { fetchHealth, UNAUTHORIZED_EVENT, type Health } from './lib/api'
 import { parseRoute, routePath } from './lib/route'
 import { sessionTitle } from './lib/sessions'
 import { attentionTitle } from './lib/title'
@@ -136,6 +137,7 @@ export default function App() {
         </>
       )}
       <Notices />
+      {health === 'online' && <Hotkeys />}
     </main>
   )
 }
@@ -170,11 +172,14 @@ function useHealth(): [Health | null, () => void] {
         check()
       }
     }
+    const signedOut = () => setHealth('unauthorized')
     window.addEventListener('online', wake)
+    window.addEventListener(UNAUTHORIZED_EVENT, signedOut)
     document.addEventListener('visibilitychange', wake)
     return () => {
       if (timer.current) clearTimeout(timer.current)
       window.removeEventListener('online', wake)
+      window.removeEventListener(UNAUTHORIZED_EVENT, signedOut)
       document.removeEventListener('visibilitychange', wake)
     }
   }, [check])

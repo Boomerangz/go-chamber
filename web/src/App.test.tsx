@@ -1,4 +1,4 @@
-import { act, render, screen, within } from '@testing-library/react'
+import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import App from './App'
@@ -23,6 +23,7 @@ vi.mock('./lib/api', () => ({
   interrupt: vi.fn(),
   respondRequest: vi.fn(),
   fetchEvents: vi.fn(),
+  UNAUTHORIZED_EVENT: 'gc:unauthorized',
 }))
 
 vi.mock('./components/terminal/TerminalView', () => ({
@@ -99,6 +100,40 @@ describe('App', () => {
     render(<App />)
     expect(await screen.findByRole('heading', { name: 'Signed out' })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Sign in' })).toHaveAttribute('href', '/')
+  })
+
+  it('keeps asking an unreachable server and recovers on its own', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    try {
+      mockApi()
+      vi.mocked(api.fetchHealth).mockResolvedValueOnce('offline')
+      render(<App />)
+      expect(await screen.findByText("go-chamber isn't reachable")).toBeInTheDocument()
+      await act(async () => { await vi.advanceTimersByTimeAsync(1100) })
+      expect(await screen.findByText('online')).toBeInTheDocument()
+      expect(screen.queryByText("go-chamber isn't reachable")).toBeNull()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('shows Signed out when the API rejects the login mid-session', async () => {
+    mockApi()
+    render(<App />)
+    await screen.findByText('online')
+    act(() => { window.dispatchEvent(new Event(api.UNAUTHORIZED_EVENT)) })
+    expect(await screen.findByText('Signed out')).toBeInTheDocument()
+  })
+
+  it('puts waiting requests and the open session in the tab title', async () => {
+    mockApi()
+    vi.mocked(api.listSessions).mockResolvedValue([{ id: 's1', agent: 'claude', cwd: '/p', status: 'idle', title: 'fix login' } as never])
+    vi.mocked(api.listRequests).mockResolvedValue([{ id: 'r', sessionId: 's1' } as never])
+    render(<App />)
+    await screen.findByText('online')
+    await waitFor(() => expect(document.title).toBe('(1) go-chamber'))
+    act(() => useSessionStore.setState({ activeId: 's1' }))
+    await waitFor(() => expect(document.title).toBe('(1) fix login · go-chamber'))
   })
 
   it('signs out with a form post', async () => {

@@ -176,9 +176,17 @@ export async function fetchHealth(): Promise<Health> {
   }
 }
 
+// UNAUTHORIZED_EVENT fires on window when the API rejects the login (the
+// cookie expired or the token changed), so the page can show "Signed out".
+export const UNAUTHORIZED_EVENT = 'gc:unauthorized'
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(path, { credentials: 'same-origin', ...init })
   const text = await res.text().catch(() => '')
+  if (res.status === 401) {
+    if (typeof window !== 'undefined') window.dispatchEvent(new Event(UNAUTHORIZED_EVENT))
+    throw new Error('Signed out')
+  }
   if (!res.ok) {
     throw new Error(text || `${res.status} ${res.statusText}`)
   }

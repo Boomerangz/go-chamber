@@ -20,8 +20,8 @@ export function ModeSwitch() {
   const running = useTerminalStore((s) => s.terminals.filter((t) => t.status === 'running').length)
   return (
     <div className="segmented mode-switch" role="radiogroup" aria-label="Mode">
-      {modes.map((m) => (
-        <button key={m.id} type="button" role="radio" aria-checked={mode === m.id} onClick={() => setMode(m.id)}>
+      {modes.map((m, i) => (
+        <button key={m.id} type="button" role="radio" aria-checked={mode === m.id} title={`${m.label} (${i + 1})`} onClick={() => setMode(m.id)}>
           {m.label}
           {m.id === 'terminal' && running > 0 && <span className="count">{running}</span>}
         </button>
