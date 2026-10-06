@@ -686,6 +686,14 @@ describe('working tail while text streams', () => {
     expect(screen.queryByText(/working/)).toBeNull()
     expect(document.querySelector('.working-tail')).toHaveTextContent('0:00')
   })
+
+  it('says working while a tool or subagent runs, which shows no words', () => {
+    for (const kind of ['command', 'subagent'] as const) {
+      const view = setup({ chat: running([item('t1', kind, { status: 'streaming' })]) })
+      expect(document.querySelector('.working-tail')).toHaveTextContent('working · 0:00')
+      view.unmount()
+    }
+  })
 })
 
 describe('screen reader', () => {

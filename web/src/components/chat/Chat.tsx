@@ -134,6 +134,9 @@ export default function Chat() {
   })
   const lastItem = chat.order.length ? chat.items[chat.order[chat.order.length - 1]!] : undefined
   const streaming = lastItem?.status === 'streaming'
+  // Words on their way speak for themselves; a running tool or subagent
+  // shows none, so the tail still says the turn is working.
+  const wording = streaming && lastItem?.kind === 'assistant_message'
   // The owner's messages, oldest first: ArrowUp walks back through them.
   const sent = useMemo(() => {
     const texts: string[] = []
@@ -475,7 +478,7 @@ export default function Chat() {
           <WorkingTail
             since={turnStart}
             waiting={Object.keys(chat.requests).length > 0}
-            streaming={streaming}
+            streaming={wording}
             live={!dropped}
           />
         )}
