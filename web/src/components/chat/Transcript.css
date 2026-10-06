@@ -1,0 +1,84 @@
+/* ---------- transcript items: details added to the base rules in index.css ---------- */
+
+/* a tool line: the name, then what it works on, cut to one line */
+.item-line { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+.item-line > code { flex: 0 1 auto; min-width: 0; }
+.item.tool .item-line > code { flex: none; white-space: nowrap; }
+.item-summary {
+  flex: 1 1 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-family: var(--font-mono); font-size: 12.5px; color: var(--ink-2);
+}
+.subagent-head .subagent-name { flex: none; white-space: nowrap; }
+
+/* an exit code is a tag on the line, bracketed like a hook outcome */
+.exit-tag {
+  flex: none; font-family: var(--font-mono); font-size: 11.5px; letter-spacing: 0.04em; text-transform: uppercase;
+  color: var(--ink-3); white-space: nowrap;
+}
+.exit-tag::before { content: '['; }
+.exit-tag::after { content: ']'; }
+.exit-tag.exit-bad { color: var(--bad); }
+
+/* folded output: label, then its last line while closed */
+.item-output > summary { display: flex; align-items: baseline; gap: 10px; min-width: 0; list-style: none; }
+.item-output > summary::-webkit-details-marker { display: none; }
+.item-output > summary::before { content: '+'; flex: none; width: 1ch; }
+.item-output[open] > summary::before { content: '−'; }
+.item-output-label { flex: none; }
+.item-output-preview {
+  flex: 1 1 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-family: var(--font-mono); font-size: 12px; color: var(--ink-3);
+}
+.item-output[open] .item-output-preview { display: none; }
+.item-output-body { position: relative; }
+.item .item-output-body > pre { margin-top: 0; }
+.item-output-body .item-output-copy {
+  position: absolute; top: 4px; right: 4px; background: var(--paper-2);
+  opacity: 0; transition: opacity var(--dur-fast);
+}
+.item-output-body:hover .item-output-copy, .item-output-copy:focus-visible { opacity: 1; }
+@media (hover: none), (pointer: coarse) { .item-output-body .item-output-copy { opacity: 1; } }
+
+/* errors: what broke, said in the open */
+.item.item-error {
+  display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; white-space: normal;
+}
+.error-kw {
+  flex: none; font-family: var(--font-mono); font-size: 11.5px; letter-spacing: 0.06em; text-transform: uppercase;
+  color: var(--bad);
+}
+.error-text { min-width: 0; font-size: 13px; line-height: 1.5; color: var(--ink); white-space: pre-wrap; }
+
+/* reasoning still on its way: the "not yet settled" dashed underline */
+.item.reasoning summary.streaming { text-decoration: underline dashed var(--rule-strong); text-underline-offset: 4px; }
+
+/* a streaming answer ends in a breathing ink block; reduced motion holds it still */
+.item.assistant.streaming .md > :last-child:not(ul, ol, pre, table, blockquote, div, hr)::after,
+.item.assistant.streaming .md > :is(ul, ol):last-child > li:last-child::after,
+.item.assistant.streaming .md:empty::after {
+  content: ''; display: inline-block; width: 0.5em; height: 1em; margin-left: 2px;
+  vertical-align: -0.15em; background: var(--ink);
+  animation: mark-breathe 1.2s ease-in-out infinite;
+}
+
+/* copy a whole answer: an icon in the turn margin, shown on hover or focus */
+.row .msg-copy {
+  position: absolute; top: 0; left: -34px; width: 24px; height: 24px; color: var(--ink-3);
+  opacity: 0; transition: opacity var(--dur-fast);
+}
+.row:hover .msg-copy, .msg-copy:focus-visible { opacity: 1; }
+@media (hover: none), (pointer: coarse) { .row .msg-copy { opacity: 1; } }
+@media (max-width: 720px) {
+  .row .msg-copy { position: static; display: flex; margin: 2px 0 0 auto; }
+}
+
+/* a long user message folds; "show more" is a link, so it is blue */
+.item.user.folded .user-text { max-height: calc(1.55em * 20); overflow: hidden; }
+.act-link {
+  display: inline-flex; margin-top: 4px; padding: 0; border: 0; background: none; cursor: pointer;
+  font-family: var(--font-mono); font-size: 12px; color: var(--act);
+  text-decoration: underline; text-underline-offset: 3px;
+}
+.act-link:hover { color: var(--ink); }
+/* inside a subagent there is no margin: the icon sits under the answer */
+.subagent-items .msg-copy { position: static; display: flex; margin: 2px 0 0 auto; }

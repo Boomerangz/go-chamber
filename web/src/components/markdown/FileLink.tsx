@@ -1,5 +1,7 @@
 import { lazy, Suspense, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
-import { fileKind, filePath, fileUrl, langOf, SessionFiles } from '../../lib/files'
+import CopyButton from './CopyButton'
+import { LoadingLine } from '../ui/Loading'
+import { fileKind, fileLine, filePath, fileUrl, langOf, MarkLine, SessionFiles } from '../../lib/files'
 
 const Markdown = lazy(() => import('./Markdown'))
 
@@ -35,14 +37,24 @@ export function MdLink({ href, children }: { href?: string; children?: ReactNode
       >
         {children}
       </a>
-      {open && <FileViewer sessionId={sessionId} path={path} onClose={() => setOpen(false)} />}
+      {open && <FileViewer sessionId={sessionId} path={path} line={fileLine(href)} onClose={() => setOpen(false)} />}
     </>
   )
 }
 
 type Loaded = { text: string } | { error: string }
 
-function FileViewer({ sessionId, path, onClose }: { sessionId: string; path: string; onClose: () => void }) {
+function FileViewer({
+  sessionId,
+  path,
+  line,
+  onClose,
+}: {
+  sessionId: string
+  path: string
+  line?: number
+  onClose: () => void
+}) {
   const ref = useRef<HTMLDialogElement>(null)
   const kind = fileKind(path)
   const [loaded, setLoaded] = useState<Loaded>()
@@ -66,7 +78,9 @@ function FileViewer({ sessionId, path, onClose }: { sessionId: string; path: str
       <header className="file-viewer-bar">
         <span className="file-viewer-path" title={path}>
           {path}
+          {line ? <span className="file-viewer-line">:{line}</span> : null}
         </span>
+        <CopyButton text={path} label="Copy path" className="file-viewer-copy" />
         <a className="btn btn-ghost" href={fileUrl(sessionId, path, true)} download>
           Download
         </a>
@@ -78,15 +92,17 @@ function FileViewer({ sessionId, path, onClose }: { sessionId: string; path: str
         {kind === 'image' ? (
           <img src={fileUrl(sessionId, path)} alt={path} />
         ) : !loaded ? (
-          <p className="file-viewer-note">Loading…</p>
+          <LoadingLine>loading file…</LoadingLine>
         ) : 'error' in loaded ? (
           <p className="file-viewer-note" role="alert">
             {loaded.error}
           </p>
         ) : (
-          <Suspense fallback={<pre>{loaded.text}</pre>}>
-            <Markdown text={kind === 'markdown' ? loaded.text : fence(loaded.text, langOf(path))} />
-          </Suspense>
+          <MarkLine.Provider value={kind === 'markdown' ? undefined : line}>
+            <Suspense fallback={<pre>{loaded.text}</pre>}>
+              <Markdown text={kind === 'markdown' ? loaded.text : fence(loaded.text, langOf(path))} />
+            </Suspense>
+          </MarkLine.Provider>
         )}
       </div>
     </dialog>

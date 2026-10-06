@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import Markdown from './Markdown'
 import { SessionFiles } from '../../lib/files'
@@ -86,5 +86,24 @@ describe('file links', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('outside the session folder')
     fireEvent.click(screen.getByRole('button', { name: 'Close' }))
     expect(screen.queryByRole('alert')).toBeNull()
+  })
+
+  it('marks the line a link points at', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('one\ntwo\nthree')))
+    inSession('[notes](logs/run.txt:2)')
+    fireEvent.click(screen.getByRole('link', { name: 'notes' }))
+    await screen.findByText('two')
+    const marked = document.querySelector('.file-viewer .md-line-mark')
+    expect(marked).toHaveTextContent('two')
+    expect(document.querySelectorAll('.file-viewer .md-line-mark')).toHaveLength(1)
+  })
+
+  it('copies the path from the viewer', async () => {
+    const writeText = vi.fn(async () => {})
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true })
+    inSession('[shot](/work/shot.png)')
+    fireEvent.click(screen.getByRole('link', { name: 'shot' }))
+    await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Copy path' })))
+    expect(writeText).toHaveBeenCalledWith('/work/shot.png')
   })
 })

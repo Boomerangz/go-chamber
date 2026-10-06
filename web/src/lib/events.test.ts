@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { applyEvent, initialChat } from './events'
-import type { Item, SessionEvent, SessionRequest } from './api'
+import { applyEvent, applyEvents, initialChat, TURN_FAILED } from './events'
+import type { Item, SessionEvent, SessionRequest, TurnResult } from './api'
 
 const item = (over: Partial<Item> = {}): Item => ({
   id: 'i1',
@@ -102,5 +102,69 @@ describe('request events', () => {
     state = applyEvent(state, ev({ seq: 1, type: 'request.opened' }))
     state = applyEvent(state, ev({ seq: 2, type: 'request.resolved' }))
     expect(Object.keys(state.requests)).toEqual([])
+  })
+})
+
+describe('failed turns', () => {
+  const user = (id: string): Item => item({ id, kind: 'user_message', status: 'completed', text: 'go' })
+
+  it('writes a failed turn into the transcript and remembers it failed', () => {
+    let state = initialChat()
+    state = applyEvent(state, ev({ seq: 1, type: 'turn.started' }))
+    state = applyEvent(state, ev({ seq: 2, item: user('u1') }))
+    state = applyEvent(state, ev({ seq: 3, type: 'turn.ended', result: { isError: true, error: 'API Error: overloaded' } }))
+    expect(state.lastTurnFailed).toBe(true)
+    const id = state.order.at(-1)!
+    expect(state.items[id]).toMatchObject({ kind: 'error', status: 'failed', name: TURN_FAILED, text: 'API Error: overloaded', sessionId: 's1' })
+    state = applyEvent(state, ev({ seq: 4, type: 'turn.started' }))
+    expect(state.lastTurnFailed).toBe(false)
+  })
+
+  it('falls back to the result text, then to a plain sentence', () => {
+    let state = applyEvent(initialChat(), ev({ seq: 1, type: 'turn.ended', result: { isError: true, text: 'Prompt is too long' } }))
+    expect(state.items[state.order[0]!]!.text).toBe('Prompt is too long')
+    state = applyEvent(state, ev({ seq: 2, item: user('u2') }))
+    state = applyEvent(state, ev({ seq: 3, type: 'turn.ended', result: { isError: true } }))
+    expect(state.items[state.order.at(-1)!]!.text).toBe('The turn ended with an error.')
+  })
+
+  it('does not repeat an error the agent already reported in this turn', () => {
+    let state = initialChat()
+    state = applyEvent(state, ev({ seq: 1, item: user('u1') }))
+    state = applyEvent(state, ev({ seq: 2, item: item({ id: 'e1', kind: 'error', status: 'failed', text: 'boom' }) }))
+    state = applyEvent(state, ev({ seq: 3, type: 'turn.ended', result: { isError: true, error: 'boom' } }))
+    expect(state.order).toEqual(['u1', 'e1'])
+    expect(state.lastTurnFailed).toBe(true)
+  })
+
+  it('reports an error from an earlier turn again in a new one', () => {
+    let state = initialChat()
+    state = applyEvent(state, ev({ seq: 1, item: item({ id: 'e1', kind: 'error', status: 'failed', text: 'boom' }) }))
+    state = applyEvent(state, ev({ seq: 2, item: user('u1') }))
+    state = applyEvent(state, ev({ seq: 3, type: 'turn.ended', result: { isError: true, error: 'again' } }))
+    expect(state.order).toHaveLength(3)
+  })
+
+  it('leaves successful and interrupted turns alone', () => {
+    let state = applyEvent(initialChat(), ev({ seq: 1, type: 'turn.ended', result: { text: 'ok' } }))
+    expect(state.order).toEqual([])
+    expect(state.lastTurnFailed).toBe(false)
+    state = applyEvent(state, ev({ seq: 2, type: 'turn.ended', result: { isError: true, error: 'x', interruptionReason: 'crashed' } as TurnResult }))
+    expect(state.order).toEqual([])
+    expect(state.lastTurnFailed).toBe(false)
+    state = applyEvent(state, ev({ seq: 3, type: 'turn.ended' }))
+    expect(state.lastTurnFailed).toBe(false)
+  })
+
+  it('is idempotent on replay and works inside a batch', () => {
+    const events: SessionEvent[] = [
+      ev({ seq: 1, item: user('u1') }),
+      ev({ seq: 2, type: 'turn.ended', result: { isError: true, error: 'boom' } }),
+      ev({ seq: 3, item: item({ id: 'a2', text: 'later' }) }),
+    ]
+    const once = applyEvents(initialChat(), events)
+    expect(once.order).toHaveLength(3)
+    expect(once.items[once.order[1]!]!.kind).toBe('error')
+    expect(applyEvents(once, events)).toBe(once)
   })
 })

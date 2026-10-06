@@ -1,9 +1,11 @@
-import { memo, useEffect, useState, type CSSProperties } from 'react'
+import { memo, useContext, useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import ReactMarkdown, { defaultUrlTransform, type Components, type UrlTransform } from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import type { ThemedToken } from 'shiki/core'
 import { MdLink } from './FileLink'
-import { filePath } from '../../lib/files'
+import CopyButton from './CopyButton'
+import { filePath, MarkLine } from '../../lib/files'
+import './Markdown.css'
 
 const urlTransform: UrlTransform = (url, key, node) => {
   if (key === 'href' && node.tagName === 'a' && url.startsWith('file://') && filePath(url) !== null) return url
@@ -34,23 +36,44 @@ function CodeBlock({ code, lang }: { code: string; lang?: string }) {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- only the first colouring is immediate
   }, [code, lang])
+  const mark = useContext(MarkLine)
+  const marked = useRef<HTMLSpanElement>(null)
+  useEffect(() => {
+    marked.current?.scrollIntoView?.({ block: 'center' })
+  }, [mark, tokens])
+  // Lines are spans of their own once coloured, or when one must be marked.
+  const lines: ReactNode[][] | undefined = tokens
+    ? tokens.map((line) => line.map((t, j) => (
+        <span key={j} style={t.htmlStyle as CSSProperties}>
+          {t.content}
+        </span>
+      )))
+    : mark
+      ? code.split('\n').map((line) => [line])
+      : undefined
   return (
-    <pre className="md-code" data-lang={lang}>
-      <code>
-        {tokens
-          ? tokens.map((line, i) => (
-              <span key={i} className="md-line">
-                {line.map((t, j) => (
-                  <span key={j} style={t.htmlStyle as CSSProperties}>
-                    {t.content}
-                  </span>
-                ))}
-                {'\n'}
-              </span>
-            ))
-          : code}
-      </code>
-    </pre>
+    <div className="md-codeblock">
+      <div className="md-code-bar">
+        <span className="md-code-lang">{lang ?? 'text'}</span>
+        <CopyButton text={code} />
+      </div>
+      <pre className="md-code" data-lang={lang}>
+        <code>
+          {lines
+            ? lines.map((line, i) => (
+                <span
+                  key={i}
+                  className={i + 1 === mark ? 'md-line md-line-mark' : 'md-line'}
+                  ref={i + 1 === mark ? marked : undefined}
+                >
+                  {line}
+                  {'\n'}
+                </span>
+              ))
+            : code}
+        </code>
+      </pre>
+    </div>
   )
 }
 

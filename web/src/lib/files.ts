@@ -27,6 +27,14 @@ export function filePath(href: string | undefined): string | null {
   }
 }
 
+// fileLine returns the line a file link points at (#L42 or :42), if any.
+export function fileLine(href: string | undefined): number | undefined {
+  if (filePath(href) === null) return undefined
+  const m = /#L(\d+)(?:-L?\d+)?$/.exec(href!) ?? /:(\d+)(?::\d+)?$/.exec(href!.replace(/#.*$/, ''))
+  const line = m ? Number(m[1]) : 0
+  return line > 0 ? line : undefined
+}
+
 const images = new Set(['png', 'jpg', 'jpeg', 'gif', 'webp'])
 const markdown = new Set(['md', 'markdown'])
 const langs: Record<string, string> = {
@@ -59,3 +67,6 @@ export function fileUrl(sessionId: string, path: string, download = false): stri
 
 // SessionFiles carries the session whose folder file links resolve against.
 export const SessionFiles = createContext<string | undefined>(undefined)
+
+// MarkLine is the line the file viewer scrolls to and marks.
+export const MarkLine = createContext<number | undefined>(undefined)

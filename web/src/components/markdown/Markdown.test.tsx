@@ -1,5 +1,5 @@
-import { render, screen, waitFor } from '@testing-library/react'
-import { describe, expect, it } from 'vitest'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { describe, expect, it, vi } from 'vitest'
 import Markdown from './Markdown'
 
 describe('Markdown', () => {
@@ -46,5 +46,20 @@ describe('Markdown', () => {
     expect(link).toHaveAttribute('target', '_blank')
     expect(link).toHaveAttribute('rel', 'noopener noreferrer')
     expect(screen.getByText('bad').getAttribute('href') ?? '').not.toContain('javascript')
+  })
+
+  it('heads a code block with its language and a copy button', async () => {
+    const writeText = vi.fn(async () => {})
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true })
+    const { container } = render(<Markdown text={'```go\nfunc main() {}\n```'} />)
+    expect(container.querySelector('.md-code-lang')).toHaveTextContent('go')
+    await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Copy' })))
+    expect(writeText).toHaveBeenCalledWith('func main() {}')
+    expect(screen.getByRole('button', { name: 'Copied' })).toBeInTheDocument()
+  })
+
+  it('labels a code block without a language as plain text', () => {
+    const { container } = render(<Markdown text={'```\na\nb\n```'} />)
+    expect(container.querySelector('.md-code-lang')).toHaveTextContent('text')
   })
 })

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { fileKind, filePath, fileUrl, langOf } from './files'
+import { fileKind, fileLine, filePath, fileUrl, langOf } from './files'
 
 describe('files', () => {
   it('finds file paths in links and leaves web links alone', () => {
@@ -11,6 +11,17 @@ describe('files', () => {
     expect(filePath('./out.png')).toBe('./out.png')
     for (const href of ['https://x.dev/a.md', 'mailto:a@b', '#top', '//cdn/x.js', '', undefined, 'javascript:alert(1)']) {
       expect(filePath(href)).toBeNull()
+    }
+  })
+
+  it('keeps the line a link points at', () => {
+    expect(fileLine('docs/plan.md#L12')).toBe(12)
+    expect(fileLine('docs/plan.md#L12-L20')).toBe(12)
+    expect(fileLine('src/app.go:42')).toBe(42)
+    expect(fileLine('src/app.go:42:7')).toBe(42)
+    expect(fileLine('file:///src/app.go#L3')).toBe(3)
+    for (const href of ['src/app.go', 'docs/plan.md#intro', 'src/app.go#L0', 'https://x.dev/a.go#L3', undefined]) {
+      expect(fileLine(href)).toBeUndefined()
     }
   })
 

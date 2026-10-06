@@ -26,3 +26,11 @@ it('parses reasoning only while expanded and opens the latest streamed text', as
   await userEvent.click(screen.getByText('Thinking'))
   expect(await screen.findByText('updated while closed')).toBeInTheDocument()
 })
+
+it('says it is still thinking while the reasoning streams', () => {
+  const view = render(<ReasoningView text="x" streaming />)
+  const summary = screen.getByText('Thinking…')
+  expect(summary).toHaveClass('streaming')
+  view.rerender(<ReasoningView text="x" />)
+  expect(screen.getByText('Thinking')).not.toHaveClass('streaming')
+})

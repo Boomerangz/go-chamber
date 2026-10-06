@@ -8,7 +8,14 @@ export interface ChatState {
   result?: TurnResult
   usage?: Usage
   requests: Record<string, SessionRequest>
+  // lastTurnFailed is true when the last turn ended with an error, so the
+  // header can skip its "done" mark.
+  lastTurnFailed?: boolean
 }
+
+// TURN_FAILED names the error item written for a turn that ended with an
+// error (Claude reports those only in the turn result).
+export const TURN_FAILED = 'turn failed'
 
 export function initialChat(status: SessionStatus = 'detached'): ChatState {
   return { items: {}, order: [], status, lastSeq: 0, requests: {} }
@@ -30,11 +37,12 @@ export function applyEvent(state: ChatState, ev: SessionEvent): ChatState {
       return next
     case 'turn.started':
       next.status = 'running'
+      next.lastTurnFailed = false
       return next
     case 'turn.ended':
       next.status = 'idle'
       if (ev.result) next.result = ev.result
-      return next
+      return endTurn(next, ev)
     case 'usage':
       if (ev.usage) next.usage = ev.usage
       return next
@@ -85,6 +93,32 @@ export function applyEvents(state: ChatState, events: readonly SessionEvent[]): 
     }
   }
   return next
+}
+
+// endTurn notes whether the turn failed and writes the failure into the
+// transcript, unless the agent already reported an error item in this turn
+// (Codex does). An interrupted turn is shown by its banner instead.
+function endTurn(state: ChatState, ev: SessionEvent): ChatState {
+  const result = ev.result as (TurnResult & { interruptionReason?: string }) | undefined
+  state.lastTurnFailed = !!result?.isError && !result.interruptionReason
+  if (!state.lastTurnFailed || reportedInTurn(state)) return state
+  return upsert(state, {
+    id: `turn-failed-${ev.seq}`,
+    sessionId: ev.sessionId,
+    kind: 'error',
+    status: 'failed',
+    name: TURN_FAILED,
+    text: result?.error?.trim() || result?.text?.trim() || 'The turn ended with an error.',
+  })
+}
+
+function reportedInTurn(state: ChatState): boolean {
+  for (let i = state.order.length - 1; i >= 0; i--) {
+    const item = state.items[state.order[i]!]
+    if (item?.kind === 'error') return true
+    if (item?.kind === 'user_message') return false
+  }
+  return false
 }
 
 function withRequest(state: ChatState, request: SessionRequest | undefined): ChatState {
