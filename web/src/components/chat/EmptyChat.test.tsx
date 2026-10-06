@@ -38,6 +38,14 @@ describe('EmptyChat', () => {
     expect(screen.getAllByRole('button').map((b) => b.textContent)).toEqual(['6', '5', '4', '3', '2'])
   })
 
+  it('leaves archived sessions out of the recent ones', () => {
+    useSessionStore.setState({
+      sessions: [s('kept', '2026-10-01T10:00:00Z'), { ...s('away', '2026-10-02T10:00:00Z'), archivedAt: '2026-10-03T10:00:00Z' }],
+    })
+    render(<EmptyChat />)
+    expect(screen.getAllByRole('button').map((b) => b.textContent)).toEqual(['kept'])
+  })
+
   it('names the shortcuts', () => {
     render(<EmptyChat />)
     expect(screen.getByText('quick switch')).toBeInTheDocument()

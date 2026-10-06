@@ -26,6 +26,10 @@ func TestSessionRepoContract(t *testing.T) {
 	apptest.SessionRepoContract(t, func(t *testing.T) app.SessionRepo { return openTest(t).Sessions() })
 }
 
+func TestSessionEraserContract(t *testing.T) {
+	apptest.SessionEraserContract(t, func(t *testing.T) apptest.ErasableStore { return openTest(t) })
+}
+
 func TestReopenKeepsDataAndMigrationsAreIdempotent(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "gc.db")
 	s, err := Open(path)

@@ -35,6 +35,8 @@ export interface Session {
   effort?: string
   // worktree is set when go-chamber created the session folder as a git worktree.
   worktree?: Worktree
+  // archivedAt is set while the session is put away from the list.
+  archivedAt?: string
 }
 
 export interface Worktree {
@@ -97,6 +99,7 @@ export interface TurnResult {
 
 export type EventType =
   | 'session.state'
+  | 'session.removed'
   | 'turn.started'
   | 'turn.ended'
   | 'item.updated'
@@ -359,6 +362,21 @@ export function setApprovalReviewer(id: string, reviewer: ApprovalReviewer): Pro
 
 export function renameSession(id: string, title: string): Promise<Session> {
   return request<Session>(`/api/sessions/${encodeURIComponent(id)}/title`, json({ title }))
+}
+
+// archiveSession puts a session away from the list; it keeps working.
+export function archiveSession(id: string): Promise<Session> {
+  return request<Session>(`/api/sessions/${encodeURIComponent(id)}/archive`, { method: 'POST' })
+}
+
+export function unarchiveSession(id: string): Promise<Session> {
+  return request<Session>(`/api/sessions/${encodeURIComponent(id)}/unarchive`, { method: 'POST' })
+}
+
+// deleteSession removes go-chamber's record of a session; the agent's own
+// transcript on disk stays.
+export function deleteSession(id: string): Promise<void> {
+  return request<void>(`/api/sessions/${encodeURIComponent(id)}`, { method: 'DELETE' })
 }
 
 export function setPermissionMode(id: string, mode: string): Promise<Session> {

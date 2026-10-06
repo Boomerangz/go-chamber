@@ -419,10 +419,12 @@ func (s *server) fail(w http.ResponseWriter, err error) {
 		writeJSON(w, http.StatusBadRequest, errorBody{err.Error()})
 	case errors.Is(err, app.ErrFolderForbidden):
 		writeJSON(w, http.StatusForbidden, errorBody{err.Error()})
-	case errors.Is(err, domain.ErrTerminalExited), errors.Is(err, domain.ErrInvalidTransition):
+	case errors.Is(err, domain.ErrTerminalExited), errors.Is(err, domain.ErrInvalidTransition),
+		errors.Is(err, domain.ErrSessionBusy):
 		writeJSON(w, http.StatusConflict, errorBody{err.Error()})
 	case errors.Is(err, app.ErrAccountsUnsupported), errors.Is(err, app.ErrQuotasUnsupported),
-		errors.Is(err, app.ErrModelsUnsupported), errors.Is(err, app.ErrImagesUnsupported):
+		errors.Is(err, app.ErrModelsUnsupported), errors.Is(err, app.ErrImagesUnsupported),
+		errors.Is(err, app.ErrDeleteUnsupported):
 		writeJSON(w, http.StatusNotImplemented, errorBody{err.Error()})
 	default:
 		writeJSON(w, http.StatusInternalServerError, errorBody{err.Error()})

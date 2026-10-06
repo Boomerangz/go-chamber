@@ -103,6 +103,7 @@ func run(ctx context.Context, args []string, out io.Writer) error {
 		History:       events,
 		Models:        runtimes,
 		IdleTimeout:   *idle,
+		Eraser:        store,
 	})
 	defer manager.Close()
 	if _, err := manager.Restore(ctx); err != nil {

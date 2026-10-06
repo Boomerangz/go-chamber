@@ -6,6 +6,7 @@ import type { GroupMode } from '../lib/sessions'
 import { LiveList } from '../lib/live-list'
 import { chimeOnEvent } from '../lib/chime'
 import { describeError, fail, useNotices } from './notices'
+import { parseRoute } from '../lib/route'
 
 export type Connection = 'connecting' | 'online' | 'offline'
 
@@ -73,6 +74,12 @@ export interface SessionStore {
   stopTask: (sessionId: string, taskId: string) => Promise<boolean>
   setApprovalReviewer: (sessionId: string, reviewer: api.ApprovalReviewer) => Promise<boolean>
   renameSession: (sessionId: string, title: string) => Promise<boolean>
+  // archiveSession puts a session away from the list; unarchiveSession
+  // brings it back.
+  archiveSession: (sessionId: string) => Promise<boolean>
+  unarchiveSession: (sessionId: string) => Promise<boolean>
+  // deleteSession removes go-chamber's record of a session and its subagents.
+  deleteSession: (sessionId: string) => Promise<boolean>
   setPermissionMode: (sessionId: string, mode: string) => Promise<boolean>
   removeWorktree: (sessionId: string, force: boolean) => Promise<void>
   respond: (sessionId: string, requestId: string, answer: api.RequestAnswerInput) => Promise<boolean>
@@ -418,6 +425,41 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     }
   },
 
+  async archiveSession(sessionId) {
+    const before = sessionRevision
+    try {
+      const updated = await api.archiveSession(sessionId)
+      set({ sessions: applySessionMutation(get().sessions, before, updated) })
+      return true
+    } catch (err) {
+      fail("Couldn't archive the session", err)
+      return false
+    }
+  },
+
+  async unarchiveSession(sessionId) {
+    const before = sessionRevision
+    try {
+      const updated = await api.unarchiveSession(sessionId)
+      set({ sessions: applySessionMutation(get().sessions, before, updated) })
+      return true
+    } catch (err) {
+      fail("Couldn't unarchive the session", err)
+      return false
+    }
+  },
+
+  async deleteSession(sessionId) {
+    try {
+      await api.deleteSession(sessionId)
+    } catch (err) {
+      fail("Couldn't delete the session", err)
+      return false
+    }
+    removeSession(get, set, sessionId)
+    return true
+  },
+
   async setApprovalReviewer(sessionId, reviewer) {
     const before = sessionRevision
     try {
@@ -523,6 +565,10 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       void get().loadRequests()
       void get().loadQuotas()
     }
+    if (ev.type === 'session.removed') {
+      removeSession(get, set, ev.sessionId)
+      return
+    }
     if (ev.session) set({ sessions: replaceSession(get().sessions, ev.session) })
     if (ev.type === 'quota' && ev.quota) {
       quotaLists.update(ev.quota.agent, ev.quota)
@@ -564,6 +610,43 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     else flushTimer ??= setTimeout(() => flush(get, set), DELTA_FLUSH_MS)
   },
 }))
+
+// removeSession forgets a deleted session and the subagents below it, with
+// their requests. If it was open, the workspace returns to the empty state.
+function removeSession(get: () => SessionStore, set: (partial: Partial<SessionStore>) => void, id: string): void {
+  const { sessions, pendingRequests, activeId } = get()
+  const gone = new Set([id])
+  // Parents come before children only by chance; repeat until settled.
+  for (let grew = true; grew; ) {
+    grew = false
+    for (const s of sessions) {
+      if (s.parentId && gone.has(s.parentId) && !gone.has(s.id)) {
+        gone.add(s.id)
+        grew = true
+      }
+    }
+  }
+  for (const sid of gone) {
+    sessionLists.update(sid, null)
+    sessionRevisions.delete(sid)
+    delete lastSeqs[sid]
+  }
+  const dropped = pendingRequests.filter((r) => gone.has(r.sessionId))
+  for (const r of dropped) requestLists.update(requestKey(r), null)
+  set({
+    sessions: sessions.filter((s) => !gone.has(s.id)),
+    pendingRequests: dropped.length ? pendingRequests.filter((r) => !gone.has(r.sessionId)) : pendingRequests,
+  })
+  if (!activeId || !gone.has(activeId)) return
+  // Supersede the open chat's history fetch and live queue.
+  generation++
+  buffered = null
+  dropQueued()
+  set({ activeId: null, chat: initialChat(), history: 'ready', historyError: null, pane: 'sessions' })
+  if (typeof location === 'undefined') return
+  const route = parseRoute(location.pathname)
+  if (route.kind === 'session' && gone.has(route.id)) window.history.replaceState(null, '', '/' + location.search)
+}
 
 function connect(
   get: () => SessionStore,

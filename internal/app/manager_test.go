@@ -15,6 +15,9 @@ type memRepo struct {
 	mu    sync.Mutex
 	items map[domain.SessionID]domain.SessionSnapshot
 	order []domain.SessionID
+	// saveErr and eraseErr make Save and EraseSession fail.
+	saveErr, eraseErr error
+	erased            []domain.SessionID
 }
 
 func newMemRepo() *memRepo {
@@ -24,6 +27,9 @@ func newMemRepo() *memRepo {
 func (r *memRepo) Save(_ context.Context, s domain.SessionSnapshot) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if r.saveErr != nil {
+		return r.saveErr
+	}
 	if _, ok := r.items[s.ID]; !ok {
 		r.order = append(r.order, s.ID)
 	}

@@ -19,7 +19,7 @@ export default function EmptyChat() {
   const waitingIds = [...new Set(pending.map((r) => r.sessionId))]
   const waiting = waitingIds.map((id) => sessions.find((x) => x.id === id)).filter((x): x is Session => !!x)
   const recent = [...sessions]
-    .filter((x) => !x.parentId)
+    .filter((x) => !x.parentId && !x.archivedAt)
     .sort((a, b) => (b.activeAt ?? b.createdAt ?? '').localeCompare(a.activeAt ?? a.createdAt ?? ''))
   const [title, list] = waiting.length ? ['Waiting for you', waiting] : ['Recent', recent]
   const mod = isMac() ? '⌘' : 'Ctrl'

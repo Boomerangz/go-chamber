@@ -9,6 +9,11 @@ const t = (id: string, extra: Partial<Terminal> = {}): Terminal =>
   ({ id, cwd: `/p/${id}`, shell: 'zsh', title: `term ${id}`, status: 'running', exitCode: 0, createdAt: '2026-01-01T00:00:00Z', ...extra })
 
 describe('switcherEntries', () => {
+  it('leaves archived sessions and their subagents out', () => {
+    const sessions = [s('shown'), s('away', { archivedAt: '2026-01-02T00:00:00Z' }), s('sub', { parentId: 'away' })]
+    expect(switcherEntries(sessions, [], new Map(), '').map((e) => e.id)).toEqual(['shown'])
+  })
+
   it('puts sessions that wait for the owner first, then running, then recent', () => {
     const sessions = [
       s('old', { activeAt: '2026-01-01T00:00:00Z' }),
