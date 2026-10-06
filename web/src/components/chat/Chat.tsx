@@ -46,7 +46,15 @@ const LONG_DRAFT_LINES = 20
 interface PendingSend {
   key: number
   text: string
-  accepted: boolean
+  state: 'queued' | 'sending' | 'sent'
+}
+
+// Outgoing is a submitted message waiting for its turn to go out.
+interface Outgoing {
+  key: number
+  value: string
+  raw: string
+  images: string[]
 }
 let nextSendKey = 0
 
@@ -229,29 +237,31 @@ export default function Chat() {
     setText(now.trim() ? `${message}\n\n${now}` : message)
   }
 
-  const doSubmit = async (): Promise<boolean> => {
-    const value = text.trim()
-    const images = attachments.ids
-    const steerIt = busy
-    // A message sent mid-upload would go without the images still on their way.
-    if (!steerIt && attachments.uploading) return false
-    if (!value && (steerIt || images.length === 0)) return false
+  // Messages go out one at a time, in the order they were sent; one sent
+  // while another is on its way waits its turn (never merged, never lost).
+  const queue = useRef<Outgoing[]>([])
+  const pumping = useRef(false)
+  // Whether the next message steers: the turn runs, or one just sent starts it.
+  const live = useRef(busy)
+  useLayoutEffect(() => {
+    live.current = busy
+  })
+  const [inFlight, setInFlight] = useState<'send' | 'steer' | null>(null)
+
+  const dispatch = async (out: Outgoing): Promise<boolean> => {
+    // The owner moved on: what waits stays in this session's draft.
+    if (useSessionStore.getState().activeId !== sessionId) return false
+    const steerIt = live.current
+    setInFlight(steerIt ? 'steer' : 'send')
+    setPendingSends((list) => list.map((p) => (p.key === out.key ? { ...p, state: 'sending' } : p)))
     const before = currentMark()
-    const key = ++nextSendKey
-    const shown = value || (images.length === 1 ? '[1 image]' : `[${images.length} images]`)
-    setPendingSends((list) => [...list, { key, text: shown, accepted: false }])
-    // The message shows once: on its way in the transcript, not also here.
-    if (value) setText('')
-    const accepted = steerIt ? await steer(value) : await send(value, images)
-    if (!accepted) {
-      dropSend(key)
-      if (value) restoreDraft(text)
-      return false
-    }
-    setPendingSends((list) => list.map((p) => (p.key === key ? { ...p, accepted: true } : p)))
-    setTimeout(() => dropSend(key), ECHO_MS)
+    const accepted = steerIt ? await steer(out.value) : await send(out.value, out.images)
+    if (!accepted) return false
+    setPendingSends((list) => list.map((p) => (p.key === out.key ? { ...p, state: 'sent' } : p)))
+    setTimeout(() => dropSend(out.key), ECHO_MS)
     if (!steerIt) {
-      images.forEach(attachments.remove)
+      out.images.forEach(attachments.remove)
+      live.current = true
       const after = currentMark()
       // The turn may already have started (or even ended) meanwhile.
       if (sameMark(before, after) && after.status !== 'running') setStarting(after)
@@ -262,7 +272,46 @@ export default function Chat() {
     }
     return true
   }
-  const [submit, submitting] = usePending(doSubmit)
+
+  const pump = async () => {
+    if (pumping.current) return
+    pumping.current = true
+    try {
+      while (queue.current.length) {
+        const out = queue.current[0]!
+        const ok = await dispatch(out)
+        queue.current.shift()
+        if (ok) continue
+        // What didn't go, and what waited behind it, goes back to the box.
+        const back = [out, ...queue.current.splice(0)]
+        const keys = new Set(back.map((o) => o.key))
+        setPendingSends((list) => list.filter((p) => !keys.has(p.key)))
+        const texts = back.map((o) => o.raw).filter((t) => t.trim())
+        if (texts.length) restoreDraft(texts.join('\n\n'))
+      }
+    } finally {
+      pumping.current = false
+      setInFlight(null)
+    }
+  }
+
+  const submit = () => {
+    const value = text.trim()
+    // Behind a message on its way, this one may well steer: text only.
+    const textOnly = busy || queue.current.length > 0
+    const images = textOnly ? [] : attachments.ids
+    // A message sent mid-upload would go without the images still on their way.
+    if (!textOnly && attachments.uploading) return
+    if (!value && images.length === 0) return
+    const key = ++nextSendKey
+    const shown = value || (images.length === 1 ? '[1 image]' : `[${images.length} images]`)
+    setPendingSends((list) => [...list, { key, text: shown, state: 'queued' }])
+    // The message shows once: on its way in the transcript, not also here.
+    if (value) setText('')
+    queue.current.push({ key, value, raw: text, images })
+    void pump()
+  }
+  const submitting = inFlight !== null
 
   // Stop stays "Stopping…" from an accepted interrupt until the turn changes,
   // but not forever: with the agent quiet or the live socket down it lets go
@@ -331,7 +380,7 @@ export default function Chat() {
   const announcement = useAnnouncement(chat, history, status)
 
   const empty = !text.trim() && (busy || attachments.ids.length === 0)
-  const sendLabel = attachments.uploading && !busy ? 'Uploading…' : submitting ? (busy ? 'Steering…' : 'Sending…') : busy ? 'Steer' : 'Send'
+  const sendLabel = attachments.uploading && !busy ? 'Uploading…' : inFlight === 'steer' ? 'Steering…' : inFlight === 'send' ? 'Sending…' : busy ? 'Steer' : 'Send'
   const sendBusy = submitting || (attachments.uploading && !busy)
   const mod = isMac() ? '⌘' : 'Ctrl+'
   const placeholder = busy ? 'Steer the running turn…' : 'Message the agent…'
@@ -377,7 +426,7 @@ export default function Chat() {
                 <li key={p.key} className="row row-user_message row-pending">
                   <div className="item user pending">
                     <div className="user-text">{p.text}</div>
-                    <span className="pending-label">{p.accepted ? 'sent' : 'sending…'}</span>
+                    <span className="pending-label">{p.state === 'sending' ? 'sending…' : p.state}</span>
                   </div>
                 </li>
               ))}
@@ -452,7 +501,7 @@ export default function Chat() {
         {...attachments.dropProps}
         onSubmit={(e) => {
           e.preventDefault()
-          void submit()
+          submit()
         }}
       >
         <ComposerInput
@@ -461,7 +510,7 @@ export default function Chat() {
           agent={session?.agent}
           value={text}
           onChange={setText}
-          onSubmit={() => void submit()}
+          onSubmit={() => submit()}
           onEscape={() => {
             if (!text) stopRef.current()
           }}

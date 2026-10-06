@@ -186,6 +186,60 @@ describe('sending', () => {
     expect(box()).toHaveValue('first\n\nother')
   })
 
+  it('queues messages sent while one is on its way, each on its own, in order', async () => {
+    const accepts: ((ok: boolean) => void)[] = []
+    setup()
+    fns.send.mockImplementation(() => new Promise<boolean>((r) => accepts.push(r)))
+    fns.steer.mockImplementation(() => new Promise<boolean>((r) => accepts.push(r)))
+    await userEvent.type(box(), 'rapid 1{Enter}')
+    await userEvent.type(box(), 'rapid 2{Enter}')
+    await userEvent.type(box(), 'rapid 3{Enter}')
+    // Nothing is merged or left behind in the box.
+    expect(box()).toHaveValue('')
+    expect(fns.send).toHaveBeenCalledTimes(1)
+    expect(fns.send).toHaveBeenCalledWith('rapid 1', [])
+    const rows = () => Array.from(document.querySelectorAll('.row-pending')).map((r) => r.textContent)
+    expect(rows()).toEqual(['rapid 1sending…', 'rapid 2queued', 'rapid 3queued'])
+    // The button tells what is actually in flight.
+    expect(screen.getByRole('button', { name: 'Sending…' })).toBeInTheDocument()
+    await act(async () => accepts[0]!(true))
+    // The first started a turn: the rest steer it, one after another.
+    expect(fns.steer).toHaveBeenCalledTimes(1)
+    expect(fns.steer).toHaveBeenLastCalledWith('rapid 2')
+    expect(screen.getByRole('button', { name: 'Steering…' })).toBeInTheDocument()
+    await act(async () => accepts[1]!(true))
+    expect(fns.steer).toHaveBeenLastCalledWith('rapid 3')
+    await act(async () => accepts[2]!(true))
+    expect(rows()).toEqual(['rapid 1sent', 'rapid 2sent', 'rapid 3sent'])
+    expect(fns.send).toHaveBeenCalledTimes(1)
+  })
+
+  it('puts a failed message and the ones queued behind it back in the box', async () => {
+    const accepts: ((ok: boolean) => void)[] = []
+    setup()
+    fns.send.mockImplementation(() => new Promise<boolean>((r) => accepts.push(r)))
+    await userEvent.type(box(), 'one{Enter}')
+    await userEvent.type(box(), 'two{Enter}')
+    await act(async () => accepts[0]!(false))
+    expect(fns.steer).not.toHaveBeenCalled()
+    expect(fns.send).toHaveBeenCalledTimes(1)
+    expect(document.querySelectorAll('.row-pending')).toHaveLength(0)
+    expect(box()).toHaveValue('one\n\ntwo')
+  })
+
+  it('keeps queued messages in the draft when the owner moves to another session', async () => {
+    const accepts: ((ok: boolean) => void)[] = []
+    setup()
+    fns.send.mockImplementation(() => new Promise<boolean>((r) => accepts.push(r)))
+    await userEvent.type(box(), 'one{Enter}')
+    await userEvent.type(box(), 'two{Enter}')
+    act(() => useSessionStore.setState({ activeId: 's2' }))
+    await act(async () => accepts[0]!(true))
+    expect(fns.steer).not.toHaveBeenCalled()
+    expect(fns.send).toHaveBeenCalledTimes(1)
+    expect(localStorage.getItem('gc.draft:s1')).toContain('two')
+  })
+
   it('goes back to Send when the started turn already ended', async () => {
     setup()
     await userEvent.type(box(), 'first')

@@ -31,6 +31,27 @@ test('shows a message on its way and keeps the draft when it fails', async ({ pa
   await expect(page.getByLabel('message')).toHaveValue('will not arrive')
 })
 
+test('sends messages typed in quick succession one by one, in order', async ({ page, isMobile }) => {
+  test.skip(isMobile, 'on a touch screen Enter is the newline')
+  await newSession(page)
+  // A slow network keeps each message on its way while the next is typed.
+  for (const path of ['messages', 'steer']) {
+    await page.route(`**/api/sessions/*/${path}`, async (route) => {
+      await new Promise((r) => setTimeout(r, 400))
+      await route.continue()
+    })
+  }
+  const box = page.getByLabel('message')
+  for (const text of ['rapid 1', 'rapid 2', 'rapid 3']) {
+    await box.fill(text)
+    await box.press('Enter')
+    await expect(box).toHaveValue('')
+  }
+  await expect(page.locator('.row-pending')).toHaveCount(3)
+  const users = page.locator('.row-user_message:not(.row-pending) .user-text')
+  await expect(users).toHaveText(['rapid 1', 'rapid 2', 'rapid 3'])
+})
+
 test('brings sent messages back with ArrowUp', async ({ page }) => {
   await newSession(page)
   await say(page, 'first thing')
