@@ -1,7 +1,8 @@
 import { act, renderHook } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { resetLayout } from '../../stores/layout'
+import { resetLayout, useLayoutStore } from '../../stores/layout'
 import { resetStore, useSessionStore } from '../../stores/session'
+import { useTerminalStore } from '../../stores/terminals'
 import { replacingHistory, useRouteSync } from './routeSync'
 
 function phone(on: boolean) {
@@ -109,5 +110,34 @@ describe('useRouteSync', () => {
     })
     expect(useSessionStore.getState().pane).toBe('chat')
     expect(useSessionStore.getState().activeId).toBe('a')
+  })
+
+  it('makes terminal mode without a shell a step: Back from Diagnostics returns to it', async () => {
+    phone(false)
+    renderHook(() => useRouteSync(true))
+    act(() => useLayoutStore.getState().setMode('terminal'))
+    expect(location.pathname).toBe('/terminal')
+    act(() => useLayoutStore.getState().setMode('diagnostics'))
+    expect(location.pathname).toBe('/diagnostics')
+    await back()
+    expect(location.pathname).toBe('/terminal')
+    expect(useLayoutStore.getState().mode).toBe('terminal')
+  })
+
+  it('opens terminal mode from its link', () => {
+    phone(false)
+    history.replaceState(null, '', '/terminal')
+    renderHook(() => useRouteSync(true))
+    expect(useLayoutStore.getState().mode).toBe('terminal')
+  })
+
+  it('a shell attached in terminal mode replaces the empty step', () => {
+    phone(false)
+    renderHook(() => useRouteSync(true))
+    act(() => useLayoutStore.getState().setMode('terminal'))
+    const before = history.length
+    act(() => useTerminalStore.setState({ activeId: 't1' }))
+    expect(location.pathname).toBe('/t/t1')
+    expect(history.length).toBe(before)
   })
 })

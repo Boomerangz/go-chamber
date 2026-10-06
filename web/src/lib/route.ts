@@ -1,9 +1,16 @@
 // Route is what the URL says is open: a session chat (/s/<id>) or a
 // terminal (/t/<id>). Anything else opens the app as it was.
-export type Route = { kind: 'session'; id: string } | { kind: 'terminal'; id: string } | { kind: 'diagnostics' } | { kind: 'none' }
+// /terminal is terminal mode before a shell is attached.
+export type Route =
+  | { kind: 'session'; id: string }
+  | { kind: 'terminal'; id: string }
+  | { kind: 'terminals' }
+  | { kind: 'diagnostics' }
+  | { kind: 'none' }
 
 export function parseRoute(pathname: string): Route {
   if (/^\/diagnostics\/?$/.test(pathname)) return { kind: 'diagnostics' }
+  if (/^\/terminal\/?$/.test(pathname)) return { kind: 'terminals' }
   const m = /^\/([st])\/([^/]+)\/?$/.exec(pathname)
   if (!m) return { kind: 'none' }
   try {
@@ -16,6 +23,6 @@ export function parseRoute(pathname: string): Route {
 
 export function routePath(mode: 'agents' | 'terminal' | 'diagnostics', sessionId: string | null, terminalId: string | null): string {
   if (mode === 'diagnostics') return '/diagnostics'
-  if (mode === 'terminal') return terminalId ? `/t/${encodeURIComponent(terminalId)}` : '/'
+  if (mode === 'terminal') return terminalId ? `/t/${encodeURIComponent(terminalId)}` : '/terminal'
   return sessionId ? `/s/${encodeURIComponent(sessionId)}` : '/'
 }
