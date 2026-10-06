@@ -11,6 +11,8 @@ vi.mock('../../lib/api', () => ({
   getChanges: vi.fn(),
   getFileDiff: vi.fn(),
   removeWorktree: vi.fn(),
+  // The file viewer reads through requestRaw; here it is the plain fetch.
+  requestRaw: vi.fn((path: string, init?: RequestInit) => fetch(path, init)),
 }))
 vi.mock('../../lib/highlight', () => ({ tokenize: vi.fn(async () => undefined) }))
 
@@ -334,7 +336,7 @@ describe('DiffPanel reading', () => {
     expect(screen.getAllByRole('button', { name: 'View file' })).toHaveLength(2)
     await userEvent.click(screen.getAllByRole('button', { name: 'View file' })[0]!)
     expect(await screen.findByText('package a')).toBeInTheDocument()
-    expect(fetch).toHaveBeenCalledWith('/api/sessions/s1/file?path=%2Fsrc%2Fapp%2Fsrc%2Fa.go', expect.anything())
+    expect(api.requestRaw).toHaveBeenCalledWith('/api/sessions/s1/file?path=%2Fsrc%2Fapp%2Fsrc%2Fa.go')
     vi.unstubAllGlobals()
   })
 
