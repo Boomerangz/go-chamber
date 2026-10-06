@@ -315,6 +315,15 @@ Tool, command and file items are one mono line with a 13px lucide icon; pending 
 ### Meters
 Quota meters are 4px bars: a `paper-3` track with an inset hairline and a solid ink fill, amber when nearing the limit and red at the limit.
 
+### Loading and Pending
+Nothing on the way is shown as a spinner; it takes the "not yet settled" form. A dashed square that breathes (1.2s) leads a mono `ink-3` line ("loading sessions…", "searching messages…") or a busy button. A busy button keeps its colour and focus, sets `aria-busy`, guards against a second trigger, and swaps its label for the "…ing" form ("Starting…", "Allowing…", "Stopping…"). Controls that a success removes stay busy until they leave. Lists that have not loaded yet show dashed skeleton rows, never their empty state. A load that failed says so in red with a Retry. Choices such as the model or permission mode apply at once in the unsettled form (`ink-3`, dashed underline) and revert if the server refuses. While a turn runs and nothing streams, the transcript tail reads "working · 0:42", or "waiting for you" when a request is open.
+
+### Notices
+Failures that can't be shown in place stack under the top bar (above the pane bar on phones), at most three. Each is a paper sheet with a 1px rule (red for errors): a mono uppercase title naming what failed ("COULDN'T FORK THE SESSION"), the reason in sans, and a lucide X. Errors stay until dismissed; a quiet confirmation ("Path copied") fades after 4s. A later unrelated success never clears an unread error.
+
+### Keyboard
+⌘K opens a switcher over sessions and terminals, with what waits for the owner first. `?` lists every shortcut. Single keys (j/k, r, /, c, n, f, t, 1–3) act only when the owner isn't typing and never inside the terminal; Escape in an empty, idle composer leaves it. Key hints are drawn as `kbd`: mono 11px in a 1px strong-rule square.
+
 ### Motion
 Short and typographic. Hover and colour changes take 120ms; transcript entries take 200ms on `cubic-bezier(0.16, 1, 0.3, 1)` and settle 2px up while fading in. What needs the owner and what reorders springs: a request (its block and its tray line) springs 16px in from the left margin and the sessions list settles on a spring of 320ms visual duration with a 0.22 bounce, a slight overshoot and never a wobble. A running state mark breathes (opacity to 40% and back over 2.4s); a turn that ends on its own shows `done` for 1.5s while its mark lands (scales down from 1.7x through 0.85x to rest, then turns hollow). An answered request is struck through, then fades and collapses in 450ms; meters fill in 400ms. Sound is opt-in and off by default: a rising two-note sine chime (E5, A5) when an agent needs a decision and one soft D5 when a turn ends, about 0.35s each at low volume, synthesized with no audio files; a burst of events makes one chime. Under reduced motion, entries are a 120ms linear fade and nothing travels or breathes, and a global guard in the stylesheet removes all CSS transitions and animations.
 
