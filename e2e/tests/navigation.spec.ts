@@ -8,7 +8,8 @@ async function startIn(page: Page, cwd: string, text: string, { make = true } = 
   await showPane(page, 'Sessions')
   await page.getByLabel('working directory').fill(cwd)
   await page.getByRole('button', { name: 'New session', exact: true }).click()
-  await expect(page.locator('.chat-path', { hasText: cwd })).toBeVisible()
+  // On a phone the folder sits behind the header's "⋯"; it is there all the same.
+  await expect(page.locator('.chat-path', { hasText: cwd })).toBeAttached()
   await page.getByLabel('message').fill(text)
   await page.getByRole('button', { name: 'Send' }).click()
 }
@@ -90,7 +91,8 @@ test('the switcher starts a new session in a folder', async ({ page, isMobile },
   await page.getByRole('combobox', { name: 'Go to' }).fill(`new codex ${cwd.split('/').pop()}`)
   await page.getByRole('option', { name: new RegExp(`New Codex session in ${cwd.split('/').pop()}`) }).click()
   await expect(page.locator('.chat-header .avatar-codex')).toBeVisible()
-  await expect(page.locator('.chat-path', { hasText: cwd })).toBeVisible()
+  // On a phone the folder sits behind the header's "⋯"; it is there all the same.
+  await expect(page.locator('.chat-path', { hasText: cwd })).toBeAttached()
 })
 
 test('on a phone, Back from a chat returns to the list and notices stay clear of the composer', async ({ page, isMobile }, info) => {

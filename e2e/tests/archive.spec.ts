@@ -10,7 +10,7 @@ async function menuFor(page: Page, name: string) {
 }
 
 test('archives, unarchives and deletes a session, live in another tab', async ({ page, context }, info) => {
-  const name = `Put away ${info.project.name}`
+  const name = `Put away ${info.project.name} ${info.repeatEachIndex}`
   await page.goto(`/?token=${token}`)
   await page.getByLabel('working directory').fill('/tmp')
   await page.getByRole('button', { name: 'New session', exact: true }).click()
