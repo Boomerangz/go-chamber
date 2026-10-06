@@ -12,6 +12,7 @@ import { OpenError } from './NewTerminalForm'
 import TerminalScreen from './TerminalScreen'
 import { markOf, sortForSession } from './marks'
 import { stepOf, stepTerminal, useTerminalSteps } from './steps'
+import TermTitle from './TermTitle'
 import './terminal.css'
 
 // TerminalPanel is the ad-hoc terminal docked next to the chat: one row of
@@ -170,7 +171,7 @@ function TerminalTab({ terminal: t, selected }: { terminal: Terminal; selected: 
         >
           <span className="term-dot" data-mark={mark.form} aria-hidden="true" />
           <span className="term-tab-text">
-            <span className="term-tab-title">{t.title}</span>
+            <TermTitle title={t.title} className="term-tab-title" />
             {!namesFolder(t) && <span className="term-tab-cwd">{folder}</span>}
           </span>
           {t.status === 'exited' && <span className={t.exitCode === 0 ? 'term-exit' : 'term-exit term-bad'}>exited {t.exitCode}</span>}
@@ -264,7 +265,7 @@ function NewTerminalButton({ sessionId, terminals }: { sessionId: string | null;
                       setMenu(false)
                     }}
                   >
-                    <span className="term-tab-title">{t.title}</span>
+                    <TermTitle title={t.title} className="term-tab-title" />
                     {!namesFolder(t) && <span className="term-tab-cwd">{basename(t.cwd) || t.cwd}</span>}
                   </button>
                 </li>

@@ -67,6 +67,30 @@ test('the dock lists every shell under ▾ and attaches the one picked', async (
   }
 })
 
+test('numbered shells of a long folder keep their numbers in the dock tabs', async ({ page, isMobile }) => {
+  test.skip(isMobile, 'the dock is desktop-only')
+  await page.addInitScript(() => Object.defineProperty(window, 'RTCPeerConnection', { value: undefined }))
+  const dir = fs.realpathSync(fs.mkdtempSync(`${os.tmpdir()}/gc-numbered-`))
+  const cwd = `${dir}/${longName}`
+  fs.mkdirSync(cwd)
+  await startSession(page, cwd)
+  await page.getByRole('toolbar', { name: 'Dock' }).getByRole('button', { name: /^Terminal/ }).click()
+  const panel = page.getByRole('region', { name: 'Terminals' })
+  await panel.getByRole('button', { name: 'New terminal in session dir' }).click()
+  await expect(panel.getByRole('tab', { selected: true })).toBeVisible()
+  await panel.getByRole('button', { name: 'New terminal in session dir' }).click()
+  const second = panel.getByRole('tab', { name: new RegExp(`${longName} 2`) })
+  const n = second.locator('.numbered-n')
+  await expect(n).toBeVisible()
+  const [t, b] = [await box(second), await box(n)]
+  expect(b.x + b.width).toBeLessThanOrEqual(t.x + t.width)
+  expect(await second.locator('.numbered-name').evaluate((e) => e.scrollWidth > e.clientWidth)).toBe(true)
+  for (const name of [`${longName} 2`, longName]) {
+    await panel.getByRole('button', { name: `Close terminal ${name}`, exact: true }).click()
+    await panel.getByRole('group', { name: /^Close terminal / }).getByRole('button', { name: 'Close', exact: true }).click()
+  }
+})
+
 test('a session opened by its link is in view in the list, also on a phone', async ({ page }) => {
   const dir = fs.realpathSync(fs.mkdtempSync(`${os.tmpdir()}/gc-link-`))
   const headers = { Authorization: `Bearer ${token}` }

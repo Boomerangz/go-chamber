@@ -5,6 +5,7 @@ import { useNow } from '../../lib/now'
 import { relativeTime } from '../../lib/sessions'
 import { switcherEntries, type SwitcherEntry } from '../../lib/switcher'
 import { LoadingLine } from '../ui/Loading'
+import { numberedParts } from '../terminal/numbered'
 import { useLayoutStore } from '../../stores/layout'
 import { useSessionStore } from '../../stores/session'
 import { useTerminalStore } from '../../stores/terminals'
@@ -107,7 +108,7 @@ export default function QuickSwitcher({ onClose }: { onClose: () => void }) {
               <span className={`switcher-mark status status-${entry.waiting > 0 ? 'waiting' : entry.status}`} aria-hidden="true" />
             )}
             <span className="switcher-title" title={entry.title}>
-              <Marked text={entry.title} hits={entry.titleHits} />
+              {entry.kind === 'terminal' ? <NumberedTitle text={entry.title} hits={entry.titleHits} /> : <Marked text={entry.title} hits={entry.titleHits} />}
               {entry.current && <span className="switcher-current">current</span>}
             </span>
             <span className="switcher-detail" title={entry.kind === 'new' ? entry.cwd : undefined}>
@@ -140,6 +141,23 @@ export default function QuickSwitcher({ onClose }: { onClose: () => void }) {
 }
 
 // Marked prints text with the matched letters in <mark>.
+// NumberedTitle keeps a shell's number (" 2") when its name gives way, so
+// the numbered shells of one folder stay apart.
+function NumberedTitle({ text, hits }: { text: string; hits: number[] }) {
+  const { name, n } = numberedParts(text)
+  if (!n) return <Marked text={text} hits={hits} />
+  return (
+    <span className="numbered">
+      <span className="numbered-name">
+        <Marked text={name} hits={hits.filter((i) => i < name.length)} />
+      </span>
+      <span className="numbered-n">
+        <Marked text={n} hits={hits.filter((i) => i >= name.length).map((i) => i - name.length)} />
+      </span>
+    </span>
+  )
+}
+
 function Marked({ text, hits }: { text: string; hits: number[] }) {
   if (hits.length === 0) return <>{text}</>
   const set = new Set(hits)
