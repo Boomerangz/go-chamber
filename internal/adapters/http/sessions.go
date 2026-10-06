@@ -420,7 +420,7 @@ func (s *server) fail(w http.ResponseWriter, err error) {
 	case errors.Is(err, app.ErrFolderForbidden):
 		writeJSON(w, http.StatusForbidden, errorBody{err.Error()})
 	case errors.Is(err, domain.ErrTerminalExited), errors.Is(err, domain.ErrInvalidTransition),
-		errors.Is(err, domain.ErrSessionBusy):
+		errors.Is(err, domain.ErrSessionBusy), errors.Is(err, domain.ErrWorktreeRemoved):
 		writeJSON(w, http.StatusConflict, errorBody{err.Error()})
 	case errors.Is(err, app.ErrAccountsUnsupported), errors.Is(err, app.ErrQuotasUnsupported),
 		errors.Is(err, app.ErrModelsUnsupported), errors.Is(err, app.ErrImagesUnsupported),

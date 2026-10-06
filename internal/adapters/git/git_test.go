@@ -276,8 +276,13 @@ func TestAddWorktreeFailures(t *testing.T) {
 	if _, err := (Repo{}).AddWorktree(ctx, repo, path, "chamber/x"); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := (Repo{}).AddWorktree(ctx, repo, path+"2", "chamber/x"); err == nil {
-		t.Fatal("existing branch accepted")
+	_, err := (Repo{}).AddWorktree(ctx, repo, path+"2", "chamber/x")
+	if !errors.Is(err, app.ErrBranchExists) || !strings.Contains(err.Error(), "chamber/x") {
+		t.Fatalf("existing branch: err = %v", err)
+	}
+	_, err = (Repo{}).AddWorktree(ctx, repo, path, "chamber/other")
+	if !errors.Is(err, app.ErrWorktreeExists) || !strings.Contains(err.Error(), path) {
+		t.Fatalf("existing folder: err = %v", err)
 	}
 	blocker := filepath.Join(filepath.Dir(repo), "file")
 	write(t, blocker, "x")

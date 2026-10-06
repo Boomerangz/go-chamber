@@ -3,6 +3,7 @@ package codex
 import (
 	"encoding/json"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
@@ -482,10 +483,30 @@ func applyItemFields(item *domain.Item, it rpcItem) {
 	case "collabAgentToolCall", "subAgentActivity":
 		item.Name = "agent"
 		item.AgentID = it.AgentThreadID
-		if it.Prompt != nil {
-			item.Text = *it.Prompt
+		// The prompt is what the child was asked, like a Claude Task's
+		// input; its output is what the child said when it returned.
+		if it.Prompt != nil && *it.Prompt != "" {
+			item.Input = mustJSON(map[string]any{"prompt": *it.Prompt})
+		}
+		item.Text = agentMessages(it.AgentsStates)
+	}
+}
+
+// agentMessages joins what the child agents said when they returned, in a
+// stable order.
+func agentMessages(states map[string]rpcAgentState) string {
+	ids := make([]string, 0, len(states))
+	for id, st := range states {
+		if st.Message != nil && strings.TrimSpace(*st.Message) != "" {
+			ids = append(ids, id)
 		}
 	}
+	sort.Strings(ids)
+	msgs := make([]string, 0, len(ids))
+	for _, id := range ids {
+		msgs = append(msgs, strings.TrimSpace(*states[id].Message))
+	}
+	return strings.Join(msgs, "\n\n")
 }
 
 func joinText(parts []rpcTextPart) string {

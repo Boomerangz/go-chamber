@@ -19,6 +19,12 @@ var (
 	ErrNoWorktree = errors.New("session has no worktree")
 	// ErrInvalidPath means a diff was asked for a path outside the folder.
 	ErrInvalidPath = errors.New("invalid path")
+	// ErrInvalidBranch means a branch name has nothing a branch can be made of.
+	ErrInvalidBranch = errors.New("invalid branch name")
+	// ErrBranchExists means the repository already has the branch.
+	ErrBranchExists = errors.New("branch already exists")
+	// ErrWorktreeExists means the worktree folder is already there.
+	ErrWorktreeExists = errors.New("worktree folder already exists")
 )
 
 // FileChange is one changed file; Status is git's letter (A, M, D, T) or
@@ -45,6 +51,10 @@ type Changes struct {
 	// Commits counts a worktree branch's commits since Base: until there is
 	// one, the branch has nothing to merge.
 	Commits int `json:"commits"`
+	// Removed is set when the session's worktree folder is gone; Branch is
+	// the branch it kept.
+	Removed bool   `json:"removed,omitempty"`
+	Branch  string `json:"branch,omitempty"`
 }
 
 // GitRepo is the git operations worktree sessions and the diff panel need.
@@ -68,6 +78,10 @@ type WorktreeSessions interface {
 	CreateSession(ctx context.Context, agent domain.AgentKind, cwd string) (domain.SessionSnapshot, error)
 	GetSession(ctx context.Context, id domain.SessionID) (domain.SessionSnapshot, error)
 	SetWorktree(ctx context.Context, id domain.SessionID, wt *domain.Worktree) (domain.SessionSnapshot, error)
+	// RemoveWorktree runs remove on the session's worktree when it may go
+	// and records that it is gone.
+	RemoveWorktree(ctx context.Context, id domain.SessionID, remove func(domain.Worktree) error) (domain.SessionSnapshot, error)
+	DeleteSession(ctx context.Context, id domain.SessionID) error
 }
 
 type WorktreesConfig struct {
@@ -93,7 +107,7 @@ const BranchPrefix = "chamber/"
 func (w *Worktrees) Create(ctx context.Context, agent domain.AgentKind, dir, name string) (domain.SessionSnapshot, error) {
 	slug := slugify(name)
 	if slug == "" {
-		return domain.SessionSnapshot{}, fmt.Errorf("%w: empty branch name", domain.ErrInvalidSession)
+		return domain.SessionSnapshot{}, fmt.Errorf("%w: use latin letters or digits", ErrInvalidBranch)
 	}
 	repo, err := w.cfg.Git.Toplevel(ctx, dir)
 	if err != nil {
@@ -115,19 +129,29 @@ func (w *Worktrees) Create(ctx context.Context, agent domain.AgentKind, dir, nam
 	return snap, nil
 }
 
-// Remove deletes the session's worktree folder; its branch stays for merging.
+// Remove deletes the session's worktree folder; its branch stays for
+// merging and the session remembers both.
 func (w *Worktrees) Remove(ctx context.Context, id domain.SessionID, force bool) (domain.SessionSnapshot, error) {
-	snap, err := w.cfg.Sessions.GetSession(ctx, id)
-	if err != nil {
-		return domain.SessionSnapshot{}, err
+	return w.cfg.Sessions.RemoveWorktree(ctx, id, func(wt domain.Worktree) error {
+		return w.cfg.Git.RemoveWorktree(ctx, wt, force)
+	})
+}
+
+// Delete removes the session; with removeFolder its worktree folder goes
+// first (the branch stays), and a folder that can't go keeps the session.
+func (w *Worktrees) Delete(ctx context.Context, id domain.SessionID, removeFolder bool) error {
+	if removeFolder {
+		snap, err := w.cfg.Sessions.GetSession(ctx, id)
+		if err != nil {
+			return err
+		}
+		if snap.Worktree != nil && !snap.Worktree.Removed {
+			if _, err := w.Remove(ctx, id, false); err != nil {
+				return err
+			}
+		}
 	}
-	if snap.Worktree == nil {
-		return domain.SessionSnapshot{}, ErrNoWorktree
-	}
-	if err := w.cfg.Git.RemoveWorktree(ctx, *snap.Worktree, force); err != nil {
-		return domain.SessionSnapshot{}, err
-	}
-	return w.cfg.Sessions.SetWorktree(ctx, id, nil)
+	return w.cfg.Sessions.DeleteSession(ctx, id)
 }
 
 // Changes lists what the session folder changed: a worktree against the
@@ -136,6 +160,9 @@ func (w *Worktrees) Changes(ctx context.Context, id domain.SessionID) (Changes, 
 	snap, base, err := w.base(ctx, id)
 	if err != nil {
 		return Changes{}, err
+	}
+	if wt := snap.Worktree; wt != nil && wt.Removed {
+		return Changes{Base: base, Files: []FileChange{}, Removed: true, Branch: wt.Branch}, nil
 	}
 	files, err := w.cfg.Git.Changes(ctx, snap.Cwd, base)
 	if errors.Is(err, ErrNotRepository) {
@@ -169,6 +196,9 @@ func (w *Worktrees) FileDiff(ctx context.Context, id domain.SessionID, path stri
 	snap, base, err := w.base(ctx, id)
 	if err != nil {
 		return "", err
+	}
+	if snap.Worktree != nil && snap.Worktree.Removed {
+		return "", domain.ErrWorktreeRemoved
 	}
 	return w.cfg.Git.FileDiff(ctx, snap.Cwd, base, clean)
 }
@@ -213,6 +243,43 @@ func (m *Manager) SetWorktree(ctx context.Context, id domain.SessionID, wt *doma
 	}
 	m.mu.Lock()
 	err = s.SetWorktree(wt)
+	snap := s.Snapshot()
+	m.mu.Unlock()
+	if err != nil {
+		return domain.SessionSnapshot{}, err
+	}
+	if err := m.cfg.Repo.Save(ctx, snap); err != nil {
+		return domain.SessionSnapshot{}, err
+	}
+	m.cfg.Bus.Publish(domain.Event{SessionID: id, Type: domain.EventSessionState, Session: &snap})
+	return snap, nil
+}
+
+// RemoveWorktree records that the session's worktree is gone once remove
+// has taken the folder. The agent process working there is closed.
+func (m *Manager) RemoveWorktree(ctx context.Context, id domain.SessionID, remove func(domain.Worktree) error) (domain.SessionSnapshot, error) {
+	s, err := m.session(ctx, id)
+	if err != nil {
+		return domain.SessionSnapshot{}, err
+	}
+	m.mu.Lock()
+	err = s.WorktreeRemovable()
+	wt := s.Worktree()
+	m.mu.Unlock()
+	if errors.Is(err, domain.ErrInvalidTransition) {
+		return domain.SessionSnapshot{}, ErrNoWorktree
+	}
+	if err != nil {
+		return domain.SessionSnapshot{}, err
+	}
+	if err := remove(*wt); err != nil {
+		return domain.SessionSnapshot{}, err
+	}
+	m.mu.Lock()
+	err = s.RemoveWorktree()
+	if err == nil {
+		m.retire(s)
+	}
 	snap := s.Snapshot()
 	m.mu.Unlock()
 	if err != nil {

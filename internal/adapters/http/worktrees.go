@@ -15,6 +15,8 @@ type Worktrees interface {
 	Remove(ctx context.Context, id domain.SessionID, force bool) (domain.SessionSnapshot, error)
 	Changes(ctx context.Context, id domain.SessionID) (app.Changes, error)
 	FileDiff(ctx context.Context, id domain.SessionID, path string) (string, error)
+	// Delete removes the session, and with removeFolder its worktree folder.
+	Delete(ctx context.Context, id domain.SessionID, removeFolder bool) error
 }
 
 func (s *server) worktreeRoutes() {
@@ -90,9 +92,10 @@ func (s *server) fileDiff(w http.ResponseWriter, r *http.Request) {
 
 func (s *server) failWorktree(w http.ResponseWriter, err error) {
 	switch {
-	case errors.Is(err, app.ErrNotRepository), errors.Is(err, app.ErrInvalidPath):
+	case errors.Is(err, app.ErrNotRepository), errors.Is(err, app.ErrInvalidPath), errors.Is(err, app.ErrInvalidBranch):
 		writeJSON(w, http.StatusBadRequest, errorBody{err.Error()})
-	case errors.Is(err, app.ErrWorktreeDirty), errors.Is(err, app.ErrNoWorktree):
+	case errors.Is(err, app.ErrWorktreeDirty), errors.Is(err, app.ErrNoWorktree),
+		errors.Is(err, app.ErrBranchExists), errors.Is(err, app.ErrWorktreeExists):
 		writeJSON(w, http.StatusConflict, errorBody{err.Error()})
 	default:
 		s.fail(w, err)

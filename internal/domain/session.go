@@ -160,12 +160,17 @@ func NewChildSession(id SessionID, agent AgentKind, cwd string, parent SessionID
 }
 
 // NewForkSession creates a session that continues the parent's
-// conversation on a branch of its own; the agent assigns the native id.
+// conversation on a branch of its own; the agent assigns the native id. A
+// session whose worktree is gone forks into the repository it came from.
 func NewForkSession(id SessionID, parent *Session) (*Session, error) {
 	if parent.nativeID == "" {
 		return nil, fmt.Errorf("%w: fork before the first turn", ErrInvalidTransition)
 	}
-	s, err := NewSession(id, parent.agent, parent.cwd)
+	cwd := parent.cwd
+	if parent.WorktreeRemoved() {
+		cwd = parent.worktree.Repo
+	}
+	s, err := NewSession(id, parent.agent, cwd)
 	if err != nil {
 		return nil, err
 	}
@@ -271,6 +276,9 @@ func (s *Session) TurnStarted() error {
 	}
 	if s.status == StatusRunning {
 		return fmt.Errorf("%w: turn already running", ErrInvalidTransition)
+	}
+	if err := s.Workable(); err != nil {
+		return err
 	}
 	s.status = StatusRunning
 	s.interruption = Interruption{}

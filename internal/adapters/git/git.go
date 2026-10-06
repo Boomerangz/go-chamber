@@ -36,6 +36,12 @@ func (r Repo) AddWorktree(ctx context.Context, repo, path, branch string) (domai
 	if err != nil {
 		return domain.Worktree{}, fmt.Errorf("worktree needs a commit to branch from: %w", err)
 	}
+	if _, err := run(ctx, repo, "rev-parse", "--verify", "--quiet", "refs/heads/"+branch); err == nil {
+		return domain.Worktree{}, fmt.Errorf("%w: %s", app.ErrBranchExists, branch)
+	}
+	if _, err := os.Lstat(path); err == nil {
+		return domain.Worktree{}, fmt.Errorf("%w: %s", app.ErrWorktreeExists, path)
+	}
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return domain.Worktree{}, err
 	}
