@@ -17,6 +17,8 @@ var (
 	ErrNativeIDMismatch  = errors.New("runtime reported a different native session id")
 	ErrInvalidReviewer   = errors.New("invalid approval reviewer")
 	ErrInvalidModel      = errors.New("invalid model choice")
+	// ErrSessionBusy refuses to delete a session while its turn runs.
+	ErrSessionBusy = errors.New("session is running: stop its turn first")
 )
 
 type SessionID string
@@ -101,6 +103,7 @@ type Session struct {
 	model        string
 	effort       string
 	worktree     *Worktree
+	archivedAt   time.Time
 }
 
 // SessionSnapshot is the persistable state of a Session.
@@ -129,6 +132,8 @@ type SessionSnapshot struct {
 	Effort string `json:"effort,omitempty"`
 	// Worktree is set when go-chamber created the session folder as a git worktree.
 	Worktree *Worktree `json:"worktree,omitempty"`
+	// ArchivedAt is set while the session is hidden from the list.
+	ArchivedAt time.Time `json:"archivedAt,omitzero"`
 }
 
 func NewSession(id SessionID, agent AgentKind, cwd string) (*Session, error) {
@@ -178,7 +183,7 @@ func RestoreSession(snap SessionSnapshot) (*Session, error) {
 		id: snap.ID, agent: snap.Agent, cwd: snap.Cwd, title: snap.Title,
 		nativeID: snap.NativeID, parentID: snap.ParentID, forkOf: snap.ForkOf, status: StatusDetached,
 		reviewer: snap.ApprovalReviewer, mode: snap.PermissionMode, createdAt: snap.CreatedAt, activeAt: snap.ActiveAt,
-		model: snap.Model, effort: snap.Effort,
+		model: snap.Model, effort: snap.Effort, archivedAt: snap.ArchivedAt,
 	}
 	if snap.Worktree != nil {
 		wt := *snap.Worktree
@@ -319,7 +324,7 @@ func (s *Session) Snapshot() SessionSnapshot {
 		ID: s.id, Agent: s.agent, Cwd: s.cwd, NativeID: s.nativeID, ParentID: s.parentID, ForkOf: s.forkOf,
 		Status: s.status, Title: s.title, Interruption: s.interruption, AutoContinue: s.autoContinue,
 		ApprovalReviewer: s.reviewer, PermissionMode: s.mode, CreatedAt: s.createdAt, ActiveAt: s.activeAt,
-		Model: s.model, Effort: s.effort, Worktree: s.Worktree(),
+		Model: s.model, Effort: s.effort, Worktree: s.Worktree(), ArchivedAt: s.archivedAt,
 	}
 }
 
@@ -355,5 +360,32 @@ func (s *Session) SetApprovalReviewer(r ApprovalReviewer) error {
 		return fmt.Errorf("%w: %q", ErrInvalidReviewer, r)
 	}
 	s.reviewer = r
+	return nil
+}
+
+// Archive puts the session away from the list at the given time. It keeps
+// working when opened; archiving again keeps the first time.
+func (s *Session) Archive(at time.Time) error {
+	if at.IsZero() {
+		return fmt.Errorf("%w: archive without a time", ErrInvalidTransition)
+	}
+	if s.archivedAt.IsZero() {
+		s.archivedAt = at.UTC()
+	}
+	return nil
+}
+
+// Unarchive brings the session back to the list.
+func (s *Session) Unarchive() { s.archivedAt = time.Time{} }
+
+// Archived reports whether the session is put away from the list.
+func (s *Session) Archived() bool { return !s.archivedAt.IsZero() }
+
+// Deletable refuses deletion while a turn runs: the agent is still writing
+// the conversation that would be deleted.
+func (s *Session) Deletable() error {
+	if s.status == StatusRunning {
+		return ErrSessionBusy
+	}
 	return nil
 }

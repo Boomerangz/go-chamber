@@ -9,7 +9,9 @@ type Seq int64
 type EventType string
 
 const (
-	EventSessionState    EventType = "session.state"
+	EventSessionState EventType = "session.state"
+	// EventSessionRemoved tells clients a session was deleted.
+	EventSessionRemoved  EventType = "session.removed"
 	EventTurnStarted     EventType = "turn.started"
 	EventTurnEnded       EventType = "turn.ended"
 	EventItemUpdated     EventType = "item.updated"
@@ -97,7 +99,7 @@ func (e Event) Valid() error {
 		if e.Subagent == nil || e.Subagent.ThreadID == "" {
 			return fmt.Errorf("%w: %s without thread id", ErrInvalidEvent, e.Type)
 		}
-	case EventTurnStarted, EventTurnEnded:
+	case EventTurnStarted, EventTurnEnded, EventSessionRemoved:
 	default:
 		return fmt.Errorf("%w: unknown type %q", ErrInvalidEvent, e.Type)
 	}
