@@ -10,6 +10,9 @@ import './Attachments.css'
 // takes text, so images wait for the next message.
 export default function Attachments({ state, locked = false }: { state: ReturnType<typeof useAttachments>; locked?: boolean }) {
   const input = useRef<HTMLInputElement>(null)
+  // A tap on Attach while it is locked says why, next to it.
+  const [note, setNote] = useState(false)
+  if (note && !locked) setNote(false)
   return (
     <div className="attachments">
       <input
@@ -27,12 +30,18 @@ export default function Attachments({ state, locked = false }: { state: ReturnTy
       <button
         type="button"
         className="btn btn-ghost attach"
-        disabled={!state.sessionId || locked}
-        onClick={() => input.current?.click()}
+        disabled={!state.sessionId}
+        aria-disabled={locked || undefined}
+        onClick={() => (locked ? setNote(true) : input.current?.click())}
         title={locked ? 'Images go with the next message' : 'Attach images (or paste / drop them)'}
       >
         Attach
       </button>
+      {note && (
+        <span className="composer-note attach-note" role="status">
+          images go with the next message
+        </span>
+      )}
       {state.dragging && <span className="attachment-drop">Drop images to attach</span>}
       {state.items.map((a) => (
         <span key={a.id} className="attachment">

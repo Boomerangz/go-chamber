@@ -36,3 +36,10 @@
 .composer:has(.attachment, .attachment-error) { flex-wrap: wrap; }
 .composer:has(.attachment, .attachment-error) .composer-actions { width: 100%; justify-content: flex-end; }
 .composer-actions .attachments { margin-right: auto; }
+/* locked while a turn runs: it reads disabled but still answers a tap with why */
+.btn.attach[aria-disabled='true'] { color: var(--ink-3); border-color: transparent; cursor: default; }
+/* with pictures in the row, Attach, the key hints and Send share its bottom line */
+.composer:has(.attachment, .attachment-error) .attachments { align-items: flex-end; }
+.composer:has(.attachment, .attachment-error) .composer-actions { align-items: flex-end; }
+.composer:has(.attachment, .attachment-error) .composer-actions > .composer-keys,
+.composer:has(.attachment, .attachment-error) .composer-actions > .composer-note { align-self: flex-end; height: 30px; }

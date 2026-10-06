@@ -162,6 +162,30 @@ describe('sending', () => {
     expect(fns.steer).toHaveBeenCalledWith('second')
   })
 
+  it('takes the text out of the composer while it is on its way, and back if it fails', async () => {
+    let accept: (ok: boolean) => void = () => {}
+    setup()
+    fns.send.mockImplementationOnce(() => new Promise<boolean>((r) => (accept = r)))
+    await userEvent.type(box(), 'first')
+    await userEvent.click(screen.getByRole('button', { name: 'Send' }))
+    // Shown once: in the transcript as sending, not also in the box.
+    expect(box()).toHaveValue('')
+    expect(screen.getByText('sending…')).toBeInTheDocument()
+    await act(async () => accept(false))
+    expect(box()).toHaveValue('first')
+  })
+
+  it('keeps what the owner typed meanwhile when a send fails', async () => {
+    let accept: (ok: boolean) => void = () => {}
+    setup()
+    fns.send.mockImplementationOnce(() => new Promise<boolean>((r) => (accept = r)))
+    await userEvent.type(box(), 'first')
+    await userEvent.click(screen.getByRole('button', { name: 'Send' }))
+    await userEvent.type(box(), 'other')
+    await act(async () => accept(false))
+    expect(box()).toHaveValue('first\n\nother')
+  })
+
   it('goes back to Send when the started turn already ended', async () => {
     setup()
     await userEvent.type(box(), 'first')

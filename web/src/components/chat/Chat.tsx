@@ -216,6 +216,19 @@ export default function Chat() {
     input.current?.focus()
   }, [setText])
 
+  // restoreDraft puts a message that didn't go back, ahead of anything typed
+  // since; if the owner moved to another session it waits in its draft.
+  const restoreDraft = (message: string) => {
+    if (!sessionId) return
+    if (useSessionStore.getState().activeId !== sessionId) {
+      const draft = loadDraft(sessionId)
+      saveDraft(sessionId, draft.trim() ? `${message}\n\n${draft}` : message)
+      return
+    }
+    const now = textRef.current
+    setText(now.trim() ? `${message}\n\n${now}` : message)
+  }
+
   const doSubmit = async (): Promise<boolean> => {
     const value = text.trim()
     const images = attachments.ids
@@ -227,9 +240,12 @@ export default function Chat() {
     const key = ++nextSendKey
     const shown = value || (images.length === 1 ? '[1 image]' : `[${images.length} images]`)
     setPendingSends((list) => [...list, { key, text: shown, accepted: false }])
+    // The message shows once: on its way in the transcript, not also here.
+    if (value) setText('')
     const accepted = steerIt ? await steer(value) : await send(value, images)
     if (!accepted) {
       dropSend(key)
+      if (value) restoreDraft(text)
       return false
     }
     setPendingSends((list) => list.map((p) => (p.key === key ? { ...p, accepted: true } : p)))
@@ -241,7 +257,6 @@ export default function Chat() {
       if (sameMark(before, after) && after.status !== 'running') setStarting(after)
     }
     if (useSessionStore.getState().activeId === sessionId) {
-      if (textRef.current === text) setText('')
       stick.stick()
       if (!document.activeElement?.closest('.request')) input.current?.focus()
     }
