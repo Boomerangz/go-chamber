@@ -1,0 +1,4 @@
+/* a name cut in its middle: the head gives way, the tail with the extension stays */
+.midcut { display: inline-flex; min-width: 0; white-space: nowrap; }
+.midcut-head { flex: 0 1 auto; min-width: 2ch; overflow: hidden; text-overflow: ellipsis; }
+.midcut-tail { flex: none; }

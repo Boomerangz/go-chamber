@@ -1,6 +1,6 @@
-import { beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useSessionStore } from './session'
-import { DOCK_MAX, DOCK_MIN, loadLayout, resetLayout, SIDEBAR_MAX, SIDEBAR_MIN, useLayoutStore, visibleDock } from './layout'
+import { DOCK_MAX, DOCK_MIN, loadLayout, resetLayout, SIDEBAR_MAX, SIDEBAR_MIN, settleRestoredDock, sidebarShown, useLayoutStore, visibleDock } from './layout'
 
 const store = () => useLayoutStore.getState()
 
@@ -110,6 +110,23 @@ describe('panel sizes', () => {
     expect(loadLayout().widths).toEqual({ changes: DOCK_MIN, requests: DOCK_MAX })
   })
 
+  it('collapses a restored Requests dock once nothing turns out to be pending, only on load', () => {
+    localStorage.setItem('gc.layout', JSON.stringify({ dock: 'requests' }))
+    resetLayout()
+    settleRestoredDock(0)
+    expect(store().dock).toBeNull()
+    store().toggleDock('requests')
+    settleRestoredDock(0)
+    expect(store().dock).toBe('requests')
+  })
+
+  it('keeps a restored Requests dock while something waits', () => {
+    localStorage.setItem('gc.layout', JSON.stringify({ dock: 'requests' }))
+    resetLayout()
+    settleRestoredDock(2)
+    expect(store().dock).toBe('requests')
+  })
+
   it('remembers the sidebar width and whether it is shown', () => {
     expect(store().sidebar).toBe(true)
     store().setSidebarWidth(9999)
@@ -128,5 +145,36 @@ describe('panel sizes', () => {
     expect(loadLayout()).toMatchObject({ widths: { changes: 500 }, sidebarWidth: SIDEBAR_MIN, sidebar: true, wrap: false })
     localStorage.setItem('gc.layout', JSON.stringify({ widths: [], sidebarWidth: 'wide' }))
     expect(loadLayout()).toMatchObject({ widths: {}, sidebarWidth: null })
+  })
+
+  describe('between the phone and a wide screen', () => {
+    // crowded stubs the media query for a window too narrow for the
+    // sessions list, the chat and an open dock side by side.
+    const crowded = (on: boolean) =>
+      vi.stubGlobal('matchMedia', (q: string) => ({ matches: on && q.includes('1000px'), addEventListener() {}, removeEventListener() {} }))
+    afterEach(() => vi.unstubAllGlobals())
+
+    it('an open dock crowds the sessions list out, and only then', () => {
+      expect(sidebarShown({ sidebar: true, focus: false }, 'changes', true)).toBe(false)
+      expect(sidebarShown({ sidebar: true, focus: false }, null, true)).toBe(true)
+      expect(sidebarShown({ sidebar: true, focus: false }, 'changes', false)).toBe(true)
+      expect(sidebarShown({ sidebar: false, focus: false }, null, false)).toBe(false)
+    })
+
+    it('showing the sessions list again collapses the dock that crowded it out', () => {
+      crowded(true)
+      store().toggleDock('terminal')
+      store().toggleSidebar()
+      expect(store().dock).toBeNull()
+      expect(store().sidebar).toBe(true)
+    })
+
+    it('with room for both, the sessions list toggles as usual', () => {
+      crowded(false)
+      store().toggleDock('terminal')
+      store().toggleSidebar()
+      expect(store().dock).toBe('terminal')
+      expect(store().sidebar).toBe(false)
+    })
   })
 })

@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { ChevronDown } from 'lucide-react'
 import { icon } from '../icon'
 import { Accounts } from '../account/AccountPanel'
@@ -11,7 +11,8 @@ import HistoryPanel from './HistoryPanel'
 import SessionList from './SessionList'
 import { recentFolders } from '../../lib/folders'
 import { usePending } from '../../lib/pending'
-import { groupSessions } from '../../lib/sessions'
+import { useIsRepo } from '../../lib/useIsRepo'
+import { recentProjects } from '../../lib/sessions'
 import { useSessionStore } from '../../stores/session'
 import './Sidebar.css'
 import type { AgentKind, Session } from '../../lib/api'
@@ -66,15 +67,31 @@ export default function Sidebar(props: SidebarProps) {
   // typed is what the owner chose; until then the field offers the open
   // session's folder, or the one last started in.
   const [typed, setTyped] = useState<string | null>(null)
-  const activeCwd = useSessionStore((s) => s.sessions.find((x) => x.id === s.activeId)?.cwd)
+  // A worktree session offers its repository: a worktree of a worktree isn't wanted.
+  const activeCwd = useSessionStore((s) => {
+    const active = s.sessions.find((x) => x.id === s.activeId)
+    return active?.worktree?.repo ?? active?.cwd
+  })
   const [remembered, setRemembered] = useState(lastFolder)
   const cwd = typed ?? activeCwd ?? remembered
   const setCwd = setTyped
   // creatingIn is the folder whose group "+" is starting a session.
   const [creatingIn, setCreatingIn] = useState<string | null>(null)
   const [agent, setAgent] = useState<AgentKind>(lastAgent)
-  const [inWorktree, setInWorktree] = useState(false)
+  const [wantWorktree, setInWorktree] = useState(false)
+  // A worktree needs a repository: a folder known not to be one can't have it.
+  const repo = useIsRepo(cwd)
+  const inWorktree = wantWorktree && repo !== false
   const [branch, setBranch] = useState('')
+  // A new search reads from the top: what matches is above, not scrolled past.
+  const body = useRef<HTMLDivElement>(null)
+  const query = useSessionStore((s) => s.query)
+  const searched = useRef(query)
+  useEffect(() => {
+    if (searched.current === query) return
+    searched.current = query
+    if (body.current) body.current.scrollTop = 0
+  }, [query])
   // missing names the field a submit found empty, until it is filled.
   const [missing, setMissing] = useState<'cwd' | 'branch' | null>(null)
   // composing unfolds the form on phones, where it otherwise folds to one
@@ -106,7 +123,7 @@ export default function Sidebar(props: SidebarProps) {
       setCreatingIn(null)
     }
   }
-  const chips = groupSessions(props.sessions.filter((s) => !s.parentId)).slice(0, CHIPS)
+  const chips = recentProjects(props.sessions, CHIPS)
 
   const submit = () => {
     if (!cwd.trim()) {
@@ -167,10 +184,11 @@ export default function Sidebar(props: SidebarProps) {
           }}
           recent={recentFolders(props.sessions, 6)}
           invalid={missing === 'cwd'}
+          describedBy={missing === 'cwd' ? 'new-session-folder-hint' : undefined}
           inputRef={folderInput}
         />
         {missing === 'cwd' && (
-          <p className="field-hint" role="alert">
+          <p className="field-hint" id="new-session-folder-hint" role="alert">
             Choose a folder first
           </p>
         )}
@@ -194,8 +212,19 @@ export default function Sidebar(props: SidebarProps) {
           </div>
         )}
         <label className="worktree-toggle">
-          <input type="checkbox" checked={inWorktree} onChange={(e) => setInWorktree(e.target.checked)} />
+          <input
+            type="checkbox"
+            checked={inWorktree}
+            disabled={repo === false}
+            aria-describedby={repo === false ? 'new-session-worktree-off' : undefined}
+            onChange={(e) => setInWorktree(e.target.checked)}
+          />
           In a new worktree
+          {repo === false && (
+            <span className="worktree-off" id="new-session-worktree-off">
+              · not a git repository
+            </span>
+          )}
         </label>
         {inWorktree && (
           <label className="worktree-branch">
@@ -205,6 +234,7 @@ export default function Sidebar(props: SidebarProps) {
               className="field"
               aria-label="Branch name"
               aria-invalid={missing === 'branch' || undefined}
+              aria-describedby={missing === 'branch' ? 'new-session-branch-hint' : undefined}
               placeholder="branch name"
               value={branch}
               onChange={(e) => {
@@ -214,11 +244,16 @@ export default function Sidebar(props: SidebarProps) {
             />
           </label>
         )}
+        {inWorktree && missing === 'branch' && (
+          <p className="field-hint" id="new-session-branch-hint" role="alert">
+            Name the branch
+          </p>
+        )}
         <button type="submit" className="btn btn-primary" title="New session (n)" aria-busy={(creating && !creatingIn) || undefined}>
           {creating && !creatingIn ? 'Starting…' : 'New session'}
         </button>
       </form>
-      <div className="sidebar-body">
+      <div className="sidebar-body" ref={body}>
         <SessionList agent={agent} creating={creating} creatingIn={creatingIn} onCreateIn={(dir) => void createIn(dir)} />
         <ArchivedSessions />
         <HistoryPanel />

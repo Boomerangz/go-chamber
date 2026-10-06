@@ -89,6 +89,24 @@ describe('loading the list', () => {
     expect(loadSessions).toHaveBeenCalled()
   })
 
+  it('says when only archived sessions match, instead of nothing or "no match"', () => {
+    useSessionStore.setState({
+      query: 'deploy',
+      sessions: [{ ...session('a', 'deploy notes'), archivedAt: '2026-10-01T09:00:00Z' }, session('b', 'other')],
+      // the server's message hit for the archived session is shown in Archived
+      searchHits: [{ sessionId: 'a', snippet: 'deploy it', item: 'i1' }] as never,
+    })
+    render(<SessionList onCreateIn={() => {}} />)
+    expect(screen.queryByText('No matching sessions')).toBeNull()
+    expect(screen.getByText('Only archived sessions match')).toBeInTheDocument()
+  })
+
+  it('says nothing matches when an archived session doesn’t either', () => {
+    useSessionStore.setState({ query: 'zzz', sessions: [{ ...session('a', 'deploy notes'), archivedAt: '2026-10-01T09:00:00Z' }] })
+    render(<SessionList onCreateIn={() => {}} />)
+    expect(screen.getByText('No matching sessions')).toBeInTheDocument()
+  })
+
   it('says the list is empty once it loaded', () => {
     render(<SessionList onCreateIn={() => {}} />)
     expect(screen.getByText('No sessions yet')).toBeInTheDocument()
@@ -300,5 +318,22 @@ describe('search failures and busy buttons', () => {
     render(<SessionList creating creatingIn="/q" onCreateIn={() => {}} />)
     expect(screen.getByRole('button', { name: 'New Claude session in /q' })).toHaveAttribute('aria-busy', 'true')
     expect(screen.getByRole('button', { name: 'New Claude session in /p' })).not.toHaveAttribute('aria-busy')
+  })
+})
+
+describe('worktree sessions', () => {
+  it('sit in their repository’s group, named by their branch', () => {
+    const wt = {
+      ...session('w', 'Fix the readme'),
+      cwd: '/data/worktrees/p/fix-readme',
+      worktree: { repo: '/p', path: '/data/worktrees/p/fix-readme', branch: 'chamber/fix-readme', base: 'main' },
+    }
+    useSessionStore.setState({ sessions: [session('s1', 'One'), wt] })
+    render(<SessionList onCreateIn={() => {}} />)
+    expect(screen.getAllByRole('region')).toHaveLength(1)
+    const row = screen.getByRole('button', { name: /^Fix the readme/ })
+    const tag = row.querySelector('.session-branch')!
+    expect(tag).toHaveTextContent('fix-readme')
+    expect(tag).toHaveAttribute('title', expect.stringContaining('chamber/fix-readme'))
   })
 })

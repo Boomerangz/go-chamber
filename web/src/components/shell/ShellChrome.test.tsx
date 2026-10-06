@@ -1,6 +1,6 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { notify, resetNotices, useNotices } from '../../stores/notices'
 import { resetStore, useSessionStore } from '../../stores/session'
 import Notices from './Notices'
@@ -64,6 +64,19 @@ describe('ShowSessions', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Show sessions' }))
     expect(useLayoutStore.getState().sidebar).toBe(true)
     expect(screen.queryByRole('button', { name: 'Show sessions' })).toBeNull()
+  })
+
+  it('on a crowded window, offers the sessions back in place of the open dock', async () => {
+    vi.stubGlobal('matchMedia', (q: string) => ({ matches: q.includes('1000px'), addEventListener() {}, removeEventListener() {} }))
+    try {
+      useLayoutStore.setState({ mode: 'agents', sidebar: true, focus: false, dock: 'terminal' })
+      render(<ShowSessions />)
+      await userEvent.click(screen.getByRole('button', { name: 'Show sessions' }))
+      expect(useLayoutStore.getState()).toMatchObject({ sidebar: true, dock: null })
+      expect(screen.queryByRole('button', { name: 'Show sessions' })).toBeNull()
+    } finally {
+      vi.unstubAllGlobals()
+    }
   })
 })
 

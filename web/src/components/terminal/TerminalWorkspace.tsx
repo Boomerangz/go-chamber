@@ -14,6 +14,7 @@ import CloseTerminalButton from './CloseTerminalButton'
 import NewTerminalForm from './NewTerminalForm'
 import TerminalScreen from './TerminalScreen'
 import { markOf } from './marks'
+import TermTitle from './TermTitle'
 import { stepOf, stepTerminal, useTerminalSteps } from './steps'
 import './terminal.css'
 
@@ -94,7 +95,7 @@ export default function TerminalWorkspace({ sessions }: { sessions: Session[] })
                 <span className="term-dot" data-mark={mark.form} title={mark.label} aria-hidden="true" />
                 <span className="term-text">
                   <span className="term-title">
-                    {t.title}
+                    <TermTitle title={t.title} />
                     {t.status === 'exited' && <span className={t.exitCode === 0 ? 'term-exit' : 'term-exit term-bad'}> exited {t.exitCode}</span>}
                   </span>
                   <PathText path={t.cwd} className="term-cwd" />
@@ -152,7 +153,7 @@ export default function TerminalWorkspace({ sessions }: { sessions: Session[] })
           >
             <span className="section-title">Shells</span>
             <span className="count">{terminals.length}</span>
-            <span className="term-switch-title">{active.title}</span>
+            <TermTitle title={active.title} className="term-switch-title" />
             <ChevronDown {...icon(14)} />
           </button>
         )}

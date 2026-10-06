@@ -37,13 +37,14 @@
 @media (hover: none) { .diff-file-actions { opacity: 1; } }
 /* status: a lowercase word after a square mark whose form is the status */
 .diff-status {
-  flex: none; display: inline-flex; align-items: center; gap: 6px; width: 14ch; white-space: nowrap;
+  flex: none; display: inline-flex; align-items: center; gap: 6px; width: calc(9ch + 13px); white-space: nowrap;
   font-family: var(--font-mono); font-size: 12px; color: var(--ink-3); text-transform: lowercase;
 }
 .diff-status::before { content: ''; flex: none; width: 7px; height: 7px; border: 1px solid currentColor; border-radius: 1px; }
 .diff-status[data-mark='solid']::before { background: currentColor; }
 .diff-status[data-mark='struck']::before { background: linear-gradient(to top right, transparent 45%, currentColor 45% 60%, transparent 60%); }
 .diff-status[data-mark='dashed']::before { border-style: dashed; }
+.diff-status-word { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 /* a narrow panel keeps the mark alone; the word stays for screen readers */
 @container (max-width: 400px) {
   .diff-panel .diff-status { width: auto; }
@@ -52,11 +53,16 @@
 /* a long path gives way folder first, then the name; the full path is the row's title */
 .diff-path { flex: 1; min-width: 0; display: flex; overflow: hidden; font-family: var(--font-mono); font-size: 12.5px; white-space: nowrap; }
 .diff-dir { flex: 0 1000 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; color: var(--ink-3); }
-.diff-base { flex-shrink: 0; max-width: 100%; overflow: hidden; text-overflow: ellipsis; color: var(--ink); }
-/* a rename: the old path, quietest, gives way before anything else */
-.diff-from { flex: 0 10000 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; color: var(--ink-3); }
+/* the name gives way last, in its middle: its end and extension stay */
+.diff-base { flex: 0 1 auto; color: var(--ink); }
+/* a rename: the old path, quietest, gives way before anything else: its
+   folder first, then its name from the middle, then the rest of it */
+.diff-from { flex: 0 1000 auto; min-width: 0; display: inline-flex; overflow: hidden; color: var(--ink-3); }
+.diff-from-dir { flex: 0 1000 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.diff-from .midcut { flex: 0 1 auto; min-width: 0; }
+.diff-from .midcut-head { min-width: 0; }
+.diff-from .midcut-tail { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .diff-arrow { flex: none; white-space: pre; color: var(--ink-3); }
-.diff-path:has(> .diff-arrow) .diff-base { max-width: calc(100% - 3ch); }
 .diff-counts { flex: none; display: inline-flex; gap: 6px; font-family: var(--font-mono); font-size: 12px; color: var(--ink-3); }
 .diff-counts > span { min-width: 4ch; text-align: right; }
 /* the diff grows with the panel (no inner scroll trap); one grid column as
@@ -104,18 +110,19 @@
 .worktree-actions { display: flex; gap: 6px; }
 .worktree-dirty { color: var(--ink); }
 
-.layout[data-dock='changes'] { grid-template-columns: var(--sb) minmax(0, 1fr) var(--dock-w, minmax(380px, 34%)); }
+.layout[data-dock='changes'] { --dock: max(380px, 34%); }
 .changes-pane { display: none; }
 .worktree-toggle { display: flex; gap: 8px; align-items: center; font-size: 13px; color: var(--ink-2); cursor: pointer; }
+.worktree-toggle:has(input:disabled) { color: var(--ink-3); cursor: default; }
+.worktree-off { margin-left: -4px; font-size: 12px; color: var(--ink-3); }
 .worktree-branch { display: flex; align-items: center; gap: 4px; font-family: var(--font-mono); font-size: 12.5px; color: var(--ink-3); }
 .worktree-branch .field { flex: 1; min-width: 0; }
 
 @media (max-width: 1100px) {
-  .layout[data-dock='changes'] { grid-template-columns: var(--sb) minmax(0, 1fr) var(--dock-w, minmax(300px, 40%)); }
+  .layout[data-dock='changes'] { --dock: max(300px, 40%); }
 }
 
 @media (max-width: 720px) {
-  .layout[data-dock='changes'] { grid-template-columns: minmax(0, 1fr); }
   .layout[data-pane='changes'] > .changes-pane { display: flex; flex-direction: column; min-height: 0; }
   .changes-pane .diff-panel { --pad-y: 14px; --pad-x: var(--gutter); }
   .diff-file-actions .btn-icon, .diff-action-gap { width: 36px; height: 36px; }

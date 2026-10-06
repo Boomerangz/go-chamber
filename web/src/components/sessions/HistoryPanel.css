@@ -4,6 +4,8 @@
 .history summary::-webkit-details-marker { display: none; }
 .history summary .chevron { margin-left: -2px; transition: transform var(--dur-fast) var(--ease-out); }
 .history[open] summary .chevron { transform: rotate(90deg); }
+.history-hint { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--font-ui); font-size: 12px; letter-spacing: 0; text-transform: none; color: var(--ink-3); }
+.history-list { padding: 0 14px 6px; }
 .history-note { margin: 4px 14px 8px; color: var(--ink-3); font-size: 12px; }
 .history-filter { width: calc(100% - 28px); margin: 0 14px 6px; }
 .history-cwd { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--font-mono); }

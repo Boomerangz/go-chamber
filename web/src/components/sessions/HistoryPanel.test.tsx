@@ -117,6 +117,16 @@ describe('HistoryPanel', () => {
     expect(screen.getByText('No matching conversations')).toBeInTheDocument()
   })
 
+  it('says what History holds, and that opening one moves it into the sessions', async () => {
+    render(<HistoryPanel />)
+    expect(screen.getByText('History').closest('summary')).toHaveTextContent('sessions started in the CLI')
+    await userEvent.click(screen.getByText('History'))
+    await screen.findByText('Fix the flaky test')
+    expect(screen.getByText(/Opening one moves it to your sessions/)).toHaveClass('history-note')
+    // the rows sit in the sidebar's gutter, like Archived
+    expect(document.querySelector('ul.sessions')).toHaveClass('history-list')
+  })
+
   it('labels the section like the rest of the sidebar, with a drawn chevron', () => {
     render(<HistoryPanel />)
     const summary = screen.getByText('History').closest('summary')!

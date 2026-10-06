@@ -12,12 +12,14 @@ export interface FolderFieldProps {
   recent?: string[]
   // invalid marks the field as missing a required folder.
   invalid?: boolean
+  // describedBy names the hint that says what the field needs.
+  describedBy?: string
   inputRef?: Ref<HTMLInputElement>
 }
 
 // FolderField is a path input with a Browse button that opens the folder
 // picker; the path can still be typed or pasted.
-export default function FolderField({ label, placeholder, value, onChange, recent, invalid, inputRef }: FolderFieldProps) {
+export default function FolderField({ label, placeholder, value, onChange, recent, invalid, describedBy, inputRef }: FolderFieldProps) {
   const [open, setOpen] = useState(false)
   const browse = useRef<HTMLButtonElement>(null)
   const box = useRef<HTMLDivElement>(null)
@@ -38,6 +40,7 @@ export default function FolderField({ label, placeholder, value, onChange, recen
         ref={inputRef}
         aria-label={label}
         aria-invalid={invalid || undefined}
+        aria-describedby={describedBy}
         placeholder={placeholder}
         value={value}
         onChange={(e) => onChange(e.target.value)}
