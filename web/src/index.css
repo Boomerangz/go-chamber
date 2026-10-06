@@ -841,8 +841,10 @@ button.health { border: 0; background: none; padding: 0; }
 .new-terminal { display: flex; gap: 8px; flex-wrap: wrap; }
 .new-terminal .folder-field { flex: 1 1 100%; }
 .new-terminal .btn { flex: 1; }
-.terminal-tabs { list-style: none; margin: 0; padding: 0; display: flex; flex: 1; min-width: 0; overflow-x: auto; scrollbar-width: thin; }
-.terminal-tabs li { flex: none; display: flex; align-items: center; border-bottom: 2px solid transparent; margin-bottom: -1px; }
+/* the strip scrolls sideways only; it sits 1px over the rule below so the
+   open tab's underline lands on it without overflowing downwards */
+.terminal-tabs { list-style: none; margin: 0 0 -1px; padding: 0; display: flex; flex: 1; min-width: 0; overflow-x: auto; overflow-y: hidden; scrollbar-width: thin; }
+.terminal-tabs li { flex: none; display: flex; align-items: center; border-bottom: 2px solid transparent; }
 .terminal-tabs li:has([aria-selected='true']) { border-bottom-color: var(--ink); }
 .terminal-tabs button { height: 30px; border: 0; background: none; color: var(--ink-3); font-family: var(--font-mono); font-size: 12.5px; }
 .terminal-tabs [role='tab'] { display: inline-flex; align-items: center; gap: 6px; padding: 0 4px 0 10px; white-space: nowrap; }

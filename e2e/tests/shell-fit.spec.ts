@@ -182,3 +182,22 @@ test('the quick switcher keeps titles readable beside a long folder', async ({ p
   expect(d.width).toBeLessThanOrEqual(r.width * 0.4 + 1)
   expect(await dialog.evaluate((e) => e.scrollWidth <= e.clientWidth)).toBe(true)
 })
+
+test('the dock terminal tabs scroll sideways only: no stray vertical scrollbar', async ({ page, isMobile }) => {
+  test.skip(isMobile, 'the dock is desktop-only')
+  await page.addInitScript(() => Object.defineProperty(window, 'RTCPeerConnection', { value: undefined }))
+  const dir = fs.realpathSync(fs.mkdtempSync(`${os.tmpdir()}/gc-tabs-`))
+  await startSession(page, dir)
+  await page.getByRole('toolbar', { name: 'Dock' }).getByRole('button', { name: /^Terminal/ }).click()
+  const panel = page.getByRole('region', { name: 'Terminals' })
+  await panel.getByRole('button', { name: 'New terminal in session dir' }).click()
+  await expect(panel.getByRole('tab', { selected: true })).toBeVisible()
+  const tabs = panel.getByRole('tablist')
+  expect(await tabs.evaluate((e) => e.scrollHeight - e.clientHeight)).toBe(0)
+  // the open tab's rule still sits on the strip's bottom line
+  const [tab, strip] = [await box(tabs.locator('li').first()), await box(panel.locator('.dock-tabs'))]
+  expect(Math.abs(tab.y + tab.height - (strip.y + strip.height))).toBeLessThan(1.5)
+  const name = dir.split('/').pop()!
+  await panel.getByRole('button', { name: `Close terminal ${name}`, exact: true }).click()
+  await panel.getByRole('group', { name: /^Close terminal / }).getByRole('button', { name: 'Close', exact: true }).click()
+})
