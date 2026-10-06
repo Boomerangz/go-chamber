@@ -1,6 +1,6 @@
 import { X } from 'lucide-react'
 import { useState } from 'react'
-import { useTerminalStore } from '../../stores/terminals'
+import { openKey, useTerminalStore } from '../../stores/terminals'
 import FolderField from '../folders/FolderField'
 import { icon } from '../icon'
 
@@ -11,25 +11,27 @@ export default function NewTerminalForm({ sessionId }: { sessionId?: string | nu
   const open = useTerminalStore((s) => s.open)
   const opening = useTerminalStore((s) => s.opening)
   const [cwd, setCwd] = useState('')
+  const dir = cwd.trim()
+  const here = Boolean(opening[openKey(dir ? { cwd: dir } : {})])
+  const inSession = Boolean(sessionId && opening[openKey({ sessionId })])
   return (
     <form
       className="new-terminal"
-      aria-busy={opening || undefined}
+      aria-busy={here || inSession || undefined}
       onSubmit={(e) => {
         e.preventDefault()
-        const dir = cwd.trim()
         void open(dir ? { cwd: dir } : {}).then((ok) => {
           if (ok) setCwd('')
         })
       }}
     >
       <FolderField label="terminal directory" placeholder="~ (home)" value={cwd} onChange={setCwd} />
-      <button type="submit" className="btn" aria-busy={opening || undefined}>
-        {opening ? 'Opening…' : 'New terminal'}
+      <button type="submit" className="btn" aria-busy={here || undefined}>
+        {here ? 'Opening…' : 'New terminal'}
       </button>
       {sessionId && (
-        <button type="button" className="btn" aria-busy={opening || undefined} onClick={() => void open({ sessionId })}>
-          In session dir
+        <button type="button" className="btn" aria-busy={inSession || undefined} onClick={() => void open({ sessionId })}>
+          {inSession ? 'Opening…' : 'In session dir'}
         </button>
       )}
       <OpenError />

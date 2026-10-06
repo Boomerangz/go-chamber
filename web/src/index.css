@@ -165,7 +165,7 @@ select.field option { background: var(--paper); color: var(--ink); }
 
 /* busy: the "not yet settled" form (a dashed square) that breathes while
    something is on its way. No spinners: state is form. */
-.busy-mark, .loading-line::before, .btn[aria-busy='true']::before {
+.busy-mark, .loading-line::before, .btn[aria-busy='true']::before, .chip[aria-busy='true']::before {
   content: ''; flex: none; display: inline-block; width: 8px; height: 8px;
   border: 1px dashed currentColor; border-radius: 1px;
   animation: mark-breathe 1.2s ease-in-out infinite;

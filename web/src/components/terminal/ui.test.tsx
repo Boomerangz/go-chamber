@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest'
 import type { Terminal } from '../../lib/terminal'
@@ -6,7 +6,7 @@ import { useNotices } from '../../stores/notices'
 import { resetTerminals, useTerminalStore } from '../../stores/terminals'
 import TerminalPanel from './TerminalPanel'
 import TerminalWorkspace from './TerminalWorkspace'
-import { ConnectionLine } from './TerminalScreen'
+import TerminalScreen, { ConnectionLine } from './TerminalScreen'
 import TerminalKeys from './TerminalKeys'
 import * as live from './live'
 
@@ -22,6 +22,10 @@ vi.mock('./live', () => ({
   sendKeys: vi.fn(),
   pasteInto: vi.fn(),
   setStickyCtrl: vi.fn(),
+  findInTerminal: vi.fn(() => true),
+  onFindResults: vi.fn(() => () => {}),
+  endFind: vi.fn(),
+  scrollToBottom: vi.fn(),
 }))
 
 import * as api from '../../lib/terminal'
@@ -154,16 +158,90 @@ describe('ConnectionLine', () => {
     ;(api.closeTerminal as Mock).mockResolvedValue(undefined)
     render(<ConnectionLine id="t1" />)
     expect(screen.getByText('exited 137')).toHaveClass('term-bad')
-    await userEvent.click(screen.getByRole('button', { name: 'Open again here' }))
-    expect(api.openTerminal).toHaveBeenCalledWith({ cwd: '/home/me/app' })
     await userEvent.click(screen.getByRole('button', { name: 'Close' }))
     expect(api.closeTerminal).toHaveBeenCalledWith('t1')
+    ;(api.closeTerminal as Mock).mockClear()
+    cleanup()
+    act(() => useTerminalStore.setState({ terminals: [term({ status: 'exited', exitCode: 137 })] }))
+    render(<ConnectionLine id="t1" />)
+    await userEvent.click(screen.getByRole('button', { name: 'Open again here' }))
+    expect(api.openTerminal).toHaveBeenCalledWith({ cwd: '/home/me/app' })
+    expect(useTerminalStore.getState().terminals.map((t) => t.id)).toEqual(['t2'])
+  })
+
+  it('offers to reconnect now while it waits to retry', async () => {
+    useTerminalStore.setState({ terminals: [term()], conn: { t1: { state: 'reconnecting', attempt: 2 } } })
+    render(<ConnectionLine id="t1" />)
+    await userEvent.click(screen.getByRole('button', { name: 'Reconnect now' }))
+    expect(live.reconnectTerminal).toHaveBeenCalledWith('t1')
   })
 
   it('keeps a clean exit in ink', () => {
     useTerminalStore.setState({ terminals: [term({ status: 'exited', exitCode: 0 })] })
     render(<ConnectionLine id="t1" />)
     expect(screen.getByText('exited 0')).not.toHaveClass('term-bad')
+  })
+})
+
+describe('TerminalScreen', () => {
+  it('finds in the scrollback: next, previous, counts and Escape back to the shell', async () => {
+    useTerminalStore.setState({ terminals: [term()], finding: 't1' })
+    render(<TerminalScreen id="t1" />)
+    const field = screen.getByRole('searchbox', { name: 'Find in terminal' })
+    expect(field).toHaveFocus()
+    await userEvent.type(field, 'err')
+    expect(live.findInTerminal).toHaveBeenLastCalledWith('t1', 'err', { incremental: true })
+    const report = vi.mocked(live.onFindResults).mock.calls[0]![1]
+    act(() => report({ index: 2, count: 5 }))
+    expect(screen.getByText('3 of 5')).toBeInTheDocument()
+    await userEvent.keyboard('{Enter}')
+    expect(live.findInTerminal).toHaveBeenLastCalledWith('t1', 'err', { backwards: false })
+    await userEvent.keyboard('{Shift>}{Enter}{/Shift}')
+    expect(live.findInTerminal).toHaveBeenLastCalledWith('t1', 'err', { backwards: true })
+    await userEvent.click(screen.getByRole('button', { name: 'Next match' }))
+    expect(live.findInTerminal).toHaveBeenLastCalledWith('t1', 'err', {})
+    vi.mocked(live.findInTerminal).mockReturnValueOnce(false)
+    await userEvent.type(field, 'x')
+    act(() => report({ index: -1, count: 0 }))
+    expect(screen.getByText('no matches')).toBeInTheDocument()
+    await userEvent.type(field, '{Escape}')
+    expect(live.endFind).toHaveBeenCalledWith('t1')
+    expect(useTerminalStore.getState().finding).toBeNull()
+  })
+
+  it('offers to jump to new output below', async () => {
+    useTerminalStore.setState({ terminals: [term()] })
+    render(<TerminalScreen id="t1" />)
+    expect(screen.queryByRole('button', { name: /new output/ })).toBeNull()
+    act(() => useTerminalStore.getState().setUnseen('t1', true))
+    await userEvent.click(screen.getByRole('button', { name: /new output/ }))
+    expect(live.scrollToBottom).toHaveBeenCalledWith('t1')
+  })
+})
+
+describe('TerminalWorkspace on a phone', () => {
+  it('folds the list to a one-line switcher while a shell is attached', async () => {
+    useTerminalStore.setState({ terminals: [term(), term({ id: 't2', title: 'logs' })], activeId: 't1', loaded: true })
+    const { container } = render(<TerminalWorkspace sessions={[]} />)
+    const aside = container.querySelector('.term-sidebar')!
+    expect(aside).toHaveAttribute('data-collapsed', 'true')
+    const toggle = screen.getByRole('button', { name: /Shells/ })
+    expect(toggle).toHaveAttribute('aria-expanded', 'false')
+    await userEvent.click(toggle)
+    expect(aside).not.toHaveAttribute('data-collapsed')
+    await userEvent.click(screen.getByRole('tab', { name: /logs/ }))
+    expect(useTerminalStore.getState().activeId).toBe('t2')
+    expect(aside).toHaveAttribute('data-collapsed', 'true')
+  })
+
+  it('marks only the project chip being opened as busy', async () => {
+    useTerminalStore.setState({ loaded: true })
+    ;(api.openTerminal as Mock).mockReturnValue(new Promise(() => {}))
+    render(<TerminalWorkspace sessions={[{ id: 's', agent: 'claude', cwd: '/w/one', status: 'idle' }, { id: 'r', agent: 'claude', cwd: '/w/two', status: 'idle' }]} />)
+    await userEvent.click(screen.getByRole('button', { name: 'Open terminal in one' }))
+    expect(screen.getByRole('button', { name: 'Open terminal in one' })).toHaveAttribute('aria-busy', 'true')
+    expect(screen.getByRole('button', { name: 'Open terminal in two' })).not.toHaveAttribute('aria-busy')
+    expect(screen.getByRole('button', { name: 'New terminal' })).not.toHaveAttribute('aria-busy')
   })
 })
 
@@ -182,6 +260,22 @@ describe('TerminalKeys', () => {
     const release = vi.mocked(live.setStickyCtrl).mock.calls.at(-1)![2]
     act(() => release())
     expect(ctrl).toHaveAttribute('aria-pressed', 'false')
+  })
+
+  it('types the characters and paging keys a phone keyboard hides, and opens find', async () => {
+    render(<TerminalKeys id="t1" />)
+    await userEvent.click(screen.getByRole('button', { name: 'Type |' }))
+    expect(live.sendKeys).toHaveBeenLastCalledWith('t1', '|')
+    await userEvent.click(screen.getByRole('button', { name: 'Type ~' }))
+    expect(live.sendKeys).toHaveBeenLastCalledWith('t1', '~')
+    await userEvent.click(screen.getByRole('button', { name: 'Page up' }))
+    expect(live.sendKeys).toHaveBeenLastCalledWith('t1', '\x1b[5~')
+    await userEvent.click(screen.getByRole('button', { name: 'Home' }))
+    expect(live.sendKeys).toHaveBeenLastCalledWith('t1', '\x1b[H')
+    await userEvent.click(screen.getByRole('button', { name: 'End of input' }))
+    expect(live.sendKeys).toHaveBeenLastCalledWith('t1', '\x04')
+    await userEvent.click(screen.getByRole('button', { name: 'Find' }))
+    expect(useTerminalStore.getState().finding).toBe('t1')
   })
 
   it('pastes the clipboard into the terminal', async () => {
@@ -216,12 +310,63 @@ describe('TerminalPanel', () => {
     })
     ;(api.renameTerminal as Mock).mockResolvedValue(term({ id: 'b', title: 'logs' }))
     render(<TerminalPanel sessionId="s1" />)
-    expect(screen.getAllByRole('tab').map((t) => t.textContent)).toEqual(['mine', 'other'])
+    expect(screen.getAllByRole('tab').map((t) => t.querySelector('.term-tab-title')!.textContent)).toEqual(['mine', 'other'])
+    expect(screen.getByRole('tab', { name: /mine/ })).toHaveTextContent('mineapp')
     await userEvent.dblClick(screen.getByRole('tab', { name: /mine/ }))
     const input = screen.getByRole('textbox', { name: 'terminal name' })
     await userEvent.clear(input)
     await userEvent.type(input, 'logs{Enter}')
     expect(api.renameTerminal).toHaveBeenCalledWith('b', 'logs')
+  })
+
+  it('shows each tab’s folder and offers a visible rename on the chosen tab', async () => {
+    useTerminalStore.setState({ loaded: true, activeId: 'b', terminals: [term({ id: 'a', title: 'app' }), term({ id: 'b', title: 'logs', cwd: '/srv/api' })] })
+    ;(api.renameTerminal as Mock).mockReturnValue(new Promise(() => {}))
+    render(<TerminalPanel sessionId={null} />)
+    // A title that already is the folder name isn't repeated.
+    expect(screen.getByRole('tab', { name: /app/ }).querySelector('.term-tab-cwd')).toBeNull()
+    expect(screen.getByRole('tab', { name: /logs/ })).toHaveTextContent('logsapi')
+    expect(screen.getAllByRole('button', { name: /^Rename terminal/ })).toHaveLength(1)
+    await userEvent.click(screen.getByRole('button', { name: 'Rename terminal logs' }))
+    const input = screen.getByRole('textbox', { name: 'terminal name' })
+    await userEvent.clear(input)
+    await userEvent.type(input, 'tail{Enter}')
+    // The new title shows before the server answers.
+    expect(screen.getByRole('tab', { name: /tail/ })).toBeInTheDocument()
+  })
+
+  it('steps between tabs with Alt+[ and Alt+], in the order shown', async () => {
+    useTerminalStore.setState({ loaded: true, activeId: 'a', terminals: [term({ id: 'a', title: 'one' }), term({ id: 'b', title: 'two', sessionId: 's1' })] })
+    render(<TerminalPanel sessionId="s1" />)
+    // The session's own shell comes first, so "a" is second.
+    act(() => void window.dispatchEvent(new CustomEvent('gc:terminal-step', { detail: -1 })))
+    expect(useTerminalStore.getState().activeId).toBe('b')
+    fireEvent.keyDown(screen.getByRole('tab', { name: /two/ }), { code: 'BracketRight', altKey: true })
+    expect(useTerminalStore.getState().activeId).toBe('a')
+    fireEvent.keyDown(screen.getByRole('tab', { name: /one/ }), { code: 'BracketRight', altKey: true })
+    expect(useTerminalStore.getState().activeId).toBe('a')
+  })
+
+  it('keeps each open button busy only for its own request', async () => {
+    useTerminalStore.setState({ loaded: true })
+    ;(api.openTerminal as Mock).mockReturnValue(new Promise(() => {}))
+    render(<TerminalPanel sessionId="s1" />)
+    await userEvent.click(screen.getByRole('button', { name: 'New terminal in session dir' }))
+    expect(screen.getByRole('button', { name: 'New terminal in session dir' })).toHaveAttribute('aria-busy', 'true')
+    await userEvent.click(screen.getByRole('button', { name: 'Open a terminal elsewhere' }))
+    expect(screen.getByRole('button', { name: 'Home folder' })).not.toHaveAttribute('aria-busy')
+    await userEvent.click(screen.getByRole('button', { name: 'Home folder' }))
+    expect(screen.getByRole('button', { name: 'Opening…' })).toHaveAttribute('aria-busy', 'true')
+    expect(api.openTerminal).toHaveBeenCalledTimes(2)
+  })
+
+  it('says when a reload of the list failed, even after a first load', async () => {
+    useTerminalStore.setState({ loaded: true, terminals: [term()], loadError: 'offline' })
+    ;(api.listTerminals as Mock).mockResolvedValue([term()])
+    render(<TerminalPanel sessionId={null} />)
+    expect(screen.getByRole('alert')).toHaveTextContent('Couldn’t refresh shells: offline')
+    await userEvent.click(screen.getByRole('button', { name: 'Retry' }))
+    expect(screen.queryByRole('alert')).toBeNull()
   })
 
   it('says shells are loading before the list arrives', () => {

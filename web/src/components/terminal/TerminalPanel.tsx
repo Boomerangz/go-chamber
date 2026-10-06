@@ -1,15 +1,17 @@
-import { ChevronDown, Maximize2, Plus } from 'lucide-react'
+import { ChevronDown, Maximize2, Pencil, Plus } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { icon } from '../icon'
+import { basename } from '../../lib/format'
 import type { Terminal } from '../../lib/terminal'
 import { useLayoutStore } from '../../stores/layout'
-import { useTerminalStore } from '../../stores/terminals'
+import { openKey, useTerminalStore } from '../../stores/terminals'
 import FolderField from '../folders/FolderField'
 import { LoadFailed, LoadingLine } from '../ui/Loading'
 import CloseTerminalButton from './CloseTerminalButton'
 import { OpenError } from './NewTerminalForm'
 import TerminalScreen from './TerminalScreen'
 import { markOf, sortForSession } from './marks'
+import { stepOf, stepTerminal, useTerminalSteps } from './steps'
 import './terminal.css'
 
 // TerminalPanel is the ad-hoc terminal docked next to the chat: one row of
@@ -22,6 +24,7 @@ export default function TerminalPanel({ sessionId }: { sessionId: string | null 
   const activeId = useTerminalStore((s) => s.activeId)
   const setMode = useLayoutStore((s) => s.setMode)
   const sorted = sortForSession(terminals, sessionId)
+  useTerminalSteps(sorted.map((t) => t.id))
   // A remembered or linked terminal attaches only once the list has it.
   const attached = activeId && terminals.some((t) => t.id === activeId) ? activeId : null
 
@@ -35,7 +38,16 @@ export default function TerminalPanel({ sessionId }: { sessionId: string | null 
       </header>
       <div className="dock-tabs">
         {sorted.length > 0 && (
-          <ul className="terminal-tabs" role="tablist">
+          <ul
+            className="terminal-tabs"
+            role="tablist"
+            onKeyDown={(e) => {
+              const step = stepOf(e)
+              if (!step) return
+              e.preventDefault()
+              stepTerminal(step)
+            }}
+          >
             {sorted.map((t) => (
               <TerminalTab key={t.id} terminal={t} selected={t.id === activeId} />
             ))}
@@ -44,13 +56,12 @@ export default function TerminalPanel({ sessionId }: { sessionId: string | null 
         <NewTerminalButton sessionId={sessionId} />
       </div>
       <OpenError />
-      {!loaded && terminals.length === 0 && (
-        loadError ? (
-          <LoadFailed onRetry={() => void load()}>{`Couldn’t load shells: ${loadError}`}</LoadFailed>
-        ) : (
-          <LoadingLine>loading shells…</LoadingLine>
-        )
+      {loadError && (
+        <LoadFailed onRetry={() => void load()}>
+          {loaded || terminals.length > 0 ? `Couldn’t refresh shells: ${loadError}` : `Couldn’t load shells: ${loadError}`}
+        </LoadFailed>
       )}
+      {!loaded && terminals.length === 0 && !loadError && <LoadingLine>loading shells…</LoadingLine>}
       {loaded && !attached && (
         <p className="terminal-hint">
           {terminals.length > 0 ? 'Pick a terminal tab to attach.' : sessionId ? 'No shells yet. + opens one in the session folder.' : 'No shells yet. + opens one in your home folder.'}
@@ -68,11 +79,12 @@ function TerminalTab({ terminal: t, selected }: { terminal: Terminal; selected: 
   const closing = useTerminalStore((s) => Boolean(s.closing[t.id]))
   const [draft, setDraft] = useState<string | null>(null)
   const mark = markOf(t, conn)
+  const folder = basename(t.cwd) || t.cwd
   const save = () => {
     if (draft === null) return
     const next = draft.trim()
     setDraft(null)
-    if (next !== t.title) void rename(t.id, next)
+    if (next && next !== t.title) void rename(t.id, next)
   }
   return (
     <li role="presentation" className={closing ? 'closing' : undefined} aria-busy={closing || undefined}>
@@ -102,14 +114,22 @@ function TerminalTab({ terminal: t, selected }: { terminal: Terminal; selected: 
           id={`terminal-tab-${t.id}`}
           aria-controls="terminal-panel"
           aria-selected={selected}
-          title={`${t.title} — ${t.cwd} (double-click to rename)`}
+          title={`${t.title} — ${t.cwd}`}
           disabled={closing}
           onClick={() => select(t.id)}
           onDoubleClick={() => setDraft(t.title)}
         >
           <span className="term-dot" data-mark={mark.form} aria-hidden="true" />
-          <span className="term-tab-title">{t.title}</span>
+          <span className="term-tab-text">
+            <span className="term-tab-title">{t.title}</span>
+            {folder !== t.title && <span className="term-tab-cwd">{folder}</span>}
+          </span>
           {t.status === 'exited' && <span className={t.exitCode === 0 ? 'term-exit' : 'term-exit term-bad'}>exited {t.exitCode}</span>}
+        </button>
+      )}
+      {selected && draft === null && (
+        <button type="button" className="btn btn-ghost btn-icon term-tab-rename" aria-label={`Rename terminal ${t.title}`} title="Rename" onClick={() => setDraft(t.title)}>
+          <Pencil {...icon(12)} />
         </button>
       )}
       <CloseTerminalButton terminal={t} size={13} />
@@ -139,6 +159,10 @@ function NewTerminalButton({ sessionId }: { sessionId: string | null }) {
       setCwd('')
     }
   }
+  const here = sessionId ? { sessionId } : {}
+  const busyHere = Boolean(opening[openKey(here)])
+  const busyHome = Boolean(opening[openKey({})])
+  const busyFolder = Boolean(cwd.trim() && opening[openKey({ cwd: cwd.trim() })])
   const label = sessionId ? 'New terminal in session dir' : 'New terminal in home folder'
   return (
     <div
@@ -155,9 +179,9 @@ function NewTerminalButton({ sessionId }: { sessionId: string | null }) {
         type="button"
         className="btn btn-ghost btn-icon"
         aria-label={label}
-        title={opening ? 'Opening…' : label}
-        aria-busy={opening || undefined}
-        onClick={() => void open(sessionId ? { sessionId } : {})}
+        title={busyHere ? 'Opening…' : label}
+        aria-busy={busyHere || undefined}
+        onClick={() => void open(here)}
       >
         <Plus {...icon(15)} />
       </button>
@@ -174,8 +198,8 @@ function NewTerminalButton({ sessionId }: { sessionId: string | null }) {
       </button>
       {menu && (
         <div className="term-new-menu" role="group" aria-label="Open a terminal in">
-          <button type="button" className="btn btn-xs" aria-busy={opening || undefined} onClick={() => void openIn({})}>
-            Home folder
+          <button type="button" className="btn btn-xs" aria-busy={busyHome || undefined} onClick={() => void openIn({})}>
+            {busyHome ? 'Opening…' : 'Home folder'}
           </button>
           <form
             className="term-new-folder"
@@ -186,8 +210,8 @@ function NewTerminalButton({ sessionId }: { sessionId: string | null }) {
             }}
           >
             <FolderField label="terminal directory" placeholder="another folder" value={cwd} onChange={setCwd} />
-            <button type="submit" className="btn btn-xs" disabled={!cwd.trim()} aria-busy={opening || undefined}>
-              {opening ? 'Opening…' : 'Open'}
+            <button type="submit" className="btn btn-xs" disabled={!cwd.trim()} aria-busy={busyFolder || undefined}>
+              {busyFolder ? 'Opening…' : 'Open'}
             </button>
           </form>
         </div>

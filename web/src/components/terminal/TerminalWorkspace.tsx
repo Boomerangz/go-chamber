@@ -1,16 +1,18 @@
-import { Copy, SquareTerminal } from 'lucide-react'
+import { ChevronDown, Copy, SquareTerminal } from 'lucide-react'
 import { icon } from '../icon'
 import type { Session } from '../../lib/api'
 import { recentFolders } from '../../lib/folders'
 import { basename } from '../../lib/format'
 import { fail, notify } from '../../stores/notices'
-import { useTerminalStore } from '../../stores/terminals'
+import { useState } from 'react'
+import { openKey, useTerminalStore } from '../../stores/terminals'
 import EditableTitle from '../title/EditableTitle'
 import { LoadFailed, LoadingLine } from '../ui/Loading'
 import CloseTerminalButton from './CloseTerminalButton'
 import NewTerminalForm from './NewTerminalForm'
 import TerminalScreen from './TerminalScreen'
 import { markOf } from './marks'
+import { stepOf, stepTerminal, useTerminalSteps } from './steps'
 import './terminal.css'
 
 const copyPath = async (path: string) => {
@@ -38,20 +40,34 @@ export default function TerminalWorkspace({ sessions }: { sessions: Session[] })
   const open = useTerminalStore((s) => s.open)
   const select = useTerminalStore((s) => s.select)
   const active = terminals.find((t) => t.id === activeId)
+  useTerminalSteps(terminals.map((t) => t.id))
+  // On a phone the list folds to one line while a shell is attached.
+  const [listOpen, setListOpen] = useState(false)
   const projects = recentFolders(sessions, 6)
 
   let list: React.ReactNode
+  const failed = loadError && (
+    <LoadFailed onRetry={() => void load()}>
+      {loaded || terminals.length > 0 ? `Couldn’t refresh shells: ${loadError}` : `Couldn’t load shells: ${loadError}`}
+    </LoadFailed>
+  )
   if (!loaded && terminals.length === 0) {
-    list = loadError ? (
-      <LoadFailed onRetry={() => void load()}>{`Couldn’t load shells: ${loadError}`}</LoadFailed>
-    ) : (
-      <LoadingLine>loading shells…</LoadingLine>
-    )
+    list = failed || <LoadingLine>loading shells…</LoadingLine>
   } else if (terminals.length === 0) {
     list = <p className="terminal-hint">No shells yet.</p>
   } else {
     list = (
-      <ul className="term-list" role="tablist" aria-orientation="vertical">
+      <ul
+        className="term-list"
+        role="tablist"
+        aria-orientation="vertical"
+        onKeyDown={(e) => {
+          const step = stepOf(e)
+          if (!step) return
+          e.preventDefault()
+          stepTerminal(step)
+        }}
+      >
         {terminals.map((t) => {
           const mark = markOf(t, conn[t.id])
           const isClosing = Boolean(closing[t.id])
@@ -63,7 +79,10 @@ export default function TerminalWorkspace({ sessions }: { sessions: Session[] })
                 aria-controls="terminal-panel"
                 aria-selected={t.id === activeId}
                 disabled={isClosing}
-                onClick={() => select(t.id)}
+                onClick={() => {
+                  select(t.id)
+                  setListOpen(false)
+                }}
               >
                 <span className="term-dot" data-mark={mark.form} title={mark.label} aria-hidden="true" />
                 <span className="term-text">
@@ -84,7 +103,15 @@ export default function TerminalWorkspace({ sessions }: { sessions: Session[] })
 
   return (
     <section className="term-workspace" aria-label="Terminals">
-      <aside className="term-sidebar panel">
+      <aside className="term-sidebar panel" data-collapsed={(active && !listOpen) || undefined}>
+        {active && (
+          <button type="button" className="term-switch" aria-expanded={listOpen} onClick={() => setListOpen((o) => !o)}>
+            <span className="section-title">Shells</span>
+            <span className="count">{terminals.length}</span>
+            <span className="term-switch-title">{active.title}</span>
+            <ChevronDown {...icon(14)} />
+          </button>
+        )}
         <NewTerminalForm />
         {projects.length > 0 && (
           <div className="term-projects">
@@ -97,7 +124,7 @@ export default function TerminalWorkspace({ sessions }: { sessions: Session[] })
                   className="chip"
                   title={dir}
                   aria-label={`Open terminal in ${basename(dir)}`}
-                  aria-busy={opening || undefined}
+                  aria-busy={opening[openKey({ cwd: dir })] || undefined}
                   onClick={() => void open({ cwd: dir })}
                 >
                   <SquareTerminal {...icon(13)} /> {basename(dir)}
@@ -109,6 +136,7 @@ export default function TerminalWorkspace({ sessions }: { sessions: Session[] })
         <h2 className="section-title">
           Shells {terminals.length > 0 && <span className="count">{terminals.length}</span>}
         </h2>
+        {(loaded || terminals.length > 0) && failed}
         {list}
       </aside>
       <div className="term-main panel">
@@ -133,8 +161,8 @@ export default function TerminalWorkspace({ sessions }: { sessions: Session[] })
             <h2>Terminal</h2>
             {missingId && <p className="term-missing">terminal no longer exists</p>}
             <p>{terminals.length > 0 ? 'Pick a terminal to attach.' : 'Open a shell in a folder or one of your projects.'}</p>
-            <button type="button" className="btn btn-primary" aria-busy={opening || undefined} onClick={() => void open({})}>
-              {opening ? 'Opening…' : 'Open shell in ~'}
+            <button type="button" className="btn btn-primary" aria-busy={opening.home || undefined} onClick={() => void open({})}>
+              {opening.home ? 'Opening…' : 'Open shell in ~'}
             </button>
           </div>
         )}
