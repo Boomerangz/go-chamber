@@ -147,11 +147,17 @@ export default function ChatHeader({ session, status, loading, notFound, forking
         <SessionUsage />
         {session && (
           <div className="chat-tools" id={toolsId}>
-            <ModelPicker session={session} />
+            {/* The word shows only where the settings stack, on a phone. */}
+            <span className="tool-row">
+              <span className="tool-label" aria-hidden="true">
+                Model
+              </span>
+              <ModelPicker session={session} />
+            </span>
             <PermissionModeSelect session={session} />
             <ApprovalReviewerSelect session={session} />
             {session.nativeId && (
-              <button type="button" className="btn btn-ghost" aria-busy={forking} onClick={onFork}>
+              <button type="button" className="btn btn-ghost chat-fork" aria-busy={forking} onClick={onFork}>
                 {forking ? 'Forking…' : 'Fork'}
               </button>
             )}

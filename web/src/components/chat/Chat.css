@@ -35,7 +35,8 @@
 
 /* the header's settings sit inline on a wide screen; on a phone they fold
    behind "⋯" (see the mobile rules below) */
-.chat-tools { display: contents; }
+.chat-tools, .chat-tools .tool-row { display: contents; }
+.chat-tools .tool-label { display: none; }
 .chat-more { display: none; }
 /* a session title not known yet: dashed rules where the heading and path land */
 .chat-heading-skeleton { display: grid; align-content: center; gap: 14px; height: 49px; animation: mark-breathe 2.4s ease-in-out infinite; }
@@ -87,7 +88,19 @@
   .chat-header[data-details='open'] .chat-path-line { display: flex; }
   .chat-header .chat-meta { flex-wrap: wrap; row-gap: 8px; }
   .chat-header .chat-tools { display: none; }
-  .chat-header[data-details='open'] .chat-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 12px; width: 100%; }
+  /* opened, the settings stack as one table: a word, then its control at
+     full width and the same size (16px keeps a phone from zooming in) */
+  .chat-header[data-details='open'] .chat-tools { display: flex; flex-direction: column; align-items: stretch; gap: 8px; width: 100%; }
+  .chat-tools .tool-row, .chat-tools .mode-select > .reviewer, .chat-tools > .reviewer {
+    display: grid; grid-template-columns: 64px minmax(0, 1fr) auto; align-items: center; gap: 10px;
+  }
+  .chat-tools .tool-label { display: block; font-family: var(--font-mono); font-size: 12px; color: var(--ink-3); }
+  .chat-tools .mode-select { display: grid; gap: 8px; }
+  .chat-tools .mode-select > .reviewer > .field, .chat-tools > .reviewer > .field,
+  .chat-tools .model-picker, .chat-tools .model-button { width: 100%; }
+  .chat-tools .field-sm, .chat-tools .model-button { height: 36px; font-size: 16px; }
+  .chat-tools .model-button { justify-content: space-between; }
+  .chat-tools .chat-fork { align-self: flex-start; margin-left: 74px; }
   .chat-heading-skeleton { height: 26px; gap: 0; }
   .chat-heading-skeleton .skeleton-line + .skeleton-line { display: none; }
   .live-strip { margin-top: 8px; }
