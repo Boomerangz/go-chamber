@@ -4,6 +4,16 @@
 
 @import '@fontsource/pt-mono/400.css';
 
+/* the text column: the measure plus the turn-number margin. Registered as a
+   length so the 72ch is taken once, in the root's face, and inherited as px:
+   ch in a mono line (the working tail, the live strip) is narrower and
+   would pull those off the column. */
+@property --column {
+  syntax: '<length>';
+  inherits: true;
+  initial-value: 760px;
+}
+
 :root {
   color-scheme: light;
   --font-ui: -apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, 'Segoe UI', Roboto, sans-serif;
@@ -32,6 +42,7 @@
 
   --r: 2px;
   --measure: 72ch;
+  --column: calc(var(--measure) + 56px);
   --gutter: 20px;
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
   --dur-fast: 120ms;
@@ -472,7 +483,7 @@ button.health { border: 0; background: none; padding: 0; }
 .scroll { flex: 1; min-height: 0; overflow: auto; padding: 18px var(--gutter) 16px; border-bottom: 1px solid var(--rule); scroll-padding-bottom: 16px; }
 /* the text column, with a margin to its left for turn numbers */
 .items, .scroll > .request, .scroll > .request-slot, .chat-hint {
-  max-width: calc(var(--measure) + 56px); margin-left: auto; margin-right: auto; padding-left: 56px;
+  max-width: var(--column); margin-left: auto; margin-right: auto; padding-left: 56px;
 }
 .items { list-style: none; padding-right: 0; margin-top: 0; margin-bottom: 0; display: flex; flex-direction: column; gap: 14px; }
 .row { display: flex; min-width: 0; position: relative; }
@@ -582,7 +593,8 @@ button.health { border: 0; background: none; padding: 0; }
 
 .banner {
   display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap;
-  margin: 0 var(--gutter) 10px; padding: 8px 12px; font-size: 13px;
+  width: calc(100% - 2 * var(--gutter)); max-width: var(--column); margin: 0 auto 10px;
+  padding: 8px 12px; font-size: 13px;
   border: 1px solid var(--req-mark); background: var(--req-wash);
 }
 .banner-warn strong { font-family: var(--font-mono); font-weight: 400; text-transform: uppercase; letter-spacing: 0.04em; color: var(--req); }
@@ -592,7 +604,7 @@ button.health { border: 0; background: none; padding: 0; }
 
 .composer {
   display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px;
-  width: calc(100% - 2 * var(--gutter)); max-width: calc(var(--measure) + 56px); margin: 12px auto 14px;
+  width: calc(100% - 2 * var(--gutter)); max-width: var(--column); margin: 12px auto 14px;
   padding: 6px 6px 6px 12px;
   border: 1px solid var(--rule-strong); border-radius: var(--r); background: var(--paper);
   transition: border-color var(--dur-fast);

@@ -5,12 +5,12 @@
 @media (hover: none) { .chat-path-copy { opacity: 1; } }
 
 /* transcript loading / failed: in the text column */
-.chat-loading { max-width: calc(var(--measure) + 56px); margin: 0 auto; padding-left: 56px; }
+.chat-loading { max-width: var(--column); margin: 0 auto; padding-left: 56px; }
 
 /* the running turn's tail: a solid breathing mark and the turn's clock */
 .working-tail {
   display: flex; align-items: center; gap: 8px;
-  max-width: calc(var(--measure) + 56px); margin: 14px auto 0; padding-left: 56px;
+  max-width: var(--column); margin: 14px auto 0; padding-left: 56px;
   font-family: var(--font-mono); font-size: 12px; color: var(--ink-2); font-variant-numeric: tabular-nums;
 }
 .working-tail::before {
@@ -65,7 +65,7 @@
 /* the live socket dropped: a quiet line above the composer */
 .live-strip {
   display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
-  width: calc(100% - 2 * var(--gutter)); max-width: calc(var(--measure) + 56px); margin: 10px auto 0;
+  width: calc(100% - 2 * var(--gutter)); max-width: var(--column); margin: 10px auto 0;
   font-family: var(--font-mono); font-size: 12px; color: var(--ink-2);
 }
 .live-strip .btn { margin-left: auto; }
