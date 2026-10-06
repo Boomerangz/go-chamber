@@ -2,8 +2,10 @@ import { useEffect, useRef, useState, type KeyboardEvent } from 'react'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { enter } from '../../lib/motion'
 import { basename } from '../../lib/format'
-import type { RequestAnswerInput, SessionRequest } from '../../lib/api'
+import { usePending } from '../../lib/pending'
+import type { RequestAnswerInput, Session, SessionRequest } from '../../lib/api'
 import { useSessionStore } from '../../stores/session'
+import { LoadFailed, Skeleton } from '../ui/Loading'
 import { notSent, shortcut } from './answer'
 import './RequestTray.css'
 
@@ -11,19 +13,16 @@ const kindLabel: Record<string, string> = { permission: 'Permission', question: 
 
 const keyOf = (r: SessionRequest) => `${r.sessionId}/${r.id}`
 
+// Action names the control that sent the answer, so only it reads "…ing".
+type Action = 'allow' | 'session' | 'deny'
+
 // RequestTray is the global inbox of blocking requests across all sessions.
 // Permissions are answered in place; questions and forms open their session.
 export default function RequestTray() {
   const requests = useSessionStore((s) => s.pendingRequests)
+  const status = useSessionStore((s) => s.requestsStatus)
+  const loadRequests = useSessionStore((s) => s.loadRequests)
   const sessions = useSessionStore((s) => s.sessions)
-  const selectSession = useSessionStore((s) => s.selectSession)
-  const respond = useSessionStore((s) => s.respond)
-  const arrive = enter(useReducedMotion() ?? false, 'margin')
-  // answering guards each line while its answer is on its way: the ref drops
-  // a repeated key in the same tick, the state dims the line.
-  const answering = useRef(new Set<string>())
-  const [busy, setBusy] = useState<ReadonlySet<string>>(() => new Set())
-  const [errors, setErrors] = useState<Record<string, string>>({})
 
   // waiting says whether a line still asks: not being answered and not
   // leaving (an answered line stays in the DOM while it animates out).
@@ -33,99 +32,134 @@ export default function RequestTray() {
   }, [requests])
   const waiting = (el: HTMLElement) => {
     const key = el.dataset.key ?? ''
-    return el.isConnected && !answering.current.has(key) && live.current.some((r) => keyOf(r) === key)
+    return (
+      el.isConnected &&
+      el.closest('li')?.getAttribute('aria-busy') !== 'true' &&
+      live.current.some((r) => keyOf(r) === key)
+    )
   }
 
-  // Forget the lines that left the queue.
-  useEffect(() => {
-    const live = new Set(requests.map(keyOf))
-    let changed = false
-    for (const k of answering.current) {
-      if (!live.has(k)) {
-        answering.current.delete(k)
-        changed = true
-      }
-    }
-    if (changed) setBusy(new Set(answering.current))
-    setErrors((prev) => {
-      const kept = Object.entries(prev).filter(([k]) => live.has(k))
-      return kept.length === Object.keys(prev).length ? prev : Object.fromEntries(kept)
-    })
-  }, [requests])
-
-  // answer sends one line's answer. Focus stays on the line until the
-  // outcome is known; once it went through, the keyboard moves on to the
-  // next line still waiting.
-  const answer = async (r: SessionRequest, a: RequestAnswerInput, row: HTMLElement | null) => {
-    const key = keyOf(r)
-    if (answering.current.has(key)) return
-    answering.current.add(key)
-    setBusy(new Set(answering.current))
-    setErrors((prev) => (key in prev ? Object.fromEntries(Object.entries(prev).filter(([k]) => k !== key)) : prev))
-    const line = row?.closest('li') ?? null
-    const rows = [...(row?.closest('ul')?.querySelectorAll<HTMLElement>('.tray-row') ?? [])]
-    let failure: string | null = null
-    try {
-      if ((await respond(r.sessionId, r.id, a)) === false) failure = notSent()
-    } catch (err) {
-      failure = notSent(err)
-    }
-    if (failure !== null) {
-      answering.current.delete(key)
-      setBusy(new Set(answering.current))
-      setErrors((prev) => ({ ...prev, [key]: failure }))
-      return
-    }
-    const focused = document.activeElement
-    if (!row || !(focused === null || focused === document.body || line?.contains(focused))) return
-    nextRow(rows, rows.indexOf(row), waiting)?.focus()
+  // This is what needs the owner: until it loaded, an empty inbox would be
+  // a false all-clear.
+  const failed = status === 'error' && (
+    <LoadFailed onRetry={() => void loadRequests()}>Couldn't load requests</LoadFailed>
+  )
+  if (requests.length === 0) {
+    if (status === 'loading')
+      return (
+        <div className="tray-empty">
+          <Skeleton rows={2} label="loading requests" />
+        </div>
+      )
+    if (failed) return <div className="tray-empty">{failed}</div>
+    return <p className="tray-empty">No pending requests</p>
   }
-
-  if (requests.length === 0) return <p className="tray-empty">No pending requests</p>
   return (
     <aside className="request-tray panel" aria-label="Pending requests">
       <h2 className="section-title">
         Waiting for you <span className="badge">{requests.length}</span>
       </h2>
+      {failed}
       <ul>
         <AnimatePresence initial={false}>
-          {requests.map((r) => {
-            const key = keyOf(r)
-            const session = sessions.find((s) => s.id === r.sessionId)
-            const perSession = r.payload?.suggestions != null || session?.agent === 'codex'
-            const sending = busy.has(key)
-            return (
-              <motion.li key={key} className={sending ? 'answering' : undefined} aria-busy={sending || undefined} {...arrive}>
-                <button
-                  className="tray-row"
-                  data-key={key}
-                  onClick={() => void selectSession(r.sessionId)}
-                  onKeyDown={(e) => {
-                    if (onTrayKey(e, r, perSession, answer)) e.preventDefault()
-                  }}
-                >
-                  <span className={`request-kind kind-${r.kind}`}>{kindLabel[r.kind] ?? r.kind}</span>
-                  <span className="request-label">{r.title || r.prompt || r.payload?.toolName}</span>
-                  {session && <span className="request-session">{session.title || basename(session.cwd)}</span>}
-                </button>
-                {r.kind === 'permission' && (
-                  <TrayActions
-                    perSession={perSession}
-                    sending={sending}
-                    onAnswer={(a, el) => void answer(r, a, el.closest('li')?.querySelector<HTMLElement>('.tray-row') ?? null)}
-                  />
-                )}
-                {errors[key] && (
-                  <p className="error tray-error" role="alert">
-                    {errors[key]}
-                  </p>
-                )}
-              </motion.li>
-            )
-          })}
+          {requests.map((r) => (
+            <TrayLine
+              key={keyOf(r)}
+              request={r}
+              session={sessions.find((s) => s.id === r.sessionId)}
+              waiting={waiting}
+            />
+          ))}
         </AnimatePresence>
       </ul>
     </aside>
+  )
+}
+
+// TrayLine is one request. While its answer is on its way the line dims and
+// holds its buttons; once it went through it stays held until it leaves the
+// queue, or until the hold times out (the live socket may be down), when it
+// says it was sent and waits on the agent.
+function TrayLine({
+  request: r,
+  session,
+  waiting,
+}: {
+  request: SessionRequest
+  session: Session | undefined
+  waiting: (el: HTMLElement) => boolean
+}) {
+  const selectSession = useSessionStore((s) => s.selectSession)
+  const respond = useSessionStore((s) => s.respond)
+  const arrive = enter(useReducedMotion() ?? false, 'margin')
+  const perSession = r.payload?.suggestions != null || session?.agent === 'codex'
+  const [acting, setActing] = useState<Action | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [run, sending, stillWaiting] = usePending(
+    async (action: Action, a: RequestAnswerInput) => {
+      setActing(action)
+      setError(null)
+      let failure: string | null = null
+      try {
+        if ((await respond(r.sessionId, r.id, a)) === false) failure = notSent()
+      } catch (err) {
+        failure = notSent(err)
+      }
+      if (failure === null) return true
+      setError(failure)
+      setActing(null)
+      return false
+    },
+    { holdOnSuccess: true },
+  )
+
+  // answer sends the line's answer. Focus stays on the line until the
+  // outcome is known; once it went through, the keyboard moves on to the
+  // next line still waiting.
+  const answer = async (action: Action, a: RequestAnswerInput, row: HTMLElement | null) => {
+    const line = row?.closest('li') ?? null
+    const rows = [...(row?.closest('ul')?.querySelectorAll<HTMLElement>('.tray-row') ?? [])]
+    if ((await run(action, a)) !== true) return
+    const focused = document.activeElement
+    if (!row || !(focused === null || focused === document.body || line?.contains(focused))) return
+    nextRow(rows, rows.indexOf(row), waiting)?.focus()
+  }
+
+  const key = keyOf(r)
+  return (
+    <motion.li className={sending ? 'answering' : undefined} aria-busy={sending || undefined} {...arrive}>
+      <button
+        className="tray-row"
+        data-key={key}
+        onClick={() => void selectSession(r.sessionId)}
+        onKeyDown={(e) => {
+          if (onTrayKey(e, r, perSession, answer)) e.preventDefault()
+        }}
+      >
+        <span className={`request-kind kind-${r.kind}`}>{kindLabel[r.kind] ?? r.kind}</span>
+        <span className="request-label">{r.title || r.prompt || r.payload?.toolName}</span>
+        {session && <span className="request-session">{session.title || basename(session.cwd)}</span>}
+      </button>
+      {r.kind === 'permission' && (
+        <TrayActions
+          perSession={perSession}
+          acting={sending ? acting : null}
+          onAnswer={(action, a, el) =>
+            void answer(action, a, el.closest('li')?.querySelector<HTMLElement>('.tray-row') ?? null)
+          }
+        />
+      )}
+      {error && (
+        <p className="error tray-error" role="alert">
+          {error}
+        </p>
+      )}
+      {stillWaiting && !sending && !error && (
+        <p className="tray-waiting" role="status">
+          sent · waiting for agent
+        </p>
+      )}
+    </motion.li>
   )
 }
 
@@ -136,7 +170,7 @@ function nextRow(rows: HTMLElement[], at: number, waiting: (el: HTMLElement) => 
   return undefined
 }
 
-type Answer = (r: SessionRequest, a: RequestAnswerInput, row: HTMLElement | null) => Promise<void>
+type Answer = (action: Action, a: RequestAnswerInput, row: HTMLElement | null) => Promise<void>
 
 // onTrayKey answers the focused permission (A allow, S allow for session,
 // D deny) and moves between requests with the arrows. It reports whether it
@@ -151,45 +185,55 @@ function onTrayKey(e: KeyboardEvent<HTMLButtonElement>, r: SessionRequest, perSe
   if (r.kind !== 'permission') return false
   const key = shortcut(e)
   const row = e.currentTarget
-  if (key === 'a') void answer(r, { behavior: 'allow' }, row)
-  else if (key === 's' && perSession) void answer(r, { behavior: 'allow', allowForSession: true }, row)
-  else if (key === 'd') void answer(r, { behavior: 'deny' }, row)
+  if (key === 'a') void answer('allow', { behavior: 'allow' }, row)
+  else if (key === 's' && perSession) void answer('session', { behavior: 'allow', allowForSession: true }, row)
+  else if (key === 'd') void answer('deny', { behavior: 'deny' }, row)
   else return false
   return true
 }
 
+// busyProps marks the control that sent the answer and holds the rest.
+function busyProps(acting: Action | null, self: Action) {
+  if (acting === self) return { 'aria-busy': true as const }
+  return { disabled: acting !== null }
+}
+
 function TrayActions(props: {
   perSession: boolean
-  sending: boolean
-  onAnswer: (a: RequestAnswerInput, el: HTMLElement) => void
+  acting: Action | null
+  onAnswer: (action: Action, a: RequestAnswerInput, el: HTMLElement) => void
 }) {
+  const { acting } = props
   return (
     <div className="tray-actions">
       <button
         className="btn btn-xs btn-primary"
         aria-keyshortcuts="A"
-        disabled={props.sending}
-        onClick={(e) => props.onAnswer({ behavior: 'allow' }, e.currentTarget)}
+        {...busyProps(acting, 'allow')}
+        onClick={(e) => props.onAnswer('allow', { behavior: 'allow' }, e.currentTarget)}
       >
-        Allow <kbd aria-hidden="true">A</kbd>
+        {acting === 'allow' ? 'Allowing…' : 'Allow'}
+        {!acting && <kbd aria-hidden="true">A</kbd>}
       </button>
       {props.perSession && (
         <button
           className="btn btn-xs"
           aria-keyshortcuts="S"
-          disabled={props.sending}
-          onClick={(e) => props.onAnswer({ behavior: 'allow', allowForSession: true }, e.currentTarget)}
+          {...busyProps(acting, 'session')}
+          onClick={(e) => props.onAnswer('session', { behavior: 'allow', allowForSession: true }, e.currentTarget)}
         >
-          Allow for session <kbd aria-hidden="true">S</kbd>
+          {acting === 'session' ? 'Allowing…' : 'Allow for session'}
+          {!acting && <kbd aria-hidden="true">S</kbd>}
         </button>
       )}
       <button
         className="btn btn-xs btn-danger"
         aria-keyshortcuts="D"
-        disabled={props.sending}
-        onClick={(e) => props.onAnswer({ behavior: 'deny' }, e.currentTarget)}
+        {...busyProps(acting, 'deny')}
+        onClick={(e) => props.onAnswer('deny', { behavior: 'deny' }, e.currentTarget)}
       >
-        Deny <kbd aria-hidden="true">D</kbd>
+        {acting === 'deny' ? 'Denying…' : 'Deny'}
+        {!acting && <kbd aria-hidden="true">D</kbd>}
       </button>
     </div>
   )

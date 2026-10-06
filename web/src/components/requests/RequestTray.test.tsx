@@ -1,4 +1,5 @@
-import { render, screen, within } from '@testing-library/react'
+import { act, render, screen, within } from '@testing-library/react'
+import { HOLD_TIMEOUT_MS } from '../../lib/pending'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import RequestTray from './RequestTray'
@@ -23,6 +24,7 @@ beforeEach(() => {
 
 describe('RequestTray', () => {
   it('shows only an empty note without pending requests', () => {
+    useSessionStore.setState({ requestsStatus: 'ready' })
     render(<RequestTray />)
     expect(screen.queryByLabelText('Pending requests')).toBeNull()
     expect(screen.getByText('No pending requests')).toBeInTheDocument()
@@ -135,7 +137,10 @@ describe('RequestTray', () => {
     const line = row.closest('li')!
     expect(line).toHaveClass('answering')
     expect(line).toHaveAttribute('aria-busy', 'true')
-    for (const b of line.querySelectorAll('.tray-actions button')) expect(b).toBeDisabled()
+    // the control that sent reads "…ing"; the others are held
+    const allow = within(line).getByRole('button', { name: 'Allowing…' })
+    expect(allow).toHaveAttribute('aria-busy', 'true')
+    expect(within(line).getByRole('button', { name: 'Deny' })).toBeDisabled()
     release(true)
     await vi.waitFor(() => expect(screen.getByRole('button', { name: /Second/ })).toHaveFocus())
   })
@@ -184,6 +189,75 @@ describe('RequestTray', () => {
     screen.getByRole('button', { name: /First/ }).focus()
     await userEvent.keyboard('{Meta>}a{/Meta}s')
     expect(respond).not.toHaveBeenCalled()
+  })
+
+  it('never shows an empty inbox before it loaded', async () => {
+    const loadRequests = vi.fn().mockResolvedValue(undefined)
+    useSessionStore.setState({ loadRequests })
+    const { rerender } = render(<RequestTray />)
+    expect(screen.queryByText('No pending requests')).toBeNull()
+    expect(screen.getByRole('status', { name: 'loading requests' })).toBeInTheDocument()
+    useSessionStore.setState({ requestsStatus: 'error' })
+    rerender(<RequestTray />)
+    expect(screen.queryByText('No pending requests')).toBeNull()
+    expect(screen.getByRole('alert')).toHaveTextContent("Couldn't load requests")
+    await userEvent.click(screen.getByRole('button', { name: 'Retry' }))
+    expect(loadRequests).toHaveBeenCalledTimes(1)
+  })
+
+  it('lists live requests even while the inbox load failed, and says it is incomplete', () => {
+    useSessionStore.setState({
+      requestsStatus: 'error',
+      pendingRequests: [{ id: 'r1', sessionId: 's1', kind: 'permission', state: 'pending', title: 'Run command' }],
+    })
+    render(<RequestTray />)
+    expect(screen.getByText('Run command')).toBeInTheDocument()
+    expect(screen.getByRole('alert')).toHaveTextContent("Couldn't load requests")
+  })
+
+  it('names the answer on its way', async () => {
+    const respond = vi.fn(() => new Promise<boolean>(() => {}))
+    useSessionStore.setState({
+      respond,
+      requestsStatus: 'ready',
+      pendingRequests: [
+        { id: 'r1', sessionId: 's1', kind: 'permission', state: 'pending', title: 'First' },
+        { id: 'r2', sessionId: 's1', kind: 'permission', state: 'pending', title: 'Second' },
+      ],
+    })
+    render(<RequestTray />)
+    const [first, second] = screen.getAllByRole('listitem')
+    await userEvent.click(within(first!).getByRole('button', { name: 'Deny' }))
+    expect(within(first!).getByRole('button', { name: 'Denying…' })).toHaveAttribute('aria-busy', 'true')
+    expect(within(first!).getByRole('button', { name: 'Allow' })).toBeDisabled()
+    // the other line is not held
+    expect(within(second!).getByRole('button', { name: 'Allow' })).toBeEnabled()
+  })
+
+  it('lets go of an answered line that never leaves and says it waits on the agent', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    try {
+      const respond = vi.fn().mockResolvedValue(true)
+      useSessionStore.setState({
+        respond,
+        requestsStatus: 'ready',
+        pendingRequests: [{ id: 'r1', sessionId: 's1', kind: 'permission', state: 'pending', title: 'First' }],
+      })
+      render(<RequestTray />)
+      const line = screen.getByRole('listitem')
+      await act(async () => {
+        within(line).getByRole('button', { name: 'Allow' }).click()
+      })
+      expect(within(line).getByRole('button', { name: 'Allowing…' })).toBeInTheDocument()
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(HOLD_TIMEOUT_MS)
+      })
+      expect(line).not.toHaveClass('answering')
+      expect(within(line).getByText('sent · waiting for agent')).toBeInTheDocument()
+      expect(within(line).getByRole('button', { name: 'Allow' })).toBeEnabled()
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('leaves questions to the session, where their options are', () => {

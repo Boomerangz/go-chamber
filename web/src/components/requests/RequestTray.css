@@ -3,7 +3,10 @@
 .request-tray li.answering > .tray-row .request-label { color: var(--ink-3); }
 .request-tray li.answering > .tray-row { cursor: progress; }
 .request-tray li.answering > .tray-row .request-kind::before { border-style: dashed; }
-.tray-error {
+.tray-error,
+.tray-waiting {
   margin: 0; padding: 0 10px 9px;
   border: 1px solid var(--rule); border-top: 0; background: var(--paper);
 }
+/* sent, but the line never left: the answer waits on the agent */
+.tray-waiting { font-family: var(--font-mono); font-size: 12px; color: var(--ink-3); }
