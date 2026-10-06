@@ -22,6 +22,7 @@ import {
   setModel,
   UNAUTHORIZED_EVENT,
   ApiError,
+  errorMessage,
   createWorktreeSession,
   requestRaw,
   TIMEOUT_MS,
@@ -303,7 +304,32 @@ describe('ApiError', () => {
     const err = await getSession('x').catch((e: unknown) => e)
     expect(err).toBeInstanceOf(ApiError)
     expect((err as ApiError).status).toBe(404)
-    expect((err as ApiError).message).toBe('{"error":"session not found"}')
+    expect((err as ApiError).message).toBe('session not found')
+  })
+
+  it('keeps a body that is not a JSON error as it is', async () => {
+    stubFetch(async () => new Response('<html><title>Bad gateway</title></html>', { status: 502, statusText: 'Bad Gateway' }))
+    const err = await getSession('x').catch((e: unknown) => e)
+    expect((err as ApiError).status).toBe(502)
+    expect(describeError(err)).toBe('Bad gateway')
+  })
+})
+
+describe('errorMessage', () => {
+  it('reads the error field of a JSON body', () => {
+    expect(errorMessage('{"error":"boom"}', '500 Internal')).toBe('boom')
+  })
+
+  it('keeps other bodies whole', () => {
+    expect(errorMessage('{"error":3}', 'x')).toBe('{"error":3}')
+    expect(errorMessage('{"error":""}', 'x')).toBe('{"error":""}')
+    expect(errorMessage('["boom"]', 'x')).toBe('["boom"]')
+    expect(errorMessage('null', 'x')).toBe('null')
+    expect(errorMessage('plain text', 'x')).toBe('plain text')
+  })
+
+  it('falls back to the status for an empty body', () => {
+    expect(errorMessage('', '404 Not Found')).toBe('404 Not Found')
   })
 })
 

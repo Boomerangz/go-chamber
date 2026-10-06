@@ -1,3 +1,5 @@
+import { errorMessage } from './api'
+
 export type TerminalStatus = 'running' | 'exited'
 
 export interface Terminal {
@@ -22,7 +24,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(path, { credentials: 'same-origin', ...init })
   const text = await res.text().catch(() => '')
   if (!res.ok) {
-    throw new Error(text || `${res.status} ${res.statusText}`)
+    throw new Error(errorMessage(text, `${res.status} ${res.statusText}`))
   }
   return (text ? JSON.parse(text) : undefined) as T
 }
