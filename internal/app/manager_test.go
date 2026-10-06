@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"sync"
@@ -665,11 +666,15 @@ func TestRespondRequestRecordsDecision(t *testing.T) {
 		answer   RequestAnswer
 		decision domain.Decision
 		text     string
+		payload  string
 	}{
-		{"approve", domain.RequestPermission, RequestAnswer{Allow: true}, domain.DecisionApproved, ""},
-		{"approve for session", domain.RequestPermission, RequestAnswer{Allow: true, AllowForSession: true}, domain.DecisionApproved, "for this session"},
-		{"deny", domain.RequestPermission, RequestAnswer{Message: "not now"}, domain.DecisionDenied, "not now"},
-		{"answer", domain.RequestQuestion, RequestAnswer{Allow: true, Answers: map[string][]string{"Pick?": {"Alpha", "Beta"}, "Also?": {"Yes"}}}, domain.DecisionAnswered, "Also? Yes\nPick? Alpha, Beta"},
+		{"approve", domain.RequestPermission, RequestAnswer{Allow: true}, domain.DecisionApproved, "", ""},
+		{"approve for session", domain.RequestPermission, RequestAnswer{Allow: true, AllowForSession: true}, domain.DecisionApproved, "for this session", ""},
+		{"deny", domain.RequestPermission, RequestAnswer{Message: "not now"}, domain.DecisionDenied, "not now", ""},
+		{"answer", domain.RequestQuestion, RequestAnswer{Allow: true, Answers: map[string][]string{"Pick?": {"Alpha", "Beta"}, "Also?": {"Yes"}}}, domain.DecisionAnswered, "Also? Yes\nPick? Alpha, Beta", ""},
+		// A skipped question is recorded by what it asked.
+		{"skip", domain.RequestQuestion, RequestAnswer{}, domain.DecisionDenied, "Which option?", `{"input":{"questions":[{"question":"Which option?"},{"question":"And?"}]}}`},
+		{"skip without questions", domain.RequestQuestion, RequestAnswer{}, domain.DecisionDenied, "", `{"input":{}}`},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -685,6 +690,9 @@ func TestRespondRequestRecordsDecision(t *testing.T) {
 			ev.Request.Kind = c.kind
 			ev.Request.Title = "Run command"
 			ev.Request.TurnID = "t7"
+			if c.payload != "" {
+				ev.Request.Payload = json.RawMessage(c.payload)
+			}
 			rt.events <- ev
 			eventually(t, "pending", func() bool { return len(m.PendingRequests(ctx)) == 1 })
 

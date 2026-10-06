@@ -133,7 +133,7 @@ test('phone controls are finger-sized', async ({ page }, info) => {
 
   await page.getByLabel('Working directory').fill('/tmp')
   await page.getByRole('button', { name: 'New session', exact: true }).click()
-  await page.getByLabel('message').fill('edit some files')
+  await page.getByLabel('Message').fill('edit some files')
   await page.getByRole('button', { name: 'Send' }).click()
   // finished tool lines fold into one summary line
   const fold = page.locator('.items summary').first()

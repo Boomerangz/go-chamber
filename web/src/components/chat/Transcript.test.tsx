@@ -197,6 +197,24 @@ describe('messages', () => {
   })
 })
 
+describe('long lines', () => {
+  it('cuts a long command to one line, the whole of it on hover', () => {
+    const command = `for f in ${'src/very/long/path/file.go '.repeat(12)}; do go vet "$f"; done`
+    const { container } = show(item({ kind: 'command', status: 'streaming', input: { command } }))
+    const code = container.querySelector('.item.command .item-line > code')!
+    expect(code).toHaveClass('line-cut')
+    expect(code).toHaveAttribute('title', command)
+  })
+
+  it('cuts a long file path to one line too', () => {
+    const path = '/very/long/'.repeat(20) + 'file.go'
+    const { container } = show(item({ kind: 'file_change', path }))
+    const code = container.querySelector('.item.file > code')!
+    expect(code).toHaveClass('line-cut')
+    expect(code).toHaveAttribute('title', path)
+  })
+})
+
 describe('subagents', () => {
   it('names a subagent by its type and says what it does', () => {
     const { container } = show(item({ kind: 'subagent', name: 'Task', status: 'streaming', input: { subagent_type: 'Explore', description: 'find usages' } }))
@@ -357,6 +375,16 @@ describe('finished subagents', () => {
     expect(fold.open).toBe(false)
     expect(fold.querySelector('summary')).toHaveTextContent('2 steps')
     expect(fold.querySelector('.item-output-preview')).toHaveTextContent('last: Found two.')
+  })
+
+  it('says a subagent its turn left unfinished was stopped, and offers no Stop', () => {
+    const { container } = show(item({ id: 'p', kind: 'subagent', name: 'Task', status: 'stopped', agentId: 'task-1' }), {}, [
+      item({ id: 'c', kind: 'command', status: 'stopped', parentItemId: 'p', input: { command: 'sleep 9' } }),
+    ])
+    expect(screen.queryByRole('button', { name: 'Stop' })).toBeNull()
+    expect(container.querySelector('.subagent-head .stop-tag')).toHaveTextContent('stopped')
+    expect(container.querySelector('details.subagent-steps')).not.toBeNull()
+    expect(container.querySelector('.item.command .stop-tag')).toHaveTextContent('stopped')
   })
 
   it('keeps the steps of a running subagent open', () => {

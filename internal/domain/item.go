@@ -92,10 +92,12 @@ const (
 	ItemStreaming ItemStatus = "streaming"
 	ItemCompleted ItemStatus = "completed"
 	ItemFailed    ItemStatus = "failed"
+	// ItemStopped is an item its turn left unfinished: the owner stopped it.
+	ItemStopped ItemStatus = "stopped"
 )
 
 // Terminal reports whether no further status change is expected.
-func (s ItemStatus) Terminal() bool { return s == ItemCompleted || s == ItemFailed }
+func (s ItemStatus) Terminal() bool { return s == ItemCompleted || s == ItemFailed || s == ItemStopped }
 
 // Item is a normalized unit of conversation content: a user or assistant
 // message, a reasoning block, a tool call, a file change and so on. The
@@ -168,7 +170,7 @@ func (i *Item) SetStatus(next ItemStatus) error {
 		return fmt.Errorf("%w: %s from terminal %s", ErrInvalidItemTransition, next, i.Status)
 	}
 	switch next {
-	case ItemStreaming, ItemCompleted, ItemFailed:
+	case ItemStreaming, ItemCompleted, ItemFailed, ItemStopped:
 		i.Status = next
 		if next.Terminal() {
 			i.textBuilder = nil

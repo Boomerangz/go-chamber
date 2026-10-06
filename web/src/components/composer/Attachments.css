@@ -1,9 +1,8 @@
 .attachments { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
 .attachments:empty { display: none; }
 .attachment { position: relative; display: inline-flex; }
-.attachment img, .item-images img {
-  width: 56px; height: 56px; object-fit: cover; border: 1px solid var(--rule-strong); border-radius: var(--r);
-}
+.attachment img, .item-images img { object-fit: cover; border: 1px solid var(--rule-strong); border-radius: var(--r); }
+.attachment img { width: 56px; height: 56px; }
 /* an image still on its way: the "not yet settled" dashed form */
 .attachment-pending {
   width: 56px; height: 56px; align-items: center; justify-content: center;

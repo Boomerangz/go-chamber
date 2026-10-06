@@ -36,7 +36,7 @@ test('changes read like a review: counts first, files side by side, numbered lin
   await openNewSession(page)
   await page.getByLabel('Working directory').fill(repo)
   await page.getByRole('button', { name: 'New session', exact: true }).click()
-  await expect(page.getByLabel('message')).toBeVisible()
+  await expect(page.getByLabel('Message')).toBeVisible()
 
   const panel = await openChanges(page)
   await expect(panel.getByLabel('2 files, 5 added, 1 removed lines')).toHaveText('2 files +5 −1')

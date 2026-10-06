@@ -30,6 +30,10 @@
 .exit-tag.exit-bad { color: var(--bad); }
 
 /* folded output: label, then its last line while closed */
+.item-output { grid-column: 1 / -1; margin-top: 4px; }
+.item-output > summary { cursor: pointer; color: var(--ink-3); font-size: 12px; user-select: none; }
+.item-output > summary:hover { color: var(--ink); }
+.item-output[open] > summary { margin-bottom: 4px; }
 .item-output > summary { display: flex; align-items: baseline; gap: 10px; min-width: 0; list-style: none; }
 .item-output > summary::-webkit-details-marker { display: none; }
 .item-output > summary::before { content: '+'; flex: none; width: 1ch; }
@@ -47,7 +51,14 @@
   opacity: 0; transition: opacity var(--dur-fast);
 }
 .item-output-body:hover .item-output-copy, .item-output-copy:focus-visible { opacity: 1; }
-@media (hover: none), (pointer: coarse) { .item-output-body .item-output-copy { opacity: 1; } }
+/* a touch screen has no hover to reveal Copy: it gets a row of its own above
+   the output, so it never covers the first lines */
+@media (hover: none), (pointer: coarse) {
+  .item-output-body { display: flex; flex-direction: column; }
+  .item-output-body > * { min-width: 0; }
+  .item-output-body .item-output-copy { position: static; order: -1; align-self: flex-end; margin: 4px 0; opacity: 1; background: none; }
+  .item-output-body .inline-diff { margin-top: 0; }
+}
 
 /* errors: what broke, said in the open */
 .item.item-error {
@@ -64,6 +75,16 @@
 .item-output > .show-all { margin-top: 4px; }
 
 /* reasoning still on its way: the "not yet settled" dashed underline, then its newest line */
+/* reasoning: folded behind +/−, with a dashed rule */
+.item.reasoning summary {
+  cursor: pointer; list-style: none; display: inline-flex; align-items: center; gap: 6px;
+  font-family: var(--font-mono); font-size: 12px; color: var(--ink-3);
+}
+.item.reasoning summary::-webkit-details-marker { display: none; }
+.item.reasoning summary::before { content: '+'; width: 1ch; }
+.item.reasoning[open] summary::before { content: '−'; }
+.item.reasoning pre { background: transparent; border-left-style: dashed; color: var(--ink-3); font-family: var(--font-ui); font-size: 13px; }
+.item.reasoning .md { margin-top: 6px; padding-left: 12px; border-left: 1px dashed var(--rule-strong); color: var(--ink-3); font-size: 13px; }
 .item.reasoning summary { display: flex; max-width: 100%; min-width: 0; }
 .item.reasoning summary::before { flex: none; }
 .reasoning-label { flex: none; }
@@ -106,7 +127,11 @@
 }
 
 /* a message of the owner's: copy it, or take it back into the composer */
-.item.user { position: relative; }
+.item.user {
+  position: relative; margin-left: -13px; padding-left: 12px; border-left: 1px solid var(--ink);
+  font-size: 15px; font-weight: 400; line-height: 1.55; color: var(--ink);
+}
+@media (max-width: 720px) { .item.user { margin-left: 0; } }
 .msg-actions {
   position: absolute; top: -4px; right: 0; display: flex; gap: 2px; background: var(--paper);
   opacity: 0; transition: opacity var(--dur-fast);
@@ -155,3 +180,8 @@
   .row .item .msg-copy { display: none; }
   .row .item.actions-shown .msg-copy { display: flex; }
 }
+.item.subagent.state-stopped .subagent-items { border-left-style: solid; }
+
+/* a command or a path is cut to one line; the whole of it shows on hover */
+.item code.line-cut { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.item.file > code.line-cut { min-width: 0; }

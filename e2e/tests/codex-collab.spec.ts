@@ -8,9 +8,9 @@ test('shows a codex collab subagent as a child session', async ({ page }) => {
   await page.getByRole('radio', { name: 'Codex' }).click()
   await page.getByLabel('Working directory').fill('/tmp')
   await page.getByRole('button', { name: 'New session', exact: true }).click()
-  await expect(page.getByLabel('message')).toBeVisible()
+  await expect(page.getByLabel('Message')).toBeVisible()
 
-  await page.getByLabel('message').fill('start collab')
+  await page.getByLabel('Message').fill('start collab')
   await page.getByRole('button', { name: 'Send' }).click()
 
   await showPane(page, 'Sessions')

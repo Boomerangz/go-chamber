@@ -17,6 +17,7 @@ import {
 import type { SessionNode } from '../../lib/tree'
 import { settle } from '../../lib/motion'
 import { useJustFinished } from '../../lib/finished'
+import { shownStatus, statusWord } from '../../lib/status'
 import { useNow } from '../../lib/now'
 import { isUnseen, useVisits, type Visits } from '../../lib/visits'
 import { useSessionStore } from '../../stores/session'
@@ -310,6 +311,7 @@ function SessionRow(props: {
   // The open session knows whether its turn failed; a failure isn't "done".
   const failed = useSessionStore((st) => st.activeId === s.id && !!st.chat.lastTurnFailed)
   const finished = useJustFinished(s.status, failed)
+  const shown = shownStatus({ status: s.status, started: !!s.nativeId, waiting, failed, finished })
   const active = s.id === props.activeId
   const ref = useScrolledIntoView(active)
   const title = sessionTitle(s)
@@ -330,25 +332,19 @@ function SessionRow(props: {
             {title}
           </span>
           <span className="session-meta">
-            {waiting > 0 ? (
-              <>
-                <span className="session-status session-status-waiting">waiting for you</span>
-                <span className="badge" title="Requests waiting for you">
-                  {waiting}
-                </span>
-              </>
-            ) : (
-              (s.status === 'running' || s.status === 'interrupted' || finished) && (
-                <span className={`session-status session-status-${finished ? 'done' : s.status}`}>{finished ? 'done' : s.status}</span>
-              )
-            )}
-            {s.status === 'detached' && !finished && waiting === 0 && (
+            {shown === 'detached' ? (
               // Most sessions rest detached; the dashed mark alone says so.
               <span className="session-status session-status-detached" role="img" aria-label="detached" title="detached · resumes when you write" />
-            )}
-            {s.status === 'idle' && !finished && waiting === 0 && (
+            ) : shown === 'idle' ? (
               // Idle is a resting state too: the hollow mark alone.
               <span className="session-status session-status-idle" role="img" aria-label="idle" title="idle · waiting for your next message" />
+            ) : (
+              <span className={`session-status session-status-${shown}`}>{statusWord(shown)}</span>
+            )}
+            {waiting > 0 && (
+              <span className="badge" title="Requests waiting for you">
+                {waiting}
+              </span>
             )}
             {unseen && (
               <span className="session-unseen" title="Changed since you last opened it">

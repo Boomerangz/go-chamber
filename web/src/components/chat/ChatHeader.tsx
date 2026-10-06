@@ -1,14 +1,17 @@
-import { useId, useState } from 'react'
+import { useId, useRef, useState } from 'react'
 import { Copy, MoreHorizontal } from 'lucide-react'
 import AgentAvatar from '../AgentAvatar'
 import ModelPicker from '../models/ModelPicker'
 import PermissionModeSelect from '../models/PermissionModeSelect'
 import EditableTitle from '../title/EditableTitle'
+import PathText from '../ui/PathText'
 import { icon } from '../icon'
-import type { ApprovalReviewer, Session, SessionStatus } from '../../lib/api'
+import type { ApprovalReviewer, Session } from '../../lib/api'
+import { statusWord, type ShownStatus } from '../../lib/status'
 import { isDangerousMode } from '../../lib/models'
 import { sessionTitle } from '../../lib/sessions'
 import { notify } from '../../stores/notices'
+import { useHeaderFold } from './useHeaderFold'
 import { useSessionStore } from '../../stores/session'
 
 // ApprovalReviewerSelect chooses who reviews Codex approval requests
@@ -31,7 +34,7 @@ function ApprovalReviewerSelect({ session }: { session: Session }) {
       Approvals
       <select
         className="field field-sm"
-        aria-label="approval reviewer"
+        aria-label="Approval reviewer"
         aria-busy={saving !== null || undefined}
         value={saving ?? session.approvalReviewer ?? ''}
         onChange={(e) => {
@@ -60,7 +63,7 @@ function SessionUsage() {
   if (!tokens && !cost) return null
   const parts = [tokens ? `${tokens.toLocaleString()} tokens` : '', cost ? `$${cost.toFixed(4)}` : '', total ? '' : 'last turn']
   return (
-    <span className="usage" aria-label={total ? 'session usage' : 'last turn usage'}>
+    <span className="usage" aria-label={total ? 'Session usage' : 'Last turn usage'}>
       {parts.filter(Boolean).join(' · ')}
     </span>
   )
@@ -78,10 +81,8 @@ function ChatPath({ cwd }: { cwd: string }) {
   }
   return (
     <span className="chat-path-line">
-      <span className="chat-path" title={cwd}>
-        {cwd}
-      </span>
-      <button type="button" className="btn btn-ghost btn-icon chat-path-copy" aria-label="copy path" title="Copy path" onClick={() => void copy()}>
+      <PathText path={cwd} className="chat-path" />
+      <button type="button" className="btn btn-ghost btn-icon chat-path-copy" aria-label="Copy path" title="Copy path" onClick={() => void copy()}>
         <Copy {...icon(12)} />
       </button>
     </span>
@@ -90,8 +91,8 @@ function ChatPath({ cwd }: { cwd: string }) {
 
 interface Props {
   session: Session | undefined
-  // status is the word the header shows: running, idle, done, failed…
-  status: SessionStatus | 'done' | 'failed'
+  // status is what the header shows (see lib/status).
+  status: ShownStatus
   // loading: the sessions list hasn't arrived, so the title isn't known yet.
   loading: boolean
   notFound: boolean
@@ -107,14 +108,16 @@ export default function ChatHeader({ session, status, loading, notFound, forking
   const [open, setOpen] = useState(false)
   const toolsId = useId()
   const unguarded = isDangerousMode(session?.permissionMode)
+  const header = useRef<HTMLElement>(null)
+  const fold = useHeaderFold(header)
   return (
-    <header className="chat-header" data-details={open ? 'open' : undefined}>
+    <header ref={header} className="chat-header" data-details={open ? 'open' : undefined} data-fold={fold || undefined}>
       {session && <AgentAvatar agent={session.agent} />}
       <div className="chat-heading">
         {session ? (
           <EditableTitle heading value={sessionTitle(session)} label="session" onRename={(title) => renameSession(session.id, title)} />
         ) : loading ? (
-          <div className="chat-heading-skeleton" role="status" aria-label="loading session">
+          <div className="chat-heading-skeleton" role="status" aria-label="Loading session">
             <span className="skeleton-line" style={{ '--w': '42%' } as React.CSSProperties} />
             <span className="skeleton-line" style={{ '--w': '64%' } as React.CSSProperties} />
           </div>
@@ -127,7 +130,7 @@ export default function ChatHeader({ session, status, loading, notFound, forking
         <button
           type="button"
           className="btn btn-ghost btn-icon chat-more"
-          aria-label="session details"
+          aria-label="Session details"
           aria-expanded={open}
           aria-controls={toolsId}
           onClick={() => setOpen(!open)}
@@ -138,7 +141,7 @@ export default function ChatHeader({ session, status, loading, notFound, forking
       <div className="chat-meta">
         {session && (
           <span className={`status status-${status}`} role="status">
-            {status}
+            {statusWord(status)}
           </span>
         )}
         {unguarded && (

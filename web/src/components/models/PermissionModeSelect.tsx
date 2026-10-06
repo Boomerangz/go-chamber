@@ -64,7 +64,7 @@ export default function PermissionModeSelect({ session }: { session: Session }) 
         <select
           ref={select}
           className={`field field-sm${danger ? ' mode-danger' : ''}`}
-          aria-label="permission mode"
+          aria-label="Permission mode"
           aria-busy={pending !== null || undefined}
           title={danger ? dangerTitle : undefined}
           value={value}
@@ -83,7 +83,7 @@ export default function PermissionModeSelect({ session }: { session: Session }) 
         <span
           className="mode-confirm"
           role="group"
-          aria-label={`confirm ${label(confirming)}`}
+          aria-label={`Confirm ${label(confirming)}`}
           onKeyDown={(e) => {
             if (e.key === 'Escape') {
               e.stopPropagation()

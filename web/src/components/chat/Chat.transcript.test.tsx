@@ -37,7 +37,7 @@ function setup(chat: ChatState) {
   return render(<Chat />)
 }
 
-const box = () => screen.getByRole('combobox', { name: 'message' }) as HTMLTextAreaElement
+const box = () => screen.getByRole('combobox', { name: 'Message' }) as HTMLTextAreaElement
 
 beforeEach(() => {
   vi.clearAllMocks()

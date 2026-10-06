@@ -9,13 +9,13 @@ test('focus leaves only the chat and opens the requests when the agent asks', as
   await openNewSession(page)
   await page.getByLabel('Working directory').fill('/tmp')
   await page.getByRole('button', { name: 'New session', exact: true }).click()
-  await expect(page.getByLabel('message')).toBeVisible()
+  await expect(page.getByLabel('Message')).toBeVisible()
 
   await page.getByRole('button', { name: 'Focus' }).click()
   await expect(page.locator('.sidebar')).toBeHidden()
   await expect(page.getByRole('toolbar', { name: 'Dock' })).toBeHidden()
 
-  await page.getByLabel('message').fill(text)
+  await page.getByLabel('Message').fill(text)
   await page.getByRole('button', { name: 'Send' }).click()
   const line = page.getByRole('complementary', { name: 'Pending requests' }).getByRole('listitem').filter({ hasText: text })
   await expect(line).toBeVisible()

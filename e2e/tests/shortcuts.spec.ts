@@ -8,7 +8,7 @@ async function startSession(page: import('@playwright/test').Page, text: string)
   await page.getByRole('button', { name: 'New session', exact: true }).click()
   // The previous chat stays on screen until the new one opens.
   await expect(page.locator('.chat-hint')).toBeVisible()
-  await page.getByLabel('message').fill(text)
+  await page.getByLabel('Message').fill(text)
   await page.getByRole('button', { name: 'Send' }).click()
   await expect(page.getByText(`echo: ${text}`)).toBeVisible()
 }

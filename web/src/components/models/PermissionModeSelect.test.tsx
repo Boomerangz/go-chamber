@@ -17,7 +17,7 @@ beforeEach(() => {
 describe('PermissionModeSelect', () => {
   it('offers the Claude modes and switches the session', async () => {
     render(<PermissionModeSelect session={{ id: 's', agent: 'claude', cwd: '/p', status: 'idle', permissionMode: 'plan' }} />)
-    const select = screen.getByLabelText('permission mode')
+    const select = screen.getByLabelText('Permission mode')
     expect(select).toHaveValue('plan')
     expect(screen.getAllByRole('option').map((o) => o.getAttribute('value'))).toEqual(['', 'default', 'acceptEdits', 'plan', 'bypassPermissions'])
     await userEvent.selectOptions(select, 'acceptEdits')
@@ -26,7 +26,7 @@ describe('PermissionModeSelect', () => {
 
   it('offers the Codex presets', () => {
     render(<PermissionModeSelect session={{ id: 's', agent: 'codex', cwd: '/p', status: 'idle' }} />)
-    expect(screen.getByLabelText('permission mode')).toHaveValue('')
+    expect(screen.getByLabelText('Permission mode')).toHaveValue('')
     expect(screen.getAllByRole('option').map((o) => o.getAttribute('value'))).toEqual(['', 'read-only', 'auto', 'full-access'])
   })
 
@@ -39,7 +39,7 @@ describe('PermissionModeSelect', () => {
         }),
     )
     render(<PermissionModeSelect session={{ id: 's', agent: 'claude', cwd: '/p', status: 'idle', permissionMode: 'plan' }} />)
-    const select = screen.getByLabelText('permission mode')
+    const select = screen.getByLabelText('Permission mode')
     await userEvent.selectOptions(select, 'acceptEdits')
     expect(select).toHaveValue('acceptEdits')
     expect(select).toHaveAttribute('aria-busy', 'true')
@@ -52,11 +52,11 @@ describe('PermissionModeSelect', () => {
 
   it('asks before switching to a mode that never asks', async () => {
     render(<PermissionModeSelect session={{ id: 's', agent: 'claude', cwd: '/p', status: 'idle', permissionMode: 'default' }} />)
-    const select = screen.getByLabelText('permission mode')
+    const select = screen.getByLabelText('Permission mode')
     await userEvent.selectOptions(select, 'bypassPermissions')
     expect(api.setPermissionMode).not.toHaveBeenCalled()
     expect(select).toHaveValue('default')
-    const confirm = screen.getByRole('group', { name: 'confirm bypass permissions' })
+    const confirm = screen.getByRole('group', { name: 'Confirm bypass permissions' })
     expect(confirm).toHaveTextContent(/won't ask/)
     // Claude takes this mode only at start: say why it will show detached.
     expect(confirm).toHaveTextContent(/restarts/)
@@ -68,21 +68,21 @@ describe('PermissionModeSelect', () => {
 
   it('stays in the asking mode when the switch is cancelled', async () => {
     render(<PermissionModeSelect session={{ id: 's', agent: 'codex', cwd: '/p', status: 'idle', permissionMode: 'auto' }} />)
-    await userEvent.selectOptions(screen.getByLabelText('permission mode'), 'full-access')
+    await userEvent.selectOptions(screen.getByLabelText('Permission mode'), 'full-access')
     await userEvent.keyboard('{Escape}')
     expect(screen.queryByRole('group', { name: /confirm/ })).toBeNull()
     // Focus goes back where the question came from, not to the page.
-    expect(screen.getByLabelText('permission mode')).toHaveFocus()
-    await userEvent.selectOptions(screen.getByLabelText('permission mode'), 'full-access')
+    expect(screen.getByLabelText('Permission mode')).toHaveFocus()
+    await userEvent.selectOptions(screen.getByLabelText('Permission mode'), 'full-access')
     await userEvent.click(screen.getByRole('button', { name: 'Cancel' }))
-    expect(screen.getByLabelText('permission mode')).toHaveFocus()
+    expect(screen.getByLabelText('Permission mode')).toHaveFocus()
     expect(api.setPermissionMode).not.toHaveBeenCalled()
-    expect(screen.getByLabelText('permission mode')).toHaveValue('auto')
+    expect(screen.getByLabelText('Permission mode')).toHaveValue('auto')
   })
 
   it('reads the modes that never ask as dangerous', () => {
     const { rerender } = render(<PermissionModeSelect session={{ id: 's', agent: 'claude', cwd: '/p', status: 'idle', permissionMode: 'bypassPermissions' }} />)
-    const select = screen.getByLabelText('permission mode')
+    const select = screen.getByLabelText('Permission mode')
     expect(select).toHaveClass('mode-danger')
     expect(select.getAttribute('title')).toMatch(/won't ask/)
     rerender(<PermissionModeSelect session={{ id: 's', agent: 'codex', cwd: '/p', status: 'idle', permissionMode: 'full-access' }} />)

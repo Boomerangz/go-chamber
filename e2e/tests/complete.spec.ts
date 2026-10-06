@@ -17,7 +17,7 @@ test('completes @files and /commands in the composer', async ({ page }) => {
   await page.getByRole('radio', { name: 'Claude' }).click()
   await page.getByLabel('Working directory').fill(dir)
   await page.getByRole('button', { name: 'New session', exact: true }).click()
-  const box = page.getByLabel('message')
+  const box = page.getByLabel('Message')
   await expect(box).toBeVisible()
 
   await box.fill('/rev')

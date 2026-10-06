@@ -38,11 +38,11 @@ function Harness({ sessionId = 's1', locked = false }: { sessionId?: string; loc
 describe('Attachments', () => {
   it('uploads picked images, shows them and removes one', async () => {
     render(<Harness />)
-    await userEvent.upload(screen.getByLabelText('attach images'), [png('a.png'), png('b.png')])
+    await userEvent.upload(screen.getByLabelText('Attach images'), [png('a.png'), png('b.png')])
     expect(await screen.findAllByRole('img')).toHaveLength(2)
     expect(screen.getAllByRole('img')[0]).toHaveAttribute('src', '/api/sessions/s1/images/img1.png')
     expect(latest.ids).toEqual(['img1.png', 'img2.png'])
-    await userEvent.click(screen.getByRole('button', { name: 'remove a.png' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Remove a.png' }))
     expect(latest.ids).toEqual(['img2.png'])
     act(() => latest.clear())
     expect(screen.queryAllByRole('img')).toHaveLength(0)
@@ -61,10 +61,10 @@ describe('Attachments', () => {
   it('reports a failed upload', async () => {
     vi.mocked(api.uploadImage).mockRejectedValue(new Error('image is larger than 10 MB'))
     render(<Harness />)
-    await userEvent.upload(screen.getByLabelText('attach images'), png())
+    await userEvent.upload(screen.getByLabelText('Attach images'), png())
     expect(await screen.findByRole('alert')).toHaveTextContent('a.png: image is larger than 10 MB')
     expect(latest.ids).toEqual([])
-    await userEvent.click(screen.getByRole('button', { name: 'dismiss a.png' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Dismiss a.png' }))
     expect(screen.queryByRole('alert')).toBeNull()
   })
 
@@ -72,12 +72,12 @@ describe('Attachments', () => {
     let finish: (v: api.UploadedImage) => void = () => {}
     vi.mocked(api.uploadImage).mockImplementationOnce(() => new Promise((r) => (finish = r)))
     render(<Harness />)
-    await userEvent.upload(screen.getByLabelText('attach images'), png('big.png'))
-    const placeholder = screen.getByLabelText('uploading big.png')
+    await userEvent.upload(screen.getByLabelText('Attach images'), png('big.png'))
+    const placeholder = screen.getByLabelText('Uploading big.png')
     expect(placeholder).toHaveAttribute('title', 'big.png')
     expect(latest.uploading).toBe(true)
     await act(async () => finish({ id: 'big.png', mimeType: 'image/png' }))
-    expect(screen.queryByLabelText('uploading big.png')).toBeNull()
+    expect(screen.queryByLabelText('Uploading big.png')).toBeNull()
     expect(latest.uploading).toBe(false)
     expect(screen.getByRole('img')).toHaveAttribute('alt', 'big.png')
   })
@@ -103,7 +103,7 @@ describe('Attachments', () => {
 
   it('keeps images of a session across remounts', async () => {
     const { unmount } = render(<Harness />)
-    await userEvent.upload(screen.getByLabelText('attach images'), png('kept.png'))
+    await userEvent.upload(screen.getByLabelText('Attach images'), png('kept.png'))
     await screen.findByRole('img')
     unmount()
     render(<Harness />)
@@ -137,8 +137,8 @@ describe('Attachments', () => {
     let finish: (v: api.UploadedImage) => void = () => {}
     vi.mocked(api.uploadImage).mockImplementationOnce(() => new Promise((r) => (finish = r)))
     render(<Harness />)
-    await userEvent.upload(screen.getByLabelText('attach images'), png('big.png'))
-    const chip = screen.getByLabelText('uploading big.png')
+    await userEvent.upload(screen.getByLabelText('Attach images'), png('big.png'))
+    const chip = screen.getByLabelText('Uploading big.png')
     expect(chip.querySelector('img')).toHaveAttribute('src', 'blob:thumb')
     expect(chip.querySelector('.busy-mark')).not.toBeNull()
     await act(async () => finish({ id: 'big.png', mimeType: 'image/png' }))
@@ -149,9 +149,9 @@ describe('Attachments', () => {
   it('retries a failed upload with the same file', async () => {
     vi.mocked(api.uploadImage).mockRejectedValueOnce(new Error('network down'))
     render(<Harness />)
-    await userEvent.upload(screen.getByLabelText('attach images'), png('again.png'))
+    await userEvent.upload(screen.getByLabelText('Attach images'), png('again.png'))
     expect(await screen.findByRole('alert')).toHaveTextContent('again.png: network down')
-    await userEvent.click(screen.getByRole('button', { name: 'retry again.png' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Retry again.png' }))
     await waitFor(() => expect(latest.ids).toEqual(['img1.png']))
     expect((vi.mocked(api.uploadImage).mock.calls[1]![1] as File).name).toBe('again.png')
     expect(screen.queryByRole('alert')).toBeNull()

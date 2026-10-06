@@ -32,6 +32,11 @@ describe('toolSummary', () => {
     expect(toolSummary(tool({ command: 'echo a\n  && echo b' }, 'Bash'))).toBe('echo a && echo b')
   })
 
+  it('does not flatten text of several lines into a summary; a plan is just a plan', () => {
+    expect(toolSummary(tool({ body: '## Notes\n1. one\n2. two' }))).toBeUndefined()
+    expect(toolSummary(tool({ plan: '## Plan\n1. Read the code\n2. **Fix** the bug' }, 'ExitPlanMode'))).toBe('plan')
+  })
+
   it('says nothing without a usable input', () => {
     expect(toolSummary(tool(undefined))).toBeUndefined()
     expect(toolSummary(tool('raw'))).toBeUndefined()

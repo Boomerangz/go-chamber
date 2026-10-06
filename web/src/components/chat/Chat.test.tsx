@@ -8,6 +8,7 @@ import { useNotices } from '../../stores/notices'
 import { resetStore, useSessionStore } from '../../stores/session'
 import Chat from './Chat'
 
+vi.mock('../../lib/home', () => ({ useHome: () => '/home/me' }))
 vi.mock('../../lib/api', async (orig) => ({
   ...(await orig<typeof import('../../lib/api')>()),
   uploadImage: vi.fn(),
@@ -60,7 +61,7 @@ function setup(state: Partial<ReturnType<typeof useSessionStore.getState>> = {})
   return render(<Chat />)
 }
 
-const box = () => screen.getByRole('combobox', { name: 'message' })
+const box = () => screen.getByRole('combobox', { name: 'Message' })
 const running = (items: api.Item[] = [], extra: Partial<ChatState> = {}) => chatOf(items, { status: 'running', ...extra })
 
 beforeEach(() => {
@@ -79,7 +80,7 @@ afterEach(() => {
 describe('transcript loading', () => {
   it('shows placeholder rows while the transcript loads, not the start hint', () => {
     setup({ history: 'loading', chat: initialChat() })
-    expect(screen.getByRole('status', { name: 'loading transcript' })).toBeInTheDocument()
+    expect(screen.getByRole('status', { name: 'Loading transcript' })).toBeInTheDocument()
     expect(screen.queryByText(/Send a message to start/)).toBeNull()
   })
 
@@ -98,7 +99,7 @@ describe('transcript loading', () => {
 
   it('shows the session status where a screen reader can follow it', () => {
     setup({ chat: chatOf([item('u1', 'user_message')]) })
-    expect(screen.getByRole('list', { name: 'transcript' })).toBeInTheDocument()
+    expect(screen.getByRole('list', { name: 'Transcript' })).toBeInTheDocument()
     expect(document.querySelector('.chat-meta .status')).toHaveAttribute('role', 'status')
     expect(document.querySelector('.chat-meta .status')).toHaveTextContent('idle')
   })
@@ -115,12 +116,47 @@ describe('transcript loading', () => {
   })
 })
 
+describe('header status', () => {
+  it('prints the folder short, home as ~, and copies it whole', async () => {
+    const writeText = vi.fn(async () => {})
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true })
+    setup()
+    const path = document.querySelector('.chat-path')!
+    expect(path).toHaveTextContent('~/project')
+    expect(path).toHaveAttribute('title', '/home/me/project')
+    await userEvent.click(screen.getByRole('button', { name: 'Copy path' }))
+    expect(writeText).toHaveBeenCalledWith('/home/me/project')
+    expect(useNotices.getState().notices.at(-1)?.text).toBe('Path copied')
+  })
+
+  const statusEl = () => document.querySelector('.chat-meta .status')
+
+  it('says the session waits for the owner while a request is open, as the list does', () => {
+    const request: api.SessionRequest = { id: 'r1', sessionId: 's1', kind: 'permission', state: 'pending', title: 'Run' }
+    setup({ chat: running([item('u1', 'user_message')], { requests: { r1: request } }) })
+    expect(statusEl()).toHaveTextContent('waiting for you')
+    expect(statusEl()).toHaveClass('status-waiting')
+  })
+
+  it('calls a session that never ran idle, not detached', () => {
+    setup({ sessions: [{ ...session, status: 'detached', nativeId: undefined }], chat: initialChat() })
+    expect(statusEl()).toHaveTextContent('idle')
+  })
+})
+
 describe('working tail', () => {
   it('shows the turn clock while the agent works and nothing streams', () => {
     vi.useFakeTimers()
     setup({ chat: running([item('u1', 'user_message')]) })
     expect(screen.getByText('working · 0:00')).toBeInTheDocument()
     act(() => vi.advanceTimersByTime(42_000))
+    expect(screen.getByText('working · 0:42')).toBeInTheDocument()
+  })
+
+  it('keeps counting a turn that was already running when the page opened', () => {
+    vi.useFakeTimers()
+    const started = new Date(Date.now() - 42_000).toISOString()
+    setup({ sessions: [{ ...session, status: 'running', activeAt: started }], chat: initialChat() })
     expect(screen.getByText('working · 0:42')).toBeInTheDocument()
   })
 
@@ -132,7 +168,8 @@ describe('working tail', () => {
   it('says the turn waits for the owner when a request is open', () => {
     const request: api.SessionRequest = { id: 'r1', sessionId: 's1', kind: 'permission', state: 'pending', title: 'Run' }
     setup({ chat: running([item('u1', 'user_message')], { requests: { r1: request } }) })
-    expect(screen.getByText('waiting for you')).toBeInTheDocument()
+    expect(document.querySelector('.working-tail')).toHaveTextContent('waiting for you')
+    expect(document.querySelector('.working-tail')).toHaveClass('waiting')
     expect(screen.queryByText(/working ·/)).toBeNull()
   })
 })
@@ -186,6 +223,60 @@ describe('sending', () => {
     expect(box()).toHaveValue('first\n\nother')
   })
 
+  it('queues messages sent while one is on its way, each on its own, in order', async () => {
+    const accepts: ((ok: boolean) => void)[] = []
+    setup()
+    fns.send.mockImplementation(() => new Promise<boolean>((r) => accepts.push(r)))
+    fns.steer.mockImplementation(() => new Promise<boolean>((r) => accepts.push(r)))
+    await userEvent.type(box(), 'rapid 1{Enter}')
+    await userEvent.type(box(), 'rapid 2{Enter}')
+    await userEvent.type(box(), 'rapid 3{Enter}')
+    // Nothing is merged or left behind in the box.
+    expect(box()).toHaveValue('')
+    expect(fns.send).toHaveBeenCalledTimes(1)
+    expect(fns.send).toHaveBeenCalledWith('rapid 1', [])
+    const rows = () => Array.from(document.querySelectorAll('.row-pending')).map((r) => r.textContent)
+    expect(rows()).toEqual(['rapid 1sending…', 'rapid 2queued', 'rapid 3queued'])
+    // The button tells what is actually in flight.
+    expect(screen.getByRole('button', { name: 'Sending…' })).toBeInTheDocument()
+    await act(async () => accepts[0]!(true))
+    // The first started a turn: the rest steer it, one after another.
+    expect(fns.steer).toHaveBeenCalledTimes(1)
+    expect(fns.steer).toHaveBeenLastCalledWith('rapid 2')
+    expect(screen.getByRole('button', { name: 'Steering…' })).toBeInTheDocument()
+    await act(async () => accepts[1]!(true))
+    expect(fns.steer).toHaveBeenLastCalledWith('rapid 3')
+    await act(async () => accepts[2]!(true))
+    expect(rows()).toEqual(['rapid 1sent', 'rapid 2sent', 'rapid 3sent'])
+    expect(fns.send).toHaveBeenCalledTimes(1)
+  })
+
+  it('puts a failed message and the ones queued behind it back in the box', async () => {
+    const accepts: ((ok: boolean) => void)[] = []
+    setup()
+    fns.send.mockImplementation(() => new Promise<boolean>((r) => accepts.push(r)))
+    await userEvent.type(box(), 'one{Enter}')
+    await userEvent.type(box(), 'two{Enter}')
+    await act(async () => accepts[0]!(false))
+    expect(fns.steer).not.toHaveBeenCalled()
+    expect(fns.send).toHaveBeenCalledTimes(1)
+    expect(document.querySelectorAll('.row-pending')).toHaveLength(0)
+    expect(box()).toHaveValue('one\n\ntwo')
+  })
+
+  it('keeps queued messages in the draft when the owner moves to another session', async () => {
+    const accepts: ((ok: boolean) => void)[] = []
+    setup()
+    fns.send.mockImplementation(() => new Promise<boolean>((r) => accepts.push(r)))
+    await userEvent.type(box(), 'one{Enter}')
+    await userEvent.type(box(), 'two{Enter}')
+    act(() => useSessionStore.setState({ activeId: 's2' }))
+    await act(async () => accepts[0]!(true))
+    expect(fns.steer).not.toHaveBeenCalled()
+    expect(fns.send).toHaveBeenCalledTimes(1)
+    expect(localStorage.getItem('gc.draft:s1')).toContain('two')
+  })
+
   it('goes back to Send when the started turn already ended', async () => {
     setup()
     await userEvent.type(box(), 'first')
@@ -199,7 +290,7 @@ describe('sending', () => {
     vi.mocked(api.uploadImage).mockImplementation(() => new Promise(() => {}))
     setup()
     await userEvent.type(box(), 'look')
-    await userEvent.upload(screen.getByLabelText('attach images'), new File(['x'], 'a.png', { type: 'image/png' }))
+    await userEvent.upload(screen.getByLabelText('Attach images'), new File(['x'], 'a.png', { type: 'image/png' }))
     const button = screen.getByRole('button', { name: 'Uploading…' })
     expect(button).toHaveAttribute('aria-busy', 'true')
     await userEvent.click(button)
@@ -241,6 +332,17 @@ describe('sending', () => {
     localStorage.setItem('gc.draft:s1', Array.from({ length: 21 }, (_, i) => `line ${i}`).join('\n'))
     setup()
     expect(document.querySelector('.composer-lines')).toHaveTextContent('21 lines')
+  })
+
+  it('gives a message of several lines the whole width, the actions beneath', async () => {
+    setup()
+    const form = () => document.querySelector('form.composer')!
+    await userEvent.type(box(), 'one')
+    expect(form()).not.toHaveClass('multiline')
+    await userEvent.type(box(), '{Shift>}{Enter}{/Shift}two')
+    expect(form()).toHaveClass('multiline')
+    await userEvent.clear(box())
+    expect(form()).not.toHaveClass('multiline')
   })
 
   it('stays quiet about length for a short message', async () => {
@@ -326,7 +428,7 @@ describe('header', () => {
     let done: (ok: boolean) => void = () => {}
     setup({ sessions: [{ ...session, agent: 'codex', approvalReviewer: 'user' }] })
     fns.setApprovalReviewer.mockImplementationOnce(() => new Promise<boolean>((r) => (done = r)))
-    const select = screen.getByLabelText('approval reviewer')
+    const select = screen.getByLabelText('Approval reviewer')
     await userEvent.selectOptions(select, 'auto_review')
     expect(select).toHaveValue('auto_review')
     expect(select).toHaveAttribute('aria-busy', 'true')
@@ -336,9 +438,9 @@ describe('header', () => {
 
   it('folds the folder and settings behind a details button', async () => {
     setup()
-    const more = screen.getByRole('button', { name: 'session details' })
+    const more = screen.getByRole('button', { name: 'Session details' })
     expect(more).toHaveAttribute('aria-expanded', 'false')
-    expect(document.getElementById(more.getAttribute('aria-controls')!)).toContainElement(screen.getByLabelText('permission mode'))
+    expect(document.getElementById(more.getAttribute('aria-controls')!)).toContainElement(screen.getByLabelText('Permission mode'))
     await userEvent.click(more)
     expect(more).toHaveAttribute('aria-expanded', 'true')
     expect(document.querySelector('.chat-header')).toHaveAttribute('data-details', 'open')
@@ -354,15 +456,6 @@ describe('header', () => {
     expect(document.querySelector('.no-approvals')).toBeNull()
   })
 
-  it('copies the session folder', async () => {
-    const writeText = vi.fn(async () => {})
-    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true })
-    setup()
-    expect(screen.getByText('/home/me/project')).toHaveAttribute('title', '/home/me/project')
-    await userEvent.click(screen.getByRole('button', { name: 'copy path' }))
-    expect(writeText).toHaveBeenCalledWith('/home/me/project')
-    expect(useNotices.getState().notices.at(-1)?.text).toBe('Path copied')
-  })
 })
 
 describe('scrolling', () => {
@@ -488,19 +581,19 @@ describe('live connection', () => {
   it('says live updates paused and reconnects on demand', async () => {
     const retryNow = vi.fn()
     setup({ chat: running([item('u1', 'user_message')]), connection: 'offline', nextRetryAt: Date.now() + 4500, retryNow })
-    expect(screen.getByRole('status', { name: 'live updates' })).toHaveTextContent(/live updates paused · reconnecting in [45]s/)
+    expect(screen.getByRole('status', { name: 'Live updates' })).toHaveTextContent(/live updates paused · reconnecting in [45]s/)
     await userEvent.click(screen.getByRole('button', { name: 'Reconnect now' }))
     expect(retryNow).toHaveBeenCalledTimes(1)
   })
 
   it('says it is reconnecting while a retry is on its way', () => {
     setup({ connection: 'connecting', nextRetryAt: Date.now() - 10 })
-    expect(screen.getByRole('status', { name: 'live updates' })).toHaveTextContent('reconnecting…')
+    expect(screen.getByRole('status', { name: 'Live updates' })).toHaveTextContent('reconnecting…')
   })
 
   it('stays quiet while the first connection opens', () => {
     setup({ connection: 'connecting', nextRetryAt: null })
-    expect(screen.queryByRole('status', { name: 'live updates' })).toBeNull()
+    expect(screen.queryByRole('status', { name: 'Live updates' })).toBeNull()
   })
 
   it('stops the turn clock: it cannot know the turn still runs', () => {
@@ -519,12 +612,12 @@ describe('live connection', () => {
 describe('usage in the header', () => {
   it('names a turn result for what it is: the last turn', () => {
     setup({ chat: chatOf([], { result: { inputTokens: 10, outputTokens: 20 } }) })
-    expect(screen.getByLabelText('last turn usage')).toHaveTextContent('30 tokens · last turn')
+    expect(screen.getByLabelText('Last turn usage')).toHaveTextContent('30 tokens · last turn')
   })
 
   it('keeps the session total when the agent reports one', () => {
     setup({ chat: chatOf([], { usage: { totalTokens: 1200 }, result: { inputTokens: 1, outputTokens: 2 } }) })
-    expect(screen.getByLabelText('session usage')).toHaveTextContent('1,200 tokens')
+    expect(screen.getByLabelText('Session usage')).toHaveTextContent('1,200 tokens')
   })
 })
 
@@ -532,7 +625,7 @@ describe('session not loaded yet', () => {
   it('holds the heading as a placeholder while sessions load', () => {
     setup({ sessions: [], sessionsStatus: 'loading', history: 'loading', chat: initialChat() })
     expect(screen.queryByRole('heading', { name: 'Session' })).toBeNull()
-    expect(screen.getByRole('status', { name: 'loading session' })).toBeInTheDocument()
+    expect(screen.getByRole('status', { name: 'Loading session' })).toBeInTheDocument()
   })
 
   it('says so for an unknown session whose empty transcript loaded fine', () => {
@@ -541,7 +634,7 @@ describe('session not loaded yet', () => {
     // A session that isn't there has no state to show.
     expect(document.querySelector('.chat-meta .status')).toBeNull()
     expect(screen.queryByText(/Send a message to start/)).toBeNull()
-    expect(screen.queryByRole('combobox', { name: 'message' })).toBeNull()
+    expect(screen.queryByRole('combobox', { name: 'Message' })).toBeNull()
   })
 
   it('says a session that does not exist was not found and leads back', async () => {
@@ -635,8 +728,8 @@ describe('approval reviewer', () => {
   it('shows a busy mark while saving, like the mode select', async () => {
     setup({ sessions: [{ ...session, agent: 'codex', approvalReviewer: 'user' }] })
     fns.setApprovalReviewer.mockImplementationOnce(() => new Promise<boolean>(() => {}))
-    await userEvent.selectOptions(screen.getByLabelText('approval reviewer'), 'auto_review')
-    expect(screen.getByLabelText('approval reviewer').closest('.reviewer')?.querySelector('.busy-mark')).not.toBeNull()
+    await userEvent.selectOptions(screen.getByLabelText('Approval reviewer'), 'auto_review')
+    expect(screen.getByLabelText('Approval reviewer').closest('.reviewer')?.querySelector('.busy-mark')).not.toBeNull()
   })
 })
 
@@ -649,7 +742,8 @@ describe('stop when the agent is quiet', () => {
     expect(screen.getByRole('button', { name: 'Stopping…' })).toBeInTheDocument()
     act(() => vi.advanceTimersByTime(10_000))
     expect(screen.getByRole('button', { name: 'Stop' })).not.toHaveAttribute('aria-busy', 'true')
-    expect(screen.getByText('sent · waiting for agent')).toBeInTheDocument()
+    expect(document.querySelector('.live-strip')).toHaveTextContent('stop sent · waiting for the agent')
+    expect(document.querySelector('.composer .composer-note')).toBeNull()
   })
 
   it('lets go at once when the live connection drops', async () => {
@@ -658,6 +752,7 @@ describe('stop when the agent is quiet', () => {
     expect(screen.getByRole('button', { name: 'Stopping…' })).toBeInTheDocument()
     act(() => useSessionStore.setState({ connection: 'offline' }))
     expect(screen.getByRole('button', { name: 'Stop' })).toBeInTheDocument()
-    expect(screen.getByText('sent · waiting for agent')).toBeInTheDocument()
+    expect(document.querySelector('.live-strip')).toHaveTextContent('stop sent · waiting for the agent')
+    expect(document.querySelector('.composer .composer-note')).toBeNull()
   })
 })

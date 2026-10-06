@@ -27,7 +27,7 @@ test('works in a new worktree and shows its changes', async ({ page }, info) => 
   await page.getByLabel('In a new worktree').check()
   await page.getByLabel('Branch name').fill(branch)
   await page.getByRole('button', { name: 'New session', exact: true }).click()
-  await expect(page.getByLabel('message')).toBeVisible()
+  await expect(page.getByLabel('Message')).toBeVisible()
 
   const sessions: { worktree?: { path: string; branch: string; repo: string } }[] = await (await page.request.get('/api/sessions')).json()
   const wt = sessions.find((s) => s.worktree?.repo === repo)!.worktree!

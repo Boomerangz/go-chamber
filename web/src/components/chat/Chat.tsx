@@ -23,6 +23,7 @@ import { displayStatus } from '../../lib/format'
 import { enter } from '../../lib/motion'
 import { useJustFinished } from '../../lib/finished'
 import { useNow } from '../../lib/now'
+import { shownStatus } from '../../lib/status'
 import { usePending } from '../../lib/pending'
 import { useUnseen } from '../../lib/seen'
 import { isBlank, itemTree, withoutAnsweredQuestions } from '../../lib/tree'
@@ -46,7 +47,15 @@ const LONG_DRAFT_LINES = 20
 interface PendingSend {
   key: number
   text: string
-  accepted: boolean
+  state: 'queued' | 'sending' | 'sent'
+}
+
+// Outgoing is a submitted message waiting for its turn to go out.
+interface Outgoing {
+  key: number
+  value: string
+  raw: string
+  images: string[]
 }
 let nextSendKey = 0
 
@@ -93,11 +102,13 @@ export default function Chat() {
     textRef.current = text
   }, [text])
   const status = displayStatus(chat, session)
-  const failedTurn = !!chat.lastTurnFailed && status === 'idle'
+  const failedTurn = !!chat.lastTurnFailed && (status === 'idle' || status === 'detached')
   const finished = useJustFinished(status, failedTurn)
-  // A failed turn doesn't flash "done"; until the next turn the header says
-  // it failed, as the transcript does.
-  const shownStatus = failedTurn ? 'failed' : finished ? 'done' : status
+  // The header shows what the sessions list shows: a waiting request first;
+  // a failed turn doesn't flash "done", it says it failed until the next turn.
+  const shown = shownStatus({
+    status, started: !!session?.nativeId, waiting: Object.keys(chat.requests).length, failed: failedTurn, finished,
+  })
   const running = status === 'running'
   const reduced = useReducedMotion() ?? false
   const narrow = useMedia('(max-width: 720px)')
@@ -155,10 +166,21 @@ export default function Chat() {
   const busy = running || starting !== null
   // A running turn takes text only; images wait for the next message.
   const attachments = useAttachments(sessionId, busy)
-  // When this turn started, for the working clock; unknown before this view.
+  // When this turn started, for the working clock: now for a turn sent from
+  // here, else when the session last started one (a turn already running
+  // when the page opened keeps its clock across a reload).
   const [turnStart, setTurnStart] = useState<number | null>(null)
-  // eslint-disable-next-line react/set-state-in-effect
-  useEffect(() => setTurnStart(busy ? Date.now() : null), [busy])
+  // A turn this view sent starts now, whatever the session list says yet.
+  const sentHere = useRef(false)
+  const activeAt = session?.activeAt
+  useEffect(() => {
+    const now = Date.now()
+    const at = activeAt ? Date.parse(activeAt) : NaN
+    const start = starting === null && !sentHere.current && at <= now ? at : now
+    // eslint-disable-next-line react/set-state-in-effect
+    setTurnStart(busy ? start : null)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- read when the turn shows up
+  }, [busy])
 
   // Commands and skills may have changed during the turn; ask again next time.
   useEffect(() => {
@@ -229,29 +251,31 @@ export default function Chat() {
     setText(now.trim() ? `${message}\n\n${now}` : message)
   }
 
-  const doSubmit = async (): Promise<boolean> => {
-    const value = text.trim()
-    const images = attachments.ids
-    const steerIt = busy
-    // A message sent mid-upload would go without the images still on their way.
-    if (!steerIt && attachments.uploading) return false
-    if (!value && (steerIt || images.length === 0)) return false
+  // Messages go out one at a time, in the order they were sent; one sent
+  // while another is on its way waits its turn (never merged, never lost).
+  const queue = useRef<Outgoing[]>([])
+  const pumping = useRef(false)
+  // Whether the next message steers: the turn runs, or one just sent starts it.
+  const live = useRef(busy)
+  useLayoutEffect(() => {
+    live.current = busy
+  })
+  const [inFlight, setInFlight] = useState<'send' | 'steer' | null>(null)
+
+  const dispatch = async (out: Outgoing): Promise<boolean> => {
+    // The owner moved on: what waits stays in this session's draft.
+    if (useSessionStore.getState().activeId !== sessionId) return false
+    const steerIt = live.current
+    setInFlight(steerIt ? 'steer' : 'send')
+    setPendingSends((list) => list.map((p) => (p.key === out.key ? { ...p, state: 'sending' } : p)))
     const before = currentMark()
-    const key = ++nextSendKey
-    const shown = value || (images.length === 1 ? '[1 image]' : `[${images.length} images]`)
-    setPendingSends((list) => [...list, { key, text: shown, accepted: false }])
-    // The message shows once: on its way in the transcript, not also here.
-    if (value) setText('')
-    const accepted = steerIt ? await steer(value) : await send(value, images)
-    if (!accepted) {
-      dropSend(key)
-      if (value) restoreDraft(text)
-      return false
-    }
-    setPendingSends((list) => list.map((p) => (p.key === key ? { ...p, accepted: true } : p)))
-    setTimeout(() => dropSend(key), ECHO_MS)
+    const accepted = steerIt ? await steer(out.value) : await send(out.value, out.images)
+    if (!accepted) return false
+    setPendingSends((list) => list.map((p) => (p.key === out.key ? { ...p, state: 'sent' } : p)))
+    setTimeout(() => dropSend(out.key), ECHO_MS)
     if (!steerIt) {
-      images.forEach(attachments.remove)
+      out.images.forEach(attachments.remove)
+      live.current = true
       const after = currentMark()
       // The turn may already have started (or even ended) meanwhile.
       if (sameMark(before, after) && after.status !== 'running') setStarting(after)
@@ -262,7 +286,47 @@ export default function Chat() {
     }
     return true
   }
-  const [submit, submitting] = usePending(doSubmit)
+
+  const pump = async () => {
+    if (pumping.current) return
+    pumping.current = true
+    try {
+      while (queue.current.length) {
+        const out = queue.current[0]!
+        const ok = await dispatch(out)
+        queue.current.shift()
+        if (ok) continue
+        // What didn't go, and what waited behind it, goes back to the box.
+        const back = [out, ...queue.current.splice(0)]
+        const keys = new Set(back.map((o) => o.key))
+        setPendingSends((list) => list.filter((p) => !keys.has(p.key)))
+        const texts = back.map((o) => o.raw).filter((t) => t.trim())
+        if (texts.length) restoreDraft(texts.join('\n\n'))
+      }
+    } finally {
+      pumping.current = false
+      setInFlight(null)
+    }
+  }
+
+  const submit = () => {
+    const value = text.trim()
+    // Behind a message on its way, this one may well steer: text only.
+    const textOnly = busy || queue.current.length > 0
+    const images = textOnly ? [] : attachments.ids
+    // A message sent mid-upload would go without the images still on their way.
+    if (!textOnly && attachments.uploading) return
+    if (!value && images.length === 0) return
+    const key = ++nextSendKey
+    const shown = value || (images.length === 1 ? '[1 image]' : `[${images.length} images]`)
+    setPendingSends((list) => [...list, { key, text: shown, state: 'queued' }])
+    // The message shows once: on its way in the transcript, not also here.
+    if (value) setText('')
+    sentHere.current = true
+    queue.current.push({ key, value, raw: text, images })
+    void pump()
+  }
+  const submitting = inFlight !== null
 
   // Stop stays "Stopping…" from an accepted interrupt until the turn changes,
   // but not forever: with the agent quiet or the live socket down it lets go
@@ -331,18 +395,19 @@ export default function Chat() {
   const announcement = useAnnouncement(chat, history, status)
 
   const empty = !text.trim() && (busy || attachments.ids.length === 0)
-  const sendLabel = attachments.uploading && !busy ? 'Uploading…' : submitting ? (busy ? 'Steering…' : 'Sending…') : busy ? 'Steer' : 'Send'
+  const sendLabel = attachments.uploading && !busy ? 'Uploading…' : inFlight === 'steer' ? 'Steering…' : inFlight === 'send' ? 'Sending…' : busy ? 'Steer' : 'Send'
   const sendBusy = submitting || (attachments.uploading && !busy)
   const mod = isMac() ? '⌘' : 'Ctrl+'
   const placeholder = busy ? 'Steer the running turn…' : 'Message the agent…'
   // A long message says how long it is; the box itself stops growing.
   const lines = text ? text.split('\n').length : 0
+  const multiline = useMultiline(input, text)
 
   return (
     <section className="chat panel">
       <ChatHeader
         session={session}
-        status={shownStatus}
+        status={shown}
         loading={!session && sessionsStatus === 'loading'}
         notFound={notFound}
         forking={forking}
@@ -354,11 +419,11 @@ export default function Chat() {
       <div className="scroll" ref={scrollRef}>
         {notFound ? null : history === 'loading' && chat.order.length === 0 ? (
           <div className="chat-loading">
-            <Skeleton rows={4} label="loading transcript" />
+            <Skeleton rows={4} label="Loading transcript" />
           </div>
         ) : (
           <SessionFiles.Provider value={sessionId}>
-            <ol className="items" aria-label="transcript" aria-busy={streaming}>
+            <ol className="items" aria-label="Transcript" aria-busy={streaming}>
               {rows.map((node, i) => (
                 <Row
                   key={node.item.id}
@@ -377,7 +442,7 @@ export default function Chat() {
                 <li key={p.key} className="row row-user_message row-pending">
                   <div className="item user pending">
                     <div className="user-text">{p.text}</div>
-                    <span className="pending-label">{p.accepted ? 'sent' : 'sending…'}</span>
+                    <span className="pending-label">{p.state === 'sending' ? 'sending…' : p.state}</span>
                   </div>
                 </li>
               ))}
@@ -445,14 +510,14 @@ export default function Chat() {
           onAutoContinue={(on) => setAutoContinue(session.id, on)}
         />
       )}
-      <LiveStrip />
+      <LiveStrip note={stopSent ? 'stop sent · waiting for the agent' : undefined} />
       {!notFound && (
       <form
-        className={attachments.dragging ? 'composer dragging' : 'composer'}
+        className={['composer', attachments.dragging && 'dragging', multiline && 'multiline'].filter(Boolean).join(' ')}
         {...attachments.dropProps}
         onSubmit={(e) => {
           e.preventDefault()
-          void submit()
+          submit()
         }}
       >
         <ComposerInput
@@ -461,7 +526,7 @@ export default function Chat() {
           agent={session?.agent}
           value={text}
           onChange={setText}
-          onSubmit={() => void submit()}
+          onSubmit={() => submit()}
           onEscape={() => {
             if (!text) stopRef.current()
           }}
@@ -471,11 +536,6 @@ export default function Chat() {
         />
         <div className="composer-actions">
           <Attachments state={attachments} locked={busy} />
-          {stopSent && (
-            <span className="composer-note" role="status">
-              sent · waiting for agent
-            </span>
-          )}
           {busy && (
             <button
               type="button"
@@ -529,6 +589,26 @@ function WorkingTail({ since, waiting, streaming, live }: { since: number | null
       {text}
     </div>
   )
+}
+
+// useMultiline tells a draft that takes more than one line, by a newline or
+// by wrapping: it then gets the composer's whole width, the actions beneath.
+// A wrapped draft stays multiline until it is shorter than where it wrapped,
+// so the wider box doesn't flip it back and forth.
+function useMultiline(input: React.RefObject<HTMLTextAreaElement | null>, text: string): boolean {
+  const [wrapAt, setWrapAt] = useState<number | null>(null)
+  useLayoutEffect(() => {
+    if (wrapAt !== null) {
+      // eslint-disable-next-line react/set-state-in-effect -- measured layout
+      if (text.length < wrapAt) setWrapAt(null)
+      return
+    }
+    const el = input.current
+    if (!el || !text || text.includes('\n')) return
+    const line = parseFloat(getComputedStyle(el).lineHeight) || 20
+    if (el.scrollHeight > line * 1.6 + 10) setWrapAt(text.length)
+  }, [input, text, wrapAt])
+  return text.includes('\n') || (wrapAt !== null && text.length >= wrapAt)
 }
 
 // elapsed reads a duration as m:ss, or h:mm:ss past an hour.

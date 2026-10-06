@@ -55,6 +55,20 @@ describe('session status', () => {
     act(() => useSessionStore.setState({ sessions: [session('s1', 'Work')] }))
     expect(screen.getByText('done')).toHaveClass('session-status-done')
   })
+
+  it('says the open session failed, as its header does', () => {
+    useSessionStore.setState({ sessions: [session('s1', 'Work')], activeId: 's1' })
+    useSessionStore.setState((s) => ({ chat: { ...s.chat, lastTurnFailed: true } }))
+    render(<SessionList onCreateIn={() => {}} />)
+    expect(screen.getByText('failed')).toHaveClass('session-status-failed')
+  })
+
+  it('draws a session that never ran as idle, not detached', () => {
+    useSessionStore.setState({ sessions: [{ ...session('s1', 'New'), status: 'detached' }] })
+    render(<SessionList onCreateIn={() => {}} />)
+    expect(document.querySelector('.session-status-detached')).toBeNull()
+    expect(document.querySelector('.session-status-idle')).toHaveAccessibleName('idle')
+  })
 })
 
 describe('loading the list', () => {
@@ -247,7 +261,7 @@ describe('state on the row', () => {
   })
 
   it('draws a detached session with the dashed mark', () => {
-    useSessionStore.setState({ sessions: [{ ...session('s1', 'One'), status: 'detached' }] })
+    useSessionStore.setState({ sessions: [{ ...session('s1', 'One'), status: 'detached', nativeId: 'n1' }] })
     render(<SessionList onCreateIn={() => {}} />)
     const mark = document.querySelector('.session-status-detached')!
     expect(mark).toBeInTheDocument()

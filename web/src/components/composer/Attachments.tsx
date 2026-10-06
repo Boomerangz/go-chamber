@@ -21,7 +21,7 @@ export default function Attachments({ state, locked = false }: { state: ReturnTy
         accept="image/png,image/jpeg,image/gif,image/webp"
         multiple
         hidden
-        aria-label="attach images"
+        aria-label="Attach images"
         onChange={(e) => {
           if (e.target.files) void state.add(e.target.files)
           e.target.value = ''
@@ -46,13 +46,13 @@ export default function Attachments({ state, locked = false }: { state: ReturnTy
       {state.items.map((a) => (
         <span key={a.id} className="attachment">
           <img src={imageUrl(state.sessionId ?? '', a.id)} alt={a.name} />
-          <button type="button" className="attachment-remove" aria-label={`remove ${a.name}`} onClick={() => state.remove(a.id)}>
+          <button type="button" className="attachment-remove" aria-label={`Remove ${a.name}`} onClick={() => state.remove(a.id)}>
             <X {...icon(12)} />
           </button>
         </span>
       ))}
       {state.uploads.map((u) => (
-        <span key={u.key} className="attachment attachment-pending" title={u.name} role="status" aria-label={`uploading ${u.name}`}>
+        <span key={u.key} className="attachment attachment-pending" title={u.name} role="status" aria-label={`Uploading ${u.name}`}>
           {u.file && <Preview file={u.file} />}
           <span className="busy-mark" aria-hidden="true" />
         </span>
@@ -61,11 +61,11 @@ export default function Attachments({ state, locked = false }: { state: ReturnTy
         <span key={e.key} className="attachment-error" role="alert">
           <span>{e.message.includes(e.name) ? e.message : `${e.name}: ${e.message}`}</span>
           {e.file && (
-            <button type="button" className="btn btn-xs" aria-label={`retry ${e.name}`} onClick={() => state.retry(e.key)}>
+            <button type="button" className="btn btn-xs" aria-label={`Retry ${e.name}`} onClick={() => state.retry(e.key)}>
               Retry
             </button>
           )}
-          <button type="button" className="btn btn-icon btn-ghost" aria-label={`dismiss ${e.name}`} onClick={() => state.dismiss(e.key)}>
+          <button type="button" className="btn btn-icon btn-ghost" aria-label={`Dismiss ${e.name}`} onClick={() => state.dismiss(e.key)}>
             <X {...icon(12)} />
           </button>
         </span>

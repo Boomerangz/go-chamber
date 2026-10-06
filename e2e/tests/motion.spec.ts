@@ -10,11 +10,11 @@ test('works without motion: items appear and an answered request leaves', async 
   await openNewSession(page)
   await page.getByLabel('Working directory').fill('/tmp')
   await page.getByRole('button', { name: 'New session', exact: true }).click()
-  await expect(page.getByLabel('message')).toBeVisible()
+  await expect(page.getByLabel('Message')).toBeVisible()
 
-  await page.getByLabel('message').fill(text)
+  await page.getByLabel('Message').fill(text)
   await page.getByRole('button', { name: 'Send' }).click()
-  await expect(page.getByLabel('turn 1')).toBeVisible()
+  await expect(page.getByLabel('Turn 1')).toBeVisible()
   await expect(page.locator('.request-title', { hasText: 'Run command' })).toBeVisible()
 
   await page.getByRole('button', { name: 'Allow', exact: true }).click()
@@ -40,7 +40,7 @@ test('marks what arrived since the session was last open', async ({ page }, info
     await expect(page.locator('.chat-hint')).toBeVisible()
   }
   await open('/tmp')
-  await page.getByLabel('message').fill(text)
+  await page.getByLabel('Message').fill(text)
   await page.getByRole('button', { name: 'Send' }).click()
   await expect(page.locator('.request-title', { hasText: 'Run command' })).toBeVisible()
   await expect(page.locator('.unseen-mark')).toHaveCount(0)

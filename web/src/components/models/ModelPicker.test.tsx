@@ -46,8 +46,9 @@ describe('ModelPicker', () => {
   it('picks a model and an effort', async () => {
     render(<ModelPicker session={session()} />)
     await userEvent.click(await screen.findByRole('button', { name: 'Model: Default model' }))
-    expect(screen.getByText('From Codex config')).toBeInTheDocument()
-    expect(screen.getByText('default')).toBeInTheDocument()
+    // One default: the Default choice names the model it stands for.
+    expect(screen.getByText('Big, from Codex config')).toBeInTheDocument()
+    expect(screen.queryByText('default')).toBeNull()
     await userEvent.click(screen.getByRole('radio', { name: /Fast/ }))
     expect(api.setModel).toHaveBeenCalledWith('s', { model: 'fast', effort: '' })
     expect(api.listModels).toHaveBeenCalledWith('codex')
@@ -68,8 +69,8 @@ describe('ModelPicker', () => {
   it('does nothing when the choice is unchanged and hides effort for models without it', async () => {
     render(<ModelPicker session={session({ agent: 'claude', model: 'tiny' })} />)
     await userEvent.click(await screen.findByRole('button', { name: /Model:/ }))
-    expect(screen.queryByRole('radiogroup', { name: 'effort' })).toBeNull()
-    expect(screen.getByText('From Claude settings')).toBeInTheDocument()
+    expect(screen.queryByRole('radiogroup', { name: 'Effort' })).toBeNull()
+    expect(screen.getByText('Big, from Claude settings')).toBeInTheDocument()
     await userEvent.click(screen.getByRole('radio', { name: /Tiny/ }))
     expect(api.setModel).not.toHaveBeenCalled()
   })

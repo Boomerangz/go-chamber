@@ -38,7 +38,7 @@ test('archives, unarchives and deletes a session, live in another tab', async ({
 
   // Still works when opened: a message goes through.
   await showPane(page, 'Chat')
-  await page.getByLabel('message').fill('still here')
+  await page.getByLabel('Message').fill('still here')
   await page.getByRole('button', { name: 'Send' }).click()
   await expect(page.getByText('echo: still here')).toBeVisible()
 

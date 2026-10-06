@@ -227,7 +227,7 @@ export default function ComposerInput({ sessionId, agent, value, onChange, onSub
           className={stale ? 'completions stale' : 'completions'}
           role="listbox"
           id={listId}
-          aria-label={kind === 'file' ? 'files' : 'commands'}
+          aria-label={kind === 'file' ? 'Files' : 'Commands'}
           aria-busy={stale || undefined}
         >
           {options.map((o, i) => (
@@ -254,7 +254,7 @@ export default function ComposerInput({ sessionId, agent, value, onChange, onSub
       )}
       <textarea
         ref={ref}
-        aria-label="message"
+        aria-label="Message"
         role="combobox"
         aria-autocomplete="list"
         aria-expanded={open}

@@ -57,7 +57,7 @@ export const Row = memo(function Row({ node, turn, unseen, reduced, animateIn, o
         transition={motionProps.transition}
       >
         {turn !== undefined && (
-          <span className="turn-no" aria-label={`turn ${turn}`}>
+          <span className="turn-no" aria-label={`Turn ${turn}`}>
             {turn}.
           </span>
         )}
@@ -75,6 +75,9 @@ export const Row = memo(function Row({ node, turn, unseen, reduced, animateIn, o
   sameNode(a.node, b.node))
 
 const live = (item: Item) => item.status === 'streaming' || item.status === 'pending'
+
+// StopTag marks a line its turn left unfinished: the owner stopped the turn.
+const StopTag = ({ item }: { item: Item }) => (item.status === 'stopped' ? <span className="exit-tag stop-tag">stopped</span> : null)
 
 // Tools whose input is an edit to a file, drawn as a diff.
 const EDIT_TOOLS = new Set(['Edit', 'MultiEdit', 'Write', 'NotebookEdit'])
@@ -111,9 +114,13 @@ function ItemView({ node, onStopTask, onRetry, onEdit }: ItemViewProps) {
             <Terminal {...icon(13)} />
           </ItemIcon>
           <span className="item-line">
-            <code>{commandText(item)}</code>
+            <code className="line-cut" title={commandText(item)}>
+              {commandText(item)}
+            </code>
             {item.exitCode !== undefined ? (
               <span className={`exit-tag${item.exitCode !== 0 ? ' exit-bad' : ''}`}>exit {item.exitCode}</span>
+            ) : item.status === 'stopped' ? (
+              <StopTag item={item} />
             ) : (
               // Finished without an exit code: refused before it ran.
               item.status === 'completed' && <span className="exit-tag">not run</span>
@@ -129,7 +136,9 @@ function ItemView({ node, onStopTask, onRetry, onEdit }: ItemViewProps) {
           <ItemIcon label="file change" item={item}>
             <FilePen {...icon(13)} />
           </ItemIcon>
-          <code>{item.path || item.name}</code>
+          <code className="line-cut" title={item.path || item.name}>
+            {item.path || item.name}
+          </code>
           {lines && lines.length > 0 ? (
             <DiffFold lines={lines} raw={item.diff} open={failed} />
           ) : (
@@ -160,6 +169,7 @@ function ItemView({ node, onStopTask, onRetry, onEdit }: ItemViewProps) {
                 {summary}
               </span>
             )}
+            <StopTag item={item} />
           </span>
         </>
       )
@@ -205,7 +215,7 @@ function DiffFold({ lines, raw, open = false }: { lines: DiffLine[]; raw?: strin
 // ItemIcon pairs a drawn icon with words for a screen reader: what the line
 // is and, when it is not simply done, its state.
 function ItemIcon({ label, item, children }: { label: string; item: Item; children: ReactNode }) {
-  const state = item.status === 'failed' ? 'failed' : live(item) ? 'running' : ''
+  const state = item.status === 'failed' || item.status === 'stopped' ? item.status : live(item) ? 'running' : ''
   const words = [label, state].filter(Boolean).join(', ')
   return (
     <span className="item-icon">
@@ -350,7 +360,7 @@ function SubagentView({ node, onStopTask }: { node: ItemNode; onStopTask: StopTa
   const type = inputString(item.input, 'subagent_type')
   const summary = toolSummary(item)
   const about = summary !== type ? summary : undefined
-  const finished = item.status === 'completed' || item.status === 'failed'
+  const finished = item.status === 'completed' || item.status === 'failed' || item.status === 'stopped'
   // Stopping removes the button when the task ends, so it stays busy after
   // the request went through.
   const [stop, stopping] = usePending(async () => onStopTask(item.sessionId, item.agentId!), { holdOnSuccess: true })
@@ -376,6 +386,7 @@ function SubagentView({ node, onStopTask }: { node: ItemNode; onStopTask: StopTa
             {about}
           </span>
         )}
+        <StopTag item={item} />
         {item.agentId && !finished && (
           <button
             type="button"
@@ -447,7 +458,7 @@ function TurnFoot({ result }: { result: TurnResult }) {
   if (result.costUsd) parts.push(`$${result.costUsd.toFixed(4)}`)
   if (parts.length === 0) return null
   return (
-    <li className="turn-foot" aria-label="turn usage">
+    <li className="turn-foot" aria-label="Turn usage">
       {parts.join(' · ')}
     </li>
   )

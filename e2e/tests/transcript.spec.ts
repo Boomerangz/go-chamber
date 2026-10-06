@@ -7,11 +7,11 @@ async function newSession(page: Page) {
   await openNewSession(page)
   await page.getByLabel('Working directory').fill('/tmp')
   await page.getByRole('button', { name: 'New session', exact: true }).click()
-  await expect(page.getByLabel('message')).toBeVisible()
+  await expect(page.getByLabel('Message')).toBeVisible()
 }
 
 async function say(page: Page, text: string) {
-  await page.getByLabel('message').fill(text)
+  await page.getByLabel('Message').fill(text)
   await page.getByRole('button', { name: 'Send' }).click()
 }
 
@@ -36,7 +36,7 @@ test('sends a failed turn again with Retry', async ({ page }) => {
   const failed = page.locator('.item-error', { hasText: 'API Error: overloaded' })
   await expect(failed).toBeVisible()
   await failed.getByRole('button', { name: 'Retry' }).click()
-  await expect(page.getByLabel('turn 2')).toBeVisible()
+  await expect(page.getByLabel('Turn 2')).toBeVisible()
   await expect(page.locator('.item.user', { hasText: 'fail this turn' })).toHaveCount(2)
 })
 
@@ -53,7 +53,7 @@ test('takes a sent message back into the composer', async ({ page }, info) => {
     await message.hover()
   }
   await message.getByRole('button', { name: 'Edit' }).click()
-  await expect(page.getByLabel('message')).toHaveValue('hello there')
+  await expect(page.getByLabel('Message')).toHaveValue('hello there')
 })
 
 test('does not mark the owner\'s own messages as new', async ({ page }, info) => {
@@ -103,4 +103,6 @@ test('skips a question', async ({ page }) => {
   await say(page, 'ask me something')
   await page.getByRole('button', { name: 'Skip' }).click()
   await expect(page.locator('.request')).toHaveCount(0)
+  // The record says what was skipped.
+  await expect(page.locator('.item.decision-skipped .decision-text')).toHaveText('Which option should we use?')
 })

@@ -11,7 +11,7 @@ for (const agent of ['Claude', 'Codex'] as const) {
     await page.getByRole('radio', { name: agent }).click()
     await page.getByLabel('Working directory').fill('/tmp')
     await page.getByRole('button', { name: 'New session', exact: true }).click()
-    await page.getByLabel('message').fill('run the hook')
+    await page.getByLabel('Message').fill('run the hook')
     await page.getByRole('button', { name: 'Send' }).click()
 
     const hook = page.locator('.item.hook', { hasText: 'Stop hook' })

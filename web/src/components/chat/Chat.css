@@ -17,7 +17,9 @@
   content: ''; flex: none; width: 8px; height: 8px; border: 1px solid var(--ink); border-radius: 1px;
   background: var(--ink); animation: mark-breathe 2.4s ease-in-out infinite;
 }
-.working-tail.waiting::before { animation: none; }
+/* waiting for the owner: the needs-you amber, as in the header and the sessions list */
+.working-tail.waiting { color: var(--req); }
+.working-tail.waiting::before { border-color: var(--req-mark); background: var(--req-mark); animation: none; }
 
 /* "latest ↓ N": rides the bottom edge of the transcript while scrolled up */
 .jump-latest {
@@ -51,7 +53,7 @@
 .pending-label { display: block; margin-top: 2px; font-family: var(--font-mono); font-size: 12px; color: var(--ink-3); }
 
 /* the first-message hint: what the composer understands */
-.chat-hint { display: grid; gap: 10px; }
+.chat-hint { display: grid; gap: 10px; padding-top: 32px; padding-bottom: 32px; color: var(--ink-3); }
 .chat-hint-keys { font-family: var(--font-mono); font-size: 12px; }
 .chat-missing { display: grid; justify-items: start; gap: 10px; padding-top: 32px; color: var(--ink-2); }
 
@@ -70,6 +72,8 @@
   font-family: var(--font-mono); font-size: 12px; color: var(--ink-2);
 }
 .live-strip .btn { margin-left: auto; }
+/* a stop sent that the agent hasn't answered: on the strip, not in the composer row */
+.live-note { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink-3); }
 .composer-note { align-self: center; font-family: var(--font-mono); font-size: 12px; color: var(--ink-3); white-space: nowrap; }
 /* the send shortcut, kept beside Send once the placeholder is gone */
 .composer-keys {
@@ -81,7 +85,7 @@
 @media (max-width: 720px) {
   /* a phone keeps the screen for the transcript: the title with "⋯", then
      one line of status; the folder and settings open on demand */
-  .chat-header { flex-wrap: wrap; row-gap: 4px; padding-top: 8px; padding-bottom: 8px; }
+  .chat-header { flex-wrap: wrap; row-gap: 4px; padding: 8px var(--gutter); }
   .chat-header .chat-heading { flex: 1 1 0; }
   .chat-header .chat-more { display: inline-grid; place-items: center; flex: none; width: 36px; height: 36px; }
   .chat-header .chat-path-line { display: none; }
@@ -101,8 +105,35 @@
   .chat-tools .field-sm, .chat-tools .model-button { height: 36px; font-size: 16px; }
   .chat-tools .model-button { justify-content: space-between; }
   .chat-tools .model-name { max-width: none; }
-  .chat-tools .chat-fork { align-self: flex-start; margin-left: 74px; }
+  /* Fork lines up with the fields above it, its word where theirs start */
+  .chat-tools .chat-fork { align-self: stretch; justify-content: flex-start; margin-left: 74px; padding-left: 10px; }
+  /* "⋯" stays on the title row when the folder line opens under the title */
+  .chat-header .chat-more { align-self: flex-start; }
+  .chat-header .chat-more[aria-expanded='true'] { color: var(--ink); }
   .chat-heading-skeleton { height: 26px; gap: 0; }
   .chat-heading-skeleton .skeleton-line + .skeleton-line { display: none; }
   .live-strip { margin-top: 8px; }
+}
+
+/* a touch screen keeps no hover: a tapped "⋯" doesn't keep a border */
+@media (hover: none) { .chat-header .chat-more:hover { border-color: transparent; } }
+
+/* a wide header is one row whose height never changes with the session, the
+   mode or a dock: the title is cut first, then the usage line. When the
+   settings no longer fit beside them (a dock opened, a Codex session's
+   approvals, an unguarded mode) they fold behind "⋯", as on a phone, and
+   open as a row of their own under the title (see useHeaderFold). */
+@media (min-width: 721px) {
+  .chat-header { flex-wrap: nowrap; }
+  .chat-header .chat-heading { flex: 1 1 0; min-width: 120px; }
+  .chat-header .chat-meta { flex: 0 1 auto; flex-wrap: nowrap; min-width: 0; }
+  .chat-header .status, .chat-header .reviewer, .chat-header .mode-select { flex: none; white-space: nowrap; flex-wrap: nowrap; }
+  .chat-header .usage { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .chat-header[data-fold] { flex-wrap: wrap; }
+  .chat-header[data-fold] .chat-meta { display: contents; }
+  .chat-header[data-fold] .chat-more { display: inline-grid; place-items: center; flex: none; order: 1; }
+  .chat-header[data-fold] .chat-tools { display: none; }
+  .chat-header[data-fold][data-details='open'] .chat-tools {
+    display: flex; order: 2; flex-basis: 100%; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 10px 14px;
+  }
 }

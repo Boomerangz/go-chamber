@@ -255,7 +255,7 @@ function PermissionCard({ request, agent, position, acting, error, answer }: Car
         >
           <input
             className="field"
-            aria-label="deny reason"
+            aria-label="Deny reason"
             placeholder="Reason (optional)"
             autoFocus
             value={reason}
@@ -384,7 +384,7 @@ function QuestionCard({ request, position, acting, error, answer }: CardProps) {
             <input
               className="field"
               type="text"
-              aria-label={`other ${q.question}`}
+              aria-label={`Other ${q.question}`}
               placeholder="Other…"
               value={other[q.question] ?? ''}
               onChange={(e) => type(q.question, e.target.value, !!q.multiSelect)}
