@@ -103,8 +103,38 @@
   .chat-tools .field-sm, .chat-tools .model-button { height: 36px; font-size: 16px; }
   .chat-tools .model-button { justify-content: space-between; }
   .chat-tools .model-name { max-width: none; }
-  .chat-tools .chat-fork { align-self: flex-start; margin-left: 74px; }
+  /* Fork lines up with the fields above it, its word where theirs start */
+  .chat-tools .chat-fork { align-self: stretch; justify-content: flex-start; margin-left: 74px; padding-left: 10px; }
+  /* "⋯" stays on the title row when the folder line opens under the title */
+  .chat-header .chat-more { align-self: flex-start; }
+  .chat-header .chat-more[aria-expanded='true'] { color: var(--ink); }
   .chat-heading-skeleton { height: 26px; gap: 0; }
   .chat-heading-skeleton .skeleton-line + .skeleton-line { display: none; }
   .live-strip { margin-top: 8px; }
+}
+
+/* a touch screen keeps no hover: a tapped "⋯" doesn't keep a border */
+@media (hover: none) { .chat-header .chat-more:hover { border-color: transparent; } }
+
+/* the header folds by the room the chat column has, not the window: a dock
+   open beside it narrows the column. Its height never changes with the
+   session, the mode or a dock: one row, the title cut first. */
+.chat { container: chat / inline-size; }
+@media (min-width: 721px) {
+  .chat-header { flex-wrap: nowrap; }
+  .chat-header .chat-heading { flex: 1 1 0; min-width: 120px; }
+  .chat-header .chat-meta { flex: 0 1 auto; flex-wrap: nowrap; min-width: 0; }
+  .chat-header .status, .chat-header .reviewer, .chat-header .mode-select { flex: none; white-space: nowrap; flex-wrap: nowrap; }
+  .chat-header .usage { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  /* a narrow column: the model, mode and fork go behind "⋯", as on a phone,
+     and open as a row of their own under the title */
+  @container chat (max-width: 900px) {
+    .chat-header { flex-wrap: wrap; }
+    .chat-header .chat-meta { display: contents; }
+    .chat-header .chat-more { display: inline-grid; place-items: center; flex: none; order: 1; }
+    .chat-header .chat-tools { display: none; }
+    .chat-header[data-details='open'] .chat-tools {
+      display: flex; order: 2; flex-basis: 100%; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 10px 14px;
+    }
+  }
 }

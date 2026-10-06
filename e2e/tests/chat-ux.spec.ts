@@ -174,6 +174,31 @@ test('says a session that does not exist was not found', async ({ page }) => {
   await expect(page.getByRole('heading', { name: 'Session not found' })).toHaveCount(0)
 })
 
+test('keeps the session header one height with any dock open', async ({ page, isMobile }) => {
+  test.skip(isMobile, 'a phone has no dock')
+  await newSession(page)
+  const header = page.locator('.chat-header')
+  const height = async () => Math.round((await header.boundingBox())!.height)
+  const base = await height()
+  const dock = page.getByRole('toolbar', { name: 'Dock' })
+  for (const name of ['Requests', 'Terminal', 'Changes']) {
+    await dock.getByRole('button', { name }).click()
+    await expect.poll(height).toBe(base)
+    expect(await header.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true)
+    await dock.getByRole('button', { name }).click()
+  }
+  // A Codex session, with its approvals choice, takes the same height.
+  await showPane(page, 'Sessions')
+  await openNewSession(page)
+  await page.getByRole('radio', { name: 'Codex' }).click()
+  await page.getByLabel('Working directory').fill('/tmp')
+  await page.getByRole('button', { name: 'New session', exact: true }).click()
+  await expect(page.locator('.chat-header .avatar-codex')).toBeVisible()
+  await expect.poll(height).toBe(base)
+  await dock.getByRole('button', { name: 'Terminal' }).click()
+  await expect.poll(height).toBe(base)
+})
+
 test('folds the session header on a phone', async ({ page, isMobile }) => {
   test.skip(!isMobile, 'the header folds only on a narrow screen')
   await newSession(page)
