@@ -41,7 +41,8 @@ describe('QuotaWidget', () => {
       expect(pct).toHaveAttribute('data-stale')
       expect(pct).toHaveAttribute('title', expect.stringContaining('before the reset'))
     }
-    expect(screen.getAllByText(/· reset$|^reset$/).length).toBeGreaterThan(0)
+    // it says when, so it doesn't read like a Reset command
+    expect(screen.getAllByText(/· reset \d+d ago$|^reset \d+d ago$/).length).toBe(2)
   })
 
   it('keeps its line while no quotas are known', () => {

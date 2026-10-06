@@ -26,6 +26,28 @@ async function box(l: Locator) {
   return b
 }
 
+test('a quota window that reset says when, and the footer still fits', async ({ page }) => {
+  const past = new Date(Date.now() - 16 * 86_400_000).toISOString()
+  await page.route('**/api/quotas', (route) =>
+    route.fulfill({
+      json: [
+        { agent: 'claude', windows: [{ name: 'five_hour', usedPct: 30, resetsAt: past }, { name: 'seven_day', usedPct: 12, resetsAt: past }] },
+        { agent: 'codex', windows: [{ name: 'primary', usedPct: 64, status: '300m', resetsAt: past }] },
+      ],
+    }),
+  )
+  await page.goto(`/?token=${token}`)
+  await showPane(page, 'Sessions')
+  const summary = page.locator('.quotas-details summary')
+  await expect(summary).toContainText('reset 16d ago')
+  await expect(summary.locator('.quota-when').filter({ hasText: /reset$/ })).toHaveCount(0)
+  const s = await box(summary)
+  for (const mini of await summary.locator('.quota-mini').all()) {
+    const m = await box(mini)
+    expect(m.x + m.width).toBeLessThanOrEqual(s.x + s.width + 0.5)
+  }
+})
+
 test('a waiting worktree row keeps "waiting for you" on one line; the branch yields', async ({ page }, info) => {
   const repo = newRepo()
   await page.goto(`/?token=${token}`)
