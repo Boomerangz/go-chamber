@@ -166,10 +166,21 @@ export default function Chat() {
   const busy = running || starting !== null
   // A running turn takes text only; images wait for the next message.
   const attachments = useAttachments(sessionId, busy)
-  // When this turn started, for the working clock; unknown before this view.
+  // When this turn started, for the working clock: now for a turn sent from
+  // here, else when the session last started one (a turn already running
+  // when the page opened keeps its clock across a reload).
   const [turnStart, setTurnStart] = useState<number | null>(null)
-  // eslint-disable-next-line react/set-state-in-effect
-  useEffect(() => setTurnStart(busy ? Date.now() : null), [busy])
+  // A turn this view sent starts now, whatever the session list says yet.
+  const sentHere = useRef(false)
+  const activeAt = session?.activeAt
+  useEffect(() => {
+    const now = Date.now()
+    const at = activeAt ? Date.parse(activeAt) : NaN
+    const start = starting === null && !sentHere.current && at <= now ? at : now
+    // eslint-disable-next-line react/set-state-in-effect
+    setTurnStart(busy ? start : null)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- read when the turn shows up
+  }, [busy])
 
   // Commands and skills may have changed during the turn; ask again next time.
   useEffect(() => {
@@ -311,6 +322,7 @@ export default function Chat() {
     setPendingSends((list) => [...list, { key, text: shown, state: 'queued' }])
     // The message shows once: on its way in the transcript, not also here.
     if (value) setText('')
+    sentHere.current = true
     queue.current.push({ key, value, raw: text, images })
     void pump()
   }

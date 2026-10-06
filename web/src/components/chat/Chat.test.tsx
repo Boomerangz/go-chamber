@@ -140,6 +140,13 @@ describe('working tail', () => {
     expect(screen.getByText('working · 0:42')).toBeInTheDocument()
   })
 
+  it('keeps counting a turn that was already running when the page opened', () => {
+    vi.useFakeTimers()
+    const started = new Date(Date.now() - 42_000).toISOString()
+    setup({ sessions: [{ ...session, status: 'running', activeAt: started }], chat: initialChat() })
+    expect(screen.getByText('working · 0:42')).toBeInTheDocument()
+  })
+
   it('steps aside while text streams', () => {
     setup({ chat: running([item('a1', 'assistant_message', { status: 'streaming' })]) })
     expect(screen.queryByText(/working ·/)).toBeNull()

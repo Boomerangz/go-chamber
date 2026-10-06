@@ -254,3 +254,12 @@ test('a stop sent while offline says so above the composer, not in its row', asy
   await expect(page.locator('.live-strip')).toContainText('stop sent')
   expect((await composer.boundingBox())!.height).toBe(height)
 })
+
+test('a running turn keeps its clock across a reload', async ({ page }) => {
+  await newSession(page)
+  await page.getByLabel('message').fill('run a subagent')
+  await page.getByRole('button', { name: 'Send' }).click()
+  await expect(page.locator('.working-tail')).toContainText(/0:0[3-9]/, { timeout: 6000 })
+  await page.reload()
+  await expect(page.locator('.working-tail')).toContainText(/0:0[3-9]/)
+})
