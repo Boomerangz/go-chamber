@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/igorzygin/go-chamber/internal/app"
@@ -70,19 +71,74 @@ func (r Repo) Changes(ctx context.Context, dir, base string) ([]app.FileChange, 
 	if err != nil {
 		return nil, err
 	}
+	numstat, err := run(ctx, dir, "diff", "--numstat", "--no-renames", "-z", base, "--")
+	if err != nil {
+		return nil, err
+	}
+	counts := parseNumstat(numstat)
 	var files []app.FileChange
 	fields := strings.Split(strings.TrimSuffix(tracked, "\x00"), "\x00")
 	for i := 0; i+1 < len(fields); i += 2 {
-		files = append(files, app.FileChange{Status: fields[i], Path: fields[i+1]})
+		f := counts[fields[i+1]]
+		f.Status, f.Path = fields[i], fields[i+1]
+		files = append(files, f)
 	}
 	untracked, err := untracked(ctx, dir, "")
 	if err != nil {
 		return nil, err
 	}
 	for _, p := range untracked {
-		files = append(files, app.FileChange{Status: "?", Path: p})
+		f := countFile(filepath.Join(dir, p))
+		f.Status, f.Path = "?", p
+		files = append(files, f)
 	}
 	return files, nil
+}
+
+// parseNumstat reads `git diff --numstat -z`: "added\tremoved\tpath\0",
+// with "-" counts for a binary file.
+func parseNumstat(out string) map[string]app.FileChange {
+	counts := map[string]app.FileChange{}
+	for _, rec := range strings.Split(out, "\x00") {
+		parts := strings.SplitN(rec, "\t", 3)
+		if len(parts) != 3 {
+			continue
+		}
+		if parts[0] == "-" {
+			counts[parts[2]] = app.FileChange{Binary: true}
+			continue
+		}
+		added, _ := strconv.Atoi(parts[0])
+		removed, _ := strconv.Atoi(parts[1])
+		counts[parts[2]] = app.FileChange{Added: added, Removed: removed}
+	}
+	return counts
+}
+
+// countLimit bounds how much of an untracked file is read to count its
+// lines; a bigger one is listed without counts.
+const countLimit = 4 << 20
+
+// countFile counts an untracked file's lines as added, the way git's
+// numstat would: a NUL byte makes it binary, a last line without a newline
+// still counts.
+func countFile(path string) app.FileChange {
+	info, err := os.Stat(path)
+	if err != nil || !info.Mode().IsRegular() || info.Size() > countLimit {
+		return app.FileChange{}
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return app.FileChange{}
+	}
+	if bytes.IndexByte(data[:min(len(data), 8000)], 0) >= 0 {
+		return app.FileChange{Binary: true}
+	}
+	lines := bytes.Count(data, []byte("\n"))
+	if len(data) > 0 && data[len(data)-1] != '\n' {
+		lines++
+	}
+	return app.FileChange{Added: lines}
 }
 
 func (r Repo) FileDiff(ctx context.Context, dir, base, path string) (string, error) {

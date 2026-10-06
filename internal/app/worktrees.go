@@ -22,10 +22,14 @@ var (
 )
 
 // FileChange is one changed file; Status is git's letter (A, M, D, T) or
-// "?" for an untracked file.
+// "?" for an untracked file. Added and Removed count changed lines (an
+// untracked file's lines are all added); a binary file counts none.
 type FileChange struct {
-	Path   string `json:"path"`
-	Status string `json:"status"`
+	Path    string `json:"path"`
+	Status  string `json:"status"`
+	Added   int    `json:"added"`
+	Removed int    `json:"removed"`
+	Binary  bool   `json:"binary,omitempty"`
 }
 
 // Changes is what the session's folder changed against Base.

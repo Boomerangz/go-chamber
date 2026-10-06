@@ -76,7 +76,7 @@ func TestWorktreeLifecycle(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := []app.FileChange{{Path: "a.txt", Status: "M"}, {Path: "new.txt", Status: "?"}}
+	want := []app.FileChange{{Path: "a.txt", Status: "M", Added: 1, Removed: 1}, {Path: "new.txt", Status: "?", Added: 1}}
 	if len(changes) != 2 || changes[0] != want[0] || changes[1] != want[1] {
 		t.Fatalf("changes = %+v", changes)
 	}
@@ -98,6 +98,52 @@ func TestWorktreeLifecycle(t *testing.T) {
 		t.Fatalf("worktree folder still there: %v", err)
 	}
 	sh(t, repo, "rev-parse", "--verify", "chamber/fix")
+}
+
+func TestChangesCountLines(t *testing.T) {
+	ctx := context.Background()
+	repo := newRepo(t)
+	write(t, filepath.Join(repo, "a.txt"), "uno\ndos\ntres\n")
+	write(t, filepath.Join(repo, "b.bin"), "\x00\x01\x02")
+	write(t, filepath.Join(repo, "notes.md"), "one\ntwo\nno newline at the end")
+	write(t, filepath.Join(repo, "empty.txt"), "")
+	sh(t, repo, "rm", "-q", ".gitignore")
+	changes, err := Repo{}.Changes(ctx, repo, "HEAD")
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := map[string]app.FileChange{}
+	for _, c := range changes {
+		got[c.Path] = c
+	}
+	want := map[string]app.FileChange{
+		".gitignore": {Path: ".gitignore", Status: "D", Removed: 1},
+		"a.txt":      {Path: "a.txt", Status: "M", Added: 3, Removed: 1},
+		"b.bin":      {Path: "b.bin", Status: "?", Binary: true},
+		"notes.md":   {Path: "notes.md", Status: "?", Added: 3},
+		"empty.txt":  {Path: "empty.txt", Status: "?"},
+	}
+	if len(got) != len(want) {
+		t.Fatalf("changes = %+v", changes)
+	}
+	for path, w := range want {
+		if got[path] != w {
+			t.Errorf("%s = %+v, want %+v", path, got[path], w)
+		}
+	}
+}
+
+func TestChangesCountsBinaryTracked(t *testing.T) {
+	ctx := context.Background()
+	repo := newRepo(t)
+	write(t, filepath.Join(repo, "img.bin"), "\x00a")
+	sh(t, repo, "add", "img.bin")
+	sh(t, repo, "commit", "-q", "-m", "bin")
+	write(t, filepath.Join(repo, "img.bin"), "\x00b")
+	changes, err := Repo{}.Changes(ctx, repo, "HEAD")
+	if err != nil || len(changes) != 1 || changes[0] != (app.FileChange{Path: "img.bin", Status: "M", Binary: true}) {
+		t.Fatalf("changes = %+v, %v", changes, err)
+	}
 }
 
 func TestFileDiff(t *testing.T) {

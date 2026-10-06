@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strings"
 	"testing"
 	"testing/fstest"
 
@@ -31,7 +32,7 @@ func (s *stubWorktrees) Remove(_ context.Context, id domain.SessionID, force boo
 }
 
 func (s *stubWorktrees) Changes(_ context.Context, id domain.SessionID) (app.Changes, error) {
-	return app.Changes{Repository: true, Base: "HEAD", Files: []app.FileChange{{Path: "a.go", Status: "M"}}}, s.err
+	return app.Changes{Repository: true, Base: "HEAD", Files: []app.FileChange{{Path: "a.go", Status: "M", Added: 3, Removed: 1}}}, s.err
 }
 
 func (s *stubWorktrees) FileDiff(_ context.Context, id domain.SessionID, path string) (string, error) {
@@ -67,7 +68,8 @@ func TestWorktreeEndpoints(t *testing.T) {
 	h := newWorktreeServer(stub, nil)
 	rec := do(h, authed("GET", "/api/sessions/s1/changes", ""))
 	var changes app.Changes
-	if rec.Code != http.StatusOK || json.Unmarshal(rec.Body.Bytes(), &changes) != nil || changes.Files[0].Path != "a.go" {
+	if rec.Code != http.StatusOK || json.Unmarshal(rec.Body.Bytes(), &changes) != nil || changes.Files[0].Path != "a.go" ||
+		!strings.Contains(rec.Body.String(), `"added":3,"removed":1`) {
 		t.Fatalf("changes: %d %s", rec.Code, rec.Body.String())
 	}
 	rec = do(h, authed("GET", "/api/sessions/s1/changes/diff?path=src/a.go", ""))
