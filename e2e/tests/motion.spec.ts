@@ -1,8 +1,14 @@
+import fs from 'node:fs'
+import os from 'node:os'
 import { expect, test } from '@playwright/test'
 import { token } from '../playwright.config'
 import { openNewSession } from './pane'
 
 test.use({ reducedMotion: 'reduce' })
+
+// ownDir is a fresh folder of the test's own: the shared /tmp group holds
+// every other spec's sessions, which push a row under "Show N older".
+const ownDir = () => fs.realpathSync(fs.mkdtempSync(`${os.tmpdir()}/gc-motion-`))
 
 test('works without motion: items appear and an answered request leaves', async ({ page }, info) => {
   const text = `still ${info.project.name}: please permission`
@@ -39,7 +45,7 @@ test('marks what arrived since the session was last open', async ({ page }, info
     await page.getByRole('button', { name: 'New session', exact: true }).click()
     await expect(page.locator('.chat-hint')).toBeVisible()
   }
-  await open('/tmp')
+  await open(ownDir())
   await page.getByLabel('Message').fill(text)
   await page.getByRole('button', { name: 'Send' }).click()
   await expect(page.locator('.request-title', { hasText: 'Run command' })).toBeVisible()

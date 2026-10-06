@@ -1,3 +1,5 @@
+import fs from 'node:fs'
+import os from 'node:os'
 import { expect, test, type Page } from '@playwright/test'
 import { token } from '../playwright.config'
 import { openNewSession, showPane } from './pane'
@@ -9,11 +11,15 @@ async function menuFor(page: Page, name: string) {
   return page.getByRole('menu', { name })
 }
 
+// ownDir is a fresh folder of the test's own: the shared /tmp group holds
+// every other spec's sessions, which push a row under "Show N older".
+const ownDir = () => fs.realpathSync(fs.mkdtempSync(`${os.tmpdir()}/gc-archive-`))
+
 test('archives, unarchives and deletes a session, live in another tab', async ({ page, context }, info) => {
   const name = `Put away ${info.project.name} ${info.repeatEachIndex}`
   await page.goto(`/?token=${token}`)
   await openNewSession(page)
-  await page.getByLabel('Working directory').fill('/tmp')
+  await page.getByLabel('Working directory').fill(ownDir())
   await page.getByRole('button', { name: 'New session', exact: true }).click()
   await page.getByRole('button', { name: 'Rename session' }).click()
   await page.getByRole('textbox', { name: 'Session name' }).fill(name)
@@ -73,7 +79,7 @@ test('archiving a session that waits for you keeps the request in sight, with an
   const name = `Waits ${info.project.name} ${info.repeatEachIndex} ${Date.now()}`
   await page.goto(`/?token=${token}`)
   await openNewSession(page)
-  await page.getByLabel('Working directory').fill('/tmp')
+  await page.getByLabel('Working directory').fill(ownDir())
   await page.getByRole('button', { name: 'New session', exact: true }).click()
   await page.getByRole('button', { name: 'Rename session' }).click()
   await page.getByRole('textbox', { name: 'Session name' }).fill(name)
