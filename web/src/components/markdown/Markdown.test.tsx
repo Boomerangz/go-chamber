@@ -1,6 +1,7 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import Markdown from './Markdown'
+import { resetCodeWrap } from './wrap'
 
 describe('Markdown', () => {
   it('renders lists, emphasis and tables', () => {
@@ -61,5 +62,50 @@ describe('Markdown', () => {
   it('labels a code block without a language as plain text', () => {
     const { container } = render(<Markdown text={'```\na\nb\n```'} />)
     expect(container.querySelector('.md-code-lang')).toHaveTextContent('text')
+  })
+})
+
+describe('code block controls', () => {
+  beforeEach(() => {
+    localStorage.clear()
+    resetCodeWrap()
+  })
+
+  it('wraps long lines in every block on request and remembers it', () => {
+    const { container } = render(<Markdown text={'```\na\n```\n\n```\nb\n```'} />)
+    const toggles = screen.getAllByRole('button', { name: 'Wrap' })
+    expect(toggles[0]).toHaveAttribute('aria-pressed', 'false')
+    fireEvent.click(toggles[0]!)
+    expect(container.querySelectorAll('pre.md-code-wrap')).toHaveLength(2)
+    expect(toggles[1]).toHaveAttribute('aria-pressed', 'true')
+    expect(localStorage.getItem('gc.code-wrap')).toBe('1')
+    resetCodeWrap()
+    expect(container.querySelectorAll('pre.md-code-wrap')).toHaveLength(2)
+    fireEvent.click(toggles[1]!)
+    expect(container.querySelector('pre.md-code-wrap')).toBeNull()
+    expect(localStorage.getItem('gc.code-wrap')).toBeNull()
+  })
+
+  it('keeps the choice for the page when storage is blocked', () => {
+    const set = vi.spyOn(localStorage, 'setItem').mockImplementation(() => { throw new Error('blocked') })
+    const get = vi.spyOn(localStorage, 'getItem').mockImplementation(() => { throw new Error('blocked') })
+    const { container } = render(<Markdown text={'```\na\n```'} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Wrap' }))
+    expect(container.querySelector('pre.md-code-wrap')).not.toBeNull()
+    act(() => resetCodeWrap())
+    expect(container.querySelector('pre.md-code-wrap')).toBeNull()
+    set.mockRestore()
+    get.mockRestore()
+  })
+
+  it('offers to show all of a clipped block', () => {
+    const scroll = vi.spyOn(HTMLElement.prototype, 'scrollHeight', 'get').mockReturnValue(900)
+    const client = vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(420)
+    const code = Array.from({ length: 40 }, (_, i) => `line ${i}`).join('\n')
+    const { container } = render(<Markdown text={'```\n' + code + '\n```'} />)
+    fireEvent.click(screen.getByRole('button', { name: 'show all 40 lines' }))
+    expect(container.querySelector('pre.md-code')).toHaveClass('full')
+    scroll.mockRestore()
+    client.mockRestore()
   })
 })
