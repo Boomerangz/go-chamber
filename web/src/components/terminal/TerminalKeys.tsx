@@ -71,7 +71,7 @@ export default function TerminalKeys({ id }: { id: string }) {
         Ctrl
       </button>
       {arrows.map(button)}
-      <button type="button" className="btn btn-xs" aria-label="Interrupt" title="Interrupt (Ctrl-C)" onPointerDown={keepFocus} onMouseDown={keepFocus} onClick={() => press('interrupt')}>
+      <button type="button" className="btn btn-xs" aria-label="Interrupt" title="Interrupt (Ctrl+C)" onPointerDown={keepFocus} onMouseDown={keepFocus} onClick={() => press('interrupt')}>
         ^C
       </button>
       <button type="button" className="btn btn-xs" aria-label="Paste" title="Paste" onPointerDown={keepFocus} onMouseDown={keepFocus} onClick={() => void paste()}>

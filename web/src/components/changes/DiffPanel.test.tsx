@@ -174,6 +174,8 @@ describe('DiffPanel', () => {
     render(<DiffPanel sessionId="s1" />)
     expect(screen.getByText('loading changes…')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Refresh changes' })).toHaveAttribute('aria-busy', 'true')
+    // the toolbar's icon buttons share one quiet form
+    for (const name of ['Refresh changes', 'Wrap long lines']) expect(screen.getByRole('button', { name })).toHaveClass('btn-ghost')
     await act(async () => list({ repository: true, files: [{ path: 'src/deep/a.go', status: 'M' }] }))
     expect(screen.getByRole('button', { name: 'Refresh changes' })).not.toHaveAttribute('aria-busy')
     expect(screen.getByText(/^updated \d\d:\d\d$/)).toBeInTheDocument()
@@ -356,7 +358,7 @@ describe('DiffPanel reading', () => {
     vi.mocked(api.getFileDiff).mockRejectedValueOnce(new Error('too big')).mockResolvedValueOnce({ diff: '+fine\n' })
     render(<DiffPanel sessionId="s1" />)
     await userEvent.click(await screen.findByRole('button', { name: /src\/a\.go/ }))
-    expect(await screen.findByRole('alert')).toHaveTextContent('Couldn’t load the diff: too big')
+    expect(await screen.findByRole('alert')).toHaveTextContent("Couldn't load the diff: too big")
     await userEvent.click(screen.getByRole('button', { name: 'Retry' }))
     expect(await screen.findByText('fine')).toBeInTheDocument()
     vi.mocked(api.getFileDiff).mockReturnValueOnce(new Promise(() => {}))

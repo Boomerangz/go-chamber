@@ -11,7 +11,7 @@ import { ctrlChar, InputQueue, parseOsc52 } from '../../lib/terminal-input'
 import { terminalAction } from '../../lib/terminal-keys'
 import { isMac } from '../../lib/hotkeys'
 import { fail } from '../../stores/notices'
-import { terminalTheme } from '../../lib/theme'
+import { searchDecorations, terminalTheme } from '../../lib/theme'
 import { useTerminalStore } from '../../stores/terminals'
 import { stepTerminal } from './steps'
 
@@ -65,14 +65,6 @@ useTerminalStore.subscribe((s) => {
     }
   }
 })
-
-// Search matches are marked in the sheet's quiet tones; the current one
-// gets the focus colour's border.
-function searchDecorations(dark: boolean): ISearchOptions['decorations'] {
-  return dark
-    ? { matchBackground: '#2a2c30', matchOverviewRuler: '#46484e', activeMatchBackground: '#46484e', activeMatchBorder: '#8c98ff', activeMatchColorOverviewRuler: '#8c98ff' }
-    : { matchBackground: '#dfdfda', matchOverviewRuler: '#a6a6a0', activeMatchBackground: '#c9c9c3', activeMatchBorder: '#2433d6', activeMatchColorOverviewRuler: '#2433d6' }
-}
 
 // atBottom is true while the screen shows the newest output.
 const atBottom = (xterm: XTerm) => xterm.buffer.active.viewportY >= xterm.buffer.active.baseY

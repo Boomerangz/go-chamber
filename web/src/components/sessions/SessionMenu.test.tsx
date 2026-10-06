@@ -168,7 +168,7 @@ describe('SessionMenu', () => {
     render(<Row />)
     await userEvent.click(trigger())
     await userEvent.click(screen.getByRole('menuitem', { name: 'Rename' }))
-    const field = screen.getByRole('textbox', { name: 'session name' })
+    const field = screen.getByRole('textbox', { name: 'Session name' })
     expect(field).toHaveValue('Release notes')
     expect(field).toHaveFocus()
     await userEvent.clear(field)
@@ -178,7 +178,7 @@ describe('SessionMenu', () => {
 
     await userEvent.click(trigger())
     await userEvent.click(screen.getByRole('menuitem', { name: 'Rename' }))
-    await userEvent.type(screen.getByRole('textbox', { name: 'session name' }), 'x{Escape}')
+    await userEvent.type(screen.getByRole('textbox', { name: 'Session name' }), 'x{Escape}')
     expect(actions.renameSession).toHaveBeenCalledTimes(1)
     expect(screen.queryByRole('menu')).toBeNull()
     expect(trigger()).toHaveFocus()

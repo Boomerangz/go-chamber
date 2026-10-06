@@ -7,7 +7,7 @@ test('focus leaves only the chat and opens the requests when the agent asks', as
   const text = `focus ${info.repeatEachIndex} ${Date.now()}: please permission`
   await page.goto(`/?token=${token}`)
   await openNewSession(page)
-  await page.getByLabel('working directory').fill('/tmp')
+  await page.getByLabel('Working directory').fill('/tmp')
   await page.getByRole('button', { name: 'New session', exact: true }).click()
   await expect(page.getByLabel('message')).toBeVisible()
 

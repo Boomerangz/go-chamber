@@ -31,7 +31,7 @@ function neighbourOf(trigger: React.RefObject<HTMLElement | null>): () => void {
   const others = (list: HTMLElement[]) => list.filter((r) => !item?.contains(r))
   const next = at < 0 ? [] : [...others(rows.slice(at + 1)), ...others(rows.slice(0, at)).reverse()]
   return () => {
-    const target = next.find((r) => r.isConnected) ?? document.querySelector<HTMLElement>('input[aria-label="search sessions"]')
+    const target = next.find((r) => r.isConnected) ?? document.querySelector<HTMLElement>('input[aria-label="Search sessions"]')
     target?.focus()
   }
 }
@@ -287,7 +287,7 @@ function RenameField({ value, onDone }: { value: string; onDone: (next: string |
   return (
     <input
       className="field session-menu-input"
-      aria-label="session name"
+      aria-label="Session name"
       value={draft}
       maxLength={200}
       autoFocus

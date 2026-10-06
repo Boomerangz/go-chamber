@@ -13,7 +13,7 @@ describe('EditableTitle', () => {
   it('renames with the button and Enter', async () => {
     const onRename = setup()
     await userEvent.click(screen.getByRole('button', { name: 'Rename session' }))
-    const input = screen.getByRole('textbox', { name: 'session name' })
+    const input = screen.getByRole('textbox', { name: 'Session name' })
     expect(input).toHaveValue('Old name')
     await userEvent.clear(input)
     await userEvent.type(input, 'New name{Enter}')
@@ -24,7 +24,7 @@ describe('EditableTitle', () => {
   it('opens on double click and cancels with Escape', async () => {
     const onRename = setup()
     await userEvent.dblClick(screen.getByText('Old name'))
-    await userEvent.type(screen.getByRole('textbox', { name: 'session name' }), 'x{Escape}')
+    await userEvent.type(screen.getByRole('textbox', { name: 'Session name' }), 'x{Escape}')
     expect(onRename).not.toHaveBeenCalled()
     expect(screen.getByText('Old name')).toBeInTheDocument()
   })
@@ -32,7 +32,7 @@ describe('EditableTitle', () => {
   it('does not call back when the name did not change', async () => {
     const onRename = setup()
     await userEvent.click(screen.getByRole('button', { name: 'Rename session' }))
-    await userEvent.type(screen.getByRole('textbox', { name: 'session name' }), '{Enter}')
+    await userEvent.type(screen.getByRole('textbox', { name: 'Session name' }), '{Enter}')
     expect(onRename).not.toHaveBeenCalled()
   })
 
@@ -44,7 +44,7 @@ describe('EditableTitle', () => {
   it('saves when focus leaves the field', async () => {
     const onRename = setup()
     await userEvent.click(screen.getByRole('button', { name: 'Rename session' }))
-    await userEvent.type(screen.getByRole('textbox', { name: 'session name' }), '!')
+    await userEvent.type(screen.getByRole('textbox', { name: 'Session name' }), '!')
     await userEvent.tab()
     expect(onRename).toHaveBeenCalledWith('Old name!')
   })

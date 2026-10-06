@@ -8,7 +8,7 @@ test('long session paths do not overflow the viewport', async ({ page }, info) =
   const cwd = `/tmp/${'very-long-directory-name-'.repeat(6)}${info.project.name}`
   await page.goto(`/?token=${token}`)
   await openNewSession(page)
-  await page.getByLabel('working directory').fill(cwd)
+  await page.getByLabel('Working directory').fill(cwd)
   await page.getByRole('button', { name: 'New session', exact: true }).click()
   const width = page.viewportSize()!.width
   await showSessionDetails(page)

@@ -85,7 +85,7 @@ export function FileViewer({
     let live = true
     fetchFile(sessionId, path).then(
       (l) => live && setLoaded(l),
-      (err: unknown) => live && setLoaded({ error: err instanceof Error ? err.message : 'Could not load the file' }),
+      (err: unknown) => live && setLoaded({ error: err instanceof Error ? err.message : "Couldn't load the file" }),
     )
     return () => {
       live = false
@@ -166,7 +166,7 @@ function ImageView({ src, alt }: { src: string; alt: string }) {
   if (state === 'error') {
     return (
       <p className="file-viewer-note" role="alert">
-        Couldn’t load the image
+        Couldn't load the image
       </p>
     )
   }

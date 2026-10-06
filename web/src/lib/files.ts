@@ -100,7 +100,7 @@ export async function fetchFile(sessionId: string, path: string): Promise<Fetche
   try {
     res = await requestRaw(fileUrl(sessionId, path))
   } catch {
-    throw new Error('Could not load the file')
+    throw new Error("Couldn't load the file")
   }
   if (res.status === 403) throw new Error('This file is outside the session folder')
   if (res.status === 404) throw new Error('File not found')

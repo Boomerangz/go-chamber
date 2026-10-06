@@ -43,7 +43,7 @@ describe('fetchFile', () => {
 
   it('reports a network failure', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => { throw new TypeError('offline') }))
-    await expect(fetchFile('s1', 'x')).rejects.toThrow('Could not load the file')
+    await expect(fetchFile('s1', 'x')).rejects.toThrow("Couldn't load the file")
   })
 })
 

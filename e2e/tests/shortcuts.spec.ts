@@ -4,7 +4,7 @@ import { openNewSession } from './pane'
 
 async function startSession(page: import('@playwright/test').Page, text: string) {
   await openNewSession(page)
-  await page.getByLabel('working directory').fill('/tmp')
+  await page.getByLabel('Working directory').fill('/tmp')
   await page.getByRole('button', { name: 'New session', exact: true }).click()
   // The previous chat stays on screen until the new one opens.
   await expect(page.locator('.chat-hint')).toBeVisible()

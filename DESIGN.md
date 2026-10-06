@@ -9,7 +9,7 @@ colors:
   ink-2: "#45474d"
   ink-3: "#66686e"
   rule: "#d3d3cd"
-  rule-strong: "#a6a6a0"
+  rule-strong: "#8c8c86"
   act: "#2433d6"
   act-ink: "#ffffff"
   act-wash: "rgba(36, 51, 214, 0.09)"
@@ -26,7 +26,7 @@ colors:
   ink-2-dark: "#b3b1ab"
   ink-3-dark: "#8d8f95"
   rule-dark: "#2a2c30"
-  rule-strong-dark: "#46484e"
+  rule-strong-dark: "#5e6066"
   act-dark: "#8c98ff"
   act-ink-dark: "#0f1012"
   req-dark: "#e3a33a"
@@ -142,7 +142,7 @@ components:
     height: "18px"
     padding: "0 4px"
   count-request:
-    backgroundColor: "{colors.req-mark}"
+    backgroundColor: "{colors.req}"
     textColor: "{colors.paper}"
     rounded: "{rounded.r}"
     height: "18px"
@@ -197,7 +197,7 @@ A near-neutral paper and ink pair with three narrow signal colours, each ratione
 - **Ink Blue** (`act`): Only the actionable. Primary buttons, links, the Browse control, the "show more" link, the caret, focus rings (`act-ring`), focused field borders, the selected model and question option (`act-wash`), and the question variant of the REQUIRES block. Never decoration, never state.
 
 ### Secondary
-- **Requisition Amber** (`req-mark`, text tone `req`): What needs the owner. The REQUIRES APPROVAL block's border, top rule and keyword; the pending-request counts in the sidebar, dock rail and mobile pane bar; the request tray's kind label and hover wash. The build also uses it on the interrupted-turn banner and on a quota meter nearing its limit, both of which are things that need the owner.
+- **Requisition Amber** (`req-mark`, text tone `req`): What needs the owner. The REQUIRES APPROVAL block's border, top rule and keyword; the pending-request counts in the sidebar, dock rail and mobile pane bar (printed on the deeper `req` tone so their small paper figures stay legible); the request tray's kind label and hover wash. The build also uses it on the interrupted-turn banner and on a quota meter nearing its limit, both of which are things that need the owner.
 
 ### Tertiary
 - **Failure Red** (`bad`, wash `bad-wash`): Failure and destruction only. Deny, Stop, close-terminal on hover, stop-task, failed tool items, DENIED decisions, error text, toasts, the offline and unauthorized health marks, and a quota meter at its limit.
@@ -208,7 +208,7 @@ A near-neutral paper and ink pair with three narrow signal colours, each ratione
 - **Deep Paper** (`paper-3`): The checked segment of the agent switch and the quota meter track.
 - **Ink** (`ink`): Body text, headings, the running mark, the user-turn rule, the selected-tab underline, neutral counts, filled effort segment.
 - **Ink 2 / Ink 3** (`ink-2`, `ink-3`): Secondary prose and metadata, then labels, placeholders, turn numbers and idle chrome.
-- **Rule / Strong Rule** (`rule`, `rule-strong`): Hairlines that divide regions, then the borders of controls, fields, and output-block left edges.
+- **Rule / Strong Rule** (`rule`, `rule-strong`): Hairlines that divide regions, then the borders of controls, fields, and output-block left edges. The strong rule holds 3:1 against the sheet in both schemes, so a field's edge is visible on its own.
 
 ### Named Rules
 **The One Sheet Rule.** There is one surface colour. Regions are divided by 1px rules, never by a second panel tone; pressed paper appears only under a hovered or active row and behind output.

@@ -13,10 +13,10 @@ test('archives, unarchives and deletes a session, live in another tab', async ({
   const name = `Put away ${info.project.name} ${info.repeatEachIndex}`
   await page.goto(`/?token=${token}`)
   await openNewSession(page)
-  await page.getByLabel('working directory').fill('/tmp')
+  await page.getByLabel('Working directory').fill('/tmp')
   await page.getByRole('button', { name: 'New session', exact: true }).click()
   await page.getByRole('button', { name: 'Rename session' }).click()
-  await page.getByRole('textbox', { name: 'session name' }).fill(name)
+  await page.getByRole('textbox', { name: 'Session name' }).fill(name)
   await page.keyboard.press('Enter')
   await expect(page.getByRole('heading', { name })).toBeVisible()
 

@@ -7,7 +7,7 @@ async function startIn(page: Page, cwd: string, text: string, { make = true } = 
   if (make) mkdirSync(cwd, { recursive: true })
   await showPane(page, 'Sessions')
   await openNewSession(page)
-  await page.getByLabel('working directory').fill(cwd)
+  await page.getByLabel('Working directory').fill(cwd)
   await page.getByRole('button', { name: 'New session', exact: true }).click()
   // On a phone the folder sits behind the header's "⋯"; it is there all the same.
   await expect(page.locator('.chat-path', { hasText: cwd })).toBeAttached()
@@ -40,7 +40,7 @@ test('a new session starts in the open folder, offers recent ones and says when 
   await expect(page.getByText('echo: hello folder')).toBeVisible()
   await showPane(page, 'Sessions')
   await openNewSession(page)
-  const field = page.getByLabel('working directory')
+  const field = page.getByLabel('Working directory')
   await expect(field).toHaveValue(cwd)
   const chips = page.getByRole('group', { name: 'Recent folders' })
   await expect(chips.getByRole('button', { name: cwd.split('/').pop()! })).toBeVisible()
@@ -136,8 +136,8 @@ test('Back from the first session opened at / leaves it, and stays left', async 
   }
   // A later change in the app must not push the session back.
   const steps = await page.evaluate(() => history.length)
-  await page.getByLabel('search sessions').fill('first back')
-  await page.getByLabel('search sessions').fill('')
+  await page.getByLabel('Search sessions').fill('first back')
+  await page.getByLabel('Search sessions').fill('')
   expect(await page.evaluate(() => history.length)).toBe(steps)
   if (isMobile) await expect(page.locator('.sidebar')).toBeVisible()
   else await expect(page.getByRole('heading', { name: 'Start a session' })).toBeVisible()

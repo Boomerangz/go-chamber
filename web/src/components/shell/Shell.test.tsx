@@ -61,6 +61,19 @@ describe('DockSplitter', () => {
     expect(layout().widths.terminal).toBeUndefined()
   })
 
+  it('reports its measured width before one is remembered', () => {
+    // the dock is laid out before its splitter mounts
+    const rect = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({ width: 500 } as DOMRect)
+    render(
+      <div className="dock">
+        <DockSplitter dock="terminal" />
+      </div>,
+    )
+    rect.mockRestore()
+    expect(layout().widths.terminal).toBeUndefined()
+    expect(screen.getByRole('separator', { name: 'Resize the dock' })).toHaveAttribute('aria-valuenow', '500')
+  })
+
   it('ignores a right-button press', () => {
     const handle = dockWith(500)
     fireEvent.pointerDown(handle, { button: 2, clientX: 800 })

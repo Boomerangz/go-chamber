@@ -21,7 +21,7 @@ test('chimes when the agent asks for a decision once sounds are on', async ({ pa
   await expect.poll(() => page.evaluate(() => (window as unknown as { tones: number }).tones)).toBe(1)
 
   await openNewSession(page)
-  await page.getByLabel('working directory').fill('/tmp')
+  await page.getByLabel('Working directory').fill('/tmp')
   await page.getByRole('button', { name: 'New session', exact: true }).click()
   await page.getByLabel('message').fill(`sound ${info.project.name} ${Date.now()}: please permission`)
   await page.getByRole('button', { name: 'Send' }).click()

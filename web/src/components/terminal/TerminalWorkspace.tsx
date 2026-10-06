@@ -48,7 +48,7 @@ export default function TerminalWorkspace({ sessions }: { sessions: Session[] })
   let list: React.ReactNode
   const failed = loadError && (
     <LoadFailed onRetry={() => void load()}>
-      {loaded || terminals.length > 0 ? `Couldn’t refresh shells: ${loadError}` : `Couldn’t load shells: ${loadError}`}
+      {loaded || terminals.length > 0 ? `Couldn't refresh shells: ${loadError}` : `Couldn't load shells: ${loadError}`}
     </LoadFailed>
   )
   if (!loaded && terminals.length === 0) {

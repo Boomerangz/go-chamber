@@ -9,7 +9,7 @@ for (const agent of ['Claude', 'Codex'] as const) {
     await page.goto(`/?token=${token}`)
     await openNewSession(page)
     await page.getByRole('radio', { name: agent }).click()
-    await page.getByLabel('working directory').fill('/tmp')
+    await page.getByLabel('Working directory').fill('/tmp')
     await page.getByRole('button', { name: 'New session', exact: true }).click()
     await page.getByLabel('message').fill('run the hook')
     await page.getByRole('button', { name: 'Send' }).click()

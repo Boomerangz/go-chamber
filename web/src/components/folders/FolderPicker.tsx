@@ -186,7 +186,7 @@ export default function FolderPicker({ start = '', recent = [], onPick, onClose 
           <input
             ref={filter}
             className="field"
-            aria-label="filter folders"
+            aria-label="Filter folders"
             placeholder="Filter, or type a path and press Enter"
             value={query}
             autoFocus

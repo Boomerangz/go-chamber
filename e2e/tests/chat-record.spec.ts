@@ -10,7 +10,7 @@ async function newSession(page: import('@playwright/test').Page) {
   await showPane(page, 'Sessions')
   await openNewSession(page)
   await page.getByRole('radio', { name: 'Claude' }).click()
-  await page.getByLabel('working directory').fill('/tmp')
+  await page.getByLabel('Working directory').fill('/tmp')
   await page.getByRole('button', { name: 'New session', exact: true }).click()
   await expect(page.getByLabel('message')).toBeVisible()
 }

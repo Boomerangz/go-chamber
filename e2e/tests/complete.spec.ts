@@ -15,7 +15,7 @@ test('completes @files and /commands in the composer', async ({ page }) => {
   await showPane(page, 'Sessions')
   await openNewSession(page)
   await page.getByRole('radio', { name: 'Claude' }).click()
-  await page.getByLabel('working directory').fill(dir)
+  await page.getByLabel('Working directory').fill(dir)
   await page.getByRole('button', { name: 'New session', exact: true }).click()
   const box = page.getByLabel('message')
   await expect(box).toBeVisible()

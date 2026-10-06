@@ -25,7 +25,7 @@ export default function NewTerminalForm({ sessionId }: { sessionId?: string | nu
         })
       }}
     >
-      <FolderField label="terminal directory" placeholder="~ (home)" value={cwd} onChange={setCwd} />
+      <FolderField label="Terminal directory" placeholder="~ (home)" value={cwd} onChange={setCwd} />
       <button type="submit" className="btn" aria-busy={here || undefined}>
         {here ? 'Opening…' : 'New terminal'}
       </button>
@@ -47,7 +47,7 @@ export function OpenError() {
   if (!error) return null
   return (
     <p className="term-error" role="alert">
-      <span>Couldn’t open a terminal: {error}</span>
+      <span>Couldn't open a terminal: {error}</span>
       <button type="button" className="btn btn-ghost btn-icon" aria-label="Dismiss" title="Dismiss" onClick={dismiss}>
         <X {...icon(13)} />
       </button>

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { terminalTheme } from './theme'
+import { searchDecorations, terminalTheme } from './theme'
 
 describe('terminalTheme', () => {
   it('prints ink on the dark sheet', () => {
@@ -41,5 +41,29 @@ describe('terminalTheme', () => {
     const tokens: Record<string, string> = { '--paper': '#101010', '--ink': '#fafafa', '--act': '#123456', '--bad': '#ff0000' }
     const t = terminalTheme(true, (name) => tokens[name] ?? '')
     expect(t).toMatchObject({ background: '#101010', foreground: '#fafafa', cursor: '#123456', cursorAccent: '#101010', red: '#ff0000' })
+  })
+})
+
+describe('searchDecorations', () => {
+  const tokens: Record<string, string> = { '--paper-3': '#ddd', '--rule': '#ccc', '--rule-strong': '#888', '--act': '#23d' }
+  const read = (name: string) => tokens[name] ?? ''
+
+  it('marks matches in the sheet’s tokens, the current one in the focus colour', () => {
+    expect(searchDecorations(false, read)).toEqual({
+      matchBackground: '#ddd',
+      matchOverviewRuler: '#888',
+      activeMatchBackground: '#ccc',
+      activeMatchBorder: '#23d',
+      activeMatchColorOverviewRuler: '#23d',
+    })
+  })
+
+  it('takes one tone stronger on the dark sheet, so a match still shows', () => {
+    expect(searchDecorations(true, read)).toMatchObject({ matchBackground: '#ccc', activeMatchBackground: '#888' })
+  })
+
+  it('falls back to the design values without a stylesheet', () => {
+    expect(searchDecorations(false, () => '')).toMatchObject({ matchBackground: '#dfdfda', activeMatchBorder: '#2433d6' })
+    expect(searchDecorations(true, () => '')).toMatchObject({ matchBackground: '#2a2c30', activeMatchBorder: '#8c98ff' })
   })
 })
