@@ -179,7 +179,7 @@ select.field option { background: var(--paper); color: var(--ink); }
 .status-running::before, .session-status-running::before { animation: mark-breathe 2.4s ease-in-out infinite; }
 .status-done, .session-status-done { color: var(--ink); }
 /* the last turn failed: the word says so in ink; the transcript shows why */
-.status-failed { color: var(--ink); }
+.status-failed, .session-status-failed { color: var(--ink); }
 .status-done::before, .session-status-done::before { animation: mark-land 450ms var(--ease-out); }
 
 /* busy: the "not yet settled" form (a dashed square) that breathes while
