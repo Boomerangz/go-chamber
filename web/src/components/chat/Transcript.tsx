@@ -384,8 +384,10 @@ function SubagentView({ node, onStopTask }: { node: ItemNode; onStopTask: StopTa
   const item = node.item
   const type = inputString(item.input, 'subagent_type')
   const summary = toolSummary(item)
-  // A subagent without a type (Codex's) is named by what it was asked.
-  const name = type || summary || item.name || 'agent'
+  // A subagent without a type or a tool name (Codex's "agent") is named by
+  // what it was asked.
+  const named = item.name && item.name !== 'agent' ? item.name : undefined
+  const name = type || named || summary || 'agent'
   const about = summary !== name ? summary : undefined
   const finished = item.status === 'completed' || item.status === 'failed' || item.status === 'stopped'
   // Stopping removes the button when the task ends, so it stays busy after
@@ -407,7 +409,7 @@ function SubagentView({ node, onStopTask }: { node: ItemNode; onStopTask: StopTa
         <ItemIcon label="" item={item}>
           <Workflow {...icon(13)} />
         </ItemIcon>
-        <span className="subagent-name" title={type ? undefined : name}>
+        <span className="subagent-name" title={type || named ? undefined : name}>
           subagent: {name}
         </span>
         {about && (
