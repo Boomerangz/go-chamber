@@ -209,7 +209,7 @@ function Group(props: {
           onClick={() => props.onMode(open ? 'collapsed' : 'recent')}
           disabled={props.searching}
         >
-          <ChevronDown {...icon(13)} className="icon chevron" />
+          <ChevronDown {...icon(14)} className="icon chevron" />
           <span className="group-name">{group.name}</span>
           <span className="sr-only"> {group.cwd}</span>
           <span className="group-count">{group.count}</span>
@@ -233,7 +233,7 @@ function Group(props: {
           aria-busy={(props.creating && props.creatingIn === group.cwd) || undefined}
           onClick={() => props.onCreateIn(group.cwd)}
         >
-          <Plus {...icon(15)} />
+          <Plus {...icon(16)} />
         </button>
       </header>
       {shown.length > 0 && (
@@ -272,12 +272,27 @@ function unseenIn(node: SessionNode, seen: Visits, activeId: string | null): num
 }
 
 // useScrolledIntoView keeps the open session's row on screen when the open
-// session changes from elsewhere (a link, a notification, the tray).
+// session changes from elsewhere (a link, a notification, the tray). It
+// scrolls once the list has laid out (a group unfolding to show the row
+// comes first), and a row on a hidden pane (a phone showing the chat)
+// waits until its pane shows.
 function useScrolledIntoView(active: boolean) {
   const ref = useRef<HTMLButtonElement>(null)
+  const pane = useSessionStore((s) => s.pane)
+  const owed = useRef(false)
   useEffect(() => {
-    if (active) ref.current?.scrollIntoView?.({ block: 'nearest' })
+    owed.current = active
   }, [active])
+  useEffect(() => {
+    if (!owed.current) return
+    const frame = requestAnimationFrame(() => {
+      const el = ref.current
+      if (!el || el.checkVisibility?.() === false) return
+      el.scrollIntoView?.({ block: 'nearest' })
+      owed.current = false
+    })
+    return () => cancelAnimationFrame(frame)
+  }, [active, pane])
   return ref
 }
 

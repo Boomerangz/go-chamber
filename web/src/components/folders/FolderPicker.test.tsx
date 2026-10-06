@@ -271,6 +271,21 @@ describe('FolderField', () => {
     await userEvent.click(await screen.findByRole('button', { name: 'Cancel' }))
     expect(screen.queryByRole('dialog')).toBeNull()
   })
+
+  it('shows the end of a long path, the project name, while not typing in it', async () => {
+    const { default: FolderField } = await import('./FolderField')
+    const { rerender } = render(<FolderField label="dir" placeholder="p" value="" onChange={() => {}} />)
+    const input = screen.getByLabelText<HTMLInputElement>('dir')
+    Object.defineProperty(input, 'scrollWidth', { configurable: true, value: 900 })
+    rerender(<FolderField label="dir" placeholder="p" value="/a/very/long/path/project" onChange={() => {}} />)
+    expect(input.scrollLeft).toBe(900)
+    input.focus()
+    input.scrollLeft = 0
+    rerender(<FolderField label="dir" placeholder="p" value="/a/very/long/path/project2" onChange={() => {}} />)
+    expect(input.scrollLeft).toBe(0)
+    input.blur()
+    expect(input.scrollLeft).toBe(900)
+  })
 })
 
 describe('FolderPicker inside a form', () => {

@@ -56,4 +56,13 @@ describe('noticePlace', () => {
     const stack = screen.getByRole('alert').parentElement!
     expect(stack).toHaveStyle({ top: '56px', right: '56px' })
   })
+
+  it("offers a notice's action, which also dismisses it", async () => {
+    let undone = 0
+    render(<Notices />)
+    act(() => void notify({ kind: 'info', text: 'Archived x', action: { label: 'Undo', run: () => undone++ } }))
+    act(() => screen.getByRole('button', { name: 'Undo' }).click())
+    expect(undone).toBe(1)
+    expect(screen.queryByText('Archived x')).toBeNull()
+  })
 })

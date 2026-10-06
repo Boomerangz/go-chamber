@@ -19,6 +19,16 @@ describe('notices', () => {
     expect(notices().map((n) => n.text)).toEqual(['two'])
   })
 
+  it('keeps a notice with an action twice as long as a plain one', () => {
+    vi.useFakeTimers()
+    notify({ kind: 'info', text: 'plain' })
+    notify({ kind: 'info', text: 'Archived x', action: { label: 'Undo', run: () => {} } })
+    vi.advanceTimersByTime(4000)
+    expect(notices().map((n) => n.text)).toEqual(['Archived x'])
+    vi.advanceTimersByTime(4000)
+    expect(notices()).toEqual([])
+  })
+
   it('keeps at most three, dropping the oldest', () => {
     for (const text of ['a', 'b', 'c', 'd']) notify({ kind: 'error', text })
     expect(notices().map((n) => n.text)).toEqual(['b', 'c', 'd'])

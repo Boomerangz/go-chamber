@@ -88,7 +88,7 @@ body { margin: 0; color: var(--ink); background: var(--paper); caret-color: var(
 button, input, select, textarea { font: inherit; color: inherit; }
 button { cursor: pointer; }
 h1, h2, h3, p { margin: 0; }
-code, pre, kbd { font-family: var(--font-mono); font-size: 0.92em; }
+code, pre { font-family: var(--font-mono); font-size: 0.92em; }
 a { color: var(--act); text-underline-offset: 3px; text-decoration-thickness: 1px; }
 ::selection { background: var(--act-wash); color: var(--ink); }
 :focus-visible { outline: 2px solid var(--act-ring); outline-offset: 1px; }
@@ -104,7 +104,7 @@ svg.icon { flex: none; display: block; }
 /* .panel is a region of the sheet, not a floating card: rules divide it. */
 .panel { background: var(--paper); }
 
-.label, .section-title {
+.section-title {
   display: flex; align-items: center; gap: 8px;
   font-family: var(--font-mono); font-size: 11.5px; letter-spacing: 0.06em; text-transform: uppercase;
   color: var(--ink-3); font-weight: 400;
@@ -206,7 +206,7 @@ select.field option { background: var(--paper); color: var(--ink); }
 kbd {
   display: inline-grid; place-items: center; min-width: 18px; height: 18px; padding: 0 4px;
   border: 1px solid var(--rule-strong); border-radius: var(--r);
-  font-size: 11px; color: var(--ink-2); background: var(--paper);
+  font-family: var(--font-mono); font-size: 11px; color: var(--ink-2); background: var(--paper);
 }
 
 /* agents are peers: a letter in a box, same weight for both */
@@ -229,6 +229,8 @@ kbd {
 }
 .topbar > :last-child { justify-self: end; }
 .topbar-end { grid-column: 3; display: flex; align-items: center; gap: 10px; }
+/* one control height across the bar: the toggles as tall as Focus and Sign out */
+@media (min-width: 721px) { .topbar-end .btn-icon { width: 30px; height: 30px; } }
 @media (max-width: 720px) { .topbar-end .signout, .focus-toggle, .shortcuts-help { display: none; } }
 .shortcuts-help { font-family: var(--font-mono); font-size: 13px; }
 /* signing out asks once, in place */
@@ -828,7 +830,7 @@ button.health { border: 0; background: none; padding: 0; }
 .terminal-tabs li { flex: none; display: flex; align-items: center; border-bottom: 2px solid transparent; margin-bottom: -1px; }
 .terminal-tabs li:has([aria-selected='true']) { border-bottom-color: var(--ink); }
 .terminal-tabs button { height: 30px; border: 0; background: none; color: var(--ink-3); font-family: var(--font-mono); font-size: 12.5px; }
-.terminal-tabs [role='tab'] { display: inline-flex; align-items: center; gap: 6px; padding: 0 4px 0 10px; }
+.terminal-tabs [role='tab'] { display: inline-flex; align-items: center; gap: 6px; padding: 0 4px 0 10px; white-space: nowrap; }
 .terminal-tabs [role='tab']:hover, .terminal-tabs [role='tab'][aria-selected='true'] { color: var(--ink); }
 .terminal-tabs .close-terminal { display: grid; place-items: center; width: 24px; padding: 0; color: var(--ink-3); }
 .terminal-tabs .close-terminal:hover { color: var(--bad); }
@@ -847,11 +849,8 @@ button.health { border: 0; background: none; padding: 0; }
   background: var(--paper); border-right: 1px solid var(--rule);
 }
 .term-projects { display: grid; gap: 8px; }
-.term-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.term-chips { display: flex; flex-wrap: wrap; gap: 6px; min-width: 0; }
 .term-chips .chip .icon { color: var(--ink-3); }
-/* a long project name stays one line in its 24px chip; the title has it all */
-.term-chips .chip { display: inline-block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; line-height: 22px; }
-.term-chips .chip .icon { vertical-align: -2px; }
 .term-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 1px; }
 .term-row { display: flex; align-items: center; border: 1px solid transparent; border-radius: var(--r); transition: background var(--dur-fast); }
 .term-row:hover { background: var(--paper-2); }
@@ -869,7 +868,7 @@ button.health { border: 0; background: none; padding: 0; }
 .term-dot[data-mark='pending'] { border-style: dashed; border-color: var(--ink-2); animation: mark-breathe 1.2s ease-in-out infinite; }
 .term-dot[data-mark='struck'] { border-color: var(--ink-2); background: linear-gradient(to top right, transparent 45%, var(--ink-2) 45% 60%, transparent 60%); }
 .term-row .close-terminal {
-  flex: none; display: grid; place-items: center; width: 26px; height: 26px; margin-right: 4px; padding: 0; border: 0;
+  flex: none; display: grid; place-items: center; width: 24px; height: 24px; margin-right: 4px; padding: 0; border: 0;
   background: none; color: var(--ink-3); opacity: 0; transition: opacity var(--dur-fast);
 }
 .term-row:hover .close-terminal, .term-row:has([aria-selected='true']) .close-terminal, .term-row .close-terminal:focus-visible { opacity: 1; }
@@ -915,10 +914,12 @@ button.health { border: 0; background: none; padding: 0; }
   height: 24px; padding: 0 8px; border: 1px solid var(--rule-strong); border-radius: var(--r);
   background: var(--paper); color: var(--ink-2); font-family: var(--font-mono); font-size: 12px;
 }
+/* a long name stays one line inside its chip, cut at the end; the title has it all */
+.chip { max-width: 100%; min-width: 0; }
+.chip-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .chip:hover { border-color: var(--ink); color: var(--ink); }
 .chip[aria-pressed='true'] { border-color: var(--ink); color: var(--ink); }
 .folder-chips { gap: 4px 6px; min-width: 0; }
-.folder-chips .chip { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: inline-block; line-height: 22px; }
 .field-hint { margin: -4px 0 0; color: var(--bad); font-size: 12.5px; }
 
 .folder-list {
@@ -988,6 +989,7 @@ button.health { border: 0; background: none; padding: 0; }
 .toast-error .toast-title { color: var(--bad); }
 .toast-text { font-size: 13px; color: var(--ink); overflow-wrap: anywhere; }
 .toast-close { flex: none; }
+.toast-action { flex: none; align-self: center; color: var(--act); }
 @keyframes toast-in { from { opacity: 0; transform: translateY(-4px); } }
 .elicitation .field-row { display: grid; gap: 4px; margin: 8px 0; }
 
@@ -1013,6 +1015,7 @@ button.health { border: 0; background: none; padding: 0; }
   .topbar-end { grid-column: 2; grid-row: 1; gap: 4px; }
   .mode-switch { grid-column: 1; grid-row: 1; justify-self: start; min-width: 0; overflow-x: auto; scrollbar-width: none; }
   .segmented.mode-switch button { flex: none; padding: 0 10px; }
+  .mode-switch { max-width: 100%; }
   .layout { grid-template-columns: minmax(0, 1fr); padding-bottom: calc(56px + env(safe-area-inset-bottom)); }
   .layout > *, .layout > .chat.empty, .layout > .dock { display: none; }
   .layout[data-pane='sessions'] > .sidebar,
@@ -1044,7 +1047,6 @@ button.health { border: 0; background: none; padding: 0; }
   .btn-icon { width: 36px; height: 36px; }
   .segmented button, .model-button, .field-sm, .effort-options button { height: 36px; }
   .chip { height: 36px; }
-  .term-chips .chip, .folder-chips .chip { line-height: 34px; }
   .folder-item .pick { height: 36px; }
   .item-output > summary, .item.hook > summary, .item.reasoning summary, .item.tool-group > summary,
   .quotas-details summary, .request-raw > summary { padding-block: 9px; }
@@ -1065,9 +1067,18 @@ button.health { border: 0; background: none; padding: 0; }
     background: none; color: var(--ink-3); font-size: 11.5px; font-weight: 500;
   }
   .panebar button[aria-pressed='true'] { color: var(--ink); border-top-color: var(--ink); }
-  .panebar .badge { position: absolute; top: 6px; right: calc(50% - 22px); }
+  /* anchored by its left edge past the icon, so a wider count grows away from it */
+  .panebar .badge { position: absolute; top: 6px; left: calc(50% + 6px); }
   /* without a transcript on screen: just above the pane bar */
   .notices { bottom: calc(64px + env(safe-area-inset-bottom)); right: 14px; left: 14px; width: auto; }
+}
+
+/* the narrowest phones: the three modes and the toggles fit on one row,
+   none under another, none scrolled away */
+@media (max-width: 360px) {
+  .topbar { gap: 0 4px; padding-left: 0; padding-right: 6px; }
+  .topbar-end { gap: 0; }
+  .segmented.mode-switch button { gap: 4px; padding: 0 4px; font-size: 12.5px; }
 }
 
 /* nothing moves or breathes; an animation only snaps to its end, so a

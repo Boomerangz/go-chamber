@@ -25,7 +25,9 @@ var (
 // "?" for an untracked file. Added and Removed count changed lines (an
 // untracked file's lines are all added); a binary file counts none.
 type FileChange struct {
-	Path    string `json:"path"`
+	Path string `json:"path"`
+	// From is the path a renamed file (Status "R") had before.
+	From    string `json:"from,omitempty"`
 	Status  string `json:"status"`
 	Added   int    `json:"added"`
 	Removed int    `json:"removed"`

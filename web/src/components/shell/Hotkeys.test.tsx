@@ -1,4 +1,4 @@
-import { act, render, screen } from '@testing-library/react'
+import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Session } from '../../lib/api'
@@ -32,6 +32,23 @@ describe('Hotkeys', () => {
     expect(screen.getByText('Next session that needs you')).toBeInTheDocument()
     expect(screen.getByText('In a terminal: find in the scrollback')).toBeInTheDocument()
     expect(screen.getByText('In a terminal: larger, smaller, default text')).toBeInTheDocument()
+  })
+
+  it('gives the focus back where it was when an overlay closes', async () => {
+    render(
+      <>
+        <button type="button">origin</button>
+        <Hotkeys />
+      </>,
+    )
+    const origin = screen.getByRole('button', { name: 'origin' })
+    origin.focus()
+    await userEvent.keyboard('{Shift>}?{/Shift}')
+    await userEvent.keyboard('?')
+    expect(screen.getByRole('dialog', { name: 'Keyboard shortcuts' })).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Close' }))
+    expect(screen.queryByRole('dialog')).toBeNull()
+    await waitFor(() => expect(origin).toHaveFocus())
   })
 
   it('groups the shortcut list and names the modes', async () => {
@@ -78,6 +95,29 @@ describe('Hotkeys', () => {
     await userEvent.keyboard('?2')
     expect(screen.queryByRole('dialog')).toBeNull()
     expect(useLayoutStore.getState().mode).toBe('agents')
+  })
+
+  it('ignores single keys on a control a click left focused, but not on a session row', async () => {
+    render(
+      <>
+        <button type="button">Terminal</button>
+        <aside className="sidebar">
+          <button type="button" className="session">alpha</button>
+        </aside>
+        <Hotkeys />
+      </>,
+    )
+    await userEvent.click(screen.getByRole('button', { name: 'Terminal' }))
+    await userEvent.keyboard('f2')
+    expect(useLayoutStore.getState().focus).toBe(false)
+    expect(useLayoutStore.getState().mode).toBe('agents')
+    // a combo with the mod key still works from there
+    const sidebar = useLayoutStore.getState().sidebar
+    await userEvent.keyboard(isMac ? '{Meta>}b{/Meta}' : '{Control>}b{/Control}')
+    expect(useLayoutStore.getState().sidebar).toBe(!sidebar)
+    await userEvent.click(screen.getByRole('button', { name: 'alpha' }))
+    await userEvent.keyboard('f')
+    expect(useLayoutStore.getState().focus).toBe(true)
   })
 
   it('switches modes and opens the next session that needs you', async () => {

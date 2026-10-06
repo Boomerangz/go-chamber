@@ -164,9 +164,13 @@ test.describe('terminal', () => {
     await expect(toggle).toBeVisible()
     await expect(panel.getByLabel('Terminal directory')).toBeHidden()
     await toggle.click()
+    // unfolded, the shells come first; a new shell waits behind its own fold
+    const name = dir.split('/').pop()!
+    await expect(panel.getByRole('tab', { selected: true })).toBeInViewport()
+    await expect(panel.getByLabel('Terminal directory')).toBeHidden()
+    await panel.getByRole('button', { name: 'New shell' }).click()
     await expect(panel.getByLabel('Terminal directory')).toBeVisible()
     await toggle.click()
-    const name = dir.split('/').pop()!
     await toggle.click()
     await panel.getByRole('button', { name: `Close terminal ${name}` }).click()
     await panel.getByRole('group', { name: /^Close terminal / }).getByRole('button', { name: 'Close', exact: true }).click()

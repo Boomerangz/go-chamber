@@ -1,5 +1,5 @@
 .diff-panel {
-  --pad-y: 12px; --pad-x: 14px;
+  --pad-y: 12px; --pad-x: 14px; container-type: inline-size;
   display: flex; flex-direction: column; gap: 10px; min-height: 0; flex: 1; overflow: auto; padding: var(--pad-y) var(--pad-x);
 }
 /* the panel's controls stay in view; each open file's header sticks under them */
@@ -27,11 +27,12 @@
   font: inherit; text-align: left; cursor: pointer;
 }
 .diff-file-toggle:hover { background: var(--paper-2); }
-.diff-file-toggle[aria-expanded='true'] { border-color: var(--rule-strong); }
+/* an open file's whole header, actions included, is framed as wide as its diff */
+.diff-file-head:has(> .diff-file-toggle[aria-expanded='true']) { border-radius: var(--r); box-shadow: inset 0 0 0 1px var(--rule-strong); }
 .diff-file-toggle .busy-mark { align-self: center; color: var(--ink-3); }
 .diff-file-actions { flex: none; display: inline-flex; gap: 2px; opacity: 0; transition: opacity var(--dur-fast); }
 .diff-file:hover .diff-file-actions, .diff-file-head:focus-within .diff-file-actions { opacity: 1; }
-.diff-file-actions .btn-icon, .diff-action-gap { width: 26px; height: 26px; }
+.diff-file-actions .btn-icon, .diff-action-gap { width: 24px; height: 24px; }
 .diff-action-gap { flex: none; }
 @media (hover: none) { .diff-file-actions { opacity: 1; } }
 /* status: a lowercase word after a square mark whose form is the status */
@@ -43,10 +44,19 @@
 .diff-status[data-mark='solid']::before { background: currentColor; }
 .diff-status[data-mark='struck']::before { background: linear-gradient(to top right, transparent 45%, currentColor 45% 60%, transparent 60%); }
 .diff-status[data-mark='dashed']::before { border-style: dashed; }
+/* a narrow panel keeps the mark alone; the word stays for screen readers */
+@container (max-width: 400px) {
+  .diff-panel .diff-status { width: auto; }
+  .diff-status-word { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+}
 /* a long path gives way folder first, then the name; the full path is the row's title */
 .diff-path { flex: 1; min-width: 0; display: flex; overflow: hidden; font-family: var(--font-mono); font-size: 12.5px; white-space: nowrap; }
 .diff-dir { flex: 0 1000 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; color: var(--ink-3); }
-.diff-base { flex: 0 1 auto; min-width: 3ch; overflow: hidden; text-overflow: ellipsis; color: var(--ink); }
+.diff-base { flex-shrink: 0; max-width: 100%; overflow: hidden; text-overflow: ellipsis; color: var(--ink); }
+/* a rename: the old path, quietest, gives way before anything else */
+.diff-from { flex: 0 10000 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; color: var(--ink-3); }
+.diff-arrow { flex: none; white-space: pre; color: var(--ink-3); }
+.diff-path:has(> .diff-arrow) .diff-base { max-width: calc(100% - 3ch); }
 .diff-counts { flex: none; display: inline-flex; gap: 6px; font-family: var(--font-mono); font-size: 12px; color: var(--ink-3); }
 .diff-counts > span { min-width: 4ch; text-align: right; }
 /* the diff grows with the panel (no inner scroll trap); one grid column as

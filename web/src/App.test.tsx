@@ -152,6 +152,14 @@ describe('App', () => {
     await waitFor(() => expect(document.title).toBe('(1) go-chamber'))
     act(() => useSessionStore.setState({ activeId: 's1' }))
     await waitFor(() => expect(document.title).toBe('(1) fix login · go-chamber'))
+    // the other modes name themselves, not the session left behind
+    act(() => useTerminalStore.setState({ terminals: [shell('t1', '/w/api')], loaded: true, activeId: 't1' }))
+    act(() => useLayoutStore.getState().setMode('terminal'))
+    await waitFor(() => expect(document.title).toBe('(1) api · Terminal · go-chamber'))
+    act(() => useTerminalStore.setState({ activeId: null }))
+    await waitFor(() => expect(document.title).toBe('(1) Terminal · go-chamber'))
+    act(() => useLayoutStore.getState().setMode('diagnostics'))
+    await waitFor(() => expect(document.title).toBe('(1) Diagnostics · go-chamber'))
   })
 
   it('signs out with a form post, after asking', async () => {

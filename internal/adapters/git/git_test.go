@@ -146,6 +146,72 @@ func TestChangesCountsBinaryTracked(t *testing.T) {
 	}
 }
 
+func TestChangesShowRenames(t *testing.T) {
+	ctx := context.Background()
+	repo := newRepo(t)
+	write(t, filepath.Join(repo, "old name.txt"), "one\ntwo\nthree\nfour\nfive\n")
+	sh(t, repo, "add", ".")
+	sh(t, repo, "commit", "-q", "-m", "more")
+	if err := os.MkdirAll(filepath.Join(repo, "dir"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	sh(t, repo, "mv", "old name.txt", "dir/new name.txt")
+	write(t, filepath.Join(repo, "dir", "new name.txt"), "one\ntwo\nTHREE\nfour\nfive\n")
+	changes, err := Repo{}.Changes(ctx, repo, "HEAD")
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := app.FileChange{Path: "dir/new name.txt", From: "old name.txt", Status: "R", Added: 1, Removed: 1}
+	if len(changes) != 1 || changes[0] != want {
+		t.Fatalf("changes = %+v, want %+v", changes, want)
+	}
+	diff, err := Repo{}.FileDiff(ctx, repo, "HEAD", "dir/new name.txt")
+	if err != nil || !strings.Contains(diff, "rename from old name.txt") || !strings.Contains(diff, "+THREE") || strings.Contains(diff, "+one") {
+		t.Fatalf("rename diff = %q, %v", diff, err)
+	}
+}
+
+func TestParseNameStatus(t *testing.T) {
+	got := parseNameStatus("R097\x00a\x00b\x00M\x00c\x00C100\x00d\x00e\x00")
+	want := []app.FileChange{{Status: "R", From: "a", Path: "b"}, {Status: "M", Path: "c"}, {Status: "C", From: "d", Path: "e"}}
+	if len(got) != len(want) {
+		t.Fatalf("got %+v", got)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Errorf("%d = %+v, want %+v", i, got[i], want[i])
+		}
+	}
+	// a cut-off record is read as far as it goes, never past its end
+	if got := parseNameStatus("M\x00x\x00R100\x00a\x00"); len(got) != 2 || got[1].Path != "a" {
+		t.Fatalf("truncated = %+v", got)
+	}
+}
+
+func TestParseNumstatSkipsWhatItCannotRead(t *testing.T) {
+	got := parseNumstat("junk\x001\t0\ta\x003\t0\t\x00old")
+	if len(got) != 2 || got["a"] != (app.FileChange{Added: 1}) {
+		t.Fatalf("got %+v", got)
+	}
+}
+
+func TestParseNumstatRenames(t *testing.T) {
+	got := parseNumstat("1\t2\ta.txt\x003\t0\t\x00old.txt\x00new.txt\x00-\t-\t\x00x.bin\x00y.bin\x00")
+	want := map[string]app.FileChange{
+		"a.txt":   {Added: 1, Removed: 2},
+		"new.txt": {Added: 3},
+		"y.bin":   {Binary: true},
+	}
+	if len(got) != len(want) {
+		t.Fatalf("got %+v", got)
+	}
+	for k, w := range want {
+		if got[k] != w {
+			t.Errorf("%s = %+v, want %+v", k, got[k], w)
+		}
+	}
+}
+
 func TestFileDiff(t *testing.T) {
 	ctx := context.Background()
 	repo := newRepo(t)

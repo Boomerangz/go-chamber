@@ -20,9 +20,9 @@
 
 /* find in scrollback: one line in the strip's place */
 .term-find { flex-wrap: nowrap; text-transform: none; }
-.term-find-input { flex: 1; min-width: 0; max-width: 320px; height: 26px; font-family: var(--font-mono); font-size: 12.5px; }
+.term-find-input { flex: 1; min-width: 0; max-width: 320px; height: 24px; font-family: var(--font-mono); font-size: 12.5px; }
 .term-find-count { min-width: 9ch; }
-.term-find .btn-icon { width: 26px; height: 26px; }
+.term-find .btn-icon { width: 24px; height: 24px; }
 
 /* keys a phone keyboard lacks: only on touch screens */
 .term-keys { display: none; }
@@ -64,16 +64,17 @@
 
 /* dock: a single row of tabs that scrolls sideways, ending in "+" */
 .dock-tabs { display: flex; align-items: flex-end; min-width: 0; border-bottom: 1px solid var(--rule); }
-.terminal-tabs [role='tab'] { white-space: nowrap; }
 .term-tab-text { display: inline-flex; align-items: baseline; gap: 6px; min-width: 0; }
 .term-tab-title { display: inline-block; max-width: 16ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* the folder, quieter, when the title doesn't already say it */
 .term-tab-cwd { display: inline-block; max-width: 12ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11.5px; color: var(--ink-3); }
-.terminal-tabs .term-tab-rename { width: 22px; height: 22px; color: var(--ink-3); }
+.terminal-tabs .term-tab-rename { width: 24px; height: 24px; color: var(--ink-3); }
 .terminal-tabs .term-tab-rename:hover { color: var(--ink); }
 
 /* terminal mode on a phone: with a shell attached the list folds to one line */
 .term-switch { display: none; }
+.term-new-area { display: flex; flex-direction: column; gap: inherit; min-width: 0; }
+.term-new-area[data-folded] { display: none; }
 @media (max-width: 720px) {
   .term-switch {
     display: flex; align-items: center; gap: 8px; width: 100%; min-height: 36px; padding: 0 4px;
@@ -82,19 +83,38 @@
   .term-switch .section-title { margin: 0; }
   .term-switch-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--font-mono); font-size: 12.5px; }
   .term-switch[aria-expanded='true'] svg { transform: rotate(180deg); }
+  /* the switch stays over a long list, so it folds again from anywhere */
+  .term-switch[aria-expanded='true'] { position: sticky; top: -12px; z-index: 1; margin-top: -12px; padding-top: 12px; background: var(--paper); }
+  /* unfolded, the shells come first; a new one waits behind its own fold */
+  .term-new-toggle {
+    display: flex; align-items: center; justify-content: space-between; width: 100%; min-height: 36px; padding: 0 4px;
+    border: 0; border-top: 1px solid var(--rule); background: transparent; color: var(--ink-3); cursor: pointer;
+  }
+  .term-new-toggle[aria-expanded='true'] svg { transform: rotate(180deg); }
   .term-sidebar[data-collapsed] { max-height: none; padding-block: 4px; }
   .term-sidebar[data-collapsed] > :not(.term-switch) { display: none; }
 }
 .term-tab-input { width: 16ch; min-width: 0; height: 24px; margin: 3px 4px; font-family: var(--font-mono); font-size: 12.5px; }
 .terminal-tabs .term-confirm { padding-right: 6px; }
 .term-new { position: relative; flex: none; display: flex; align-items: center; height: 30px; padding-left: 4px; }
-.term-new .term-new-more { width: 20px; }
+.term-new .term-new-more { width: 24px; }
 .term-new-menu {
   position: absolute; top: calc(100% + 4px); right: 0; z-index: 5; width: min(320px, 80vw);
   display: grid; gap: 8px; padding: 10px;
   border: 1px solid var(--ink); border-radius: var(--r); background: var(--paper);
 }
-.term-new-menu > .btn { justify-self: start; }
+.term-new-in { display: grid; gap: 8px; }
+.term-new-in > .btn { justify-self: start; }
+/* every shell, also those past the strip's edge; the attached one marked */
+.term-all { list-style: none; margin: 0; padding: 0 0 8px; display: grid; gap: 1px; max-height: 240px; overflow: auto; border-bottom: 1px solid var(--rule); }
+.term-all > li { min-width: 0; }
+.term-all-row {
+  display: flex; align-items: baseline; gap: 6px; width: 100%; min-height: 28px; padding: 0 6px;
+  border: 0; border-radius: var(--r); background: none; color: var(--ink-2); font-family: var(--font-mono); font-size: 12.5px; text-align: left;
+}
+.term-all-row:hover, .term-all-row[aria-current='true'] { background: var(--paper-2); color: var(--ink); }
+.term-all-row .term-tab-title { flex: 0 1 auto; max-width: none; min-width: 0; }
+.term-all-row .term-tab-cwd { flex: none; }
 .term-new-folder { display: flex; gap: 6px; align-items: center; min-width: 0; }
 .term-new-folder .folder-field { flex: 1; min-width: 0; }
 

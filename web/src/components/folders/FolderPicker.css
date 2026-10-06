@@ -1,6 +1,8 @@
 .folder-loading { padding: 14px 8px; }
 .picker-error { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: 0; }
-.recent-folder { display: inline-flex; align-items: center; }
+.recent-folder { display: inline-flex; align-items: center; min-width: 0; max-width: 100%; }
+/* a long recent name stays one line in its chip; the title has the path */
+.recent-folder .chip { max-width: 24ch; }
 .recent-folder .recent-open { width: 24px; height: 24px; color: var(--ink-3); }
 .picker-note { margin: 0; font-family: var(--font-mono); font-size: 12px; color: var(--ink-3); }
 .folder-row[aria-busy='true'] .folder-name::after { content: ' …'; color: var(--ink-3); }
