@@ -169,7 +169,13 @@
   .chat-header .chat-meta { flex: 0 1 auto; flex-wrap: nowrap; min-width: 0; }
   .chat-header .status, .chat-header .reviewer, .chat-header .mode-select { flex: none; white-space: nowrap; flex-wrap: nowrap; }
   .chat-header .usage { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .chat-header[data-fold] { flex-wrap: wrap; }
+  /* folded, the title row stays one row in every state: the title holds
+     only what leaves the status, its tags and "⋯" room (useHeaderFold), and
+     the usage line takes what is left over, cut as it must. Only the opened
+     settings wrap, to a row of their own. */
+  .chat-header[data-fold] .chat-heading { min-width: var(--title-fold-min, 0px); }
+  .chat-header[data-fold] .usage { flex: 1 1 0; max-width: max-content; }
+  .chat-header[data-fold][data-details='open'] { flex-wrap: wrap; }
   .chat-header[data-fold] .chat-meta { display: contents; }
   .chat-header[data-fold] .chat-more { display: inline-grid; place-items: center; flex: none; order: 1; }
   .chat-header[data-fold] .chat-tools { display: none; }

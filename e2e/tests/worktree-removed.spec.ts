@@ -147,6 +147,26 @@ test('a fork of a removed worktree names the commits its branch still holds', as
   await expect(note).toHaveCount(0)
 })
 
+// The removed-worktree session's header (repo, removed branch, archived-
+// style tags) stays one row at 1440 beside the Changes dock: "⋯" included.
+test('a removed worktree session keeps a one-row header beside Changes', async ({ page, isMobile }, info) => {
+  test.skip(isMobile, 'a phone folds by its own rules')
+  const repo = newRepo()
+  const { id } = await worktreeSession(page.request, repo, `header-${info.project.name}`, `a rather long title for a removed worktree ${info.project.name}`)
+  expect((await page.request.delete(`/api/sessions/${id}/worktree?force=1`, { headers })).status()).toBe(200)
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.goto(`/s/${id}?token=${token}`)
+  await openChanges(page)
+  const header = page.locator('.chat-header')
+  await expect(header).toHaveAttribute('data-fold')
+  const box = await header.boundingBox()
+  const more = await page.getByRole('button', { name: 'Session details' }).boundingBox()
+  const title = await header.locator('.chat-heading').boundingBox()
+  expect(more!.y).toBeLessThan(title!.y + title!.height)
+  expect(more!.x).toBeGreaterThan(title!.x + title!.width - 1)
+  expect(box!.height).toBeLessThan(90)
+})
+
 // A session can't be made in a folder that is gone: the server says which.
 test('a session in a missing folder is refused with the folder named', async ({ page }) => {
   const gone = path.join(realpathSync(mkdtempSync(path.join(tmpdir(), 'gc-e2e-'))), 'gone')
