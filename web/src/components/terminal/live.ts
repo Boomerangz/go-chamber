@@ -180,7 +180,7 @@ export function liveFor(id: string, host: HTMLElement, callbacks: Callbacks): Li
       })
     },
     onReset: (reason) => {
-      if (reason !== 'upgrade') recordTerminalReconnect(id)
+      if (reason !== 'upgrade' && reason !== 'resync') recordTerminalReconnect(id)
       ready = false
       live.input.setReady(false)
       const mine = ++replayGeneration

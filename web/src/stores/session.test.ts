@@ -590,7 +590,7 @@ describe('session store', () => {
       await pending
       expect(store().chat.lastSeq).toBe(0)
       await vi.advanceTimersByTimeAsync(1000)
-      expect(api.fetchEvents).toHaveBeenLastCalledWith('a', 0)
+      expect(api.fetchEvents).toHaveBeenLastCalledWith('a', 0, expect.anything())
       expect(store().chat.order).toEqual(['old', 'live'])
       expect(lastError()).toBeNull()
     } finally {
@@ -981,7 +981,7 @@ describe('live stream consistency', () => {
     await settle()
 
     expect(store().chat.order).toEqual(['one', 'two', 'three'])
-    expect(api.fetchEvents).toHaveBeenLastCalledWith('a', 1)
+    expect(api.fetchEvents).toHaveBeenLastCalledWith('a', 1, expect.anything())
   })
 
   it('does not let a stale history response overwrite a newer selection', async () => {
@@ -1286,5 +1286,89 @@ describe('failures shown in place', () => {
     expect(await store().importHistory('codex', 't1')).toBe(false)
     expect(toasts()).toEqual([])
     expect(lastError()).toBe('thread is gone')
+  })
+})
+
+describe('transcript downloads', () => {
+  it('downloads the transcript once when the socket opens during the first fetch', async () => {
+    const server = fakeServer()
+    server.publish({ item: item({ id: 'old' }) })
+    const serve = (api.fetchEvents as Mock).getMockImplementation()!
+    const calls: number[] = []
+    let release: () => void = () => {}
+    const gate = new Promise<void>((r) => (release = r))
+    ;(api.fetchEvents as Mock).mockImplementation(async (id: string, since: number) => {
+      calls.push(since)
+      if (calls.length === 1) await gate
+      return serve(id, since)
+    })
+    const selected = store().selectSession('a')
+    server.openSocket()
+    release()
+    await selected
+    await settle()
+    // The socket's catch-up shares the selection's download and then asks
+    // only for what came after it.
+    expect(calls).toEqual([0, 1])
+    expect(store().chat.order).toEqual(['old'])
+    expect(store().history).toBe('ready')
+  })
+
+  it('aborts the download of a chat the owner left', async () => {
+    const signals: (AbortSignal | undefined)[] = []
+    ;(api.fetchEvents as Mock).mockImplementation(
+      (_id: string, _since: number, signal?: AbortSignal) => {
+        signals.push(signal)
+        return new Promise(() => {})
+      },
+    )
+    void store().selectSession('a')
+    void store().selectSession('b')
+    expect(signals[0]?.aborted).toBe(true)
+    expect(signals[1]?.aborted).toBe(false)
+  })
+
+  it('shows a revisited chat from memory at once and fetches only what came after', async () => {
+    const server = fakeServer()
+    server.publish({ item: item({ id: 'one' }) })
+    const selected = store().selectSession('a')
+    server.openSocket()
+    await selected
+    await settle()
+    await store().selectSession('b')
+    server.publish({ item: item({ id: 'two' }) })
+    ;(api.fetchEvents as Mock).mockClear()
+
+    const back = store().selectSession('a')
+    expect(store().chat.order).toEqual(['one'])
+    // Not ready until caught up: what came meanwhile is still news.
+    expect(store().history).toBe('loading')
+    await back
+    expect(store().history).toBe('ready')
+    expect(api.fetchEvents).toHaveBeenCalledTimes(1)
+    expect(api.fetchEvents).toHaveBeenCalledWith('a', 1, expect.anything())
+    expect(store().chat.order).toEqual(['one', 'two'])
+  })
+
+  it('keeps the last five chats in memory', async () => {
+    const server = fakeServer()
+    const ids = ['s1', 's2', 's3', 's4', 's5', 's6', 's7']
+    for (const id of ids) server.publish({ sessionId: id, item: item({ id: `${id}-1`, sessionId: id }) })
+    for (const id of ids) await store().selectSession(id)
+    // The chat being left counts too: s3 to s7 stay.
+    void store().selectSession('s3')
+    expect(store().chat.order).toEqual(['s3-1'])
+    void store().selectSession('s2')
+    expect(store().chat.order).toEqual([])
+  })
+
+  it('forgets the chat of a removed session', async () => {
+    const server = fakeServer()
+    server.publish({ item: item({ id: 'one' }) })
+    await store().selectSession('a')
+    await store().selectSession('b')
+    store().applyIncoming({ seq: 2, sessionId: 'a', type: 'session.removed' })
+    void store().selectSession('a')
+    expect(store().chat.order).toEqual([])
   })
 })

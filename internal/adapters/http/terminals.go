@@ -77,6 +77,9 @@ type terminalExit struct {
 // (scrollback first) and input; text frames carry resize requests and the
 // final exit message. A "ready" text frame follows the scrollback so the
 // client can ignore its own answers to terminal queries replayed from it.
+// A client that falls behind is resynced on the same socket: a "resync"
+// text frame (clear the screen), the scrollback, then "ready" again. Input
+// is read on its own goroutine, so it never waits behind output.
 func (s *server) terminalPTY(w http.ResponseWriter, r *http.Request) {
 	id := domain.TerminalID(r.PathValue("id"))
 	att, err := s.cfg.Terminals.Attach(id)
@@ -108,12 +111,20 @@ func (s *server) terminalPTY(w http.ResponseWriter, r *http.Request) {
 	}
 	for {
 		select {
-		case chunk, ok := <-att.Output:
+		case out, ok := <-att.Output:
 			if !ok {
-				s.terminalEnded(ctx, c, id, att.Lagged())
+				s.terminalEnded(ctx, c, id)
 				return
 			}
-			if err := c.Write(ctx, websocket.MessageBinary, chunk); err != nil {
+			if out.Resync && wsjson.Write(ctx, c, terminalControl{Type: "resync"}) != nil {
+				return
+			}
+			if len(out.Data) > 0 {
+				if err := c.Write(ctx, websocket.MessageBinary, out.Data); err != nil {
+					return
+				}
+			}
+			if out.Resync && wsjson.Write(ctx, c, terminalControl{Type: "ready"}) != nil {
 				return
 			}
 		case <-ctx.Done():
@@ -122,13 +133,11 @@ func (s *server) terminalPTY(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// terminalEnded tells the client why output stopped: the shell exited, the
-// terminal was closed, or the client lagged and should reconnect.
-func (s *server) terminalEnded(ctx context.Context, c *websocket.Conn, id domain.TerminalID, lagged bool) {
+// terminalEnded tells the client why output stopped: the shell exited or
+// the terminal was closed.
+func (s *server) terminalEnded(ctx context.Context, c *websocket.Conn, id domain.TerminalID) {
 	term, err := s.cfg.Terminals.Get(id)
 	switch {
-	case lagged:
-		_ = c.Close(websocket.StatusTryAgainLater, "lagging")
 	case errors.Is(err, app.ErrTerminalNotFound):
 		_ = c.Close(websocket.StatusNormalClosure, "closed")
 	case err == nil && term.Status == domain.TerminalExited:

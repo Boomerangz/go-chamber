@@ -7,7 +7,8 @@ interface RTCHandlers {
  onClose(): void
  onRoute(route: RTCRoute, protocol: string): void
 }
-export interface RTCConnection { send(data: string | Uint8Array): void; close(): void }
+// send reports whether the data went to an open channel.
+export interface RTCConnection { send(data: string | Uint8Array): boolean; close(): void }
 
 // Signaling uses authenticated HTTPS; terminal bytes use the encrypted ICE
 // connection. Only route classifications and echo timings enter diagnostics.
@@ -138,12 +139,13 @@ export function connectRTC(id: string, handlers: RTCHandlers): RTCConnection {
  void negotiate().catch(() => fail('setup'))
  return {
   send(data) {
-   if (stopped || channel?.readyState !== 'open') return
-   if (channel.bufferedAmount > 1 << 20) { fail('backpressure'); return }
+   if (stopped || channel?.readyState !== 'open') return false
+   if (channel.bufferedAmount > 1 << 20) { fail('backpressure'); return false }
    try {
     if (typeof data === 'string') channel.send(data)
     else for (let offset = 0; offset < data.byteLength; offset += 16 << 10) channel.send(data.subarray(offset, offset + (16 << 10)) as Uint8Array<ArrayBuffer>)
-   } catch { fail('send') }
+    return true
+   } catch { fail('send'); return false }
   },
   close,
  }

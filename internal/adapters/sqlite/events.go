@@ -149,6 +149,9 @@ func (l eventLog) LastSeq(ctx context.Context, session domain.SessionID) (domain
 	return seq, err
 }
 
+// snippetRunes is about how much of a message a search hit shows.
+const snippetRunes = 100
+
 // Search returns sessions whose messages contain every query word (as a
 // prefix), best match first.
 func (l eventLog) Search(ctx context.Context, query string, limit int) ([]app.SearchHit, error) {
@@ -157,7 +160,7 @@ func (l eventLog) Search(ctx context.Context, query string, limit int) ([]app.Se
 		return []app.SearchHit{}, nil
 	}
 	rows, err := l.db.QueryContext(ctx, `
-		SELECT session_id, item_id, snippet(messages_fts, 0, '[[', ']]', '…', 14)
+		SELECT session_id, item_id, text
 		FROM messages_fts WHERE messages_fts MATCH ? ORDER BY bm25(messages_fts) LIMIT 1000`, match)
 	if err != nil {
 		return nil, err
@@ -167,13 +170,15 @@ func (l eventLog) Search(ctx context.Context, query string, limit int) ([]app.Se
 	var order []domain.SessionID
 	for rows.Next() {
 		var h app.SearchHit
-		if err := rows.Scan(&h.SessionID, &h.ItemID, &h.Snippet); err != nil {
+		var text string
+		if err := rows.Scan(&h.SessionID, &h.ItemID, &text); err != nil {
 			return nil, err
 		}
 		if best, ok := bySession[h.SessionID]; ok {
 			best.Matches++
 			continue
 		}
+		h.Snippet = domain.Snippet(text, query, snippetRunes)
 		h.Matches = 1
 		bySession[h.SessionID] = &h
 		order = append(order, h.SessionID)

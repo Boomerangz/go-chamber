@@ -363,8 +363,8 @@ export function forkSession(id: string): Promise<Session> {
   return request<Session>(`/api/sessions/${encodeURIComponent(id)}/fork`, { method: 'POST' }, SLOW_MS)
 }
 
-export function fetchEvents(id: string, since = 0): Promise<SessionEvent[]> {
-  return request<SessionEvent[]>(`/api/sessions/${encodeURIComponent(id)}/events?since=${since}`)
+export function fetchEvents(id: string, since = 0, signal?: AbortSignal): Promise<SessionEvent[]> {
+  return request<SessionEvent[]>(`/api/sessions/${encodeURIComponent(id)}/events?since=${since}`, signal ? { signal } : undefined)
 }
 
 export function listRequests(): Promise<SessionRequest[]> {
