@@ -127,6 +127,10 @@ function titleFirst(page: Page) {
     if (shown && cut(title)) out.push(`title cut beside usage ${wide}px`)
     if (shown && cut(branch)) out.push(`branch cut beside usage ${wide}px`)
     if (shown && cut(usage) && wide < 72) out.push(`usage stub ${wide}px`)
+    // hidden, the usage line had no room: the title and its pencil fill the heading
+    const pencil = el.querySelector('.chat-heading .rename-btn')?.getBoundingClientRect().width ?? 0
+    const spare = el.querySelector('.chat-heading')!.getBoundingClientRect().width - (title?.scrollWidth ?? 0) - pencil
+    if (usage && !shown && !branch && spare > 90) out.push(`usage hidden beside ${Math.round(spare)}px to spare`)
     return out
   })
 }
@@ -178,3 +182,18 @@ test('the title outranks the usage line, docked or not', async ({ page, isMobile
   await open(LONG, 'feature-long')
   await check([[1440, 'none'], [1280, 'none'], [1280, 'Changes'], [1024, 'Changes']], 'long')
 })
+
+// A short title leaves the usage line its room, for either agent.
+for (const agent of ['Claude', 'Codex'] as const) {
+  test(`${agent}'s usage line shows beside a short title`, async ({ page, isMobile }) => {
+    test.skip(isMobile, 'a phone puts the usage line under the title')
+    await page.setViewportSize({ width: 1280, height: 720 })
+    await newSession(page, agent)
+    await page.getByLabel('Message').fill('hello')
+    await page.getByRole('button', { name: 'Send' }).click()
+    await expect(page.locator('.item.assistant', { hasText: 'echo: hello' })).toBeVisible()
+    await settle(page)
+    await expect(page.locator('.chat-header .usage')).toBeVisible()
+    await expect.poll(() => titleFirst(page)).toEqual([])
+  })
+}

@@ -81,14 +81,16 @@ export function useHeaderFold(header: RefObject<HTMLElement | null>): boolean {
       const heading = el.querySelector<HTMLElement>('.chat-heading h2')
       // The title, or a worktree's branch under it, whichever needs more.
       const branch = el.querySelector<HTMLElement>('.chat-path-line .session-branch')
-      // The title's whole text, and beside it the rename pencil (a finger's
-      // 36px on a touch screen) with its gap.
-      const box = heading?.closest<HTMLElement>('.editable-title')
-      const beside = heading && box ? Math.max(0, box.getBoundingClientRect().width - heading.getBoundingClientRect().width) : 0
-      const own = Math.max(heading ? Math.ceil(heading.scrollWidth + beside) : 0, branch ? Math.ceil(Math.max(branch.scrollWidth + BRANCH_EXTRA, branch.scrollWidth / BRANCH_SHARE)) : 0)
-      // The settings fold only for a title cut below this; a longer title is
-      // cut instead.
-      const titleMin = heading ? Math.min(own, TITLE_MAX) : TITLE_FALLBACK
+      const branchOwn = branch ? Math.ceil(Math.max(branch.scrollWidth + BRANCH_EXTRA, branch.scrollWidth / BRANCH_SHARE)) : 0
+      // The settings fold only for a title (its text) cut below this; a
+      // longer title is cut instead.
+      const titleMin = heading ? Math.min(Math.max(Math.ceil(heading.scrollWidth), branchOwn), TITLE_MAX) : TITLE_FALLBACK
+      // Whole, the title is its text and beside it the rename pencil (a
+      // finger's 36px on a touch screen) with its gap. The pencil is measured
+      // itself: the title's box may stretch to the heading's width.
+      const pencil = heading?.parentElement?.querySelector<HTMLElement>(':scope > .rename-btn')
+      const beside = pencil ? pencil.getBoundingClientRect().width + (parseFloat(getComputedStyle(pencil.parentElement!).columnGap) || 0) : 0
+      const own = Math.max(heading ? Math.ceil(heading.scrollWidth + beside) : 0, branchOwn)
       const lead = avatar ? avatar.offsetWidth + gap : 0
       const more = el.querySelector<HTMLElement>(':scope > .chat-more')?.offsetWidth || MORE_WIDTH
       const need = lead + titleMin + gap + rest + Math.max(0, parts - 1) * metaGap + toolsWidth.current
