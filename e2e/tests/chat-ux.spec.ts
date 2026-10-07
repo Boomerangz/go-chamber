@@ -293,8 +293,11 @@ test('a message sent while the connection is down waits for it', async ({ page }
   await page.getByRole('button', { name: 'Send' }).click()
   await expect(page.locator('.row-pending', { hasText: 'during the outage' })).toContainText('waits for go-chamber')
   await expect(page.locator('.toast-error')).toHaveCount(0)
+  // The server takes the socket again; the page's own health probe finds it
+  // back within a second and a half. (Clicking "Reconnect now" here raced
+  // that probe: on a busy machine the probe won, the button went, and the
+  // click waited for it until the test timed out. The button has its test.)
   dropped = false
-  await page.getByRole('button', { name: 'Reconnect now' }).click()
   await expect(page.locator('.item.assistant', { hasText: 'echo: during the outage' })).toBeVisible()
   await expect(page.locator('.chat-meta .status')).not.toHaveClass(/unsettled/)
 })
