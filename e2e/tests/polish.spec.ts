@@ -135,7 +135,10 @@ test('phone controls are finger-sized', async ({ page }, info) => {
   await page.getByRole('button', { name: 'New session', exact: true }).click()
   await page.getByLabel('Message').fill('edit some files')
   await page.getByRole('button', { name: 'Send' }).click()
-  // finished tool lines fold into one summary line
+  // finished tool lines fold into one summary line, once the turn is over:
+  // while it runs the transcript is still rearranging them (measured then,
+  // on a busy machine, the first summary had no box at all)
+  await expect(page.getByRole('listitem', { name: 'Turn usage' })).toBeVisible()
   const fold = page.locator('.items summary').first()
   await expect(fold).toBeVisible()
   expect((await sizeOf('.items summary')).h).toBeGreaterThanOrEqual(36)
