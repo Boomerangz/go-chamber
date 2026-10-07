@@ -9,6 +9,7 @@ import { useSessionStore } from '../../stores/session'
 // With no session open it takes the empty workspace's top right. Without
 // either on screen, CSS keeps the stack clear of the dock rail on desktop
 // and above the pane bar on a phone.
+const CHAT = '.layout > .chat'
 const TRANSCRIPT = '.layout > .chat .scroll'
 const COLUMN = '.layout > .chat .scroll > .items'
 const EMPTY = '.layout > .chat.empty'
@@ -66,34 +67,49 @@ const same = (a: CSSProperties | null, b: CSSProperties | null) =>
 
 // useNoticePlace follows the anchor while notices are shown: on resize, and
 // whenever the workspace changes (a session opens, a pane or the dock
-// switches, the header wraps).
+// switches, the header wraps). The chat column may be put back after the
+// stack was placed (a fork opens, a pane comes back), and what sits above
+// the composer may arrive later (the unmerged note): each update observes
+// whatever anchor is on screen now, not only the ones there at first.
 export function useNoticePlace(active: boolean): CSSProperties | null {
   const [place, setPlace] = useState<CSSProperties | null>(null)
   useLayoutEffect(() => {
     if (!active) return
     let frame = 0
+    const resize = typeof ResizeObserver === 'function' ? new ResizeObserver(() => later()) : null
+    const mutation = typeof MutationObserver === 'function' ? new MutationObserver(() => later()) : null
+    const watched = new Set<Element>()
+    const watch = () => {
+      for (const el of watched) {
+        if (el.isConnected) continue
+        watched.delete(el)
+        resize?.unobserve(el)
+      }
+      const layout = document.querySelector('.layout')
+      for (const el of [document.body, layout, ...[CHAT, TRANSCRIPT, COLUMN, EMPTY].map((s) => document.querySelector(s))]) {
+        if (!el || watched.has(el)) continue
+        watched.add(el)
+        resize?.observe(el)
+        // A chat column put in or taken out, or a transcript replaced.
+        if (el === layout || el.matches(CHAT)) mutation?.observe(el, { childList: true })
+      }
+    }
     const update = () => {
+      watch()
       const next = noticePlace()
       setPlace((prev) => (same(prev, next) ? prev : next))
     }
-    const later = () => {
+    function later() {
       cancelAnimationFrame(frame)
       frame = requestAnimationFrame(update)
     }
     update()
-    const resize = typeof ResizeObserver === 'function' ? new ResizeObserver(later) : null
-    resize?.observe(document.body)
-    const layout = document.querySelector('.layout')
-    if (layout) resize?.observe(layout)
-    for (const selector of [TRANSCRIPT, COLUMN, EMPTY]) {
-      const el = document.querySelector(selector)
-      if (el) resize?.observe(el)
-    }
     window.addEventListener('resize', later)
     const unsubscribe = [useSessionStore.subscribe(later), useLayoutStore.subscribe(later)]
     return () => {
       cancelAnimationFrame(frame)
       resize?.disconnect()
+      mutation?.disconnect()
       window.removeEventListener('resize', later)
       unsubscribe.forEach((u) => u())
     }

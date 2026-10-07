@@ -40,6 +40,25 @@ describe('HistoryPanel', () => {
     expect(screen.getByText('/src/site')).toBeInTheDocument()
   })
 
+  it('brings what it loaded into view, not only its header', async () => {
+    const scrolled: { el: Element; arg: unknown }[] = []
+    // jsdom has no scrolling: record what would be scrolled.
+    Element.prototype.scrollIntoView = function (this: Element, arg?: boolean | ScrollIntoViewOptions) {
+      scrolled.push({ el: this, arg })
+    }
+    try {
+      await open()
+      await waitFor(() => expect(scrolled).toHaveLength(1))
+      expect(scrolled[0]!.el).toBe(document.querySelector('details.history'))
+      expect(scrolled[0]!.arg).toEqual({ block: 'nearest' })
+      // Closing it scrolls nothing.
+      await userEvent.click(screen.getByText('History'))
+      expect(scrolled).toHaveLength(1)
+    } finally {
+      delete (Element.prototype as Partial<Element>).scrollIntoView
+    }
+  })
+
   it('filters by title and folder', async () => {
     await open()
     await userEvent.type(screen.getByLabelText('Filter history'), 'site')
