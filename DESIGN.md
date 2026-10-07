@@ -255,7 +255,7 @@ Spacing works on small steps (4, 6, 8, 10, 12, 14px) with a 20px gutter. At 1100
 
 ## Elevation & Depth
 
-The system is flat. Nothing is lifted: panels, menus, the folder picker and the toast sit on the same paper and are separated from what is underneath only by a rule (the picker by a 1px ink border over a 55% paper scrim). `box-shadow` appears only as a line: a 1px `act` ring around a focused field or composer, an inset 1px rule on the meter track, an inset 2px paper gap inside the selected model radio, and an inset 1px amber underline on a search hit.
+The system is flat. Nothing is lifted: panels, menus, the folder picker and the toast sit on the same paper and are separated from what is underneath only by a rule (the picker by a 1px ink border over a 55% paper scrim). `box-shadow` appears only as a line: a 1px `act` ring around a focused field or composer, an inset 1px rule on the meter track, an inset 2px paper gap inside a selected radio (model or question option), a 1px amber line that doubles the frame of a focused permission card, and an inset 1px amber underline on a search hit.
 
 ### Named Rules
 **The Flat Sheet Rule.** No elevation shadow, blur, glass or gradient fill anywhere. Depth is expressed by a rule, a border weight change (rule to ink), or pressed paper.
@@ -276,8 +276,9 @@ Plain typed commands on paper.
 - **Primary:** solid ink-blue with white (dark: paper) text; hover swaps the border to ink. One primary per group (New session, Allow, Send/Steer).
 - **Danger:** transparent with a red border and red text; hover adds `bad-wash`.
 - **Ghost / Icon:** borderless and `ink-2` until hover shows a rule border; icon buttons are 28px square.
-- **Disabled:** `ink-3` text on a plain rule border.
-- **Focus:** 2px `act-ring` outline, 1px offset, globally.
+- **Disabled:** `ink-3` text on a plain rule border, on the sheet: a disabled primary loses its fill, and nothing disabled is faded with opacity. Borderless controls (agent segment, dock rail) rest at `ink-2` so their disabled `ink-3` reads apart.
+- **Focus:** 2px `act-ring` outline, 1px offset, globally. A permission card that holds focus (so A/S/D answer it) draws its amber frame twice as heavy instead, never a ring a pixel outside its border.
+- **Choices:** radios and checkboxes are 12px squares with 1px corners on the sheet, never the browser's control: checked is ink-blue, a radio with a 2px paper gap inside, a checkbox with a paper tick.
 
 ### Chips
 - **Style:** 24px, PT Mono 12px, 2px corners, strong-rule border on paper, `ink-2` text; hover to an ink border and ink text. Used for recent folders and terminal projects.
@@ -295,7 +296,7 @@ Plain typed commands on paper.
 - **Composer:** the same field language wrapping an auto-growing textarea with the action buttons inside it, sharing the transcript column.
 
 ### Navigation
-- **Mode switch:** sans 13px/500 text tabs the full height of the top bar; `ink-3` at rest, ink with a 2px ink underline when checked.
+- **Mode switch:** sans 13px/500 text tabs the full height of the top bar; `ink-3` at rest, ink with a 2px ink underline when checked. On a wide bar a tab's count sits on its corner, in the padding after the word, so a count that comes or goes moves no tab.
 - **Sessions TOC:** rows with a transparent 1px border; hover to `paper-2`; active to `paper-2` with a strong-rule border and ink title.
 - **Dock rail:** 32px icon buttons with lucide icons at 1.5 stroke; pressed state is a 1px ink border. Counts sit on the corner: ink for neutral, amber for pending requests.
 - **Mobile:** a three-button pane bar with a 2px ink top rule on the selected pane and an amber count on Requests.
@@ -322,7 +323,7 @@ Nothing on the way is shown as a spinner; it takes the "not yet settled" form. A
 Failures that can't be shown in place stack beside what is being read, at most three: in the open chat, off the transcript column (whose messages carry their actions), in the margin to its right under the chat header when a sheet fits there, else at the transcript's end just above the composer; with no session open, the empty workspace's top right corner; with neither on screen, bottom right clear of the dock rail on desktop and just above the pane bar on phones. A notice never sits on a control, and the stack takes no clicks outside its sheets. Each is a paper sheet with a 1px rule (red for errors): a mono uppercase title naming what failed ("COULDN'T FORK THE SESSION"), the reason in sans, and a lucide X. Errors stay until dismissed; a quiet confirmation ("Path copied") fades after 4s, or 8s when it offers one action as a quiet button ("Archived … · Undo"). A later unrelated success never clears an unread error.
 
 ### Keyboard
-⌘K opens a switcher over sessions and terminals, with what waits for the owner first. `?` lists every shortcut. Single keys (j/k, r, /, c, n, f, t, 1–3) act only when the owner isn't typing and never inside the terminal; Escape in an empty, idle composer leaves it. Key hints are drawn as `kbd`: mono 11px in a 1px strong-rule square.
+⌘K opens a switcher over sessions and terminals, with what waits for the owner first. `?` lists every shortcut. Single keys (j/k, r, /, c, n, f, t, 1–3) act only when the owner isn't typing and never inside the terminal; Escape in an empty, idle composer leaves it. Key hints are drawn as `kbd`: mono 11px in a 1px strong-rule square, one key per box (⇧ and ↵ are two boxes), alternatives set apart by "·", and the word after the same small gap everywhere.
 
 ### Motion
 Short and typographic. Hover and colour changes take 120ms; transcript entries take 200ms on `cubic-bezier(0.16, 1, 0.3, 1)` and settle 2px up while fading in. What needs the owner and what reorders springs: a request (its block and its tray line) springs 16px in from the left margin and the sessions list settles on a spring of 320ms visual duration with a 0.22 bounce, a slight overshoot and never a wobble. A running state mark breathes (opacity to 40% and back over 2.4s); a turn that ends on its own shows `done` for 1.5s while its mark lands (scales down from 1.7x through 0.85x to rest, then turns hollow). An answered request is struck through, then fades and collapses in 450ms; meters fill in 400ms. Sound is opt-in and off by default: a rising two-note sine chime (E5, A5) when an agent needs a decision and one soft D5 when a turn ends, about 0.35s each at low volume, synthesized with no audio files; a burst of events makes one chime. Under reduced motion, entries are a 120ms linear fade and nothing travels or breathes, and a global guard in the stylesheet removes all CSS transitions and animations.
