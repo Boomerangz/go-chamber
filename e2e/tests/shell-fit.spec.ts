@@ -114,6 +114,33 @@ test('a session opened by its link is in view in the list, also on a phone', asy
   if (await bar.isVisible()) expect((await box(row)).y + (await box(row)).height).toBeLessThanOrEqual((await box(bar)).y + 1)
 })
 
+test("the open session's row stays put when a folder below it gets busy and moves to the top", async ({ page }) => {
+  const dir = fs.realpathSync(fs.mkdtempSync(`${os.tmpdir()}/gc-stay-`))
+  const headers = { Authorization: `Bearer ${token}` }
+  const create = async (cwd: string) => {
+    fs.mkdirSync(cwd, { recursive: true })
+    const r = await page.request.post('/api/sessions', { headers, data: { agent: 'claude', cwd } })
+    return ((await r.json()) as { id: string }).id
+  }
+  // the busy folder is the oldest, at the bottom, below the open session
+  const busy = await create(`${dir}/aa-busy`)
+  const target = await create(`${dir}/bb-target`)
+  for (let i = 0; i < 16; i++) await create(`${dir}/other-${i}`)
+  await page.goto(`/?token=${token}`)
+  await page.goto(`/s/${target}`)
+  await showPane(page, 'Sessions')
+  const row = page.locator('.sidebar button.session[aria-current="true"]')
+  await expect(row).toBeInViewport({ ratio: 0.9 })
+  const before = (await box(row)).y
+  await page.request.post(`/api/sessions/${busy}/messages`, { headers, data: { text: 'busy now' } })
+  // its group moves from below the open row to the top of the list...
+  const busyGroup = page.getByRole('region', { name: `Project ${dir.split('/').pop()}/aa-busy` })
+  await expect.poll(async () => (await box(busyGroup)).y < (await box(row)).y).toBe(true)
+  // ...and the open row is still where it was on screen, not pushed down out
+  // of sight (a scroll lands on whole pixels, rows don't)
+  expect(Math.abs((await box(row)).y - before)).toBeLessThan(2)
+})
+
 test('unreachable accounts and quotas are said once, in place, with one Retry', async ({ page }) => {
   let down = true
   const fail = (route: import('@playwright/test').Route) => (down ? route.fulfill({ status: 500, body: 'down' }) : route.fallback())
