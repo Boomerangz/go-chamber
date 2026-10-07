@@ -31,9 +31,18 @@ async function sessionOrder(page: Page): Promise<{ ids: string[]; current: numbe
 }
 
 test('j and k step through the sessions without typing into the composer', async ({ page }) => {
-  for (let i = 0; i < 4; i++) await session(page, '/tmp')
+  // A folder of their own: a group that lists all four, whatever else the
+  // shared server holds.
+  const dir = fs.realpathSync(fs.mkdtempSync(`${os.tmpdir()}/gc-steps-`))
+  const mine: string[] = []
+  for (let i = 0; i < 4; i++) mine.push(await session(page, dir))
   await page.goto(`/?token=${token}`)
-  await rows(page).first().click()
+  await expect(rows(page).and(page.locator(`[data-session="${mine[0]}"]`))).toBeVisible()
+  // Other specs share the server: start on the highest of these idle
+  // sessions, so the steps below land on them.
+  const listed = (await sessionOrder(page)).ids
+  const first = mine.map((id) => listed.indexOf(id)).filter((i) => i >= 0).sort((a, b) => a - b)[0]!
+  await rows(page).nth(first).click()
   const composer = page.getByLabel('Message')
   await expect(composer).toBeFocused()
   // Escape leaves an idle, empty composer for the single keys.
@@ -48,7 +57,7 @@ test('j and k step through the sessions without typing into the composer', async
     await expect(page).toHaveURL(new RegExp(`/s/${want}`))
   }
   const { current } = await sessionOrder(page)
-  expect(current).toBe(2)
+  expect(current).toBe(first + 2)
   await expect(composer).toHaveValue('')
   await expect(composer).not.toBeFocused()
 })
