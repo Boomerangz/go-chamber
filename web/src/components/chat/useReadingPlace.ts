@@ -31,6 +31,7 @@ export function restorePlace(box: HTMLElement, place: Place & { pinned: false })
 interface Stick {
   isPinned: () => boolean
   unpin: () => void
+  recheck: () => void
 }
 
 // useReadingPlace remembers where the owner was reading each session and
@@ -56,6 +57,7 @@ export function useReadingPlace(
     }
     if (restorePlace(el, place)) {
       stick.unpin()
+      stick.recheck()
       restored.current = true
       settled.current = true
     } else if (ready) {

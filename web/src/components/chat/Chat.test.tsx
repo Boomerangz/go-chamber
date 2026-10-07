@@ -629,6 +629,8 @@ describe('scrolling', () => {
   it('opens on the "new since you left" mark rather than the end', () => {
     localStorage.setItem('go-chamber:seen:s1', 'u1')
     setup({ history: 'loading', chat: initialChat() })
+    // A transcript longer than its view, looked at from its top.
+    sized(900, 300)
     act(() =>
       useSessionStore.setState({
         history: 'ready',
@@ -639,8 +641,32 @@ describe('scrolling', () => {
     expect(mark.scrollIntoView).toHaveBeenCalledWith({ block: 'start' })
     // Not read yet: the end is out of view.
     expect(localStorage.getItem('go-chamber:seen:s1')).toBe('u1')
+    expect(document.querySelector('.jump-latest')).not.toBeNull()
+  })
+
+  it('takes a short chat with news as read: no "latest" button over a view that is all there', () => {
+    localStorage.setItem('go-chamber:seen:s1', 'u1')
+    setup({ history: 'loading', chat: initialChat() })
+    sized(300, 300)
+    act(() =>
+      useSessionStore.setState({
+        history: 'ready',
+        chat: chatOf([item('u1', 'user_message'), item('a1', 'assistant_message'), item('a2', 'assistant_message')]),
+      }),
+    )
+    expect(screen.getByLabelText('New since your last visit').scrollIntoView).toHaveBeenCalled()
+    expect(document.querySelector('.jump-latest')).toBeNull()
   })
 })
+
+// sized gives the transcript's scroll box the layout jsdom lacks: its
+// content height and its view, scrolled to the top.
+function sized(content: number, view: number) {
+  const box = document.querySelector<HTMLElement>('.chat .scroll')!
+  Object.defineProperty(box, 'scrollHeight', { configurable: true, value: content })
+  Object.defineProperty(box, 'clientHeight', { configurable: true, value: view })
+  Object.defineProperty(box, 'scrollTop', { configurable: true, get: () => 0, set: () => {} })
+}
 
 const permission = (id: string): api.SessionRequest => ({ id, sessionId: 's1', kind: 'permission', state: 'pending', title: `Run ${id}` })
 
