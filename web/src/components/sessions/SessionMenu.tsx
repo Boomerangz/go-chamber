@@ -20,6 +20,9 @@ interface Anchor {
   alignRight: boolean
   // above is where the sheet's foot goes when it has no room below y.
   above: number
+  // from is the "⋯" button's top when x and y were taken: the row moves
+  // while the sheet is open, and every placing shifts by as much.
+  from: number
 }
 
 type Step = 'menu' | 'rename' | 'delete' | 'worktree'
@@ -94,7 +97,8 @@ export default function SessionMenu({ session }: { session: Session }) {
       if (e.defaultPrevented) return
       e.preventDefault()
       setStep('menu')
-      setAnchor({ x: e.clientX, y: e.clientY, alignRight: false, above: e.clientY })
+      const from = triggerRef.current?.getBoundingClientRect().top ?? 0
+      setAnchor({ x: e.clientX, y: e.clientY, alignRight: false, above: e.clientY, from })
     }
     row.addEventListener('contextmenu', onContext)
     return () => row.removeEventListener('contextmenu', onContext)
@@ -109,7 +113,7 @@ export default function SessionMenu({ session }: { session: Session }) {
     // Below the row, or above it: never over the row the sheet is about.
     const row = triggerRef.current!.parentElement?.getBoundingClientRect() ?? r
     setStep('menu')
-    setAnchor({ x: r.right, y: Math.max(r.bottom, row.bottom) + 2, alignRight: true, above: Math.min(r.top, row.top) - 2 })
+    setAnchor({ x: r.right, y: Math.max(r.bottom, row.bottom) + 2, alignRight: true, above: Math.min(r.top, row.top) - 2, from: r.top })
   }
 
   return (
@@ -155,6 +159,8 @@ function MenuSheet(props: {
   const { session, title, anchor, step, setStep, onClose, trigger } = props
   const sheet = useRef<HTMLDivElement>(null)
   const [pos, setPos] = useState<{ left: number; top: number } | null>(null)
+  // The row's top where pos last put the sheet beside it.
+  const placedAt = useRef(anchor.from)
   const archived = Boolean(session.archivedAt)
   const running = session.status === 'running'
   // A worktree whose folder is still there can go, with or without the session.
@@ -224,15 +230,20 @@ function MenuSheet(props: {
     // question would take that narrower width and spill once moved left.
     el.style.left = '0px'
     const { width, height } = el.getBoundingClientRect()
+    // Placed again for the next step (a taller question), the sheet keeps
+    // to where the row is now, not where it was when the menu opened.
+    const now = trigger.current?.getBoundingClientRect().top ?? anchor.from
+    const shift = now - anchor.from
+    placedAt.current = now
     let left = anchor.alignRight ? anchor.x - width : anchor.x
-    let top = anchor.y
+    let top = anchor.y + shift
     const inset = edge()
     left = Math.max(inset, Math.min(left, window.innerWidth - width - inset))
-    if (top + height > window.innerHeight - inset) top = Math.max(inset, anchor.above - height)
+    if (top + height > window.innerHeight - inset) top = Math.max(inset, anchor.above + shift - height)
     // Set here too: a left equal to the last one leaves React nothing to write.
     el.style.left = `${left}px`
     setPos({ left, top })
-  }, [anchor, step])
+  }, [anchor, step, trigger])
 
   // The first item takes focus when the menu opens: once it is placed, as a
   // hidden element can't take focus.
@@ -249,13 +260,14 @@ function MenuSheet(props: {
       onClose()
     }
     // The sheet follows its row while the row stays on screen: a live list
-    // update above shifts the row (and scroll anchoring fires a scroll) without
-    // the owner doing anything. Once the row scrolls out of view it closes.
+    // update above shifts the row without the owner doing anything, often
+    // with no scroll at all (a group joins above an unscrolled list), so the
+    // row is looked at every frame as well as on a scroll. Once the row
+    // leaves the view it closes.
     // A phone keyboard opening for the rename field shrinks the viewport
     // (only its height) and can push the row out of view: while the owner
     // types in the sheet it stays; turning the phone still closes it.
     const typing = () => sheet.current?.contains(document.activeElement) && document.activeElement?.tagName === 'INPUT'
-    let last = trigger.current?.getBoundingClientRect().top ?? 0
     let lastWidth = window.innerWidth
     const onScroll = () => {
       const row = trigger.current?.getBoundingClientRect()
@@ -265,8 +277,8 @@ function MenuSheet(props: {
         onClose()
         return
       }
-      const dy = row.top - last
-      last = row.top
+      const dy = row.top - placedAt.current
+      placedAt.current = row.top
       if (dy !== 0) setPos((p) => (p ? { left: p.left, top: p.top + dy } : p))
     }
     const onResize = () => {
@@ -280,10 +292,15 @@ function MenuSheet(props: {
       const h = sheet.current?.getBoundingClientRect().height ?? 0
       setPos((p) => (p ? { left: p.left, top: Math.max(edge(), Math.min(p.top, window.innerHeight - h - edge())) } : p))
     }
+    let frame = requestAnimationFrame(function watch() {
+      onScroll()
+      frame = requestAnimationFrame(watch)
+    })
     document.addEventListener('pointerdown', onDown)
     window.addEventListener('scroll', onScroll, true)
     window.addEventListener('resize', onResize)
     return () => {
+      cancelAnimationFrame(frame)
       document.removeEventListener('pointerdown', onDown)
       window.removeEventListener('scroll', onScroll, true)
       window.removeEventListener('resize', onResize)

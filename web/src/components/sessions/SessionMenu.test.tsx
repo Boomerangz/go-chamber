@@ -257,6 +257,31 @@ describe('SessionMenu', () => {
     expect(screen.queryByRole('menu')).toBeNull()
   })
 
+  it('follows a row that a list update moves without any scroll', async () => {
+    render(<Row />)
+    trigger().getBoundingClientRect = () => ({ top: 100, bottom: 128, right: 300 }) as DOMRect
+    await userEvent.click(trigger())
+    const menu = screen.getByRole('menu')
+    const before = parseFloat(menu.style.top)
+    // Another page's session joins the list above: the row moves, nothing scrolls.
+    trigger().getBoundingClientRect = () => ({ top: 190, bottom: 218, right: 300 }) as DOMRect
+    await waitFor(() => expect(parseFloat(menu.style.top)).toBe(before + 90))
+    // Pushed out of view the same way, it closes.
+    trigger().getBoundingClientRect = () => ({ top: window.innerHeight + 10, bottom: window.innerHeight + 38, right: 300 }) as DOMRect
+    await waitFor(() => expect(screen.queryByRole('menu')).toBeNull())
+  })
+
+  it('keeps to the moved row when the menu turns into the delete question', async () => {
+    render(<Row />)
+    trigger().getBoundingClientRect = () => ({ top: 100, bottom: 128, right: 300 }) as DOMRect
+    await userEvent.click(trigger())
+    const before = parseFloat(screen.getByRole('menu').style.top)
+    trigger().getBoundingClientRect = () => ({ top: 160, bottom: 188, right: 300 }) as DOMRect
+    fireEvent.scroll(window)
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Delete…' }))
+    expect(parseFloat(screen.getByRole('dialog').style.top)).toBe(before + 60)
+  })
+
   it('keeps the rename field open when a phone keyboard shrinks the viewport, and closes on a width change', async () => {
     const height = window.innerHeight
     const width = window.innerWidth
