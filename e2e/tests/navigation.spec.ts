@@ -1,7 +1,7 @@
 import { expect, test, type Page } from '@playwright/test'
 import { mkdirSync } from 'node:fs'
 import { token } from '../playwright.config'
-import { openNewSession, showPane } from './pane'
+import { narrow, openNewSession, showPane } from './pane'
 
 // startIn starts a session in cwd and sends text; with fail the server
 // refuses the message, which raises a failure notice. (A folder gone under
@@ -72,8 +72,7 @@ test('the list says who waits for you and marks what changed while you looked aw
   const row = page.locator(`.group-toggle[title="${waitingIn}"]`).locator('xpath=../..').locator('button.session')
   await expect(row).toContainText('waiting for you')
 
-  const bar = page.getByRole('navigation', { name: 'Views' })
-  if (await bar.isVisible()) await bar.getByRole('button', { name: /^Requests/ }).click()
+  if (narrow(page)) await showPane(page, 'Requests')
   else await page.getByRole('toolbar', { name: 'Dock' }).getByRole('button', { name: /^Requests/ }).click()
   const line = page.getByRole('complementary', { name: 'Pending requests' }).getByRole('listitem').filter({ hasText: text })
   await line.getByRole('button', { name: 'Allow', exact: true }).click()

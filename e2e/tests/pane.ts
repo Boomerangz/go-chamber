@@ -1,4 +1,4 @@
-import type { Page } from '@playwright/test'
+import { expect, type Page } from '@playwright/test'
 
 // showPane opens a view on narrow screens, where only one pane is visible at
 // a time; on desktop every pane is already shown and this is a no-op.
@@ -14,8 +14,18 @@ export async function showShells(page: Page) {
 }
 
 export async function showPane(page: Page, name: 'Sessions' | 'Chat' | 'Requests') {
+  if (!narrow(page)) return
+  // Decided by the width, not by the bar's visibility at this instant: the
+  // bar steps aside while a field is being typed in, and comes back a
+  // moment after the tap that took the focus away.
   const bar = page.getByRole('navigation', { name: 'Views' })
-  if (await bar.isVisible()) await bar.getByRole('button', { name: new RegExp(`^${name}`) }).click()
+  await expect(bar).toBeVisible()
+  await bar.getByRole('button', { name: new RegExp(`^${name}`) }).click()
+}
+
+// narrow is the phone layout: one pane at a time, the pane bar at the foot.
+export function narrow(page: Page): boolean {
+  return page.viewportSize()!.width <= 720
 }
 
 // showSessionDetails unfolds the session header on narrow screens, where the
