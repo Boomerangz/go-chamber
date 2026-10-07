@@ -381,13 +381,14 @@ export default function Chat() {
     return ok
   })
   const stopping = stopPending || stopHeld !== null
-  const stopRef = useRef<() => void>(() => {})
+  const stopRef = useRef<(escape?: boolean) => void>(() => {})
   useEffect(() => {
-    stopRef.current = () => {
+    stopRef.current = (escape = false) => {
       if (busy && !stopping) void stop()
-      // Nothing to stop: Escape leaves the composer, so single-key
-      // shortcuts (j/k, ?, r) answer again.
-      else if (!busy) (document.activeElement as HTMLElement | null)?.blur()
+      // Nothing (more) to stop: Escape leaves the composer, so single-key
+      // shortcuts (j/k, ?, r) answer again. A stop already on its way
+      // counts as nothing more to stop.
+      else if (!busy || escape) (document.activeElement as HTMLElement | null)?.blur()
     }
   })
   // ⌘. / Ctrl+. stops the turn from anywhere but a terminal.
@@ -586,7 +587,7 @@ export default function Chat() {
           onChange={setText}
           onSubmit={() => submit()}
           onEscape={() => {
-            if (!text) stopRef.current()
+            if (!text) stopRef.current(true)
           }}
           history={sent}
           enterSends={!touch}

@@ -523,6 +523,17 @@ describe('stopping', () => {
     expect(fns.interrupt).toHaveBeenCalledTimes(1)
   })
 
+  it('leaves the composer with a second Escape while the stop is on its way', async () => {
+    setup({ chat: running([item('u1', 'user_message')]) })
+    box().focus()
+    await userEvent.keyboard('{Escape}')
+    expect(screen.getByRole('button', { name: 'Stopping…' })).toBeInTheDocument()
+    expect(box()).toHaveFocus()
+    await userEvent.keyboard('{Escape}')
+    expect(box()).not.toHaveFocus()
+    expect(fns.interrupt).toHaveBeenCalledTimes(1)
+  })
+
   it('leaves an empty idle composer with Escape, so single-key shortcuts work', async () => {
     setup({})
     box().focus()
