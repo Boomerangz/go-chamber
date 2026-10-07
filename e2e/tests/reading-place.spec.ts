@@ -19,13 +19,9 @@ async function say(page: Page, text: string, reply = `echo: ${text.split('\n')[0
 async function open(page: Page, title: string) {
   await showPane(page, 'Sessions')
   // Other specs leave many sessions; the search finds this one among them.
-  const search = page.getByRole('searchbox', { name: 'Search sessions' })
-  await search.fill(title)
+  await page.getByRole('searchbox', { name: 'Search sessions' }).fill(title)
   await page.locator('button.session', { hasText: title }).first().click()
   await expect(page.getByLabel('Message', { exact: true })).toBeVisible()
-  await showPane(page, 'Sessions')
-  await search.fill('')
-  await showPane(page, 'Chat')
 }
 
 const tall = (n: number) => [`turn ${n}`, ...Array.from({ length: 12 }, (_, i) => `line ${i} of turn ${n}`)].join('\n')
