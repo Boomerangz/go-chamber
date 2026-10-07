@@ -189,6 +189,24 @@ describe('Accounts', () => {
     expect(screen.queryByRole('alert')).toBeNull()
   })
 
+  it('checks the accounts again when live updates come back after a loss', async () => {
+    useSessionStore.setState({ connection: 'online' })
+    vi.mocked(api.getAccount).mockRejectedValue(new TypeError('Failed to fetch'))
+    render(<Accounts />)
+    expect(await screen.findByRole('alert')).toHaveTextContent("Couldn't reach the accounts")
+    vi.mocked(api.getAccount).mockResolvedValue({ agent: 'claude', loggedIn: true, authMode: 'cli' })
+    // Connecting again without having lost the socket asks nothing.
+    const asked = vi.mocked(api.getAccount).mock.calls.length
+    act(() => useSessionStore.setState({ connection: 'connecting' }))
+    act(() => useSessionStore.setState({ connection: 'online' }))
+    expect(vi.mocked(api.getAccount).mock.calls.length).toBe(asked)
+    act(() => useSessionStore.setState({ connection: 'offline' }))
+    act(() => useSessionStore.setState({ connection: 'connecting' }))
+    act(() => useSessionStore.setState({ connection: 'online' }))
+    expect(await screen.findAllByText(/Signed in with the CLI login/)).toHaveLength(2)
+    expect(screen.queryByRole('alert')).toBeNull()
+  })
+
   it('names each reason when the accounts fail differently', async () => {
     vi.mocked(api.getAccount).mockImplementation(async (agent) => {
       throw new Error(agent === 'codex' ? 'codex stopped' : 'claude stopped')
