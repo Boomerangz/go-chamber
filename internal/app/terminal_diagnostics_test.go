@@ -37,7 +37,7 @@ func TestTerminalDiagnosticsReportsBacklogWithoutOutput(t *testing.T) {
 	}
 	for _, sub := range []*TerminalAttachment{att, other} {
 		for got := 0; got < len("private shell outputsecond chunk"); {
-			got += len(<-sub.Output)
+			got += len((<-sub.Output).Data)
 		}
 	}
 	eventually(t, "drained queue", func() bool { return f.terms.Diagnostics()[0].QueuedBytes == 0 })

@@ -136,21 +136,26 @@ func newTermFixture(t *testing.T, mods ...func(*TerminalsConfig)) termFixture {
 	return f
 }
 
-func recv(t *testing.T, ch <-chan []byte) string {
+func recv(t *testing.T, ch <-chan TerminalOutput) string {
+	t.Helper()
+	return string(recvFrame(t, ch).Data)
+}
+
+func recvFrame(t *testing.T, ch <-chan TerminalOutput) TerminalOutput {
 	t.Helper()
 	select {
 	case b, ok := <-ch:
 		if !ok {
 			t.Fatal("output closed")
 		}
-		return string(b)
+		return b
 	case <-time.After(2 * time.Second):
 		t.Fatal("no output")
 	}
-	return ""
+	return TerminalOutput{}
 }
 
-func waitClosed(t *testing.T, ch <-chan []byte) {
+func waitClosed(t *testing.T, ch <-chan TerminalOutput) {
 	t.Helper()
 	deadline := time.After(2 * time.Second)
 	for {
@@ -348,30 +353,44 @@ func TestDetachStopsDelivery(t *testing.T) {
 	}
 }
 
-func TestSlowSubscriberIsDropped(t *testing.T) {
+// A client that falls too far behind is not dropped: its backlog is
+// discarded and it is resynced from the scrollback, so it keeps its socket
+// (and its input) instead of reconnecting with a growing backoff.
+func TestSlowSubscriberIsResyncedFromScrollback(t *testing.T) {
 	f := newTermFixture(t, func(c *TerminalsConfig) { c.LagBytes = 8 })
 	term, _ := f.terms.Open(context.Background(), OpenTerminal{})
 	_, p := f.factory.last(t)
 	slow, _ := f.terms.Attach(term.ID)
+	defer slow.Detach()
 	fast, _ := f.terms.Attach(term.ID)
 	defer fast.Detach()
-	// The frame being delivered counts too: exactly LagBytes still fits.
-	for _, chunk := range []string{"12345", "678"} {
+	// fast doubles as a barrier: once it has a chunk, every client has it queued.
+	emit := func(chunk string) {
+		t.Helper()
 		p.emit(t, chunk)
 		if got := recv(t, fast.Output); got != chunk {
 			t.Fatalf("fast output = %q, want %q", got, chunk)
 		}
 	}
-	if slow.Lagged() {
-		t.Fatal("dropped at the limit")
+	// The frame being delivered counts too: exactly LagBytes still fits.
+	emit("12345")
+	emit("678")
+	if lagged := f.terms.Diagnostics()[0].LaggedClients; lagged != 0 {
+		t.Fatalf("resynced at the limit: %d", lagged)
 	}
-	p.emit(t, "9")
-	if got := recv(t, fast.Output); got != "9" {
-		t.Fatalf("fast output = %q", got)
+	emit("9")
+	// Output while the resync waits is part of the scrollback it will send.
+	emit("0")
+	if got := recvFrame(t, slow.Output); got.Resync || string(got.Data) != "12345" {
+		t.Fatalf("frame in flight = %+v", got)
 	}
-	waitClosed(t, slow.Output)
-	if !slow.Lagged() || fast.Lagged() {
-		t.Fatalf("lagged: slow=%v fast=%v", slow.Lagged(), fast.Lagged())
+	got := recvFrame(t, slow.Output)
+	if !got.Resync || string(got.Data) != "1234567890" {
+		t.Fatalf("resync frame = resync:%v %q, want the whole scrollback", got.Resync, got.Data)
+	}
+	emit("AB")
+	if got := recvFrame(t, slow.Output); got.Resync || string(got.Data) != "AB" {
+		t.Fatalf("after resync = %+v, want live output again", got)
 	}
 	if lagged := f.terms.Diagnostics()[0].LaggedClients; lagged != 1 {
 		t.Fatalf("lagged clients = %d, want 1", lagged)
@@ -379,7 +398,25 @@ func TestSlowSubscriberIsDropped(t *testing.T) {
 	if got, _ := f.terms.Get(term.ID); got.Status != domain.TerminalRunning {
 		t.Fatalf("terminal status = %s, want running", got.Status)
 	}
-	slow.Detach()
+}
+
+// Input is independent of output backpressure: a client whose output is
+// stuck still reaches the shell, e.g. Ctrl-C to stop a flood.
+func TestInputReachesShellWhileOutputIsBackedUp(t *testing.T) {
+	f := newTermFixture(t, func(c *TerminalsConfig) { c.LagBytes = 8 })
+	term, _ := f.terms.Open(context.Background(), OpenTerminal{})
+	_, p := f.factory.last(t)
+	stuck, _ := f.terms.Attach(term.ID)
+	defer stuck.Detach()
+	for range 5 {
+		p.emit(t, "yyyyyyyy")
+	}
+	if err := f.terms.Write(term.ID, []byte("\x03")); err != nil {
+		t.Fatalf("Write: %v", err)
+	}
+	if input, _, _ := p.snapshot(); input != "\x03" {
+		t.Fatalf("input = %q", input)
+	}
 }
 
 // A shell printing line by line yields one tiny read per line; a client on a
@@ -398,8 +435,8 @@ func TestSlowSubscriberCatchesUpOnManyTinyChunks(t *testing.T) {
 	for got < chunks {
 		got += len(recv(t, slow.Output))
 	}
-	if got != chunks || slow.Lagged() {
-		t.Fatalf("received %d of %d bytes, lagged=%v", got, chunks, slow.Lagged())
+	if lagged := f.terms.Diagnostics()[0].LaggedClients; got != chunks || lagged != 0 {
+		t.Fatalf("received %d of %d bytes, resyncs=%d", got, chunks, lagged)
 	}
 }
 
@@ -442,9 +479,6 @@ func TestTerminalExitClosesOutputAndRecordsCode(t *testing.T) {
 	got := waitStatus(t, f.terms, term.ID, domain.TerminalExited)
 	if got.ExitCode != 3 {
 		t.Fatalf("exit code = %d, want 3", got.ExitCode)
-	}
-	if a.Lagged() {
-		t.Fatal("exit reported as lag")
 	}
 	if _, _, closed := p.snapshot(); !closed {
 		t.Fatal("pty not released after exit")

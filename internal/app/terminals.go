@@ -22,9 +22,9 @@ const (
 	defaultScrollback = 1 << 20
 	defaultCols       = 80
 	defaultRows       = 24
-	// defaultLagBytes is how much output a client may lag behind before it is
-	// dropped; it reattaches and catches up from scrollback. Counted in bytes:
-	// a shell printing line by line yields one tiny pty read per line.
+	// defaultLagBytes is how much output a client may lag behind before its
+	// backlog is dropped and it is resynced from the scrollback. Counted in
+	// bytes: a shell printing line by line yields one tiny pty read per line.
 	defaultLagBytes = 4 << 20
 	// maxOutputFrame caps one coalesced delivery to a client.
 	maxOutputFrame = 256 << 10
@@ -221,22 +221,30 @@ func (t *Terminals) Get(id domain.TerminalID) (domain.Terminal, error) {
 	return rt.snapshot(), nil
 }
 
-// TerminalAttachment is one client's view of a terminal: the buffered
-// scrollback followed by live output. Output delivers queued output coalesced
-// into frames of at most maxOutputFrame bytes. It is closed when the terminal
-// exits or is closed, on Detach, or when the client falls too far behind.
-type TerminalAttachment struct {
-	Scrollback []byte
-	Output     <-chan []byte
-	detach     func()
-	lagged     func() bool
+// TerminalOutput is one delivery to a client. A Resync frame replaces
+// everything the client showed: Data is the whole scrollback, sent after the
+// client fell too far behind and its backlog was dropped.
+type TerminalOutput struct {
+	Data   []byte
+	Resync bool
 }
 
-func (a *TerminalAttachment) Detach() { a.detach() }
+// TerminalAttachment is one client's view of a terminal: the buffered
+// scrollback followed by live output. Output delivers queued output coalesced
+// into frames of at most maxOutputFrame bytes; a client that falls too far
+// behind gets a Resync frame instead of its backlog. Output is closed when
+// the terminal exits or is closed, or on Detach.
+type TerminalAttachment struct {
+	Scrollback []byte
+	Output     <-chan TerminalOutput
+	detach     func()
+}
 
-// Lagged reports whether Output was closed because the client fell behind,
-// as opposed to the terminal ending; a lagging client should reattach.
-func (a *TerminalAttachment) Lagged() bool { return a.lagged() }
+func (a *TerminalAttachment) Detach() {
+	if a.detach != nil {
+		a.detach()
+	}
+}
 
 func (t *Terminals) Attach(id domain.TerminalID) (*TerminalAttachment, error) {
 	rt, err := t.find(id)
@@ -314,7 +322,7 @@ func (t *Terminals) running(id domain.TerminalID) (*runningTerminal, error) {
 // subscriber queues output for one client. publish appends to pending; the
 // forward goroutine hands it to out in coalesced frames.
 type subscriber struct {
-	out  chan []byte
+	out  chan TerminalOutput
 	wake chan struct{}
 	done chan struct{}
 	once sync.Once
@@ -322,7 +330,9 @@ type subscriber struct {
 	pending []byte
 	held    int // bytes of the frame forward is delivering
 	ended   bool
-	lagged  bool
+	// resync: the backlog was dropped; forward sends the scrollback next,
+	// which also holds whatever is published meanwhile.
+	resync bool
 }
 
 func (s *subscriber) notify() {
@@ -350,17 +360,10 @@ func (rt *runningTerminal) forward(s *subscriber) {
 		}
 		for {
 			rt.mu.Lock()
-			frame := s.pending
-			if len(frame) > maxOutputFrame {
-				frame = slices.Clone(frame[:maxOutputFrame])
-				s.pending = s.pending[maxOutputFrame:]
-			} else {
-				s.pending = nil
-			}
-			s.held = len(frame)
+			frame := rt.nextFrame(s)
 			ended := s.ended
 			rt.mu.Unlock()
-			if len(frame) == 0 {
+			if len(frame.Data) == 0 && !frame.Resync {
 				if ended {
 					return
 				}
@@ -376,6 +379,28 @@ func (rt *runningTerminal) forward(s *subscriber) {
 			rt.mu.Unlock()
 		}
 	}
+}
+
+// nextFrame takes what s should be sent next: the scrollback after a
+// resync, else up to maxOutputFrame bytes of its queue. Callers hold rt.mu.
+func (rt *runningTerminal) nextFrame(s *subscriber) TerminalOutput {
+	if s.resync {
+		s.resync = false
+		s.pending = nil
+		// The scrollback is bounded on its own; only what queues after it
+		// counts towards the client's lag.
+		s.held = 0
+		return TerminalOutput{Data: rt.scroll.Bytes(), Resync: true}
+	}
+	frame := s.pending
+	if len(frame) > maxOutputFrame {
+		frame = slices.Clone(frame[:maxOutputFrame])
+		s.pending = s.pending[maxOutputFrame:]
+	} else {
+		s.pending = nil
+	}
+	s.held = len(frame)
+	return TerminalOutput{Data: frame}
 }
 
 type runningTerminal struct {
@@ -431,12 +456,14 @@ func (rt *runningTerminal) publish(chunk []byte) {
 	rt.outputBytes += uint64(len(chunk))
 	rt.scroll.Write(chunk)
 	for s := range rt.subs {
+		if s.resync {
+			continue
+		}
 		if len(s.pending)+s.held+len(chunk) > rt.lagBytes {
 			rt.laggedClients++
-			s.lagged = true
+			s.resync = true
 			s.pending = nil
-			s.end()
-			delete(rt.subs, s)
+			s.notify()
 			continue
 		}
 		s.pending = append(s.pending, chunk...)
@@ -445,7 +472,7 @@ func (rt *runningTerminal) publish(chunk []byte) {
 }
 
 func (rt *runningTerminal) attach() *TerminalAttachment {
-	s := &subscriber{out: make(chan []byte), wake: make(chan struct{}, 1), done: make(chan struct{})}
+	s := &subscriber{out: make(chan TerminalOutput), wake: make(chan struct{}, 1), done: make(chan struct{})}
 	go rt.forward(s)
 	rt.mu.Lock()
 	defer rt.mu.Unlock()
@@ -463,15 +490,11 @@ func (rt *runningTerminal) attach() *TerminalAttachment {
 			rt.mu.Unlock()
 			s.detach()
 		},
-		lagged: func() bool {
-			rt.mu.Lock()
-			defer rt.mu.Unlock()
-			return s.lagged
-		},
 	}
 }
 
 // TerminalDiagnostic contains counters only, never shell input or output.
+// LaggedClients counts resyncs of clients that fell too far behind.
 type TerminalDiagnostic struct {
 	ID            domain.TerminalID `json:"id"`
 	Clients       int               `json:"clients"`

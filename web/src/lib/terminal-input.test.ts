@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import { ctrlChar, InputQueue, keySequence, parseOsc52, stripTerminalReplies } from './terminal-input'
 
 describe('stripTerminalReplies', () => {
@@ -18,47 +18,85 @@ describe('stripTerminalReplies', () => {
   })
 })
 
+// link is a connection that only takes input while open, recording what
+// reached the shell.
+function link(open = false) {
+  const l = {
+    open,
+    sent: [] as string[],
+    send: (data: string) => {
+      if (!l.open) return false
+      l.sent.push(data)
+      return true
+    },
+  }
+  return l
+}
+
 describe('InputQueue', () => {
   it('sends straight through while ready', () => {
-    const send = vi.fn()
-    const q = new InputQueue(send)
+    const l = link(true)
+    const q = new InputQueue(l.send)
     q.setReady(true)
     q.push('a')
-    expect(send).toHaveBeenCalledWith('a')
+    expect(l.sent).toEqual(['a'])
   })
 
-  it('holds typing while not ready and flushes it in order, without replies', () => {
-    const send = vi.fn()
-    const q = new InputQueue(send)
+  it('holds typing while not connected and flushes it in order, without replies', () => {
+    const l = link()
+    const q = new InputQueue(l.send)
     q.push('ec')
     q.push('\x1b[5;1R')
     q.push('ho\r')
-    expect(send).not.toHaveBeenCalled()
+    expect(l.sent).toEqual([])
+    l.open = true
     q.setReady(true)
-    expect(send).toHaveBeenCalledTimes(1)
-    expect(send).toHaveBeenCalledWith('echo\r')
+    expect(l.sent).toEqual(['echo\r'])
     q.setReady(false)
     q.push('\x1b[?1;2c')
     q.setReady(true)
-    expect(send).toHaveBeenCalledTimes(1)
+    expect(l.sent).toEqual(['echo\r'])
+  })
+
+  // Typing must not wait for a replay (or a flood of output) to finish:
+  // Ctrl-C has to reach a shell that floods the screen.
+  it('sends typing at once while replaying when the connection takes it', () => {
+    const l = link(true)
+    const q = new InputQueue(l.send)
+    q.push('\x03')
+    q.push('\x1b[5;1R')
+    expect(l.sent).toEqual(['\x03'])
+  })
+
+  it('keeps order: once something is held, later typing waits behind it', () => {
+    const l = link()
+    const q = new InputQueue(l.send)
+    q.push('a')
+    l.open = true
+    q.push('b')
+    expect(l.sent).toEqual([])
+    q.setReady(true)
+    expect(l.sent).toEqual(['ab'])
   })
 
   it('caps what it holds', () => {
-    const send = vi.fn()
-    const q = new InputQueue(send, 4)
+    const l = link()
+    const q = new InputQueue(l.send, 4)
     q.push('abc')
     q.push('def')
+    l.open = true
     q.setReady(true)
-    expect(send).toHaveBeenCalledWith('cdef')
+    expect(l.sent).toEqual(['cdef'])
   })
 
   it('forgets held input when cleared', () => {
-    const send = vi.fn()
-    const q = new InputQueue(send)
+    const l = link()
+    const q = new InputQueue(l.send)
     q.push('x')
     q.clear()
+    l.open = true
     q.setReady(true)
-    expect(send).not.toHaveBeenCalled()
+    expect(l.sent).toEqual([])
   })
 })
 

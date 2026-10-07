@@ -235,17 +235,22 @@ func (s *server) rtcOutput(ctx context.Context, dc *webrtc.DataChannel, id domai
 		select {
 		case <-ctx.Done():
 			return
-		case data, ok := <-att.Output:
+		case out, ok := <-att.Output:
 			if ok {
-				if !send(data) {
+				// A lagging client is resynced in place, as on the WebSocket.
+				if out.Resync && dc.SendText(`{"type":"resync"}`) != nil {
+					return
+				}
+				if !send(out.Data) {
+					return
+				}
+				if out.Resync && dc.SendText(`{"type":"ready"}`) != nil {
 					return
 				}
 				continue
 			}
 			term, err := s.cfg.Terminals.Get(id)
 			switch {
-			case att.Lagged():
-				_ = dc.SendText(`{"type":"fallback"}`)
 			case errors.Is(err, app.ErrTerminalNotFound):
 				_ = dc.SendText(`{"type":"closed"}`)
 			case err == nil && term.Status == domain.TerminalExited:

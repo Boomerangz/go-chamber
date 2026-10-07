@@ -15,14 +15,17 @@ export function stripTerminalReplies(data: string): string {
 
 // InputQueue holds what the owner types while the connection is not ready
 // (connecting, reconnecting, switching transport) and sends it, in order,
-// once it is. Automatic replies are dropped from what is held.
+// once it is. Automatic replies are dropped from what is held. While only
+// the replay is pending, typing goes out at once when the connection takes
+// it (send returns true): a replay slowed by a flood of output must not hold
+// back the Ctrl-C meant to stop it.
 export class InputQueue {
   private held = ''
   private ready = false
-  private readonly send: (data: string) => void
+  private readonly send: (data: string) => boolean | void
   private readonly max: number
 
-  constructor(send: (data: string) => void, max = 4096) {
+  constructor(send: (data: string) => boolean | void, max = 4096) {
     this.send = send
     this.max = max
   }
@@ -34,6 +37,7 @@ export class InputQueue {
     }
     const typed = stripTerminalReplies(data)
     if (!typed) return
+    if (!this.held && this.send(typed) === true) return
     this.held = (this.held + typed).slice(-this.max)
   }
 
