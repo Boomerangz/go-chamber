@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test'
+import { mkdirSync } from 'node:fs'
 import { token } from '../playwright.config'
 import { openNewSession, showSessionDetails } from './pane'
 
@@ -70,6 +71,7 @@ test('starts a codex device-code login', async ({ page }) => {
 
 test('switches who reviews codex approvals', async ({ page }, info) => {
   const cwd = `/tmp/reviewer-${info.project.name}-${Date.now()}`
+  mkdirSync(cwd, { recursive: true })
   await newCodexSession(page, cwd)
   await showSessionDetails(page)
   const reviewer = page.getByLabel('Approval reviewer')

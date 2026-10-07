@@ -11,6 +11,19 @@ async function newSession(page: Page, agent: 'Claude' | 'Codex') {
   await expect(page.getByLabel('Message')).toBeVisible()
 }
 
+// settle waits for the header to stop changing after a resize or a dock:
+// its width (a dock may slide in) and its fold decision.
+async function settle(page: Page) {
+  const read = () => page.locator('.chat-header').evaluate((el) => `${el.clientWidth} ${el.dataset.fold ?? ''}`)
+  let last = ''
+  for (let i = 0; i < 30; i++) {
+    const now = await read()
+    if (now === last) return
+    last = now
+    await page.waitForTimeout(100)
+  }
+}
+
 // oneRow says the header's title row is one row: every shown part of it
 // (not the opened settings) sits beside the title, nothing spills sideways.
 async function expectOneRow(page: Page, what: string) {
@@ -48,10 +61,12 @@ for (const agent of ['Claude', 'Codex'] as const) {
         const button = name === 'none' ? null : dock.getByRole('button', { name: new RegExp(`^${name}`) })
         if (button) await button.click()
         const what = `${agent} ${width} ${name}`
+        await settle(page)
         await expectOneRow(page, what)
         const more = page.getByRole('button', { name: 'Session details' })
         if (await more.isVisible()) {
           await more.click()
+          await settle(page)
           await expectOneRow(page, `${what}, details open`)
           if (await more.isVisible()) await more.click()
         }

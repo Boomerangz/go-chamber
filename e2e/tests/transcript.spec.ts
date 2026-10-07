@@ -72,7 +72,8 @@ test('does not mark the owner\'s own messages as new', async ({ page }, info) =>
   await expect(page.locator('.unseen-mark')).toHaveCount(0)
 })
 
-test('a request takes focus so its keys answer, and says what a session grant adds', async ({ page }) => {
+test('a request takes focus so its keys answer, and says what a session grant adds', async ({ page, isMobile }) => {
+  test.skip(isMobile, 'a touch screen focuses no card: no keys, no ring')
   await newSession(page)
   await say(page, 'please permission')
   const card = page.locator('.request.permission')
@@ -85,7 +86,8 @@ test('a request takes focus so its keys answer, and says what a session grant ad
   await expect(page.locator('.item.assistant', { hasText: /approved: run/ })).toBeVisible()
 })
 
-test('picks a question option by its number', async ({ page }) => {
+test('picks a question option by its number', async ({ page, isMobile }) => {
+  test.skip(isMobile, 'a touch screen focuses no card: no number keys')
   await newSession(page)
   await say(page, 'ask me something')
   await expect(page.getByRole('radio', { name: /Alpha/ })).toBeFocused()

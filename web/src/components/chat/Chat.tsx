@@ -291,7 +291,8 @@ export default function Chat() {
     }
     if (useSessionStore.getState().activeId === sessionId) {
       stick.stick()
-      if (!document.activeElement?.closest('.request')) input.current?.focus()
+      // On a touch screen the keyboard goes, so the reply has the screen.
+      if (!matches('(pointer: coarse)') && !document.activeElement?.closest('.request')) input.current?.focus()
     }
     return true
   }

@@ -10,6 +10,9 @@ const TITLE_FALLBACK = 160
 const USAGE_MIN = 72
 // "⋯" where it isn't shown yet (it is a 28px icon button).
 const MORE_WIDTH = 28
+// Beside a worktree's branch the folder line keeps a little of the
+// repository's name (3ch), the copy button and their gaps.
+const BRANCH_EXTRA = 62
 // The status at its longest, "waiting for you" beside its mark.
 const STATUS_MAX = 128
 
@@ -68,7 +71,10 @@ export function useHeaderFold(header: RefObject<HTMLElement | null>): boolean {
       if (!folded.current) toolsWidth.current = width + settings * metaGap
       const avatar = el.querySelector<HTMLElement>(':scope > .avatar')
       const heading = el.querySelector<HTMLElement>('.chat-heading h2')
-      const titleMin = heading ? Math.min(Math.ceil(heading.scrollWidth), TITLE_MAX) : TITLE_FALLBACK
+      // The title, or a worktree's branch under it, whichever needs more.
+      const branch = el.querySelector<HTMLElement>('.chat-path-line .session-branch')
+      const own = Math.max(heading ? Math.ceil(heading.scrollWidth) : 0, branch ? branch.scrollWidth + BRANCH_EXTRA : 0)
+      const titleMin = heading ? Math.min(own, TITLE_MAX) : TITLE_FALLBACK
       // The heading holds this much (CSS reads it), so the usage line is cut first.
       el.style.setProperty('--title-min', `${titleMin}px`)
       const lead = avatar ? avatar.offsetWidth + gap : 0

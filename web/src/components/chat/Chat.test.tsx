@@ -907,6 +907,16 @@ describe('typing on a phone', () => {
     expect(document.documentElement.dataset.typing).toBeUndefined()
   })
 
+  it('lets the keyboard go once a message is sent, so the reply has the screen', async () => {
+    phone()
+    setup()
+    await userEvent.type(box(), 'hello')
+    await userEvent.click(screen.getByRole('button', { name: 'Send' }))
+    await waitFor(() => expect(fns.send).toHaveBeenCalled())
+    await act(async () => {})
+    expect(box()).not.toHaveFocus()
+  })
+
   it('leaves a mouse, or a wide screen, alone', () => {
     phone(false)
     setup()
