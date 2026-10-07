@@ -302,7 +302,7 @@ Plain typed commands on paper.
 
 ### Inputs / Fields
 - **Style:** 32px, 1px strong-rule border, 2px corners, paper; selects draw their own 10px chevron.
-- **Focus:** border turns ink-blue plus a 1px ink-blue ring. The session search is a bottom rule only, which turns blue on focus.
+- **Focus:** border turns ink-blue plus a 1px ink-blue ring. The session search is a bottom rule only, which turns blue on focus. The composer, which holds focus most of a session, doubles its frame in ink instead, so blue isn't standing on screen; its caret stays blue.
 - **Composer:** the same field language wrapping an auto-growing textarea with the action buttons inside it, sharing the transcript column.
 
 ### Navigation
@@ -327,7 +327,7 @@ Tool, command and file items are one mono line with a 13px lucide icon; pending 
 Quota meters are 4px bars (36px wide in the folded footer line, which names each agent by its letter box so the window and reset read whole): a `paper-3` track with an inset hairline and a solid ink fill, amber when nearing the limit and red at the limit.
 
 ### Loading and Pending
-Nothing on the way is shown as a spinner; it takes the "not yet settled" form. A dashed square that breathes (1.2s) leads a mono `ink-3` line ("loading sessions…", "searching messages…") or a busy button. A busy button keeps its colour and focus, sets `aria-busy`, guards against a second trigger, and swaps its label for the "…ing" form ("Starting…", "Allowing…", "Stopping…"). Controls that a success removes stay busy until they leave. Lists that have not loaded yet show dashed skeleton rows, never their empty state. A load that failed says so in red with a Retry. Choices such as the model or permission mode apply at once in the unsettled form (`ink-3`, dashed underline) and revert if the server refuses. While a turn runs and no reply streams (a tool or subagent may), the transcript tail reads "working · 0:42", or "waiting for you" in `ink-2` beside a still mark when a request is open (the block above it carries the amber).
+Work on its way shows one recognisable progress mark: a 12px ring in the current colour, open on one side, turning every 800ms, before a mono `ink-3` line ("loading sessions…", "searching messages…") or inside a busy button. It is the system's one round shape and one deliberate exception to the square grammar, kept because a spinner reads as "working" at a glance where a breathing square reads like one more state mark; state marks themselves stay square. A live socket that dropped still takes the dashed, breathing square. A busy button keeps its colour and focus, sets `aria-busy`, guards against a second trigger, and swaps its label for the "…ing" form ("Starting…", "Allowing…", "Stopping…"). Controls that a success removes stay busy until they leave. Lists that have not loaded yet show dashed skeleton rows, never their empty state. A load that failed says so in red with a Retry. Choices such as the model or permission mode apply at once in the unsettled form (`ink-3`, dashed underline) and revert if the server refuses. While a turn runs and no reply streams (a tool or subagent may), the transcript tail reads "working · 0:42", or "waiting for you" in `ink-2` beside a still mark when a request is open (the block above it carries the amber).
 
 ### Notices
 Failures that can't be shown in place stack beside what is being read, at most three: in the open chat, off the transcript column (whose messages carry their actions), in the margin to its right under the chat header when a sheet fits there, else at the transcript's end just above the composer; with no session open, the empty workspace's top right corner; with neither on screen, bottom right clear of the dock rail on desktop and just above the pane bar on phones. A notice never sits on a control, and the stack takes no clicks outside its sheets. Each is a paper sheet with a 1px rule (red for errors): a mono uppercase title naming what failed ("COULDN'T FORK THE SESSION"), the reason in sans, and a lucide X. Errors stay until dismissed; a quiet confirmation ("Path copied") fades after 4s, or 8s when it offers one action as a quiet button ("Archived … · Undo"). A later unrelated success never clears an unread error.
@@ -356,6 +356,6 @@ Short and typographic. Hover and colour changes take 120ms; transcript entries t
 - **Don't** use amber or ink-blue decoratively, or red for emphasis.
 - **Don't** use `paper-2` as a panel or card background.
 - **Don't** draw chat bubbles; user turns are ruled sections.
-- **Don't** use pill shapes or radii above 2px.
+- **Don't** use pill shapes or radii above 2px (the progress ring is the one exception).
 - **Don't** load fonts from a CDN; the UI must work offline.
 - **Don't** style Claude or Codex as the default; both are a letter in the same box.
