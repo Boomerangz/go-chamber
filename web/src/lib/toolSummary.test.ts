@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { Item } from './api'
-import { toolInput, toolLabel, toolSummary } from './toolSummary'
+import { toolInput, toolLabel, toolPath, toolSummary } from './toolSummary'
 
 const tool = (input: unknown, name = 'Read'): Item => ({
   id: 't1', sessionId: 's1', kind: 'tool_call', status: 'completed', name, input,
@@ -43,6 +43,22 @@ describe('toolSummary', () => {
     expect(toolSummary(tool([1, 2]))).toBeUndefined()
     expect(toolSummary(tool({ n: 1, flag: true }))).toBeUndefined()
     expect(toolSummary(tool({ body: 'x'.repeat(500) }))).toBeUndefined()
+  })
+})
+
+describe('toolPath', () => {
+  it('is the path the summary shows, when it shows one', () => {
+    expect(toolPath(tool({ file_path: '/a/b.go', limit: 5 }))).toBe('/a/b.go')
+    expect(toolPath(tool({ path: '/a', pattern: '*.go' }, 'Glob'))).toBe('/a')
+    expect(toolPath(tool({ notebook_path: '/n.ipynb' }, 'NotebookEdit'))).toBe('/n.ipynb')
+  })
+
+  it('is nothing for a pattern, a command, a plan or odd input', () => {
+    expect(toolPath(tool({ pattern: '/a/*.go' }, 'Grep'))).toBeUndefined()
+    expect(toolPath(tool({ command: 'ls /a' }, 'Bash'))).toBeUndefined()
+    expect(toolPath(tool({ file_path: '/plan.md' }, 'ExitPlanMode'))).toBeUndefined()
+    expect(toolPath(tool(['x']))).toBeUndefined()
+    expect(toolPath(tool(undefined))).toBeUndefined()
   })
 })
 

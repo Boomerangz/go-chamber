@@ -4,6 +4,7 @@ import { Row, type RowProps } from './Transcript'
 import type { Item } from '../../lib/api'
 import type { ItemNode } from '../../lib/tree'
 import { TURN_FAILED } from '../../lib/events'
+import { SessionFolder } from '../../lib/files'
 
 const writeText = vi.fn<(text: string) => Promise<void>>(async () => {})
 
@@ -14,7 +15,7 @@ beforeEach(() => {
 
 const item = (over: Partial<Item>): Item => ({ id: 'i1', sessionId: 's1', kind: 'tool_call', status: 'completed', ...over })
 
-function show(it: Item, over: Partial<RowProps> = {}, children: Item[] = []) {
+function show(it: Item, over: Partial<RowProps> = {}, children: Item[] = [], cwd?: string) {
   const props: RowProps = {
     node: { item: it, children: children.map((c) => ({ item: c, children: [] })) },
     turn: undefined,
@@ -24,11 +25,12 @@ function show(it: Item, over: Partial<RowProps> = {}, children: Item[] = []) {
     onStopTask: vi.fn(),
     ...over,
   }
-  const view = render(
+  const list = (
     <ol>
       <Row {...props} />
-    </ol>,
+    </ol>
   )
+  const view = render(cwd === undefined ? list : <SessionFolder.Provider value={cwd}>{list}</SessionFolder.Provider>)
   return { ...view, props }
 }
 
@@ -234,6 +236,38 @@ describe('long lines', () => {
     const code = container.querySelector('.item.file > code')!
     expect(code).toHaveClass('line-cut')
     expect(code).toHaveAttribute('title', path)
+  })
+})
+
+describe('paths in the session folder', () => {
+  const cwd = '/private/tmp/claude-501/-Users-me-Develop-proj'
+
+  it('writes a file change from the session folder, keeping its name, the full path on hover', () => {
+    const { container } = show(item({ kind: 'file_change', path: `${cwd}/web/src/Transcript.tsx` }), {}, [], cwd)
+    const code = container.querySelector('.item.file > code')!
+    expect(code).toHaveAttribute('title', `${cwd}/web/src/Transcript.tsx`)
+    expect(code.querySelector('.path-tail')).toHaveTextContent('Transcript.tsx')
+    expect(code).toHaveTextContent(/^web\/src\/Transcript\.tsx$/)
+  })
+
+  it('writes the file a tool reads from the session folder', () => {
+    const { container } = show(item({ name: 'Read', input: { file_path: `${cwd}/go.mod` } }), {}, [], cwd)
+    const summary = container.querySelector('.item-summary')!
+    expect(summary).toHaveTextContent(/^go\.mod$/)
+    expect(summary).toHaveAttribute('title', `${cwd}/go.mod`)
+  })
+
+  it('keeps a path outside the folder whole, and a search pattern as it is', () => {
+    const { container } = show(item({ name: 'Read', input: { file_path: '/etc/hosts' } }), {}, [], cwd)
+    expect(container.querySelector('.item-summary')).toHaveTextContent('/etc/hosts')
+    const grep = show(item({ id: 'g', name: 'Grep', input: { pattern: `${cwd}/x` } }), {}, [], cwd)
+    expect(grep.container.querySelector('.item-summary')).toHaveTextContent(`${cwd}/x`)
+  })
+
+  it("names a subagent's last edit from the session folder", () => {
+    show(item({ kind: 'subagent', name: 'Task', status: 'completed', input: { subagent_type: 'Explore' } }), {},
+      [item({ id: 'c', parentItemId: 'p', kind: 'file_change', path: `${cwd}/a.go` })], cwd)
+    expect(screen.getByText('last: edit a.go')).toBeInTheDocument()
   })
 })
 
@@ -457,7 +491,7 @@ describe('tool groups', () => {
     details.open = true
     fireEvent(details, new Event('toggle'))
     expect(container.querySelectorAll('.tool-group-items > li')).toHaveLength(3)
-    expect(screen.getByText('/b')).toBeInTheDocument()
+    expect(container.querySelector('.tool-group-items .item-summary[title="/b"]')).toHaveTextContent('/b')
   })
 })
 

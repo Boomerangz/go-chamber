@@ -2,6 +2,7 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import Markdown from './Markdown'
 import { resetCodeWrap } from './wrap'
+import { SessionFiles } from '../../lib/files'
 
 describe('Markdown', () => {
   it('renders lists, emphasis and tables', () => {
@@ -107,5 +108,49 @@ describe('code block controls', () => {
     expect(container.querySelector('pre.md-code')).toHaveClass('full')
     scroll.mockRestore()
     client.mockRestore()
+  })
+})
+
+describe('markdown images', () => {
+  it('links a remote image instead of loading it', () => {
+    const { container } = render(<Markdown text={'![build chart](https://example.com/chart.png)'} />)
+    expect(container.querySelector('img')).toBeNull()
+    const link = screen.getByRole('link', { name: /image: build chart/ })
+    expect(link).toHaveAttribute('href', 'https://example.com/chart.png')
+    expect(link).toHaveAttribute('target', '_blank')
+    expect(link).toHaveAttribute('rel', 'noopener noreferrer')
+  })
+
+  it('names a remote image without alt text by its file', () => {
+    render(<Markdown text={'![](https://example.com/a/b/shot.png?x=1)'} />)
+    expect(screen.getByRole('link', { name: /image: shot\.png/ })).toBeInTheDocument()
+  })
+
+  it('loads a local image through the session folder', () => {
+    const { container } = render(
+      <SessionFiles.Provider value="s1">
+        <Markdown text={'![shot](docs/shot.png)'} />
+      </SessionFiles.Provider>,
+    )
+    const img = container.querySelector('img')!
+    expect(img.getAttribute('src')).toBe('/api/sessions/s1/file?path=docs%2Fshot.png')
+    expect(img).toHaveAttribute('alt', 'shot')
+  })
+
+  it('says so when a local image fails to load, without a broken icon', () => {
+    const { container } = render(
+      <SessionFiles.Provider value="s1">
+        <Markdown text={'![shot](/abs/missing.png)'} />
+      </SessionFiles.Provider>,
+    )
+    fireEvent.error(container.querySelector('img')!)
+    expect(container.querySelector('img')).toBeNull()
+    expect(container.querySelector('.md-image-missing')).toHaveTextContent("image: shot · couldn't load")
+  })
+
+  it('shows a local image outside a session as its name', () => {
+    const { container } = render(<Markdown text={'![shot](docs/shot.png)'} />)
+    expect(container.querySelector('img')).toBeNull()
+    expect(container.querySelector('.md-image-missing')).toHaveTextContent('image: shot')
   })
 })

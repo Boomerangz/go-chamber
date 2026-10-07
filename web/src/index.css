@@ -281,7 +281,8 @@ kbd {
 .brand { display: flex; align-items: center; gap: 12px; }
 .show-sessions { display: inline-flex; align-items: center; gap: 4px; }
 @media (max-width: 720px) { .show-sessions { display: none; } }
-h1 { font-family: var(--font-mono); font-size: 14px; font-weight: 400; letter-spacing: 0.01em; white-space: nowrap; }
+/* the masthead only: a markdown heading in agent text is no masthead */
+.brand h1 { font-family: var(--font-mono); font-size: 14px; font-weight: 400; letter-spacing: 0.01em; white-space: nowrap; }
 /* tablets and small laptops: the bar's three parts fit side by side. The
    modes stay centred between the masthead and the controls, Show sessions
    is its icon and Focus and Sign out draw tighter */
@@ -681,14 +682,26 @@ button.health { border: 0; background: none; padding: 0; }
 .md p, .md ul, .md ol, .md blockquote, .md table, .md pre { margin: 0 0 10px; }
 .md ul, .md ol { padding-left: 22px; }
 .md li + li { margin-top: 2px; }
-.md h1, .md h2, .md h3, .md h4 { margin: 14px 0 6px; font-size: 1em; font-weight: 600; }
-.md h1 { font-size: 1.2em; }
-.md h2 { font-size: 1.1em; }
+/* headings in agent text are the sans at 600, wrapping like the text: the
+   first steps to the Headline size, the rest stay close to the Transcript */
+.md h1, .md h2, .md h3, .md h4, .md h5, .md h6 {
+  margin: 18px 0 6px; font-family: var(--font-ui); font-size: 1em; font-weight: 600; line-height: 1.35;
+  letter-spacing: -0.005em; white-space: normal; overflow-wrap: break-word;
+}
+.md h1 { font-size: 1.33em; }
+.md h2 { font-size: 1.15em; }
 .md a { color: var(--act); text-underline-offset: 3px; }
 .md blockquote { padding-left: 12px; border-left: 1px solid var(--rule-strong); color: var(--ink-2); }
 .md hr { border: 0; border-top: 1px solid var(--rule); margin: 12px 0; }
-.md table { border-collapse: collapse; display: block; overflow-x: auto; font-size: 13px; }
-.md th, .md td { padding: 4px 10px; border: 1px solid var(--rule); text-align: left; }
+.md table { border-collapse: collapse; display: block; max-width: 100%; overflow-x: auto; font-size: 13px; }
+/* cells keep their words whole (".item" breaks anywhere, which cut "1290"
+   into "129/0"); the table scrolls in its own box instead */
+.md th, .md td { padding: 4px 10px; border: 1px solid var(--rule); text-align: left; overflow-wrap: normal; word-break: normal; }
+.md th, .md td code, .md th code { white-space: nowrap; }
+/* images fit the column; remote ones are links, failed ones a line of words */
+.md img { display: block; max-width: 100%; height: auto; margin: 4px 0; }
+.md-image-link, .md-image-missing { font-family: var(--font-mono); font-size: 12px; }
+.md-image-missing { color: var(--ink-3); }
 .md :not(pre) > code { padding: 0 3px; background: var(--paper-2); font-size: 0.9em; }
 .item .md pre.md-code { max-height: 420px; white-space: pre; margin-top: 0; }
 .md-code span { color: var(--shiki-light); }
