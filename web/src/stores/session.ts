@@ -5,7 +5,7 @@ import { applyEvents, initialChat, type ChatState } from '../lib/events'
 import type { GroupMode } from '../lib/sessions'
 import { LiveList } from '../lib/live-list'
 import { chimeOnEvent } from '../lib/chime'
-import { describeError, fail, useNotices } from './notices'
+import { describeError, dropSessionNotices, fail, useNotices } from './notices'
 import { parseRoute } from '../lib/route'
 import { branchError, folderError } from '../lib/branch'
 import { useCLIs } from '../lib/clis'
@@ -715,6 +715,7 @@ function removeSession(get: () => SessionStore, set: (partial: Partial<SessionSt
     sessionRevisions.delete(sid)
     delete lastSeqs[sid]
   }
+  dropSessionNotices(gone)
   const dropped = pendingRequests.filter((r) => gone.has(r.sessionId))
   for (const r of dropped) requestLists.update(requestKey(r), null)
   set({

@@ -552,7 +552,7 @@ function WorktreeBar({ session, worktree, changed, commits }: { session: api.Ses
       try {
         const result: unknown = await useSessionStore.getState().removeWorktree(session.id, force)
         if (result === false) return false
-        notify({ kind: 'info', text: `Worktree removed · branch ${worktree.branch} kept` })
+        notify({ kind: 'info', text: `Worktree removed · branch ${worktree.branch} kept`, sessionId: session.id })
         return true
       } catch (err) {
         const msg = describeError(err)
