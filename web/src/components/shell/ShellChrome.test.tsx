@@ -67,7 +67,7 @@ describe('ShowSessions', () => {
   })
 
   it('on a crowded window, offers the sessions back in place of the open dock', async () => {
-    vi.stubGlobal('matchMedia', (q: string) => ({ matches: q.includes('1000px'), addEventListener() {}, removeEventListener() {} }))
+    vi.stubGlobal('matchMedia', (q: string) => ({ matches: q.includes('1100px'), addEventListener() {}, removeEventListener() {} }))
     try {
       useLayoutStore.setState({ mode: 'agents', sidebar: true, focus: false, dock: 'terminal' })
       render(<ShowSessions />)
