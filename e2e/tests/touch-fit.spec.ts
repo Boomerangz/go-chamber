@@ -4,6 +4,7 @@ import { mkdirSync, mkdtempSync, realpathSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { token } from '../playwright.config'
+import { openNewSession } from './pane'
 
 // Phones held sideways and touch tablets: the wide layout with a finger's
 // targets, a short window and the notch at a side.
@@ -105,6 +106,21 @@ test.describe('a phone', () => {
     })
     expect(fit).toEqual({ whole: true, inside: true, repoCut: true, repoShown: expect.any(Number) })
     expect(fit.repoShown).toBeGreaterThanOrEqual(20)
+  })
+
+  test('a recent folder reads as a captioned chip, not a second folder field', async ({ page }) => {
+    const created = await page.request.post('/api/sessions', { headers, data: { agent: 'claude', cwd: longRepo() } })
+    expect(created.ok()).toBe(true)
+    await page.goto(`/?token=${token}`)
+    await openNewSession(page)
+    const chips = page.getByRole('group', { name: 'Recent folders' })
+    const caption = chips.getByText('Recent', { exact: true })
+    await expect(caption).toBeVisible()
+    const [c, chip, field] = [(await caption.boundingBox())!, (await chips.getByRole('button').first().boundingBox())!, (await page.locator('.new-session .folder-field').boundingBox())!]
+    // the caption leads the chips' first line, and the chip is narrower than the field
+    expect(c.x + c.width).toBeLessThanOrEqual(chip.x)
+    expect(Math.abs(c.y + c.height / 2 - (chip.y + chip.height / 2))).toBeLessThanOrEqual(4)
+    expect(chip.width).toBeLessThan(field.width - 40)
   })
 })
 
