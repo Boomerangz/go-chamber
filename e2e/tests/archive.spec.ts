@@ -95,6 +95,7 @@ test('archives, unarchives and deletes a session, live in another tab', async ({
 
 test('archiving a session that waits for you keeps the request in sight, with an Undo', async ({ page }, info) => {
   const name = `Waits ${info.project.name} ${info.repeatEachIndex} ${Date.now()}`
+  await page.clock.install()
   await page.goto(`/?token=${token}`)
   await openNewSession(page)
   await page.getByLabel('Working directory').fill(ownDir())
@@ -113,6 +114,10 @@ test('archiving a session that waits for you keeps the request in sight, with an
   await expect(archived.locator('summary .badge')).toBeVisible()
 
   const notice = page.getByRole('status').filter({ hasText: `Archived ${name}` })
+  // A keyboard user can take time to reach/read Undo without losing it.
+  await notice.getByRole('button', { name: 'Undo' }).focus()
+  await page.clock.fastForward(10_000)
+  await expect(notice.getByRole('button', { name: 'Undo' })).toBeVisible()
   await notice.getByRole('button', { name: 'Undo' }).click()
   const restored = page.locator('.groups').getByRole('button', { name: new RegExp(`^${name}`) })
   await expect(restored).toBeVisible()

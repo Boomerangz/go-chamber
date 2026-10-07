@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Session, SessionRequest } from '../../lib/api'
@@ -8,7 +8,7 @@ import { resetLayout, useLayoutStore } from '../../stores/layout'
 
 const s = (id: string, activeAt: string, title = id): Session => ({ id, agent: 'claude', cwd: '/p', status: 'idle', title, activeAt })
 // titles are the session names the list shows, without their folder and age.
-const titles = () => screen.getAllByRole('button').map((b) => b.querySelector('.empty-session-title')?.textContent ?? b.textContent)
+const titles = () => within(screen.getByRole('list')).getAllByRole('button').map((b) => b.querySelector('.empty-session-title')?.textContent ?? b.textContent)
 const req = (sessionId: string, id = `r-${sessionId}`): SessionRequest => ({ id, sessionId, kind: 'permission', state: 'pending' })
 
 beforeEach(() => {
@@ -18,6 +18,24 @@ beforeEach(() => {
 })
 
 describe('EmptyChat', () => {
+  it('offers a direct start action that reveals and focuses the project field', async () => {
+    useLayoutStore.setState({ sidebar: false, focus: true })
+    render(<><EmptyChat /><div className="new-session"><div className="folder-field"><input aria-label="Project" /></div></div></>)
+    await userEvent.click(screen.getByRole('button', { name: 'Choose a project' }))
+    await waitFor(() => expect(screen.getByRole('textbox', { name: 'Project' })).toHaveFocus())
+    expect(useLayoutStore.getState()).toMatchObject({ sidebar: true, focus: false })
+    expect(useSessionStore.getState().pane).toBe('sessions')
+  })
+
+  it('offers retry when sessions fail to load', async () => {
+    const loadSessions = vi.fn(async () => {})
+    useSessionStore.setState({ sessionsStatus: 'error', loadSessions })
+    render(<EmptyChat />)
+    expect(screen.getByRole('alert')).toHaveTextContent("Couldn't load sessions")
+    await userEvent.click(screen.getByRole('button', { name: 'Retry' }))
+    expect(loadSessions).toHaveBeenCalledTimes(1)
+  })
+
   it('lists the sessions waiting for the owner first', async () => {
     const selectSession = vi.fn(async () => {})
     useSessionStore.setState({
@@ -27,7 +45,7 @@ describe('EmptyChat', () => {
     })
     render(<EmptyChat />)
     expect(screen.getByRole('heading', { name: 'Waiting for you' })).toBeInTheDocument()
-    const links = screen.getAllByRole('button')
+    const links = within(screen.getByRole('list')).getAllByRole('button')
     expect(titles()).toEqual(['a'])
     await userEvent.click(links[0]!)
     expect(selectSession).toHaveBeenCalledWith('a')
@@ -79,7 +97,7 @@ describe('EmptyChat', () => {
     })
     render(<EmptyChat />)
     vi.useRealTimers()
-    const rows = screen.getAllByRole('button').map((b) => b.querySelector('.empty-session-meta')?.textContent)
+    const rows = within(screen.getByRole('list')).getAllByRole('button').map((b) => b.querySelector('.empty-session-meta')?.textContent)
     expect(rows).toEqual(['web30m ago', 'api2h ago', 'api⎇ fix-x3d ago'])
     expect(screen.getByText('web')).toHaveAttribute('title', '/w/web')
   })

@@ -32,6 +32,36 @@ let nextId = 1
 // quiet holds failures a caller shows in place instead of as a notice; only
 // their reason is kept, for lastError.
 let quiet: Notice[] = []
+type PauseReason = 'pointer' | 'focus'
+interface Expiry {
+  timer: ReturnType<typeof setTimeout> | null
+  remaining: number
+  due: number
+  paused: Set<PauseReason>
+}
+const expiries = new Map<number, Expiry>()
+
+function schedule(id: number, expiry: Expiry) {
+  expiry.due = Date.now() + expiry.remaining
+  expiry.timer = setTimeout(() => useNotices.getState().dismiss(id), expiry.remaining)
+}
+
+export function pauseNotice(id: number, reason: PauseReason): void {
+  const expiry = expiries.get(id)
+  if (!expiry) return
+  if (expiry.timer !== null) {
+    clearTimeout(expiry.timer)
+    expiry.timer = null
+    expiry.remaining = Math.max(0, expiry.due - Date.now())
+  }
+  expiry.paused.add(reason)
+}
+
+export function resumeNotice(id: number, reason: PauseReason): void {
+  const expiry = expiries.get(id)
+  if (!expiry || !expiry.paused.delete(reason) || expiry.paused.size) return
+  schedule(id, expiry)
+}
 
 export const useNotices = create<NoticeStore>((set, get) => ({
   notices: [],
@@ -45,11 +75,25 @@ export const useNotices = create<NoticeStore>((set, get) => ({
   },
 }))
 
+// A dismissed, replaced or evicted notice no longer owns a timer.
+useNotices.subscribe(({ notices }) => {
+  const ids = new Set(notices.map((n) => n.id))
+  for (const [id, expiry] of expiries) {
+    if (ids.has(id)) continue
+    if (expiry.timer !== null) clearTimeout(expiry.timer)
+    expiries.delete(id)
+  }
+})
+
 export function notify(notice: Omit<Notice, 'id'>): number {
   const id = nextId++
   const rest = useNotices.getState().notices.filter((n) => !notice.key || n.key !== notice.key)
   useNotices.setState({ notices: [...rest, { ...notice, id }].slice(-MAX) })
-  if (notice.kind === 'info') setTimeout(() => useNotices.getState().dismiss(id), notice.action ? ACTION_MS : INFO_MS)
+  if (notice.kind === 'info') {
+    const expiry: Expiry = { timer: null, remaining: notice.action ? ACTION_MS : INFO_MS, due: 0, paused: new Set() }
+    expiries.set(id, expiry)
+    schedule(id, expiry)
+  }
   return id
 }
 

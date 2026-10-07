@@ -101,6 +101,7 @@ svg.icon { flex: none; display: block; }
 }
 
 /* ---------- primitives ---------- */
+.boot-screen { display: grid; align-content: center; justify-items: center; gap: 16px; min-height: 100dvh; padding: 24px; font-family: var(--font-ui); }
 /* .panel is a region of the sheet, not a floating card: rules divide it. */
 .panel { background: var(--paper); }
 
@@ -207,31 +208,36 @@ select.field option { background: var(--paper); color: var(--ink); }
 .chat-meta .status.unsettled { color: var(--ink-3); }
 .chat-meta .status.unsettled::before { background: none; border-style: dashed; animation: mark-breathe 1.2s ease-in-out infinite; }
 
-/* busy: the "not yet settled" form (a dashed square) that breathes while
-   something is on its way. No spinners: state is form. */
+/* A recognisable progress indicator shared by loading and pending actions. */
+@keyframes busy-spin { to { transform: rotate(360deg); } }
 .busy-mark, .loading-line::before, .btn[aria-busy='true']::before, .chip[aria-busy='true']::before {
-  content: ''; flex: none; display: inline-block; width: 8px; height: 8px;
-  border: 1px dashed currentColor; border-radius: 1px;
-  animation: mark-breathe 1.2s ease-in-out infinite;
+  content: ''; flex: none; display: inline-block; width: 12px; height: 12px;
+  border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%;
+  animation: busy-spin 800ms linear infinite;
 }
 .btn[aria-busy='true'], .chip[aria-busy='true'] { cursor: progress; }
+/* Replace the glyph in square buttons instead of squeezing two icons in. */
+.btn-icon[aria-busy='true'] { position: relative; }
+.btn-icon[aria-busy='true']::before { position: absolute; }
+.btn-icon[aria-busy='true'] > svg { visibility: hidden; }
 .btn-primary[aria-busy='true'] { border-color: var(--act); background: var(--act); color: var(--act-ink); }
 .loading-line {
   display: flex; align-items: center; gap: 8px;
-  font-family: var(--font-mono); font-size: 12px; color: var(--ink-3); text-transform: lowercase;
+  font-family: var(--font-mono); font-size: 12px; color: var(--ink-2); text-transform: lowercase;
 }
 /* Retry follows the reason's last word, wherever the text wraps: a long
    reason must not push it onto a line of its own */
 .load-failed { color: var(--bad); font-size: 13px; line-height: 24px; overflow-wrap: anywhere; }
 .load-failed-tail { white-space: nowrap; }
 .load-failed .btn { margin-left: 8px; vertical-align: middle; }
-/* skeleton rows: dashed hairlines where text will land */
+/* Filled placeholders preserve the shape of the incoming content. */
 .skeleton { display: grid; gap: 14px; padding: 6px 8px; }
 .skeleton-row { display: grid; grid-template-columns: 20px 1fr; gap: 8px; align-items: center; }
-.skeleton-row::before { content: ''; width: 20px; height: 20px; border: 1px dashed var(--rule-strong); border-radius: var(--r); }
+.skeleton-row::before { content: ''; width: 20px; height: 20px; background: var(--rule); border-radius: var(--r); }
 .skeleton-lines { display: grid; gap: 7px; }
-.skeleton-line { height: 0; border-top: 1px dashed var(--rule-strong); width: var(--w, 70%); }
-.skeleton { animation: mark-breathe 2.4s ease-in-out infinite; }
+.skeleton-line { height: 8px; background: var(--rule); border-radius: 3px; width: var(--w, 70%); }
+@keyframes skeleton-breathe { 50% { opacity: 0.55; } }
+.skeleton { animation: skeleton-breathe 1.8s ease-in-out infinite; }
 kbd {
   display: inline-grid; place-items: center; min-width: 18px; height: 18px; padding: 0 4px;
   border: 1px solid var(--rule-strong); border-radius: var(--r);

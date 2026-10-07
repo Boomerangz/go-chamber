@@ -3,7 +3,7 @@ GO_TEST := go test -race
 FAKE_CLAUDE := bin/fakes/claude
 FAKE_CODEX := bin/fakes/codex
 
-.PHONY: all dev build web test test-web cover-gate mutate mutate-go mutate-web lint e2e check clean
+.PHONY: all dev build web test test-web cover-gate mutate mutate-go mutate-web lint e2e check clean restart
 
 all: check
 
@@ -60,6 +60,10 @@ e2e/.installed: e2e/package.json
 # Mutation testing is out of check for now: run alongside parallel agents'
 # suites it exhausted the machine's memory. `make mutate` still runs it.
 check: lint cover-gate e2e
+
+# The live instance is the launchd agent ~/Library/LaunchAgents/dev.go-chamber.web.plist running $(BIN).
+restart: build
+	launchctl kickstart -k gui/$$(id -u)/dev.go-chamber.web
 
 clean:
 	rm -rf bin coverage.out web/dist web/coverage web/reports web/.stryker-tmp e2e/test-results e2e/.data

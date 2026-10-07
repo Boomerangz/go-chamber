@@ -40,7 +40,7 @@ export default function EditableTitle({ value, label, onRename, className, headi
     const result = onRename(next)
     if (!result) return
     // An empty name falls back to a server default we can't predict.
-    if (next) setSaving(next)
+    setSaving(next)
     void Promise.resolve(result).then(
       () => setSaving(null),
       () => setSaving(null),
@@ -59,6 +59,7 @@ export default function EditableTitle({ value, label, onRename, className, headi
         onChange={(e) => setDraft(e.target.value)}
         onBlur={save}
         onKeyDown={(e) => {
+          if (e.nativeEvent.isComposing || e.keyCode === 229) return
           if (e.key === 'Enter') {
             e.preventDefault()
             refocus.current = true
@@ -72,24 +73,27 @@ export default function EditableTitle({ value, label, onRename, className, headi
       />
     )
   }
-  const shown = saving ?? value
+  const shown = saving || value
+  const edit = () => { if (saving === null) setDraft(shown) }
   return (
     <span className={`editable-title ${className ?? ''}`} aria-busy={saving !== null || undefined}>
       {heading ? (
-        <h2 onDoubleClick={() => setDraft(shown)}>{shown}</h2>
+        <h2 onDoubleClick={edit}>{shown}</h2>
       ) : (
-        <span onDoubleClick={() => setDraft(shown)}>{shown}</span>
+        <span onDoubleClick={edit}>{shown}</span>
       )}
       <button
         ref={button}
         type="button"
         className="rename-btn"
         aria-label={`Rename ${label}`}
-        title={`Rename ${label}`}
-        onClick={() => setDraft(shown)}
+        aria-disabled={saving !== null || undefined}
+        title={saving !== null ? 'Saving name…' : `Rename ${label}`}
+        onClick={edit}
       >
-        <Pencil {...icon(13)} />
+        {saving !== null ? <span className="busy-mark" aria-hidden="true" /> : <Pencil {...icon(13)} />}
       </button>
+      {saving !== null && <span className="sr-only" role="status">Saving name…</span>}
     </span>
   )
 }

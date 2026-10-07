@@ -13,6 +13,35 @@ beforeEach(() => {
 })
 afterEach(() => vi.useRealTimers())
 
+it('shows a pending copy and does not send it twice', async () => {
+  let finish!: () => void
+  writeText.mockImplementation(() => new Promise<void>((r) => { finish = r }))
+  render(<CopyButton text="hello" />)
+  fireEvent.click(screen.getByRole('button', { name: 'Copy' }))
+  const pending = screen.getByRole('button', { name: 'Copying…' })
+  expect(pending).toHaveAttribute('aria-busy', 'true')
+  fireEvent.click(pending)
+  expect(writeText).toHaveBeenCalledTimes(1)
+  await act(async () => finish())
+  expect(screen.getByRole('button', { name: 'Copied' })).toBeInTheDocument()
+})
+
+it('restores composer focus and selection after a legacy copy fails', async () => {
+  Object.defineProperty(navigator, 'clipboard', { value: undefined, configurable: true })
+  render(<textarea aria-label="Draft" defaultValue="draft message" />)
+  const draft = screen.getByRole('textbox') as HTMLTextAreaElement
+  draft.focus()
+  draft.setSelectionRange(2, 5)
+  Object.defineProperty(document, 'execCommand', { configurable: true, value: () => {
+    document.querySelectorAll('textarea')[1]!.focus()
+    throw new Error('denied')
+  } })
+  expect(await copyText('plain')).toBe(false)
+  expect(draft).toHaveFocus()
+  expect([draft.selectionStart, draft.selectionEnd]).toEqual([2, 5])
+  expect(document.querySelectorAll('textarea')).toHaveLength(1)
+})
+
 it('copies and says so for a moment', async () => {
   vi.useFakeTimers()
   render(<CopyButton text="hello" />)

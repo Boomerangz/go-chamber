@@ -2,7 +2,7 @@ import { X } from 'lucide-react'
 import { useEffect } from 'react'
 import { icon } from '../icon'
 import { isTypingTarget } from '../../lib/hotkeys'
-import { useNotices } from '../../stores/notices'
+import { pauseNotice, resumeNotice, useNotices } from '../../stores/notices'
 import { useNoticePlace } from './noticePlace'
 
 // Notices stacks what failed (or a quiet confirmation) where it covers no
@@ -29,7 +29,17 @@ export default function Notices() {
   return (
     <div className="notices" aria-live="polite" style={place ?? undefined}>
       {notices.map((n) => (
-        <div key={n.id} className={`toast toast-${n.kind}`} role={n.kind === 'error' ? 'alert' : 'status'}>
+        <div
+          key={n.id}
+          className={`toast toast-${n.kind}`}
+          role={n.kind === 'error' ? 'alert' : 'status'}
+          onMouseEnter={() => pauseNotice(n.id, 'pointer')}
+          onMouseLeave={() => resumeNotice(n.id, 'pointer')}
+          onFocus={() => pauseNotice(n.id, 'focus')}
+          onBlur={(e) => {
+            if (!e.currentTarget.contains(e.relatedTarget)) resumeNotice(n.id, 'focus')
+          }}
+        >
           <div className="toast-body">
             {n.title && <span className="toast-title">{n.title}</span>}
             <span className="toast-text">{n.text}</span>

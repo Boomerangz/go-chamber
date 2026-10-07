@@ -5,7 +5,8 @@ import { useNow } from '../../lib/now'
 import { owesAnswer } from '../../lib/status'
 import { isMac, useMedia } from './useMedia'
 import Keys from '../ui/Keys'
-import { Skeleton } from '../ui/Loading'
+import { LoadFailed, Skeleton } from '../ui/Loading'
+import { chooseProject } from '../shell/focus'
 import './EmptyChat.css'
 
 const MAX = 5
@@ -49,6 +50,10 @@ export default function EmptyChat() {
             ? 'Pick an agent and a project folder under Sessions, or open an existing session.'
             : 'Pick an agent and a project folder on the left, or open an existing session.'}
         </p>
+        <div className="empty-actions">
+          <button type="button" className="btn btn-primary" onClick={chooseProject}>Choose a project</button>
+        </div>
+        {status === 'error' && <LoadFailed onRetry={() => void useSessionStore.getState().loadSessions()}>Couldn't load sessions</LoadFailed>}
         {status === 'loading' && list.length === 0 && (
           <div className="empty-sessions">
             <Skeleton rows={3} label="loading sessions" />

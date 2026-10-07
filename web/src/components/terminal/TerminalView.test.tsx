@@ -312,6 +312,16 @@ describe('terminal keys, find and new output', () => {
     expect(press({ key: 'V', code: 'KeyV', ctrlKey: true, shiftKey: true })).toEqual({ passed: false, prevented: false })
   })
 
+  it('copies a selection over HTTP without the Clipboard API', () => {
+    vi.stubGlobal('navigator', { ...navigator, clipboard: undefined })
+    const exec = vi.fn(() => true)
+    Object.defineProperty(document, 'execCommand', { configurable: true, value: exec })
+    render(<TerminalView id="t1" {...props} />)
+    xt().getSelection.mockReturnValue('selected text')
+    press({ key: 'C', code: 'KeyC', ctrlKey: true, shiftKey: true })
+    expect(exec).toHaveBeenCalledWith('copy')
+  })
+
   it('sizes the font of every screen and remembers it', () => {
     render(<TerminalView id="t1" {...props} />)
     expect(xt().options.fontSize).toBe(13)

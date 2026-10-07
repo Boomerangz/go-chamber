@@ -18,6 +18,7 @@ export async function copyText(text: string, what = 'text'): Promise<boolean> {
 }
 
 function legacyCopy(text: string): boolean {
+  const focused = document.activeElement
   const area = document.createElement('textarea')
   area.value = text
   area.setAttribute('readonly', '')
@@ -29,5 +30,6 @@ function legacyCopy(text: string): boolean {
     return document.execCommand?.('copy') ?? false
   } finally {
     area.remove()
+    if (focused instanceof HTMLElement) focused.focus({ preventScroll: true })
   }
 }

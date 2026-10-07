@@ -135,7 +135,7 @@ export default function ComposerInput({ sessionId, agent, value, onChange, onSub
   })
 
   const accept = (o: Option) => {
-    if (!token) return
+    if (!token || !answered) return
     const next = applyCompletion(value, token, o.insert, o.dir)
     caret.current = next.caret
     if (!o.dir) setToken(null)
@@ -143,6 +143,8 @@ export default function ComposerInput({ sessionId, agent, value, onChange, onSub
   }
 
   const onKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
+    // The IME owns navigation and commit keys, even with suggestions open.
+    if (e.nativeEvent.isComposing || e.keyCode === 229) return
     if (open) {
       switch (e.key) {
         case 'ArrowDown':
@@ -171,8 +173,6 @@ export default function ComposerInput({ sessionId, agent, value, onChange, onSub
       return
     }
     if (e.key === 'Enter' && !e.shiftKey && !e.altKey) {
-      // An input method uses Enter to commit its text; that is not a send.
-      if (e.nativeEvent.isComposing || e.keyCode === 229) return
       const modified = e.metaKey || e.ctrlKey
       if (modified || enterSends) {
         e.preventDefault()
@@ -237,6 +237,7 @@ export default function ComposerInput({ sessionId, agent, value, onChange, onSub
               key={o.key}
               id={optionId(i)}
               role="option"
+              aria-disabled={stale || undefined}
               aria-selected={i === active}
               className={i === active ? 'active' : undefined}
               onMouseDown={(e) => e.preventDefault()}

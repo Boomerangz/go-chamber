@@ -12,6 +12,7 @@ import { useSessionStore } from '../../stores/session'
 import { inWorkspace, leaveOverview, overviewShown, toggleOverview } from '../../lib/overview'
 import { noteBrowse } from '../../lib/browse'
 import './shell.css'
+import { chooseProject, focusIn } from './focus'
 
 // The help lists shortcuts in these groups, in this order.
 const GROUPS = ['Navigate', 'Chat', 'Requests', 'Terminal'] as const
@@ -79,14 +80,6 @@ function nextWaiting() {
   void selectSession(next)
 }
 
-function focusIn(selector: string, pane?: 'sessions' | 'chat') {
-  useLayoutStore.getState().setMode('agents')
-  // Focus hides the sidebar: leave it when the target lives there.
-  if (pane === 'sessions' && useLayoutStore.getState().focus) useLayoutStore.getState().toggleFocus()
-  if (pane) useSessionStore.getState().setPane(pane)
-  requestAnimationFrame(() => document.querySelector<HTMLElement>(selector)?.focus())
-}
-
 // A dock a key opened takes the focus, so its own keys answer at once:
 // Changes on its first file (j/k then step through its files), Terminal in
 // its shell, or (once it says there is none) on the button that opens one.
@@ -128,7 +121,7 @@ function buildShortcuts(setOverlay: SetOverlay): Shortcut[] {
     { combo: { key: 'k', mod: true }, group: 'Navigate', label: 'Go to a session or terminal', anywhere: true, run: () => setOverlay((o) => (o === 'switcher' ? null : 'switcher')) },
     { combo: { key: '?' }, group: 'Navigate', label: 'Show shortcuts', run: () => setOverlay((o) => (o === 'help' ? null : 'help')) },
     { combo: { key: '/' }, group: 'Navigate', label: 'Search sessions', run: () => focusIn('.session-search input, input[type="search"]', 'sessions') },
-    { combo: { key: 'n' }, group: 'Navigate', label: 'New session: choose a folder', run: () => focusIn('.new-session .folder-field input', 'sessions') },
+    { combo: { key: 'n' }, group: 'Navigate', label: 'New session: choose a folder', run: chooseProject },
     { combo: { key: 'j' }, group: 'Navigate', label: 'Next session', run: () => inWorkspace(() => stepSession(1), true) },
     { combo: { key: 'k' }, group: 'Navigate', label: 'Previous session', run: () => inWorkspace(() => stepSession(-1), true) },
     { combo: { key: 'r' }, group: 'Requests', label: 'Next session that needs you', run: nextWaiting },

@@ -1,0 +1,329 @@
+diff --git a/internal/adapters/claude/audit_probe_test.go b/internal/adapters/claude/audit_probe_test.go
+new file mode 100644
+--- /dev/null
++++ b/internal/adapters/claude/audit_probe_test.go
+@@ -0,0 +1,31 @@
++package claude
++
++import (
++	"github.com/igorzygin/go-chamber/internal/domain"
++	"testing"
++)
++
++func TestAuditItemsDistinctAfterRuntimeRestart(t *testing.T) {
++	ids := []domain.ItemID{}
++	for _, line := range []string{
++		`{"type":"assistant","message":{"id":"msg-before","content":[{"type":"text","text":"first answer"}]}}`,
++		`{"type":"assistant","message":{"id":"msg-after","content":[{"type":"text","text":"second answer"}]}}`,
++	} {
++		events, err := NewMapper("same-session").Map([]byte(line))
++		if err != nil {
++			t.Fatal(err)
++		}
++		for _, ev := range events {
++			if ev.Item != nil {
++				ids = append(ids, ev.Item.ID)
++				break
++			}
++		}
++	}
++	if len(ids) != 2 {
++		t.Fatalf("unexpected ids %v", ids)
++	}
++	if ids[0] == ids[1] {
++		t.Fatalf("restart reuses item id %q; old answer will be overwritten", ids[0])
++	}
++}
+diff --git a/internal/adapters/codex/audit_probe_test.go b/internal/adapters/codex/audit_probe_test.go
+new file mode 100644
+--- /dev/null
++++ b/internal/adapters/codex/audit_probe_test.go
+@@ -0,0 +1,32 @@
++package codex
++
++import (
++	"context"
++	"github.com/igorzygin/go-chamber/internal/app"
++	"github.com/igorzygin/go-chamber/internal/domain"
++	"testing"
++)
++
++func TestAuditConfigModeClearsFullAccess(t *testing.T) {
++	rt := startCodex(t, app.StartRequest{PermissionMode: "full-access"})
++	if got := askMode(t, rt); got != "mode: never dangerFullAccess" {
++		t.Fatalf("setup %q", got)
++	}
++	if err := rt.SetPermissionMode(context.Background(), ""); err != nil {
++		t.Fatal(err)
++	}
++	if got := askMode(t, rt); got == "mode: never dangerFullAccess" {
++		t.Fatalf("config mode kept full access: %s", got)
++	}
++}
++
++func TestAuditForkReplaysUserMessages(t *testing.T) {
++	m := NewMapper("fork")
++	events := m.MapThread(rpcThread{ID: "fork-native", Turns: []rpcTurn{{ID: "t", Items: []rpcItem{{ID: "user-1", Type: "userMessage"}}}}})
++	for _, ev := range events {
++		if ev.Item != nil && ev.Item.Kind == domain.ItemUserMessage {
++			return
++		}
++	}
++	t.Fatal("fork replay dropped user's message")
++}
+diff --git a/internal/adapters/git/audit_probe_test.go b/internal/adapters/git/audit_probe_test.go
+new file mode 100644
+--- /dev/null
++++ b/internal/adapters/git/audit_probe_test.go
+@@ -0,0 +1,27 @@
++package git
++
++import (
++	"context"
++	"path/filepath"
++	"strings"
++	"testing"
++)
++
++func TestAuditDiffFromSubdirectory(t *testing.T) {
++	repo := newRepo(t)
++	sub := filepath.Join(repo, "sub")
++	write(t, filepath.Join(sub, "a.txt"), "before\n")
++	sh(t, repo, "add", ".")
++	sh(t, repo, "commit", "-q", "-m", "sub")
++	write(t, filepath.Join(sub, "a.txt"), "after\n")
++	changes, err := (Repo{}).Changes(context.Background(), sub, "HEAD")
++	if err != nil || len(changes) == 0 {
++		t.Fatalf("changes: %v %v", changes, err)
++	}
++	for _, change := range changes {
++		diff, err := (Repo{}).FileDiff(context.Background(), sub, "HEAD", change.Path)
++		if err != nil || !strings.Contains(diff, "+after") {
++			t.Fatalf("listed path %q gives empty/wrong diff: %q %v", change.Path, diff, err)
++		}
++	}
++}
+diff --git a/internal/adapters/http/audit_probe_test.go b/internal/adapters/http/audit_probe_test.go
+new file mode 100644
+--- /dev/null
++++ b/internal/adapters/http/audit_probe_test.go
+@@ -0,0 +1,27 @@
++package httpapi
++
++import (
++	"net/http"
++	"testing"
++)
++
++func TestAuditWorktreePermissionMode(t *testing.T) {
++	lastMode = ""
++	h := newWorktreeServer(&stubWorktrees{}, &fakeSessions{})
++	rec := do(h, authed("POST", "/api/worktrees", `{"agent":"claude","cwd":"/p","branch":"x","permissionMode":"plan"}`))
++	if rec.Code != http.StatusCreated {
++		t.Fatalf("status %d: %s", rec.Code, rec.Body.String())
++	}
++	if lastMode != "plan" {
++		t.Fatalf("worktree creation ignored mode, got %q", lastMode)
++	}
++}
++
++func TestAuditEmptyApprovalMustNotAllow(t *testing.T) {
++	f := &fakeSessions{}
++	h := newSessionsServer(f, nil)
++	rec := do(h, authed("POST", "/api/sessions/a/requests/r1", `{}`))
++	if rec.Code != http.StatusBadRequest || f.answered != nil {
++		t.Fatalf("empty answer approved request: status=%d answer=%+v", rec.Code, f.answered)
++	}
++}
+diff --git a/internal/adapters/hub/audit_probe_test.go b/internal/adapters/hub/audit_probe_test.go
+new file mode 100644
+--- /dev/null
++++ b/internal/adapters/hub/audit_probe_test.go
+@@ -0,0 +1,36 @@
++package hub
++
++import (
++	"github.com/igorzygin/go-chamber/internal/domain"
++	"sync"
++	"testing"
++)
++
++func TestAuditConcurrentDeliveryOrdered(t *testing.T) {
++	for attempt := 0; attempt < 100; attempt++ {
++		h := New()
++		sub := h.Subscribe()
++		var wg sync.WaitGroup
++		start := make(chan struct{})
++		for i := 0; i < 64; i++ {
++			wg.Add(1)
++			go func() {
++				defer wg.Done()
++				<-start
++				h.Publish(domain.Event{SessionID: "s", Type: domain.EventTurnStarted})
++			}()
++		}
++		close(start)
++		wg.Wait()
++		var prev domain.Seq
++		for i := 0; i < 64; i++ {
++			ev := <-sub.Events()
++			if ev.Seq != prev+1 {
++				sub.Close()
++				t.Fatalf("delivery reordered seq: %d followed by %d", prev, ev.Seq)
++			}
++			prev = ev.Seq
++		}
++		sub.Close()
++	}
++}
+diff --git a/internal/app/audit_probe_test.go b/internal/app/audit_probe_test.go
+new file mode 100644
+--- /dev/null
++++ b/internal/app/audit_probe_test.go
+@@ -0,0 +1,82 @@
++package app
++
++import (
++	"context"
++	"errors"
++	"github.com/igorzygin/go-chamber/internal/domain"
++	"testing"
++)
++
++func TestAuditSaveFailureAllowsRetry(t *testing.T) {
++	repo := &flakyRepo{memRepo: newMemRepo(), failAt: 2}
++	rt := newFakeRuntime("native")
++	m := NewManager(ManagerConfig{Repo: repo, Runtimes: &fakeFactory{runtimes: []*fakeRuntime{rt}}, Bus: newFakeBus()})
++	defer m.Close()
++	snap, err := m.CreateSession(context.Background(), domain.AgentClaude, "/p")
++	if err != nil {
++		t.Fatal(err)
++	}
++	if err := m.SendMessage(context.Background(), snap.ID, "hello"); err == nil {
++		t.Fatal("expected save failure")
++	}
++	if err := m.SendMessage(context.Background(), snap.ID, "retry"); err != nil {
++		t.Fatalf("retry permanently blocked: %v", err)
++	}
++}
++
++func TestAuditRejectedModelIsNotSaved(t *testing.T) {
++	m, repo, _, factory, _ := newTestManager(t)
++	defer m.Close()
++	snap := createClaude(t, m)
++	rt := &modelRuntime{fakeRuntime: newFakeRuntime("n1"), err: errors.New("model rejected")}
++	startWith(t, m, factory, snap.ID, rt)
++	if _, err := m.SetModel(context.Background(), snap.ID, "bad-model", ""); err == nil {
++		t.Fatal("expected rejection")
++	}
++	saved, err := repo.Get(context.Background(), snap.ID)
++	if err != nil {
++		t.Fatal(err)
++	}
++	if saved.Model != "" {
++		t.Fatalf("rejected model persisted as %q", saved.Model)
++	}
++}
++
++func TestAuditAttachFailureAllowsRetry(t *testing.T) {
++	m, _, _, factory, _ := newTestManager(t)
++	snap := createClaude(t, m)
++	first := newFakeRuntime("native-1")
++	factory.runtimes = []*fakeRuntime{first}
++	if err := m.SendMessage(context.Background(), snap.ID, "one"); err != nil {
++		t.Fatal(err)
++	}
++	first.events <- domain.Event{SessionID: snap.ID, Type: domain.EventTurnEnded}
++	eventually(t, "idle", func() bool { return currentStatus(m, snap.ID) == domain.StatusIdle })
++	_ = first.Close()
++	eventually(t, "detached", func() bool { return currentStatus(m, snap.ID) == domain.StatusDetached })
++	factory.runtimes = []*fakeRuntime{newFakeRuntime("wrong"), newFakeRuntime("native-1")}
++	if err := m.SendMessage(context.Background(), snap.ID, "two"); err == nil {
++		t.Fatal("expected native mismatch")
++	}
++	if err := m.SendMessage(context.Background(), snap.ID, "retry"); err != nil {
++		t.Fatalf("retry blocked by closed runtime: %v", err)
++	}
++}
++
++func TestAuditRecoveredCodexTurnContinuable(t *testing.T) {
++	m, _, _, factory, _ := newTestManager(t)
++	snap, err := m.CreateSession(context.Background(), domain.AgentCodex, "/p")
++	if err != nil {
++		t.Fatal(err)
++	}
++	rt := newFakeRuntime("native")
++	factory.runtimes = []*fakeRuntime{rt}
++	if err := m.SendMessage(context.Background(), snap.ID, "one"); err != nil {
++		t.Fatal(err)
++	}
++	rt.events <- domain.Event{SessionID: snap.ID, Type: domain.EventTurnEnded, Result: &domain.TurnResult{IsError: true, Error: "codex app-server restarted; the turn was interrupted"}}
++	eventually(t, "turn ended", func() bool { return currentStatus(m, snap.ID) != domain.StatusRunning })
++	if err := m.Continue(context.Background(), snap.ID); err != nil {
++		t.Fatalf("interrupted turn cannot continue: %v", err)
++	}
++}
+diff --git a/web/src/audit_ui_probe.test.tsx b/web/src/audit_ui_probe.test.tsx
+new file mode 100644
+--- /dev/null
++++ b/web/src/audit_ui_probe.test.tsx
+@@ -0,0 +1,59 @@
++import { act, fireEvent, render, screen } from '@testing-library/react'
++import { beforeEach, expect, it, vi } from 'vitest'
++import App from './App'
++import DiffPanel from './components/changes/DiffPanel'
++import * as api from './lib/api'
++import { resetStore, useSessionStore } from './stores/session'
++import { resetLayout } from './stores/layout'
++import { resetTerminals } from './stores/terminals'
++
++vi.mock('./lib/api', async (original) => ({
++ ...(await original<typeof import('./lib/api')>()),
++ fetchHealth:vi.fn(),listSessions:vi.fn(),listRequests:vi.fn(),getQuotas:vi.fn(),fetchEvents:vi.fn(),
++ listModels:vi.fn(),sendMessage:vi.fn(),getChanges:vi.fn(),getFileDiff:vi.fn(),uploadImage:vi.fn(),
++}))
++vi.mock('./lib/terminal',()=>({listTerminals:vi.fn().mockResolvedValue([])}))
++vi.mock('./components/terminal/TerminalView',()=>({default:()=>null}))
++
++beforeEach(()=>{
++ vi.clearAllMocks()
++ vi.stubGlobal('WebSocket',undefined)
++ resetStore();resetLayout();resetTerminals()
++ history.replaceState(null,'','/')
++})
++
++it('audit: late diff must not replace the selected file',async()=>{
++ vi.mocked(api.getChanges).mockResolvedValue({repository:true,files:[{path:'a.go',status:'M'},{path:'b.go',status:'M'}]})
++ let finishA!:(v:{diff:string})=>void
++ let finishB!:(v:{diff:string})=>void
++ vi.mocked(api.getFileDiff).mockImplementation((_s,p)=>new Promise(r=>{if(p==='a.go')finishA=r;else finishB=r}))
++ render(<DiffPanel sessionId="s1" />)
++ fireEvent.click(await screen.findByRole('button',{name:/a.go/}))
++ fireEvent.click(screen.getByRole('button',{name:/b.go/}))
++ await act(async()=>finishB({diff:'+B'}))
++ expect(screen.getByText('+B')).toBeInTheDocument()
++ await act(async()=>finishA({diff:'+A'}))
++ expect(screen.getByText('+B')).toBeInTheDocument()
++},20000)
++
++it('audit: failed send must preserve the draft and attachments',async()=>{
++ const session:api.Session={id:'s1',agent:'claude',cwd:'/p',status:'idle'}
++ vi.mocked(api.fetchHealth).mockResolvedValue('online')
++ vi.mocked(api.listSessions).mockResolvedValue([session])
++ vi.mocked(api.listRequests).mockResolvedValue([])
++ vi.mocked(api.getQuotas).mockResolvedValue([])
++ vi.mocked(api.listModels).mockResolvedValue([])
++ vi.mocked(api.fetchEvents).mockResolvedValue([])
++ vi.mocked(api.sendMessage).mockRejectedValue(new Error('send failed'))
++ vi.mocked(api.uploadImage).mockResolvedValue({id:'image.png',mimeType:'image/png'})
++ useSessionStore.setState({sessions:[session],activeId:'s1'})
++ render(<App />)
++ const input=await screen.findByLabelText('message')
++ fireEvent.change(input,{target:{value:'do not lose this'}})
++ fireEvent.change(screen.getByLabelText('attach images'),{target:{files:[new File(['x'],'test.png',{type:'image/png'})]}})
++ await screen.findByAltText('test.png')
++ fireEvent.click(screen.getByRole('button',{name:'Send',exact:true}))
++ await screen.findByText('send failed')
++ expect.soft(input).toHaveValue('do not lose this')
++ expect.soft(screen.queryByAltText('test.png')).toBeInTheDocument()
++},20000)

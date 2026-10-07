@@ -1,9 +1,9 @@
-import { ChevronDown, Copy, SquareTerminal } from 'lucide-react'
+import { ChevronDown, SquareTerminal } from 'lucide-react'
 import { icon } from '../icon'
 import type { Session } from '../../lib/api'
 import { liveWorktrees, recentFolders, type LiveWorktree } from '../../lib/folders'
 import { basename } from '../../lib/format'
-import { fail, notify } from '../../stores/notices'
+import CopyButton from '../markdown/CopyButton'
 import { useState } from 'react'
 import { useMedia } from '../chat/useMedia'
 import { openKey, useTerminalStore } from '../../stores/terminals'
@@ -17,15 +17,6 @@ import { markOf } from './marks'
 import TermTitle from './TermTitle'
 import { stepOf, stepTerminal, useTerminalSteps } from './steps'
 import './terminal.css'
-
-const copyPath = async (path: string) => {
-  try {
-    await navigator.clipboard.writeText(path)
-    notify({ kind: 'info', text: 'Copied the folder path', key: 'copy-cwd' })
-  } catch (err) {
-    fail("Couldn't copy the folder path", err)
-  }
-}
 
 // TerminalWorkspace is terminal mode: shells on their own, apart from agent
 // sessions, with the active one filling the screen.
@@ -213,9 +204,7 @@ export default function TerminalWorkspace({ sessions }: { sessions: Session[] })
               <PathText path={active.cwd} className="term-cwd" />
               <span className="term-shell">{basename(active.shell)}</span>
               <span className="term-header-actions">
-                <button type="button" className="btn btn-ghost btn-icon" aria-label="Copy folder path" title="Copy folder path" onClick={() => void copyPath(active.cwd)}>
-                  <Copy {...icon(14)} />
-                </button>
+                <CopyButton text={active.cwd} label="Copy folder path" iconOnly />
                 <CloseTerminalButton terminal={active} label="Close this terminal" className="btn btn-ghost btn-icon" />
               </span>
             </header>

@@ -1,5 +1,5 @@
 // Shared quiet states: what is loading, what failed (with a way to try
-// again), and dashed placeholders where rows will land.
+// again), and placeholders where rows will land.
 
 export function LoadingLine({ children }: { children: string }) {
   return (

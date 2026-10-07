@@ -10,8 +10,8 @@ import { connectTerminal, type TerminalConnection } from '../../lib/terminal'
 import { ctrlChar, InputQueue, parseOsc52 } from '../../lib/terminal-input'
 import { terminalAction } from '../../lib/terminal-keys'
 import { leaveTerminal } from './leave'
+import { copyText } from '../../lib/clipboard'
 import { isMac } from '../../lib/hotkeys'
-import { fail } from '../../stores/notices'
 import { searchDecorations, terminalTheme } from '../../lib/theme'
 import { useTerminalStore } from '../../stores/terminals'
 import { stepTerminal } from './steps'
@@ -256,7 +256,7 @@ export function liveFor(id: string, host: HTMLElement, callbacks: Callbacks): Li
 function copySelection(xterm: XTerm): void {
   const text = xterm.getSelection()
   if (!text) return
-  void navigator.clipboard?.writeText(text).catch((err: unknown) => fail("Couldn't copy the selection", err))
+  void copyText(text, 'selection')
 }
 
 export interface FindResult {
@@ -329,4 +329,3 @@ export function setStickyCtrl(id: string, on: boolean, release: () => void): voi
   const live = lives.get(id)
   if (live) live.ctrl = on ? { release } : null
 }
-

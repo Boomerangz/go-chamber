@@ -1,0 +1,29 @@
+{
+  "commit": "dc5aff021e2857af240a5c36278b71b2871268c8",
+  "baseline": {
+    "make test": "PASS (-race)",
+    "make lint": "PASS",
+    "npm run test:cov -- --maxWorkers=1": "PASS: 311 tests, lines 91.99%, branches 92.55%",
+    "make e2e": "77 passed, 8 timeout failures, 1 skipped",
+    "npx playwright test --last-failed --workers=1": "7 passed, 1 timeout; final retry 1 passed"
+  },
+  "reproductions": {
+    "TestAuditSaveFailureAllowsRetry": "FAIL: turn already running",
+    "TestAuditAttachFailureAllowsRetry": "FAIL: session has no attached runtime",
+    "TestAuditRecoveredCodexTurnContinuable": "FAIL: nothing to continue in idle",
+    "TestAuditForkReplaysUserMessages": "FAIL: fork replay dropped user message",
+    "TestAuditDiffFromSubdirectory": "FAIL: sub/a.txt gives empty diff",
+    "TestAuditWorktreePermissionMode": "FAIL: ignored plan mode",
+    "TestAuditEmptyApprovalMustNotAllow": "FAIL: empty answer gives Allow=true, status=202",
+    "TestAuditConcurrentDeliveryOrdered": "FAIL: seq 6 followed by 8",
+    "TestAuditItemsDistinctAfterRuntimeRestart": "FAIL: restart reuses it-1",
+    "TestAuditConfigModeClearsFullAccess": "FAIL: mode remains never dangerFullAccess",
+    "TestAuditRejectedModelIsNotSaved": "FAIL: bad-model persisted after runtime rejection",
+    "audit: late diff must not replace the selected file": "FAIL: +A shown under b.go after +B",
+    "audit: failed send must preserve the draft and attachments": "FAIL: draft empty and attachment absent after send error (both assertions observed)"
+  },
+  "go_repro_command": "go test ./internal/app ./internal/adapters/claude ./internal/adapters/codex ./internal/adapters/git ./internal/adapters/http ./internal/adapters/hub -run '^TestAudit' -count=1 -timeout=60s",
+  "web_repro_command": "cd web && npx vitest run src/audit_ui_probe.test.tsx --maxWorkers=1",
+  "apply": "git apply outputs/audit-2026-10-04/repro.patch",
+  "note": "Reproduction tests intentionally fail on the audited commit. Production code was not changed. Baseline test reruns excluded the reproduction tests."
+}

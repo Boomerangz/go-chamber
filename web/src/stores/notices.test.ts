@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { describeError, dropSessionNotices, fail, lastError, notify, resetNotices, useNotices } from './notices'
+import { describeError, dropSessionNotices, fail, lastError, notify, pauseNotice, resumeNotice, resetNotices, useNotices } from './notices'
 
 const notices = () => useNotices.getState().notices
 
@@ -7,6 +7,38 @@ beforeEach(() => resetNotices())
 afterEach(() => vi.useRealTimers())
 
 describe('notices', () => {
+  it('pauses expiry while hovered or focused, then gives the remaining time', () => {
+    vi.useFakeTimers()
+    const id = notify({ kind: 'info', text: 'Archived', action: { label: 'Undo', run: () => {} } })
+    vi.advanceTimersByTime(3000)
+    pauseNotice(id, 'pointer')
+    pauseNotice(id, 'focus')
+    vi.advanceTimersByTime(10000)
+    resumeNotice(id, 'pointer')
+    vi.advanceTimersByTime(10000)
+    expect(notices()).toHaveLength(1)
+    resumeNotice(id, 'focus')
+    vi.advanceTimersByTime(4999)
+    expect(notices()).toHaveLength(1)
+    vi.advanceTimersByTime(1)
+    expect(notices()).toEqual([])
+  })
+
+  it('does not bring back dismissed, replaced, or reset paused notices', () => {
+    vi.useFakeTimers()
+    const id = notify({ kind: 'info', text: 'a', key: 'copy' })
+    pauseNotice(id, 'focus')
+    notify({ kind: 'info', text: 'b', key: 'copy' })
+    resumeNotice(id, 'focus')
+    expect(notices().map((n) => n.text)).toEqual(['b'])
+    const error = notify({ kind: 'error', text: 'error' })
+    pauseNotice(error, 'pointer')
+    resumeNotice(error, 'pointer')
+    resetNotices()
+    vi.advanceTimersByTime(10000)
+    expect(notices()).toEqual([])
+    expect(vi.getTimerCount()).toBe(0)
+  })
   it('queues errors with the failed action as title', () => {
     notify({ kind: 'error', title: 'Fork failed', text: 'nope' })
     expect(notices()).toMatchObject([{ kind: 'error', title: 'Fork failed', text: 'nope' }])

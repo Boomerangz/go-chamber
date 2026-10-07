@@ -57,6 +57,32 @@ beforeEach(() => {
 const box = () => screen.getByRole('combobox', { name: 'Message' }) as HTMLTextAreaElement
 
 describe('ComposerInput', () => {
+  it('does not insert a stale suggestion while a new lookup is pending', async () => {
+    render(<Harness />)
+    await userEvent.type(box(), '@c')
+    await screen.findByRole('listbox')
+    vi.mocked(complete.completeFiles).mockImplementation(() => new Promise(() => {}))
+    await userEvent.type(box(), 'new')
+    expect(screen.getByRole('listbox')).toHaveAttribute('aria-busy', 'true')
+    await userEvent.keyboard('{Enter}')
+    expect(box()).toHaveValue('@cnew')
+    await userEvent.click(screen.getAllByRole('option')[0]!)
+    expect(box()).toHaveValue('@cnew')
+  })
+  it('leaves completion and Escape to the input method while composing', async () => {
+    const onSubmit = vi.fn()
+    const onEscape = vi.fn()
+    render(<Harness onSubmit={onSubmit} onEscape={onEscape} />)
+    await userEvent.type(box(), '@c')
+    await screen.findByRole('listbox')
+    fireEvent.keyDown(box(), { key: 'Enter', isComposing: true })
+    expect(box()).toHaveValue('@c')
+    fireEvent.keyDown(box(), { key: 'Escape', keyCode: 229 })
+    expect(screen.getByRole('listbox')).toBeVisible()
+    expect(onSubmit).not.toHaveBeenCalled()
+    expect(onEscape).not.toHaveBeenCalled()
+  })
+
   it('suggests files after @ and inserts the chosen path with Enter', async () => {
     render(<Harness />)
     await userEvent.type(box(), 'open @ma')

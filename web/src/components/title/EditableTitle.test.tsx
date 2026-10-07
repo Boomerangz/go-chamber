@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import EditableTitle from './EditableTitle'
@@ -10,6 +10,37 @@ const setup = (value = 'Old name') => {
 }
 
 describe('EditableTitle', () => {
+  it('does not save or cancel a name while the input method is composing', async () => {
+    const onRename = setup()
+    await userEvent.click(screen.getByRole('button', { name: 'Rename session' }))
+    const input = screen.getByRole('textbox')
+    fireEvent.change(input, { target: { value: 'New name' } })
+    fireEvent.keyDown(input, { key: 'Enter', isComposing: true })
+    fireEvent.keyDown(input, { key: 'Escape', keyCode: 229 })
+    expect(input).toHaveFocus()
+    expect(onRename).not.toHaveBeenCalled()
+  })
+  it('shows saving and prevents overlapping renames, including an empty title', async () => {
+    let settle!: (ok: boolean) => void
+    const onRename = vi.fn(() => new Promise<boolean>((r) => { settle = r }))
+    render(<EditableTitle value="Old name" label="session" onRename={onRename} />)
+    await userEvent.click(screen.getByRole('button', { name: 'Rename session' }))
+    await userEvent.clear(screen.getByRole('textbox'))
+    await userEvent.keyboard('{Enter}')
+    expect(screen.getByRole('status')).toHaveTextContent('Saving name')
+    const button = screen.getByRole('button', { name: 'Rename session' })
+    expect(button).toHaveAttribute('aria-disabled', 'true')
+    expect(button).toHaveFocus()
+    await userEvent.click(button)
+    await userEvent.dblClick(screen.getByText('Old name'))
+    expect(screen.queryByRole('textbox')).toBeNull()
+    expect(onRename).toHaveBeenCalledTimes(1)
+    settle(false)
+    await waitFor(() => expect(button).not.toHaveAttribute('aria-disabled'))
+    await userEvent.click(button)
+    expect(screen.getByRole('textbox')).toHaveFocus()
+  })
+
   it('renames with the button and Enter', async () => {
     const onRename = setup()
     await userEvent.click(screen.getByRole('button', { name: 'Rename session' }))
