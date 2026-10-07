@@ -93,6 +93,29 @@ describe('ModelPicker', () => {
     expect(screen.queryByRole('dialog')).toBeNull()
   })
 
+  it('closes when Tab moves the focus out of it, not while it moves inside', async () => {
+    render(
+      <div>
+        <ModelPicker session={session()} />
+        <button type="button">next</button>
+      </div>,
+    )
+    await userEvent.click(await screen.findByRole('button', { name: /Model:/ }))
+    const dialog = screen.getByRole('dialog')
+    // From the model group to the effort group: still inside.
+    await userEvent.tab()
+    expect(dialog).toContainElement(document.activeElement as HTMLElement)
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+    // A click on the menu's own surface keeps it open.
+    await userEvent.click(dialog)
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+    screen.getAllByRole('radio').find((r) => r.tabIndex === 0)!.focus()
+    await userEvent.tab()
+    await userEvent.tab()
+    expect(screen.getByRole('button', { name: 'next' })).toHaveFocus()
+    expect(screen.queryByRole('dialog')).toBeNull()
+  })
+
   it('shows the chosen model at once, unsettled, until the server agrees', async () => {
     let release: (s: api.Session) => void = () => {}
     vi.mocked(api.setModel).mockImplementation((id, choice) => new Promise((r) => (release = () => r({ ...session({ id }), ...choice }))))

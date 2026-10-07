@@ -175,7 +175,10 @@ export default function Sidebar(props: SidebarProps) {
   }
 
   return (
-    <aside className="sidebar panel">
+    <aside className="sidebar panel" aria-labelledby="sidebar-heading">
+      <h2 id="sidebar-heading" className="sr-only">
+        Sessions
+      </h2>
       <form
         className="new-session"
         data-folded={!composing || undefined}

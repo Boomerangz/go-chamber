@@ -88,9 +88,10 @@
 /* the transcript holds focus after a keyboard answer: no ring round it all */
 .chat > .scroll:focus { outline: none; }
 
-/* a request card takes focus after the one above it was answered */
+/* a request card takes focus after the one above it was answered: the ring
+   goes round the card, not the slot with the turn-number margin to its left */
 .request-slot:focus { outline: none; }
-.request-slot:focus-visible { outline: 2px solid var(--act-ring); outline-offset: 2px; }
+.request-slot:focus-visible > .request { outline: 2px solid var(--act-ring); outline-offset: 2px; }
 
 /* the live socket dropped: a quiet line above the composer */
 .live-strip {

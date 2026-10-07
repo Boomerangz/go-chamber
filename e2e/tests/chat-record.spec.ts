@@ -74,4 +74,14 @@ test('transcript, working tail, request card and composer share one column', asy
   const tail = await page.locator('.working-tail').evaluate((el) => el.getBoundingClientRect().left + parseFloat(getComputedStyle(el).paddingLeft))
   expect(Math.abs(tail - text)).toBeLessThan(1)
   expect(Math.abs((await left('.request')) - text)).toBeLessThan(1)
+
+  // A request handed the focus (the one above it answered) rings the card,
+  // not the slot with the turn-number margin to its left.
+  await page.getByLabel('Message').focus()
+  await page.keyboard.press('Shift')
+  await page.locator('.request-slot').first().focus()
+  expect(await page.locator('.request-slot').first().evaluate((el) => el.matches(':focus-visible'))).toBe(true)
+  const outline = (selector: string) => page.locator(selector).first().evaluate((el) => getComputedStyle(el).outlineStyle)
+  expect(await outline('.request-slot')).toBe('none')
+  expect(await outline('.request-slot > .request')).toBe('solid')
 })

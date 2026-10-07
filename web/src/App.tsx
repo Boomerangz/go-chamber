@@ -67,7 +67,7 @@ export default function App() {
   useRouteSync(health === 'online')
 
   return (
-    <main className="app">
+    <div className="app">
       <header className="topbar">
         <div className="brand">
           <h1>go-chamber</h1>
@@ -104,20 +104,20 @@ export default function App() {
         </div>
       </header>
       {health === 'unauthorized' && (
-        <section className="notice panel">
+        <main className="notice panel">
           <h2>Signed out</h2>
           <p>
             <a href="/">Sign in</a> with the access token go-chamber printed at startup.
           </p>
-        </section>
+        </main>
       )}
       {health === null && (
-        <section className="notice">
+        <main className="notice">
           <LoadingLine>connecting to go-chamber…</LoadingLine>
-        </section>
+        </main>
       )}
       {health === 'offline' && (
-        <section className="notice panel">
+        <main className="notice panel">
           <h2>go-chamber isn't reachable</h2>
           <p>The server may be restarting. This page reconnects on its own as soon as it answers.</p>
           <p>
@@ -125,13 +125,13 @@ export default function App() {
               {trying ? 'Trying…' : 'Try now'}
             </button>
           </p>
-        </section>
+        </main>
       )}
       {health === 'online' && mode === 'diagnostics' && <DiagnosticsPage />}
       {health === 'online' && mode === 'terminal' && (
-        <div className="layout term-layout">
+        <main className="layout term-layout" aria-label="Terminal">
           <TerminalWorkspace sessions={sessions} />
-        </div>
+        </main>
       )}
       {health === 'online' && mode === 'agents' && (
         <>
@@ -162,7 +162,7 @@ export default function App() {
       )}
       <Notices />
       {health === 'online' && <Hotkeys />}
-    </main>
+    </div>
   )
 }
 

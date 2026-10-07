@@ -157,6 +157,8 @@ select.field option { background: var(--paper); color: var(--ink); }
 }
 /* a request count is small text on amber: the deeper text tone keeps it legible */
 .badge { background: var(--req); color: var(--paper); }
+/* the requests couldn't load: a "!" where the count would be */
+.badge.failed, .rail-requests .rail-count.failed { background: var(--bad); color: var(--paper); }
 
 /* status: a mark and a word; the mark's form carries the state */
 .status {

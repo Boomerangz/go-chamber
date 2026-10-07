@@ -194,8 +194,8 @@ function PermissionCard({ request, agent, position, acting, error, answer }: Car
 
   return (
     <div ref={card} className="request permission" tabIndex={-1} onKeyDown={onKey}>
-      <header className="request-title">
-        <span className="request-kw">Requires approval</span>
+      <header className="request-title" role="heading" aria-level={3}>
+        <span className="request-kw">Requires approval</span>{' '}
         <span>{request.title || toolName || 'Permission required'}</span>
         <Position position={position} />
       </header>
@@ -354,8 +354,8 @@ function QuestionCard({ request, position, acting, error, answer }: CardProps) {
         submit()
       }}
     >
-      <header className="request-title">
-        <span className="request-kw">Requires answer</span>
+      <header className="request-title" role="heading" aria-level={3}>
+        <span className="request-kw">Requires answer</span>{' '}
         <span>{request.title || 'Question'}</span>
         <Position position={position} />
       </header>
@@ -461,8 +461,8 @@ function ElicitationCard({ request, acting, error, answer }: CardProps) {
         submit()
       }}
     >
-      <header className="request-title">
-        <span className="request-kw">Requires input</span>
+      <header className="request-title" role="heading" aria-level={3}>
+        <span className="request-kw">Requires input</span>{' '}
         <span>{request.title || 'Input requested'}</span>
       </header>
       {payload.message && payload.message !== request.title && <p className="request-prompt">{payload.message}</p>}

@@ -33,7 +33,7 @@ export default function EmptyChat() {
     else if (useLayoutStore.getState().dock !== 'requests') useLayoutStore.getState().toggleDock('requests')
   }
   return (
-    <section className="chat empty panel">
+    <main className="chat empty panel" aria-label="Chat">
       <div className="hero">
         <h2>Start a session</h2>
         <p>
@@ -79,6 +79,6 @@ export default function EmptyChat() {
           </p>
         )}
       </div>
-    </section>
+    </main>
   )
 }
