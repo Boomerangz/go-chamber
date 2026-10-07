@@ -36,7 +36,7 @@
 
 /* folded output: label, then its last line while closed */
 .item-output { grid-column: 1 / -1; margin-top: 4px; }
-.item-output > summary { cursor: pointer; color: var(--ink-3); font-size: 12px; user-select: none; }
+.item-output > summary { cursor: pointer; color: var(--ink-3); font-family: var(--font-mono); font-size: 12px; user-select: none; }
 .item-output > summary:hover { color: var(--ink); }
 .item-output[open] > summary { margin-bottom: 4px; }
 .item-output > summary { display: flex; align-items: baseline; gap: 10px; min-width: 0; list-style: none; }

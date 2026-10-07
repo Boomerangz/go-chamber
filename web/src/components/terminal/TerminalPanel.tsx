@@ -8,7 +8,7 @@ import { useSessionStore } from '../../stores/session'
 import { openKey, useTerminalStore } from '../../stores/terminals'
 import FolderField from '../folders/FolderField'
 import { LoadFailed, LoadingLine } from '../ui/Loading'
-import PathText from '../ui/PathText'
+import GoneNote from '../ui/GoneNote'
 import CloseTerminalButton from './CloseTerminalButton'
 import { EndedNote, OpenError } from './NewTerminalForm'
 import TerminalScreen from './TerminalScreen'
@@ -111,9 +111,11 @@ export default function TerminalPanel({ sessionId }: { sessionId: string | null 
       {!loaded && terminals.length === 0 && !loadError && <LoadingLine>loading terminals…</LoadingLine>}
       {/* Nothing attaches unasked (each viewer answers the shell's queries), but the first is one click away. */}
       {loaded && !attached && gone === 'folder' && cwd && (
-        <p className="terminal-hint" role="status" aria-label="Folder gone">
-          <span className="worktree-gone-kw">Folder gone</span> · <PathText path={cwd} /> no longer exists
-        </p>
+        <div className="terminal-hint" role="status" aria-label="Folder gone">
+          <GoneNote label="Folder gone" path={cwd}>
+            This folder no longer exists, so no terminal opens in it.
+          </GoneNote>
+        </div>
       )}
       {loaded && !attached && gone === 'worktree' && (
         <p className="terminal-hint" role="status" aria-label="Worktree removed">

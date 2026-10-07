@@ -13,6 +13,7 @@ import LiveStrip from './LiveStrip'
 import UnmergedNote from './UnmergedNote'
 import RequestCard from '../requests/RequestCard'
 import { lastInput } from '../requests/modality'
+import Keys from '../ui/Keys'
 import { LoadFailed, Skeleton } from '../ui/Loading'
 import { icon } from '../icon'
 import { Row } from './Transcript'
@@ -509,7 +510,7 @@ export default function Chat() {
               Send a message to start. The agent runs in <HintWhere session={session} />.
             </p>
             <p className="chat-hint-keys">
-              <kbd>@</kbd> file · <kbd>/</kbd> commands · paste or {touch ? 'attach' : 'drop'} images
+              <Keys keys="@" label="file" /> · <Keys keys="/" label="commands" /> · paste or {touch ? 'attach' : 'drop'} images
             </p>
           </div>
         )}
@@ -597,8 +598,7 @@ export default function Chat() {
           {lines > LONG_DRAFT_LINES && <span className="composer-note composer-lines">{lines} lines</span>}
           {!narrow && !touch && (
             <span className="composer-keys" aria-hidden="true">
-              <kbd>↵</kbd> {busy ? 'steer' : 'send'} · <kbd>⇧</kbd>
-              <kbd>↵</kbd> newline
+              <Keys keys="↵" label={busy ? 'steer' : 'send'} /> · <Keys keys="⇧↵" label="newline" />
             </span>
           )}
           <button

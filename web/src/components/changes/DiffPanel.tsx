@@ -13,6 +13,7 @@ import { icon } from '../icon'
 import { FileViewer } from '../markdown/FileLink'
 import { LoadFailed, LoadingLine } from '../ui/Loading'
 import MidCut from '../ui/MidCut'
+import GoneNote from '../ui/GoneNote'
 import PathText from '../ui/PathText'
 import { diffBody } from './diffBody'
 import './DiffPanel.css'
@@ -285,9 +286,9 @@ function SessionDiffPanel({ sessionId }: { sessionId: string | null }) {
       {session?.worktree?.removed && <RemovedWorktree worktree={session.worktree} />}
       {folderGone && session && (
         <div className="worktree-bar" role="status" aria-label="Folder gone">
-          <p>
-            <span className="worktree-gone-kw">Folder gone</span> · <PathText path={session.cwd} /> no longer exists
-          </p>
+          <GoneNote label="Folder gone" path={session.cwd}>
+            This folder no longer exists.
+          </GoneNote>
         </div>
       )}
       {listError && !folderGone && (
