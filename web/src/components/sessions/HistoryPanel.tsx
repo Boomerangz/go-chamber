@@ -1,5 +1,5 @@
 import { ChevronRight } from 'lucide-react'
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import './HistoryPanel.css'
 import type { ExternalSession } from '../../lib/api'
 import { listHistory } from '../../lib/api'
@@ -25,8 +25,19 @@ export default function HistoryPanel() {
   const [failed, setFailed] = useState<string | null>(null)
   const [reason, setReason] = useState<string | null>(null)
   const generation = useRef(0)
+  // Opened at the bottom of the sidebar, the fold shows only its header:
+  // once what it loaded is in, the whole of it is brought into view (its
+  // top first when it is taller than the sidebar).
+  const fold = useRef<HTMLDetailsElement>(null)
+  const reveal = useRef(false)
+  useEffect(() => {
+    if (!reveal.current || loading) return
+    reveal.current = false
+    if (fold.current?.open) fold.current.scrollIntoView?.({ block: 'nearest' })
+  }, [loading, list, error])
 
-  const load = () => {
+  const load = (show = false) => {
+    reveal.current = show
     const mine = ++generation.current
     setError(null)
     setLoading(true)
@@ -61,7 +72,7 @@ export default function HistoryPanel() {
   const shown = (list ?? []).filter((s) => !q || `${s.title ?? ''} ${s.cwd}`.toLowerCase().includes(q))
 
   return (
-    <details className="history" onToggle={(e) => e.currentTarget.open && load()}>
+    <details className="history" ref={fold} onToggle={(e) => e.currentTarget.open && load(true)}>
       <summary className="section-title">
         <ChevronRight {...icon(14)} className="icon chevron" />
         <span>History</span>
@@ -69,7 +80,7 @@ export default function HistoryPanel() {
       </summary>
       {error && (
         <div className="history-note">
-          <LoadFailed onRetry={load}>{`Couldn't load conversations: ${error}`}</LoadFailed>
+          <LoadFailed onRetry={() => load()}>{`Couldn't load conversations: ${error}`}</LoadFailed>
         </div>
       )}
       {list === null && loading && (
