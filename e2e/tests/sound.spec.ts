@@ -13,6 +13,18 @@ test('chimes when the agent asks for a decision once sounds are on', async ({ pa
       return create.call(this)
     }
   })
+  // Any session asking or finishing chimes, and one server runs every spec:
+  // the page hears only this test's session ask and finish, so the tones
+  // counted are its own.
+  let mine: string | null = null
+  await page.routeWebSocket('**/api/ws', (ws) => {
+    const server = ws.connectToServer()
+    server.onMessage((m) => {
+      const ev = typeof m === 'string' ? (JSON.parse(m) as { type?: string; sessionId?: string }) : {}
+      if ((ev.type === 'request.opened' || ev.type === 'turn.ended') && ev.sessionId !== mine) return
+      ws.send(m)
+    })
+  })
   await page.goto(`/?token=${token}`)
   const toggle = page.getByRole('button', { name: 'Sounds' })
   await expect(toggle).toHaveAttribute('aria-pressed', 'false')
@@ -25,6 +37,8 @@ test('chimes when the agent asks for a decision once sounds are on', async ({ pa
   await openNewSession(page)
   await page.getByLabel('Working directory').fill('/tmp')
   await page.getByRole('button', { name: 'New session', exact: true }).click()
+  await expect(page).toHaveURL(/\/s\/[^/?]+/)
+  mine = new URL(page.url()).pathname.split('/s/')[1]!
   await page.getByLabel('Message').fill(`sound ${info.project.name} ${Date.now()}: please permission`)
   await page.getByRole('button', { name: 'Send' }).click()
   await expect(page.locator('.request-title', { hasText: 'Run command' })).toBeVisible()
