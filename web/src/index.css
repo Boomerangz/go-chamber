@@ -391,6 +391,9 @@ button.health { border: 0; background: none; padding: 0; }
 /* the sessions, archived and history read as one column that scrolls under
    a pinned search, so no part squeezes another */
 .sidebar-body {
+  /* positioned: an off-screen label (.sr-only) in the list is laid out
+     inside it, not past the window, where it made the page scroll */
+  position: relative;
   flex: 1; min-height: 0; overflow: auto; margin: 0;
   display: flex; flex-direction: column; gap: 12px; scroll-padding-top: 44px;
 }
