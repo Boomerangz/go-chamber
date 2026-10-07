@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { AnimatePresence, motion, useReducedMotion, type TargetAndTransition } from 'motion/react'
 import { ArrowDown } from 'lucide-react'
 import ComposerInput from '../composer/ComposerInput'
@@ -25,7 +25,7 @@ import { useTypingMark } from './useTypingMark'
 import { SENT_HOLD_MS, untilBack, useLiveDropped } from './useLiveDropped'
 import { beginAgentView, endAgentView, recordAgentCommit } from '../../lib/diagnostics'
 import { SessionFiles, SessionFolder } from '../../lib/files'
-import type { RequestAnswerInput, Session, SessionStatus, TurnResult } from '../../lib/api'
+import type { RequestAnswerInput, Session, SessionRequest, SessionStatus, TurnResult } from '../../lib/api'
 import { browsedTo } from '../../lib/browse'
 import { forgetCommands } from '../../lib/complete'
 import { basename, displayStatus } from '../../lib/format'
@@ -210,10 +210,17 @@ export default function Chat() {
   }, [sessionId, status])
 
   // Rows of the loaded history appear at once; later ones animate in.
-  const [listedFor, setListedFor] = useState<string>()
+  const [listed, setListed] = useState<{ id?: string; at: number }>()
+  const listedFor = listed?.id
   // After the commit on purpose: rows mounted with the history must not animate.
   // eslint-disable-next-line react/set-state-in-effect
-  useEffect(() => { if (history === 'ready') setListedFor(sessionId) }, [sessionId, history])
+  useEffect(() => { if (history === 'ready') setListed({ id: sessionId, at: Date.now() }) }, [sessionId, history])
+  // A request arrives when it opened after the session was listed here; the
+  // inbox may load an older one a moment after the history.
+  // (Before the route names the session, sessionId and listedFor are both
+  // undefined: that is not "listed".)
+  const arrivedNow = (r: SessionRequest) =>
+    !!listed && listed.id === sessionId && !!sessionId && (!r.openedAt || Date.parse(r.openedAt) >= listed.at)
   useLayoutEffect(() => {
     if (!sessionId) return
     beginAgentView(sessionId)
@@ -543,17 +550,9 @@ export default function Chat() {
         )}
         <AnimatePresence initial={false}>
           {Object.values(chat.requests).map((request, i, all) => (
-            <motion.div
-              key={request.id}
-              className="request-slot"
-              {...enter(reduced, 'margin')}
-              exit={reduced ? { opacity: 0 } : resolve}
-              ref={scrollOnMount}
-              data-request-id={request.id}
-              tabIndex={-1}
-            >
+            <RequestSlot key={request.id} id={request.id} arriving={arrivedNow(request)} reduced={reduced}>
               <RequestCard request={request} agent={session?.agent} onRespond={answer} position={{ index: i + 1, count: all.length }} />
-            </motion.div>
+            </RequestSlot>
           ))}
         </AnimatePresence>
         {!stick.pinned && (
@@ -736,4 +735,24 @@ function backToSessions() {
 // into view when it arrives or when the session opens.
 function scrollOnMount(el: HTMLDivElement | null) {
   el?.scrollIntoView?.({ block: 'nearest' })
+}
+
+// RequestSlot holds a request above the composer. One that arrives while the
+// session is open is marked arriving for good (its rule draws across, once);
+// one already open when the session was opened just is there.
+function RequestSlot({ id, arriving, reduced, children }: { id: string; arriving: boolean; reduced: boolean; children: ReactNode }) {
+  const [arrived] = useState(arriving)
+  return (
+    <motion.div
+      className="request-slot"
+      {...enter(reduced, 'margin')}
+      exit={reduced ? { opacity: 0 } : resolve}
+      ref={scrollOnMount}
+      data-request-id={id}
+      data-arriving={arrived || undefined}
+      tabIndex={-1}
+    >
+      {children}
+    </motion.div>
+  )
 }

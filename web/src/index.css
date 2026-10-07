@@ -927,6 +927,13 @@ button.health { border: 0; background: none; padding: 0; }
    amber one (a double frame); a question's focus is on its first option */
 .request.permission:focus { outline: none; box-shadow: 0 0 0 1px var(--req-mark); }
 .request.question::before { background: var(--act); }
+/* the signature's entrance: a request that arrives while the owner reads
+   draws its rule across from the margin, as a pen would, after the block
+   has settled in (the strike that records the answer is its rhyme). The
+   pause lives in the keyframes, so reduced motion's zero duration just
+   shows the rule. */
+@keyframes rule-draw { 0%, 30% { transform: scaleX(0); } 100% { transform: scaleX(1); } }
+.request-slot[data-arriving] .request::before { transform-origin: left; animation: rule-draw 640ms var(--ease-out); }
 /* inside a request the answer is ink: the block's own amber (or a
    question's blue) is the one hue in it; blue stays on the focus ring */
 .request .btn-primary, .request .btn-primary[aria-busy='true'],

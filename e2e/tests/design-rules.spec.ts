@@ -366,3 +366,26 @@ test('on a phone Stop keeps the row width from Steer', async ({ page, isMobile }
   expect(stop.height).toBeGreaterThanOrEqual(44)
   expect(steer.height).toBeGreaterThanOrEqual(44)
 })
+
+// The REQUIRES block's signature: a request that arrives draws its amber
+// rule across from the margin; one already there when the session opens
+// simply is there.
+test('an arriving request draws its rule; an open one does not', async ({ page }) => {
+  const dir = realpathSync(mkdtempSync(path.join(tmpdir(), 'gc-rule-')))
+  await page.goto(`/?token=${token}`)
+  await openNewSession(page)
+  await page.getByLabel('Working directory').fill(dir)
+  await page.getByRole('button', { name: 'New session', exact: true }).click()
+  await page.getByLabel('Message').fill('please permission')
+  await page.getByRole('button', { name: 'Send' }).click()
+  const slot = page.locator('.request-slot').first()
+  await expect(slot).toHaveAttribute('data-arriving')
+  const rule = () => slot.locator('.request').evaluate((el) => getComputedStyle(el, '::before').animationName)
+  expect(await rule()).toBe('rule-draw')
+  // opened a moment before the page is: an open request, not an arriving one
+  await page.waitForTimeout(300)
+  await page.reload()
+  await expect(page.locator('.request-slot').first()).toBeVisible()
+  await expect(page.locator('.request-slot').first()).not.toHaveAttribute('data-arriving')
+  expect(await page.locator('.request-slot .request').first().evaluate((el) => getComputedStyle(el, '::before').animationName)).toBe('none')
+})
