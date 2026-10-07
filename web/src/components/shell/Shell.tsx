@@ -32,6 +32,10 @@ export function ModeSwitch() {
   const mode = useLayoutStore((s) => s.mode)
   const setMode = useLayoutStore((s) => s.setMode)
   const running = useTerminalStore((s) => s.terminals.filter((t) => t.status === 'running').length)
+  // What waits for the owner shows on the Agents tab while another mode
+  // hides the rail and the sidebar.
+  const pending = useWaitingCount()
+  const waiting = mode !== 'agents' ? pending : 0
   const group = useRef<HTMLDivElement>(null)
   return (
     <div
@@ -54,10 +58,15 @@ export function ModeSwitch() {
           role="radio"
           aria-checked={mode === m.id}
           tabIndex={mode === m.id ? 0 : -1}
-          title={`${m.label} (${i + 1})`}
+          title={`${m.label} (${i + 1})${m.id === 'agents' && waiting > 0 ? ` · ${waiting} waiting for you` : ''}`}
           onClick={() => setMode(m.id)}
         >
           {m.label}
+          {m.id === 'agents' && waiting > 0 && (
+            <span className="badge" aria-hidden="true">
+              {waiting}
+            </span>
+          )}
           {m.id === 'terminal' && running > 0 && <span className="count">{running}</span>}
         </button>
       ))}
