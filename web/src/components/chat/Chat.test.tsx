@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import * as api from '../../lib/api'
 import { useCLIs } from '../../lib/clis'
+import { noteBrowse } from '../../lib/browse'
 import { initialChat, type ChatState } from '../../lib/events'
 import { resetDrafts } from '../../stores/drafts'
 import { notify, useNotices } from '../../stores/notices'
@@ -690,6 +691,23 @@ function pointerFine() {
     removeEventListener: () => {},
   }))
 }
+
+describe('opening', () => {
+  afterEach(() => vi.unstubAllGlobals())
+
+  it('takes the focus to the composer on a desktop', () => {
+    pointerFine()
+    setup()
+    expect(box()).toHaveFocus()
+  })
+
+  it('leaves the focus alone when j/k stepping opened it, so the next j steps on', () => {
+    pointerFine()
+    noteBrowse('s1')
+    setup()
+    expect(box()).not.toHaveFocus()
+  })
+})
 
 describe('answering requests', () => {
   afterEach(() => vi.unstubAllGlobals())

@@ -6,10 +6,11 @@ import { replacingHistory } from './routeSync'
 import { useOverlay, type Overlay } from './overlay'
 import { formatCombo, isMac, isStrayFocus, isTypingTarget, matches, nextIndex, notePointer, type Combo } from '../../lib/hotkeys'
 import Keys from '../ui/Keys'
-import { terminalShortcuts } from '../../lib/terminal-keys'
+import { terminalAction, terminalShortcuts } from '../../lib/terminal-keys'
 import { useLayoutStore, type Mode } from '../../stores/layout'
 import { useSessionStore } from '../../stores/session'
-import { inWorkspace } from '../../lib/overview'
+import { inWorkspace, leaveOverview, overviewShown, toggleOverview } from '../../lib/overview'
+import { noteBrowse } from '../../lib/browse'
 import './shell.css'
 
 // The help lists shortcuts in these groups, in this order.
@@ -20,7 +21,8 @@ interface Shortcut {
   combo: Combo
   label: string
   group: Group
-  // anywhere lets the shortcut fire while typing (never inside the terminal).
+  // anywhere lets the shortcut fire while typing (inside the terminal only
+  // when it hands the key on).
   anywhere?: boolean
   run: () => void
 }
@@ -34,6 +36,7 @@ const local: { keys: string; label: string; group: Group }[] = [
   { keys: 'a · s · d', label: 'Allow, allow for session, deny a request (request focused)', group: 'Requests' },
   { keys: '↑ ↓', label: 'Move through requests in the tray', group: 'Requests' },
   { keys: 'j · k', label: 'In Changes: next, previous file', group: 'Navigate' },
+  { keys: 'Esc', label: 'In the Overview: back to the workspace', group: 'Navigate' },
   ...terminalShortcuts(isMac).map((s) => ({ ...s, group: 'Terminal' as const })),
 ]
 
@@ -45,9 +48,22 @@ function stepSession(step: 1 | -1) {
   const all = rows()
   const current = all.findIndex((b) => b.getAttribute('aria-current') === 'true')
   const next = all[nextIndex(current, all.length, step)]
-  // Stepping is browsing, not navigating: Back still leaves the last session opened on purpose.
-  replacingHistory(() => next?.click())
-  next?.scrollIntoView?.({ block: 'nearest' })
+  if (!next) return
+  // Stepping is browsing, not navigating: Back still leaves the last session
+  // opened on purpose, and the chat it opens leaves the focus to the steps,
+  // so the next j steps on instead of typing into its composer.
+  if (next.dataset.session && next !== all[current]) noteBrowse(next.dataset.session)
+  const onRow = document.activeElement instanceof HTMLElement && all.includes(document.activeElement as HTMLButtonElement)
+  replacingHistory(() => next.click())
+  if (onRow) next.focus({ preventScroll: true })
+  next.scrollIntoView?.({ block: 'nearest' })
+}
+
+// leavesOverview tells whether Escape at target leaves the Overview: it
+// shows, and the focus is in it or nowhere.
+function leavesOverview(target: EventTarget | null): boolean {
+  if (!overviewShown()) return false
+  return target === document.body || (target instanceof Element && target.closest('.attention-overview') !== null)
 }
 
 // nextWaiting opens the next session with a request waiting, after the open one.
@@ -56,6 +72,9 @@ function nextWaiting() {
   const ids = [...new Set(pendingRequests.map((r) => r.sessionId))]
   if (ids.length === 0) return
   const next = ids[(ids.indexOf(activeId ?? '') + 1) % ids.length]!
+  // The chat leaves the focus to its request card: a composer focused first
+  // would make the card hold off its keys, and swallow a digit typed at once.
+  if (next !== activeId) noteBrowse(next)
   useLayoutStore.getState().setMode('agents')
   void selectSession(next)
 }
@@ -68,6 +87,37 @@ function focusIn(selector: string, pane?: 'sessions' | 'chat') {
   requestAnimationFrame(() => document.querySelector<HTMLElement>(selector)?.focus())
 }
 
+// A dock a key opened takes the focus, so its own keys answer at once:
+// Changes on its first file (j/k then step through its files), Terminal in
+// its shell, or (once it says there is none) on the button that opens one.
+const DOCK_FOCUS: Record<'changes' | 'terminal', string[]> = {
+  changes: ['.dock .diff-panel .diff-file-toggle'],
+  terminal: ['.dock .terminals .xterm textarea', '.dock .terminals .terminal-hint button', '.dock .terminals:has(.terminal-hint) .term-new > button'],
+}
+// The dock's content may still be loading: look for it this many frames.
+const DOCK_FOCUS_FRAMES = 120
+
+function toggleDockByKey(tab: 'changes' | 'terminal') {
+  useLayoutStore.getState().toggleDock(tab)
+  if (useLayoutStore.getState().dock !== tab) return
+  const before = document.activeElement
+  let frames = 0
+  const seek = () => {
+    // The owner moved on (another key, a click): leave the focus to them.
+    // A focus dropped to the page (the Overview going) is no move.
+    const at = document.activeElement
+    if (useLayoutStore.getState().dock !== tab || (at !== before && at !== document.body && at !== null)) return
+    for (const selector of DOCK_FOCUS[tab]) {
+      const target = document.querySelector<HTMLElement>(selector)
+      if (target) {
+        target.focus({ preventScroll: true })
+        return
+      }
+    }
+    if (++frames < DOCK_FOCUS_FRAMES) requestAnimationFrame(seek)
+  }
+  requestAnimationFrame(seek)
+}
 
 const modeKeys: [string, Mode][] = [['1', 'agents'], ['2', 'terminal'], ['3', 'diagnostics']]
 
@@ -82,9 +132,10 @@ function buildShortcuts(setOverlay: SetOverlay): Shortcut[] {
     { combo: { key: 'j' }, group: 'Navigate', label: 'Next session', run: () => inWorkspace(() => stepSession(1), true) },
     { combo: { key: 'k' }, group: 'Navigate', label: 'Previous session', run: () => inWorkspace(() => stepSession(-1), true) },
     { combo: { key: 'r' }, group: 'Requests', label: 'Next session that needs you', run: nextWaiting },
+    { combo: { key: 'o' }, group: 'Navigate', label: 'Overview on or off', run: toggleOverview },
     { combo: { key: 'f' }, group: 'Navigate', label: 'Focus mode on or off', run: () => inWorkspace(() => useLayoutStore.getState().toggleFocus()) },
     { combo: { key: 'b', mod: true }, group: 'Navigate', label: 'Sessions list on or off', anywhere: true, run: () => inWorkspace(() => useLayoutStore.getState().toggleSidebar()) },
-    { combo: { key: 'd' }, group: 'Navigate', label: 'Changes dock on or off', run: () => inWorkspace(() => useLayoutStore.getState().toggleDock('changes')) },
+    { combo: { key: 'd' }, group: 'Navigate', label: 'Changes dock on or off', run: () => inWorkspace(() => toggleDockByKey('changes')) },
     ...modeKeys.map(([key, mode]) => ({
       combo: { key },
       group: 'Navigate' as const,
@@ -92,7 +143,7 @@ function buildShortcuts(setOverlay: SetOverlay): Shortcut[] {
       run: () => useLayoutStore.getState().setMode(mode),
     })),
     { combo: { key: 'c' }, group: 'Chat', label: 'Write to the agent', run: () => focusIn('.composer textarea', 'chat') },
-    { combo: { key: 't' }, group: 'Terminal', label: 'Terminal dock on or off', run: () => inWorkspace(() => useLayoutStore.getState().toggleDock('terminal')) },
+    { combo: { key: 't' }, group: 'Terminal', label: 'Terminal dock on or off', run: () => inWorkspace(() => toggleDockByKey('terminal')) },
   ]
 }
 
@@ -133,9 +184,17 @@ export default function Hotkeys() {
       if (e.defaultPrevented || e.isComposing) return
       const typing = isTypingTarget(e.target)
       if (document.querySelector('dialog[open]') && !e.metaKey && !e.ctrlKey) return
+      if (e.key === 'Escape' && !typing && leavesOverview(e.target)) {
+        e.preventDefault()
+        leaveOverview()
+        return
+      }
       for (const s of shortcuts) {
         if (!matches(e, s.combo)) continue
-        if (typing && (!s.anywhere || (e.target as HTMLElement).closest('.xterm'))) return
+        // In a terminal only the keys it hands on reach the app (⌘K, ⌘B on
+        // a Mac); the shell keeps the rest, Ctrl+K and Ctrl+B included.
+        const shell = (e.target as HTMLElement).closest('.xterm') && terminalAction(e, isMac) !== 'app'
+        if (typing && (!s.anywhere || shell)) return
         // A word typed at a button a click left focused is not a command.
         if (!s.combo.mod && isStrayFocus(e.target)) return
         e.preventDefault()

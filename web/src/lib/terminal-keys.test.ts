@@ -27,6 +27,16 @@ describe('terminalAction on a Mac', () => {
     expect(mac({ key: 'a', code: 'KeyA' })).toBeNull()
   })
 
+  it('hands ⌘K and ⌘B to the app, and leaves with ⌘↑', () => {
+    expect(mac({ metaKey: true, key: 'k', code: 'KeyK' })).toBe('app')
+    expect(mac({ metaKey: true, key: 'b', code: 'KeyB' })).toBe('app')
+    expect(mac({ ctrlKey: true, key: 'k', code: 'KeyK' })).toBeNull()
+    expect(mac({ metaKey: true, key: 'ArrowUp', code: 'ArrowUp' })).toBe('leave')
+    expect(mac({ metaKey: true, shiftKey: true, key: 'ArrowUp', code: 'ArrowUp' })).toBeNull()
+    expect(mac({ key: 'ArrowUp', code: 'ArrowUp' })).toBeNull()
+    expect(mac({ key: 'Escape', code: 'Escape' })).toBeNull()
+  })
+
   it('steps tabs with ⌥[ and ⌥]', () => {
     expect(mac({ altKey: true, key: '“', code: 'BracketLeft' })).toBe('prev-tab')
     expect(mac({ altKey: true, key: '‘', code: 'BracketRight' })).toBe('next-tab')
@@ -46,6 +56,13 @@ describe('terminalAction elsewhere', () => {
     expect(pc({ ctrlKey: true, shiftKey: true, key: 'A', code: 'KeyA' })).toBeNull()
   })
 
+  it('keeps Ctrl+K and Ctrl+B for the shell, and leaves with Ctrl+Shift+↑', () => {
+    expect(pc({ ctrlKey: true, key: 'k', code: 'KeyK' })).toBeNull()
+    expect(pc({ ctrlKey: true, key: 'b', code: 'KeyB' })).toBeNull()
+    expect(pc({ ctrlKey: true, shiftKey: true, key: 'ArrowUp', code: 'ArrowUp' })).toBe('leave')
+    expect(pc({ ctrlKey: true, key: 'ArrowUp', code: 'ArrowUp' })).toBeNull()
+  })
+
   it('sizes the font with Ctrl and ignores the Meta key', () => {
     expect(pc({ ctrlKey: true, key: '=', code: 'Equal' })).toBe('font-up')
     expect(pc({ ctrlKey: true, shiftKey: true, key: '+', code: 'Equal' })).toBe('font-up')
@@ -59,8 +76,8 @@ describe('terminalAction elsewhere', () => {
 
 describe('terminalShortcuts', () => {
   it('lists the terminal’s own keys for the help, per platform', () => {
-    expect(terminalShortcuts(true).map((s) => s.keys)).toEqual(['⌘F', '⌘= · ⌘- · ⌘0', '⌘C · ⌘V', '⌥[ · ⌥]'])
-    expect(terminalShortcuts(false).map((s) => s.keys)).toEqual(['Ctrl+Shift+F', 'Ctrl+= · Ctrl+- · Ctrl+0', 'Ctrl+Shift+C · Ctrl+Shift+V', 'Alt+[ · Alt+]'])
+    expect(terminalShortcuts(true).map((s) => s.keys)).toEqual(['⌘F', '⌘= · ⌘- · ⌘0', '⌘C · ⌘V', '⌥[ · ⌥]', '⌘↑'])
+    expect(terminalShortcuts(false).map((s) => s.keys)).toEqual(['Ctrl+Shift+F', 'Ctrl+= · Ctrl+- · Ctrl+0', 'Ctrl+Shift+C · Ctrl+Shift+V', 'Alt+[ · Alt+]', 'Ctrl+Shift+↑'])
     expect(terminalShortcuts(true).every((s) => s.label.startsWith('In a terminal'))).toBe(true)
     expect(terminalShortcuts(true).map((s) => s.label).join(' ')).not.toMatch(/shell/)
   })

@@ -9,6 +9,7 @@ import { answerVersionQuery } from '../../lib/xtversion'
 import { connectTerminal, type TerminalConnection } from '../../lib/terminal'
 import { ctrlChar, InputQueue, parseOsc52 } from '../../lib/terminal-input'
 import { terminalAction } from '../../lib/terminal-keys'
+import { leaveTerminal } from './leave'
 import { isMac } from '../../lib/hotkeys'
 import { fail } from '../../stores/notices'
 import { searchDecorations, terminalTheme } from '../../lib/theme'
@@ -219,8 +220,9 @@ export function liveFor(id: string, host: HTMLElement, callbacks: Callbacks): Li
   xterm.attachCustomKeyEventHandler((e) => {
     const action = terminalAction(e, isMac)
     if (!action) return true
-    // Paste goes on to the browser, which hands xterm the clipboard.
-    if (action === 'paste') return false
+    // Paste goes on to the browser, which hands xterm the clipboard; the
+    // app's own keys (⌘K, ⌘B) go on to its shortcuts.
+    if (action === 'paste' || action === 'app') return false
     e.preventDefault()
     const store = useTerminalStore.getState()
     if (action === 'find') store.setFinding(id, true)
@@ -228,6 +230,7 @@ export function liveFor(id: string, host: HTMLElement, callbacks: Callbacks): Li
     else if (action === 'font-up') store.setFontSize(store.fontSize + 1)
     else if (action === 'font-down') store.setFontSize(store.fontSize - 1)
     else if (action === 'font-reset') store.setFontSize(null)
+    else if (action === 'leave') leaveTerminal()
     else stepTerminal(action === 'prev-tab' ? -1 : 1)
     return false
   })

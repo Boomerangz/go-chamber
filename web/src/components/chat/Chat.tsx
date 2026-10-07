@@ -26,6 +26,7 @@ import { SENT_HOLD_MS, untilBack, useLiveDropped } from './useLiveDropped'
 import { beginAgentView, endAgentView, recordAgentCommit } from '../../lib/diagnostics'
 import { SessionFiles, SessionFolder } from '../../lib/files'
 import type { RequestAnswerInput, Session, SessionStatus, TurnResult } from '../../lib/api'
+import { browsedTo } from '../../lib/browse'
 import { forgetCommands } from '../../lib/complete'
 import { basename, displayStatus } from '../../lib/format'
 import { enter } from '../../lib/motion'
@@ -236,6 +237,8 @@ export default function Chat() {
 
   const input = useRef<HTMLTextAreaElement>(null)
   useEffect(() => {
+    // Stepping through the list with j/k only looks: the next j must step on.
+    if (browsedTo(useSessionStore.getState().activeId ?? '')) return
     // A request card that took focus on arrival keeps it, so its keys answer.
     if (matches('(pointer: fine)') && !document.activeElement?.closest('.request')) input.current?.focus()
   }, [])
