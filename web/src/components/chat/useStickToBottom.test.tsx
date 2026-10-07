@@ -74,4 +74,37 @@ describe('useStickToBottom', () => {
     act(() => report())
     expect(el.scrollTop).toBe(900)
   })
+
+  it('stays at the end when its own box shrinks, as a strip or the keyboard takes room', () => {
+    vi.stubGlobal('ResizeObserver', Observer)
+    const { getByTestId } = render(<Chat dep={1} />)
+    const el = getByTestId('scroll')
+    expect(observed).toContain(el)
+    Object.defineProperty(el, 'scrollHeight', { configurable: true, value: 900 })
+    el.scrollTop = 500
+    act(() => report())
+    expect(el.scrollTop).toBe(900)
+  })
+
+  it('takes a scroll that comes with its box shrinking for the shrink, not the owner leaving the end', () => {
+    // A phone's bar or keyboard coming back moves scrollTop in the same
+    // frame the box shrinks, before the resize is reported.
+    const { getByTestId } = render(<Chat dep={1} />)
+    const el = getByTestId('scroll')
+    Object.defineProperty(el, 'scrollHeight', { configurable: true, value: 882 })
+    let height = 393
+    Object.defineProperty(el, 'clientHeight', { configurable: true, get: () => height })
+    el.scrollTop = 489
+    act(() => void el.dispatchEvent(new Event('scroll')))
+    expect(pinned).toBe(true)
+    height = 307
+    el.scrollTop = 500
+    act(() => void el.dispatchEvent(new Event('scroll')))
+    expect(pinned).toBe(true)
+    expect(el.scrollTop).toBe(882)
+    // The owner scrolling up in a box of the same size still leaves the end.
+    el.scrollTop = 300
+    act(() => void el.dispatchEvent(new Event('scroll')))
+    expect(pinned).toBe(false)
+  })
 })
