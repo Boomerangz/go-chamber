@@ -323,7 +323,15 @@ function FileRow(props: {
   return (
     <li className="diff-file" aria-busy={busy || undefined}>
       <div className="diff-file-head">
-        <button type="button" className="diff-file-toggle" aria-expanded={isOpen} title={f.from ? `${f.from} → ${f.path}` : f.path} onClick={props.onToggle}>
+        <button
+          type="button"
+          className="diff-file-toggle"
+          aria-expanded={isOpen}
+          // The row's parts (mark word, cut path, counts) would read as one run.
+          aria-label={[f.from ? `${f.from} → ${f.path}` : f.path, label, ...(f.binary ? ['binary'] : counts ? [`${counts.added} added`, `${counts.removed} removed`] : [])].join(', ')}
+          title={f.from ? `${f.from} → ${f.path}` : f.path}
+          onClick={props.onToggle}
+        >
           {/* a narrow panel keeps only the mark; the word stays for screen readers and the tooltip */}
           <span className="diff-status" data-mark={statusMark[f.status] ?? 'hollow'} title={label}>
             <span className="diff-status-word">{label}</span>

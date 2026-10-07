@@ -338,6 +338,13 @@ describe('DiffPanel reading', () => {
     expect(api.getFileDiff).not.toHaveBeenCalled()
   })
 
+  it('names each file row once, in words: path, status and counts', async () => {
+    vi.mocked(api.getChanges).mockResolvedValue(two)
+    render(<DiffPanel sessionId="s1" />)
+    expect(await screen.findByRole('button', { name: 'src/a.go, modified, 3 added, 1 removed' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'b.txt, untracked, 1 added, 0 removed' })).toBeInTheDocument()
+  })
+
   it('says a binary file is binary instead of counting it', async () => {
     vi.mocked(api.getChanges).mockResolvedValue({ repository: true, files: [{ path: 'logo.png', status: 'M', binary: true }] })
     render(<DiffPanel sessionId="s1" />)
