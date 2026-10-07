@@ -129,10 +129,21 @@ func TestForkOfRemovedWorktreeLandsInTheRepo(t *testing.T) {
 	if live.Cwd() != "/wt/app/fix" {
 		t.Fatalf("live fork cwd = %s", live.Cwd())
 	}
+	// A live fork works in the same worktree, so it shares it: it groups
+	// under the repository and goes when the worktree goes.
+	if wt := live.Worktree(); wt == nil || *wt != *s.Worktree() {
+		t.Fatalf("live fork worktree = %+v, parent %+v", wt, s.Worktree())
+	}
+	if live.Snapshot().Worktree == nil {
+		t.Fatal("the shared worktree is not in the fork's snapshot")
+	}
 	mustNoErr(t, s.RemoveWorktree())
 	f, err := NewForkSession("f2", s)
 	mustNoErr(t, err)
 	if f.Cwd() != "/src/app" || f.Worktree() != nil {
 		t.Fatalf("fork cwd = %s worktree = %+v", f.Cwd(), f.Worktree())
+	}
+	if live.WorktreeRemoved() {
+		t.Fatal("the fork shares the worktree's value, not the parent's record")
 	}
 }

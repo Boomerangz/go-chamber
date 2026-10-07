@@ -316,7 +316,9 @@ func (m *Manager) SetWorktree(ctx context.Context, id domain.SessionID, wt *doma
 }
 
 // RemoveWorktree records that the session's worktree is gone once remove
-// has taken the folder. The agent process working there is closed.
+// has taken the folder. Every session working in that worktree (a live
+// fork shares it) is marked, and their agent processes are closed; a turn
+// running in any of them keeps the folder.
 func (m *Manager) RemoveWorktree(ctx context.Context, id domain.SessionID, remove func(domain.Worktree) error) (domain.SessionSnapshot, error) {
 	s, err := m.session(ctx, id)
 	if err != nil {
@@ -332,22 +334,63 @@ func (m *Manager) RemoveWorktree(ctx context.Context, id domain.SessionID, remov
 	if err != nil {
 		return domain.SessionSnapshot{}, err
 	}
-	if err := remove(*wt); err != nil {
-		return domain.SessionSnapshot{}, err
-	}
-	m.mu.Lock()
-	err = s.RemoveWorktree()
-	if err == nil {
-		m.retire(s)
-	}
-	snap := s.Snapshot()
-	m.mu.Unlock()
+	sharing, err := m.sharingWorktree(ctx, s, wt.Path)
 	if err != nil {
 		return domain.SessionSnapshot{}, err
 	}
-	if err := m.cfg.Repo.Save(ctx, snap); err != nil {
+	m.mu.Lock()
+	for _, o := range sharing {
+		if err := o.WorktreeRemovable(); errors.Is(err, domain.ErrSessionBusy) {
+			m.mu.Unlock()
+			return domain.SessionSnapshot{}, err
+		}
+	}
+	m.mu.Unlock()
+	if err := remove(*wt); err != nil {
 		return domain.SessionSnapshot{}, err
 	}
-	m.cfg.Bus.Publish(domain.Event{SessionID: id, Type: domain.EventSessionState, Session: &snap})
+	var snap domain.SessionSnapshot
+	for i, o := range append([]*domain.Session{s}, sharing...) {
+		m.mu.Lock()
+		err = o.RemoveWorktree()
+		if err == nil {
+			m.retire(o)
+		}
+		got := o.Snapshot()
+		m.mu.Unlock()
+		if i == 0 {
+			snap = got
+		}
+		if err != nil {
+			if i == 0 {
+				return domain.SessionSnapshot{}, err
+			}
+			continue
+		}
+		if err := m.cfg.Repo.Save(ctx, got); err != nil {
+			return domain.SessionSnapshot{}, err
+		}
+		m.cfg.Bus.Publish(domain.Event{SessionID: got.ID, Type: domain.EventSessionState, Session: &got})
+	}
 	return snap, nil
+}
+
+// sharingWorktree returns the other sessions whose live worktree is path.
+func (m *Manager) sharingWorktree(ctx context.Context, s *domain.Session, path string) ([]*domain.Session, error) {
+	all, err := m.cfg.Repo.List(ctx)
+	if err != nil {
+		return nil, err
+	}
+	var out []*domain.Session
+	for _, snap := range all {
+		if snap.ID == s.ID() || snap.Worktree == nil || snap.Worktree.Removed || snap.Worktree.Path != path {
+			continue
+		}
+		o, err := m.session(ctx, snap.ID)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, o)
+	}
+	return out, nil
 }
