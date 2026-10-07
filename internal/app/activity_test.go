@@ -69,7 +69,7 @@ func TestTitleFromText(t *testing.T) {
 		"привет мир":            "привет мир",
 		strings.Repeat("я", 70): strings.Repeat("я", 59) + "…",
 		// a title reads as the message reads, not as it was written
-		"Plan the **auth refactor** in `internal/app`": "Plan the auth refactor in internal/app",
+		"Plan the **auth refactor** in `internal/app`":         "Plan the auth refactor in internal/app",
 		"# Fix [the bug](https://x.test/1)\n- keep snake_case": "Fix the bug keep snake_case",
 		// nothing but syntax: the words as typed
 		"```": "```",
