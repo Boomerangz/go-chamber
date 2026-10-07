@@ -122,6 +122,24 @@ test.describe('on a touch tablet', () => {
   })
 })
 
+// A long folder shows its end, the project name; the glyph cut at the
+// field's left edge fades instead of standing there half drawn.
+test('a folder path scrolled to its end fades at its left edge', async ({ page }) => {
+  await page.setViewportSize({ width: 768, height: 1000 })
+  await page.goto(`/?token=${token}`)
+  await openNewSession(page)
+  const input = page.getByLabel('Working directory')
+  const field = page.locator('.folder-field', { has: input })
+  await input.fill('/Users/someone/projects/clients/acme/services/backend/api-server')
+  await input.blur()
+  await expect(field).toHaveAttribute('data-fade', 'start')
+  expect(await input.evaluate((el) => el.scrollLeft)).toBeGreaterThan(0)
+  expect(await input.evaluate((el) => getComputedStyle(el).maskImage)).not.toBe('none')  // a short path is whole: no fade
+  await input.fill('/tmp')
+  await input.blur()
+  await expect(field).not.toHaveAttribute('data-fade')
+})
+
 test('a mouse keeps the compact controls at tablet widths', async ({ page, isMobile }) => {
   test.skip(isMobile, 'a phone has finger-sized controls')
   await page.setViewportSize({ width: 900, height: 1000 })

@@ -2,3 +2,6 @@
 .folder-field[data-invalid] { border-color: var(--bad); }
 @media (hover: hover) { .folder-field[data-invalid]:hover { border-color: var(--bad); } }
 .folder-field[data-invalid]:focus-within { border-color: var(--bad); box-shadow: 0 0 0 1px var(--bad); }
+/* a path scrolled past its start fades at its left edge, so the cut glyph
+   there reads as more before it (no ellipsis: see .folder-field input) */
+.folder-field[data-fade='start'] input { mask-image: linear-gradient(to right, transparent, #000 18px); }
