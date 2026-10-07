@@ -541,7 +541,7 @@ button.health { border: 0; background: none; padding: 0; }
   .group-more { min-height: 40px; }
   .group-toggle { height: 40px; }
   .session-search { height: 40px; }
-  .session-search .search-clear, .quota .refresh, .quotas-none .refresh, .account .copy-code { width: 40px; height: 40px; }
+  .session-search .search-clear, .quota .refresh, .account .copy-code { width: 40px; height: 40px; }
   .rename-btn { min-width: 36px; min-height: 36px; justify-content: center; }
   .crumb button { min-height: 40px; }
 }

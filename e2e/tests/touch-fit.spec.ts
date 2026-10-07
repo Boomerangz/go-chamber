@@ -152,6 +152,27 @@ test.describe('a phone', () => {
     // the select's chevron is drawn 1.5px wide in a 10px box (the --chevron image)
     expect(look).toEqual({ bordered: true, alignedLeft: true, narrower: true, tall: true, stroke: 1.5, chevronWidth: 16 })
   })
+
+  test('Refresh quotas is finger-sized with no quotas reported', async ({ page }) => {
+    await page.route('**/api/quotas', (route) => route.fulfill({ json: [] }))
+    await page.goto(`/?token=${token}`)
+    const refresh = page.locator('.quotas-none').getByRole('button', { name: 'Refresh quotas' })
+    await refresh.scrollIntoViewIfNeeded()
+    expect(await side(refresh)).toBeGreaterThanOrEqual(40)
+  })
+})
+
+test.describe('Diagnostics on the narrowest phone', () => {
+  test.use({ hasTouch: true, isMobile: true, viewport: { width: 361, height: 800 } })
+  test('the wrapped action buttons stand clear of the rule under them', async ({ page }) => {
+    await page.goto(`/diagnostics?token=${token}`)
+    const actions = page.locator('.diagnostics-actions')
+    await expect(actions.getByRole('button').first()).toBeVisible()
+    const [a, status] = [(await actions.boundingBox())!, (await page.locator('.diagnostics-status').boundingBox())!]
+    // the buttons wrap to two rows here, and leave the row gap above the rule
+    expect(a.height).toBeGreaterThan(60)
+    expect(status.y - (a.y + a.height)).toBeGreaterThanOrEqual(8)
+  })
 })
 
 test.describe('the narrowest phone', () => {
