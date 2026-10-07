@@ -65,3 +65,85 @@ test('a reply with a heading, a table and images fits the column', async ({ page
   const sideways = await scroll.evaluate((el) => el.scrollWidth - el.clientWidth)
   expect(sideways).toBeLessThanOrEqual(0)
 })
+
+// A three-column table on a phone: a long path in code must not take the
+// column and crush the words beside it into one or two per line. The path
+// breaks; words and numbers stay whole; what still does not fit scrolls in
+// the table's own box, which fades at the edge it scrolls toward.
+const TABLE = [
+  'table',
+  '',
+  '| Path | Description | Risk |',
+  '|---|---|---|',
+  '| `internal/adapters/http/worktree_continue_handler.go` | Continues a worktree session after the folder was moved back into place | 1290 high |',
+  '| `web/src/components/sessions/SessionList.tsx` | Reorders the list | low |',
+].join('\n')
+
+// tableFit measures the table as a phone shows it.
+function tableFit(page: Page) {
+  return page.locator('.item.assistant', { hasText: 'echo: table' }).locator('.md-table').evaluate((box) => {
+    const words: string[] = []
+    // a word (or number) outside code is never cut across lines
+    for (const td of box.querySelectorAll('td')) {
+      const walk = document.createTreeWalker(td, NodeFilter.SHOW_TEXT)
+      for (let n = walk.nextNode() as Text | null; n; n = walk.nextNode() as Text | null) {
+        if (n.parentElement!.closest('code')) continue
+        const re = /\S+/g
+        for (let m = re.exec(n.data); m; m = re.exec(n.data)) {
+          const r = document.createRange()
+          r.setStart(n, m.index)
+          r.setEnd(n, m.index + m[0].length)
+          const lines = new Set([...r.getClientRects()].map((q) => Math.round(q.top)))
+          if (lines.size > 1) words.push(m[0])
+        }
+      }
+    }
+    const desc = box.querySelectorAll('tbody tr')[0].querySelectorAll('td')[1] as HTMLElement
+    const style = getComputedStyle(box)
+    return {
+      words,
+      descWidth: desc.getBoundingClientRect().width,
+      overflows: box.scrollWidth > box.clientWidth + 1,
+      fade: box.dataset.fade ?? '',
+      mask: style.maskImage || style.webkitMaskImage,
+      pageSideways: document.querySelector('.chat .scroll')!.scrollWidth - document.querySelector('.chat .scroll')!.clientWidth,
+    }
+  })
+}
+
+test('a three-column table with a long path reads on a phone', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 800 })
+  await newSession(page)
+  await page.getByLabel('Message').fill(TABLE)
+  await page.getByRole('button', { name: 'Send' }).click()
+  await expect(page.locator('.item.assistant', { hasText: 'echo: table' }).locator('table')).toBeVisible()
+  for (const width of [390, 360]) {
+    await page.setViewportSize({ width, height: 800 })
+    await expect.poll(async () => (await tableFit(page)).words, { message: `${width} words` }).toEqual([])
+    const fit = await tableFit(page)
+    // the words beside the path keep a readable column
+    expect(fit.descWidth, `${width} description`).toBeGreaterThanOrEqual(100)
+    expect(fit.pageSideways, `${width} page`).toBeLessThanOrEqual(0)
+    // a table that still scrolls says so at its edge
+    if (fit.overflows) {
+      expect(fit.fade, `${width} fade`).toContain('end')
+      expect(fit.mask, `${width} mask`).not.toBe('none')
+    } else expect(fit.fade, `${width} no fade`).toBe('')
+  }
+})
+
+// A table too wide even with its paths broken scrolls, and fades on the
+// side that still has more.
+test('a wide table fades at the edge it scrolls toward', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 800 })
+  await newSession(page)
+  const wide = ['wide', '', '| a | b | c | d | e | f |', '|---|---|---|---|---|---|', '| alpha | bravo | charlie | delta | echo-echo | foxtrot |'].join('\n')
+  await page.getByLabel('Message').fill(wide)
+  await page.getByRole('button', { name: 'Send' }).click()
+  const box = page.locator('.item.assistant', { hasText: 'echo: wide' }).locator('.md-table')
+  await expect(box).toHaveAttribute('data-fade', 'end')
+  await box.evaluate((el) => el.scrollTo({ left: el.scrollWidth }))
+  await expect(box).toHaveAttribute('data-fade', 'start')
+  await box.evaluate((el) => el.scrollTo({ left: 20 }))
+  await expect(box).toHaveAttribute('data-fade', 'start end')
+})

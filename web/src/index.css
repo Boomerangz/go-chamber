@@ -704,11 +704,28 @@ button.health { border: 0; background: none; padding: 0; }
 .md a { color: var(--act); text-underline-offset: 3px; }
 .md blockquote { padding-left: 12px; border-left: 1px solid var(--rule-strong); color: var(--ink-2); }
 .md hr { border: 0; border-top: 1px solid var(--rule); margin: 12px 0; }
-.md table { border-collapse: collapse; display: block; max-width: 100%; overflow-x: auto; font-size: 13px; }
+/* a table scrolls in its own box, never the transcript; the box fades at
+   the edge that still has more, so a cut column reads as "scroll" */
+.md .md-table { max-width: 100%; overflow-x: auto; margin: 0 0 10px; --fade: 28px; }
+.md > .md-table:last-child { margin-bottom: 0; }
+.md-table[data-fade='end'] { mask-image: linear-gradient(to right, #000 calc(100% - var(--fade)), transparent); }
+.md-table[data-fade='start'] { mask-image: linear-gradient(to left, #000 calc(100% - var(--fade)), transparent); }
+.md-table[data-fade='start end'] {
+  mask-image: linear-gradient(to right, transparent, #000 var(--fade), #000 calc(100% - var(--fade)), transparent);
+}
+.md .md-table > table { margin: 0; border-collapse: collapse; font-size: 13px; }
 /* cells keep their words whole (".item" breaks anywhere, which cut "1290"
    into "129/0"); the table scrolls in its own box instead */
 .md th, .md td { padding: 4px 10px; border: 1px solid var(--rule); text-align: left; overflow-wrap: normal; word-break: normal; }
 .md th, .md td code, .md th code { white-space: nowrap; }
+/* a phone: a long path in code breaks where it must
+   rather than take the table and crush the words beside it to one
+   per line; words and numbers outside code still stay whole, and every
+   cell keeps a readable minimum */
+@media (max-width: 720px) {
+  .md td { min-width: calc(8ch + 20px); }
+  .md td code { white-space: normal; overflow-wrap: anywhere; }
+}
 /* images fit the column; remote ones are links, failed ones a line of words */
 .md img { display: block; max-width: 100%; height: auto; margin: 4px 0; }
 .md-image-link, .md-image-missing { font-family: var(--font-mono); font-size: 12px; }

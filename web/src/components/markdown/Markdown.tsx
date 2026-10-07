@@ -6,6 +6,7 @@ import { MdLink } from './FileLink'
 import CopyButton from './CopyButton'
 import ShowAll from './ShowAll'
 import MdImage from './MdImage'
+import TableBox from './TableBox'
 import { useClip } from './useClip'
 import { setCodeWrap, useCodeWrap } from './wrap'
 import { filePath, MarkLine } from '../../lib/files'
@@ -106,6 +107,7 @@ const components: Components = {
     return <CodeBlock code={text.replace(/\n$/, '')} lang={lang} />
   },
   a: ({ href, children }) => <MdLink href={href}>{children}</MdLink>,
+  table: ({ children }) => <TableBox>{children}</TableBox>,
   img: ({ src, alt }) => <MdImage src={typeof src === 'string' ? src : undefined} alt={alt} />,
 }
 
