@@ -25,6 +25,13 @@ fi
 
 fail=0
 log="$(mktemp)"
+# Every mutant is a fresh build, so a run fills the Go build cache with
+# thousands of throwaway objects (16 GB once, enough to fill the disk). The
+# run builds into a cache of its own, deleted on exit, also on failure or
+# Ctrl-C; the owner's cache stays warm and untouched.
+cache="$(mktemp -d)"
+export GOCACHE="$cache"
+trap 'rm -rf "$cache" "$log"' EXIT
 for p in "$@"; do
   t="$(threshold "$p")"
   echo "== $p (efficacy >= ${t}%)"
@@ -40,5 +47,4 @@ for p in "$@"; do
     echo "FAIL $p (efficacy ${eff:-unknown}% < ${t}%)"; fail=1
   fi
 done
-rm -f "$log"
 exit $fail
