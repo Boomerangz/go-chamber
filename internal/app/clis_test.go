@@ -43,7 +43,11 @@ func TestCLIsReportsEachAgent(t *testing.T) {
 
 func TestCLIsWithoutAFinderAssumesInstalled(t *testing.T) {
 	m := NewManager(ManagerConfig{Repo: newMemRepo(), Runtimes: &fakeFactory{}, Bus: newFakeBus()})
-	for _, s := range m.CLIs() {
+	all := m.CLIs()
+	if len(all) != 2 {
+		t.Fatalf("CLIs = %+v, want both agents", all)
+	}
+	for _, s := range all {
 		if !s.Found {
 			t.Fatalf("%s reported missing without a finder", s.Agent)
 		}
