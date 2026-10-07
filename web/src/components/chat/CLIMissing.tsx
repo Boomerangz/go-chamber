@@ -5,6 +5,7 @@ import { useCLIs } from '../../lib/clis'
 import { usePending } from '../../lib/pending'
 import { notify } from '../../stores/notices'
 import { icon } from '../icon'
+import GoneNote from '../ui/GoneNote'
 
 const agentName = { claude: 'Claude Code', codex: 'Codex' } as const
 
@@ -22,9 +23,7 @@ export default function CLIMissing({ cli }: { cli: CLIStatus }) {
   }
   return (
     <div className="worktree-gone cli-missing" role="group" aria-label={`${name} CLI missing`}>
-      <p>
-        <span className="worktree-gone-kw">{name} CLI missing</span> · not found on go-chamber’s PATH
-      </p>
+      <GoneNote label={`${name} CLI missing`}>Not found on go-chamber’s PATH.</GoneNote>
       {cli.hint && (
         <div className="cli-install">
           <code title={cli.hint}>{cli.hint}</code>

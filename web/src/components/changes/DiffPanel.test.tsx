@@ -115,7 +115,8 @@ describe('DiffPanel', () => {
     useSessionStore.setState({ sessions: [{ id: 's1', agent: 'claude', cwd: '/work/doomed', status: 'detached', folderGone: true }] })
     render(<DiffPanel sessionId="s1" />)
     const gone = await screen.findByRole('status', { name: 'Folder gone' })
-    expect(gone).toHaveTextContent('Folder gone · /work/doomed no longer exists')
+    expect(gone).toHaveTextContent('Folder gone /work/doomed This folder no longer exists')
+    expect(gone.textContent).not.toContain('·')
     expect(gone.querySelector('.path-text')).toHaveAttribute('title', '/work/doomed')
     await waitFor(() => expect(api.getChanges).toHaveBeenCalled())
     expect(screen.queryByRole('button', { name: /Retry/ })).toBeNull()
@@ -127,7 +128,7 @@ describe('DiffPanel', () => {
     vi.mocked(api.getChanges).mockRejectedValue(new api.ApiError(422, 'Folder /work/doomed no longer exists', 'folder_gone'))
     useSessionStore.setState({ sessions: [{ id: 's1', agent: 'claude', cwd: '/work/doomed', status: 'idle' }] })
     render(<DiffPanel sessionId="s1" />)
-    expect(await screen.findByRole('status', { name: 'Folder gone' })).toHaveTextContent('/work/doomed no longer exists')
+    expect(await screen.findByRole('status', { name: 'Folder gone' })).toHaveTextContent('/work/doomed This folder no longer exists')
     expect(screen.queryByText(/Couldn't load changes/)).toBeNull()
   })
 

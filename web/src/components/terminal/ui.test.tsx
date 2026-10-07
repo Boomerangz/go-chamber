@@ -545,7 +545,8 @@ describe('TerminalPanel', () => {
     useTerminalStore.setState({ loaded: true, terminals: [term({ id: 'a', title: 'proj', cwd: '/w/proj' })] })
     render(<TerminalPanel sessionId="g" />)
     const gone = screen.getByRole('status', { name: 'Folder gone' })
-    expect(gone).toHaveTextContent('Folder gone · /w/doomed no longer exists')
+    expect(gone).toHaveTextContent('Folder gone /w/doomed This folder no longer exists')
+    expect(gone.textContent).not.toContain('·')
     expect(screen.queryByRole('button', { name: /Open terminal in/ })).toBeNull()
     expect(screen.queryByRole('button', { name: 'New terminal in session folder' })).toBeNull()
     // Elsewhere is still one click away.
