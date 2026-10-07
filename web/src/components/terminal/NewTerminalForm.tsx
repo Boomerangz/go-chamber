@@ -25,13 +25,13 @@ export default function NewTerminalForm({ sessionId }: { sessionId?: string | nu
         })
       }}
     >
-      <FolderField label="Terminal directory" placeholder="~ (home)" value={cwd} onChange={setCwd} />
+      <FolderField label="Terminal folder" placeholder="~ (home)" value={cwd} onChange={setCwd} />
       <button type="submit" className="btn" aria-busy={here || undefined}>
         {here ? 'Opening…' : 'New terminal'}
       </button>
       {sessionId && (
         <button type="button" className="btn" aria-busy={inSession || undefined} onClick={() => void open({ sessionId })}>
-          {inSession ? 'Opening…' : 'In session dir'}
+          {inSession ? 'Opening…' : 'In session folder'}
         </button>
       )}
       <OpenError />

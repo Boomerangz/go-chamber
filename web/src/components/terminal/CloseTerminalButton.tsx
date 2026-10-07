@@ -31,7 +31,7 @@ export default function CloseTerminalButton({ terminal, label, className = 'clos
   if (confirming && terminal.status === 'running') {
     return (
       <span className="term-confirm" role="group" aria-label={`Close terminal ${terminal.title}?`}>
-        <span className="term-confirm-text">kill shell?</span>
+        <span className="term-confirm-text">kill terminal?</span>
         <button
           type="button"
           className="btn btn-danger btn-xs"

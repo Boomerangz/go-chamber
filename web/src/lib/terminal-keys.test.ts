@@ -62,5 +62,6 @@ describe('terminalShortcuts', () => {
     expect(terminalShortcuts(true).map((s) => s.keys)).toEqual(['⌘F', '⌘= · ⌘- · ⌘0', '⌘C · ⌘V', '⌥[ · ⌥]'])
     expect(terminalShortcuts(false).map((s) => s.keys)).toEqual(['Ctrl+Shift+F', 'Ctrl+= · Ctrl+- · Ctrl+0', 'Ctrl+Shift+C · Ctrl+Shift+V', 'Alt+[ · Alt+]'])
     expect(terminalShortcuts(true).every((s) => s.label.startsWith('In a terminal'))).toBe(true)
+    expect(terminalShortcuts(true).map((s) => s.label).join(' ')).not.toMatch(/shell/)
   })
 })

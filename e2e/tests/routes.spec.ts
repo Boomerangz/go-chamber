@@ -20,7 +20,7 @@ test('a reload keeps the open session and terminal, Back returns', async ({ page
 
   await page.getByRole('radio', { name: /^Terminal/ }).click()
   const panel = page.getByRole('region', { name: 'Terminals' })
-  await panel.getByLabel('Terminal directory').fill('/tmp')
+  await panel.getByLabel('Terminal folder').fill('/tmp')
   await panel.getByRole('button', { name: 'New terminal' }).click()
   await expect(page).toHaveURL(/\/t\/[^/]+$/)
   const terminalURL = page.url()

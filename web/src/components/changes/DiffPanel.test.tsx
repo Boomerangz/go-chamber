@@ -94,7 +94,7 @@ describe('DiffPanel', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Remove' }))
     expect(api.removeWorktree).toHaveBeenCalledWith('s1', false)
     await waitFor(() => expect(useSessionStore.getState().sessions[0].worktree?.removed).toBe(true))
-    expect(useNotices.getState().notices.at(-1)).toMatchObject({ kind: 'info', text: 'Worktree removed, branch kept' })
+    expect(useNotices.getState().notices.at(-1)).toMatchObject({ kind: 'info', text: 'Worktree removed · branch chamber/fix kept' })
   })
 
   it('says a removed worktree is gone and its branch kept, with no list to show', async () => {

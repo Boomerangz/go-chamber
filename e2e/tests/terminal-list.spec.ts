@@ -46,7 +46,7 @@ test('diagnostics fit the terminal table on a laptop and fold idle shells into a
   await page.reload()
   await page.getByRole('radio', { name: /^Terminal/ }).click()
   const panel = page.getByRole('region', { name: 'Terminals' })
-  await panel.getByLabel('Terminal directory').fill(dir)
+  await panel.getByLabel('Terminal folder').fill(dir)
   await panel.getByRole('button', { name: 'New terminal' }).click()
   await expect(panel.getByTestId('terminal-view')).toBeVisible()
   await page.getByRole('radio', { name: /^Diagnostics/ }).click()

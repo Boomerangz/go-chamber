@@ -22,7 +22,7 @@ test('names a session and a terminal', async ({ page }, info) => {
 
   await page.getByRole('radio', { name: /^Terminal/ }).click()
   const panel = page.getByRole('region', { name: 'Terminals' })
-  await panel.getByLabel('Terminal directory').fill('/tmp')
+  await panel.getByLabel('Terminal folder').fill('/tmp')
   await panel.getByRole('button', { name: 'New terminal' }).click()
   await page.getByRole('button', { name: 'Rename terminal' }).click()
   await page.getByRole('textbox', { name: 'Terminal name' }).fill(`logs ${info.project.name}`)

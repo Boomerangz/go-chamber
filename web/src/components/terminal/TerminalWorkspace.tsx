@@ -74,13 +74,13 @@ export default function TerminalWorkspace({ sessions }: { sessions: Session[] })
   let list: React.ReactNode
   const failed = loadError && (
     <LoadFailed onRetry={() => void load()}>
-      {loaded || terminals.length > 0 ? `Couldn't refresh shells: ${loadError}` : `Couldn't load shells: ${loadError}`}
+      {loaded || terminals.length > 0 ? `Couldn't refresh terminals: ${loadError}` : `Couldn't load terminals: ${loadError}`}
     </LoadFailed>
   )
   if (!loaded && terminals.length === 0) {
-    list = failed || <LoadingLine>loading shells…</LoadingLine>
+    list = failed || <LoadingLine>loading terminals…</LoadingLine>
   } else if (terminals.length === 0) {
-    list = <p className="terminal-hint">No shells yet.</p>
+    list = <p className="terminal-hint">No terminals yet.</p>
   } else {
     list = (
       <ul
@@ -172,7 +172,7 @@ export default function TerminalWorkspace({ sessions }: { sessions: Session[] })
               requestAnimationFrame(() => document.getElementById(`terminal-tab-${active.id}`)?.scrollIntoView?.({ block: 'nearest' }))
             }}
           >
-            <span className="section-title">Shells</span>
+            <span className="section-title">Terminals</span>
             <span className="count">{terminals.length}</span>
             <TermTitle title={active.title} className="term-switch-title" />
             <ChevronDown {...icon(14)} />
@@ -180,7 +180,7 @@ export default function TerminalWorkspace({ sessions }: { sessions: Session[] })
         )}
         {!foldNew && newArea}
         <h2 className="section-title">
-          Shells {terminals.length > 0 && <span className="count">{terminals.length}</span>}
+          Terminals {terminals.length > 0 && <span className="count">{terminals.length}</span>}
         </h2>
         {(loaded || terminals.length > 0) && failed}
         {list}
@@ -196,7 +196,7 @@ export default function TerminalWorkspace({ sessions }: { sessions: Session[] })
                 requestAnimationFrame(() => toggle.nextElementSibling?.scrollIntoView?.({ block: 'nearest' }))
               }}
             >
-              <span className="section-title">New shell</span>
+              <span className="section-title">Open another</span>
               <ChevronDown {...icon(14)} />
             </button>
             {newArea}
@@ -215,7 +215,7 @@ export default function TerminalWorkspace({ sessions }: { sessions: Session[] })
                 <button type="button" className="btn btn-ghost btn-icon" aria-label="Copy folder path" title="Copy folder path" onClick={() => void copyPath(active.cwd)}>
                   <Copy {...icon(14)} />
                 </button>
-                <CloseTerminalButton terminal={active} label="Close this shell" className="btn btn-ghost btn-icon" />
+                <CloseTerminalButton terminal={active} label="Close this terminal" className="btn btn-ghost btn-icon" />
               </span>
             </header>
             <TerminalScreen id={active.id} />
@@ -224,9 +224,9 @@ export default function TerminalWorkspace({ sessions }: { sessions: Session[] })
           <div className="hero">
             <h2>Terminal</h2>
             {missingId && <p className="term-missing">terminal no longer exists</p>}
-            <p>{terminals.length > 0 ? 'Pick a terminal to attach.' : 'Open a shell in a folder or one of your projects.'}</p>
+            <p>{terminals.length > 0 ? 'Pick a terminal to attach.' : 'Open a terminal in a folder or one of your projects.'}</p>
             <button type="button" className="btn btn-primary" aria-busy={opening.home || undefined} onClick={() => void open({})}>
-              {opening.home ? 'Opening…' : 'Open shell in ~'}
+              {opening.home ? 'Opening…' : 'Open terminal in ~'}
             </button>
           </div>
         )}

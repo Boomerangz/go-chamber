@@ -46,6 +46,6 @@ export function terminalShortcuts(mac: boolean): { keys: string; label: string }
     { keys: k('F', true), label: 'In a terminal: find in the scrollback' },
     { keys: `${k('=')} · ${k('-')} · ${k('0')}`, label: 'In a terminal: larger, smaller, default text' },
     { keys: `${k('C', true)} · ${k('V', true)}`, label: 'In a terminal: copy the selection, paste' },
-    { keys: `${alt}[ · ${alt}]`, label: 'In a terminal: previous, next shell' },
+    { keys: `${alt}[ · ${alt}]`, label: 'In a terminal: previous, next terminal' },
   ]
 }

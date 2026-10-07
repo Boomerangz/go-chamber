@@ -61,7 +61,7 @@ export default function DiagnosticsPage() {
       <header className="diagnostics-header">
         <div>
           <h2>Diagnostics</h2>
-          <p>Delivery, browser responsiveness and terminal backlog. Counters contain no prompts or shell contents.</p>
+          <p>Delivery, browser responsiveness and terminal backlog. Counters contain no prompts or terminal contents.</p>
         </div>
         <div className="diagnostics-actions">
           <button className="btn" onClick={() => setEnabled((value) => !value)}>{enabled ? 'Pause probes' : 'Resume probes'}</button>
