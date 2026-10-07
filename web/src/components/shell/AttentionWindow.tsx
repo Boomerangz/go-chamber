@@ -147,7 +147,7 @@ export function AttentionPanel({ standalone = false }: { standalone?: boolean })
     <header>{standalone ? <h2>Overview</h2> : <strong>go-chamber</strong>}<button className="btn btn-xs attention-leave" onClick={() => { useSessionStore.getState().setPane(standalone ? 'sessions' : 'chat'); returnToChat() }}>{standalone ? 'Sessions' : 'Open workspace'}</button></header>
     {sessionsStatus === 'ready' && <p className="attention-summary">{running.length} running · {waitingCount} waiting</p>}
     <LiveStrip />
-    <div onClick={(event) => {
+    <div className="attention-inbox" onClick={(event) => {
       // RequestTray navigates questions and interrupted sessions in the main app.
       // Use the child's DOM realm: instanceof HTMLElement would reject its nodes.
       const target = event.target as Element
@@ -176,11 +176,11 @@ export function AttentionPanel({ standalone = false }: { standalone?: boolean })
           {done ? <>
             <div className="attention-result-line">
               <strong className="attention-outcome">{outcome}</strong>
-              {entry?.result && <p className="attention-result">{brief(entry.result)}</p>}
-            </div>
-            <div className="attention-result-actions">
-              <button className="btn btn-xs" onClick={() => { void markResultSeen(s.id); open(s) }}>Open result</button>
-              <button className="btn btn-xs btn-ghost" aria-label="Dismiss result" onClick={() => void markResultSeen(s.id)}>Dismiss</button>
+              {entry?.result && <p className="attention-result" title={entry.result}>{brief(entry.result)}</p>}
+              <div className="attention-result-actions">
+                <button className="btn btn-xs" onClick={() => { void markResultSeen(s.id); open(s) }}>Open result</button>
+                <button className="btn btn-xs btn-ghost" aria-label="Dismiss result" onClick={() => void markResultSeen(s.id)}>Dismiss</button>
+              </div>
             </div>
           </> : pending.length ? <button type="button" className="attention-waiting" title="Answer it in Waiting for you above" onClick={(e) => pointToRequest(e, s.id)}>
             <span>Waiting for you · answer above</span>

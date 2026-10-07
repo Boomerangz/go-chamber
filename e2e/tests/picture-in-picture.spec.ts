@@ -16,12 +16,14 @@ test('floating panel approves a live request and can be reopened', async ({ page
   const childOpened = context.waitForEvent('page')
   await open.click()
   const child = await childOpened
+  // The owner works elsewhere: a chat in view would see the result itself.
+  await page.getByRole('radio', { name: 'Terminal' }).click()
   // Headless Chromium inherits the context viewport instead of native PiP bounds.
   await child.setViewportSize({ width: 420, height: 560 })
   const request = child.getByRole('listitem').filter({ hasText: 'pip prototype: please permission' })
   await expect(request).toBeVisible()
   const activity = child.locator('.attention-session').filter({ hasText: 'pip prototype: please permission' })
-  await expect(activity.getByLabel('Task elapsed')).toHaveText(/\d\d:\d\d/)
+  await expect(activity.getByLabel('Task elapsed')).toHaveText(/^\d+:\d\d$/)
   await expect(activity.locator('.attention-waiting')).toContainText('Waiting for you ·')
   expect(await child.locator('body').evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true)
   await child.screenshot({ path: info.outputPath('floating-panel.png') })
@@ -30,8 +32,9 @@ test('floating panel approves a live request and can be reopened', async ({ page
   // The inbox is every session's: other specs' requests may still wait
   // there, so this session's own line says it no longer waits.
   await expect(activity.locator('.attention-waiting')).toHaveCount(0)
-  await expect(page.locator('.item.assistant', { hasText: /approved: run/ })).toBeVisible()
   await expect(activity.locator('.attention-outcome')).toHaveText('Done')
+  // Cards are divided between them: the last one draws no rule over the footer's.
+  await expect(child.locator('.attention-session').last()).toHaveCSS('border-bottom-width', '0px')
   await expect(activity.locator('.attention-result')).toContainText('approved: run')
   const duration = await activity.getByLabel('Task elapsed').textContent()
   await expect(child.locator('body')).toHaveCSS('overflow', 'auto')
@@ -60,7 +63,7 @@ test('floating panel receives a background session without selecting its chat', 
   const sent = await context.request.post(`/api/sessions/${id}/messages`, { data: { text: 'background clock: please permission' } })
   expect(sent.ok()).toBe(true)
   const activity = child.locator('.attention-session').filter({ hasText: 'background clock:' })
-  await expect(activity.getByLabel('Task elapsed')).toHaveText(/\d\d:\d\d/)
+  await expect(activity.getByLabel('Task elapsed')).toHaveText(/^\d+:\d\d$/)
   const initial = await activity.getByLabel('Task elapsed').textContent()
   await expect(activity.getByLabel('Task elapsed')).not.toHaveText(initial!)
   await child.getByRole('listitem').filter({ hasText: 'background clock:' }).getByRole('button', { name: 'Allow', exact: true }).click()
