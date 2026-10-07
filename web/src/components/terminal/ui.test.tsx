@@ -311,6 +311,15 @@ describe('TerminalWorkspace on a phone', () => {
     expect(api.openTerminal).toHaveBeenCalledWith(expect.objectContaining({ cwd: '/data/wt/app/phone-fix' }))
   })
 
+  it('still offers a live worktree whose repository is not among the recent projects', () => {
+    useTerminalStore.setState({ loaded: true })
+    const others = Array.from({ length: 6 }, (_, i) => ({ id: `o${i}`, agent: 'claude' as const, cwd: `/w/other-${i}`, status: 'idle' as const }))
+    const wt = { id: 'w', agent: 'claude' as const, cwd: '/data/wt/app/fix', status: 'idle' as const, worktree: { repo: '/w/app', path: '/data/wt/app/fix', branch: 'chamber/fix', base: 'main' } }
+    render(<TerminalWorkspace sessions={[wt, ...others]} />)
+    expect(screen.queryByRole('button', { name: 'Open terminal in app' })).toBeNull()
+    expect(screen.getByRole('button', { name: 'Open terminal in app ⎇ fix' })).toBeInTheDocument()
+  })
+
   it('marks only the project chip being opened as busy', async () => {
     useTerminalStore.setState({ loaded: true })
     ;(api.openTerminal as Mock).mockReturnValue(new Promise(() => {}))
