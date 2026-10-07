@@ -70,9 +70,14 @@ describe('HistoryPanel', () => {
     // jsdom lays nothing out: a 500px view with History 700px down, 300 tall.
     Object.defineProperty(box, 'clientHeight', { configurable: true, value: 500 })
     box.getBoundingClientRect = () => ({ top: 100 }) as DOMRect
+    // The list waits until the fold's layout is in place: arriving first,
+    // it would be measured with jsdom's zero layout.
+    let arrive: (l: typeof external) => void = () => {}
+    vi.mocked(api.listHistory).mockImplementationOnce(() => new Promise((r) => (arrive = r)))
     await userEvent.click(screen.getByText('History'))
     fold().getBoundingClientRect = () => ({ top: 800 }) as DOMRect
     Object.defineProperty(fold(), 'offsetHeight', { configurable: true, value: 300 })
+    arrive(external)
     expect(await screen.findByText('Fix the flaky test')).toBeInTheDocument()
     // nearest would be 700 + 300 - 500 = 500; keeping 200 above allows 500.
     // A taller History (900) would go to its top, 700, but stops at 500.
