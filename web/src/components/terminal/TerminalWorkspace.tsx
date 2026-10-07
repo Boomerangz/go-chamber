@@ -46,7 +46,7 @@ export default function TerminalWorkspace({ sessions }: { sessions: Session[] })
   useTerminalSteps(terminals.map((t) => t.id))
   // On a phone the list folds to one line while a shell is attached.
   const [listOpen, setListOpen] = useState(false)
-  // There, unfolded, the shells come first and a new one waits behind "New shell".
+  // There, unfolded, the terminals come first and a new one waits behind "Open another".
   const narrow = useMedia('(max-width: 720px)')
   const [newOpen, setNewOpen] = useState(false)
   const openError = useTerminalStore((s) => s.openError)

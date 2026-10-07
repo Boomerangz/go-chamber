@@ -265,7 +265,7 @@ test.describe('a touch tablet', () => {
 
       await openDock(page, 'Terminal')
       const terms = page.getByRole('region', { name: 'Terminals' })
-      await terms.getByRole('button', { name: 'New terminal in session dir' }).tap()
+      await terms.getByRole('button', { name: 'New terminal in session folder' }).tap()
       await expect(terms.getByRole('tab', { selected: true })).toBeVisible()
       expect(await side(terms.getByRole('button', { name: 'More terminals' })), 'More terminals').toBeGreaterThanOrEqual(36)
       await terms.getByRole('button', { name: /^Close terminal / }).first().tap()
