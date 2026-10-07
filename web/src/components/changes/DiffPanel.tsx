@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type ReactNode } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type ReactNode } from 'react'
 import type { ThemedToken } from 'shiki/core'
 import { ChevronsDownUp, ChevronsUpDown, Copy, Eye, RefreshCw, WrapText } from 'lucide-react'
 import * as api from '../../lib/api'
@@ -6,6 +6,7 @@ import { parseDiff, SIGNS, totals, type DiffStat as Counts, type DiffLine } from
 import { langOf } from '../../lib/files'
 import { isTypingTarget } from '../../lib/hotkeys'
 import { usePending } from '../../lib/pending'
+import { changesViewOf, keepChangesScroll, keepOpenFiles } from '../../stores/changesView'
 import { useLayoutStore } from '../../stores/layout'
 import { describeError, fail, notify } from '../../stores/notices'
 import { useSessionStore } from '../../stores/session'
@@ -86,8 +87,9 @@ function SessionDiffPanel({ sessionId }: { sessionId: string | null }) {
   // asked is the reload the owner asked for (Refresh, Retry): only that one
   // says "refreshing…"; a poll or a turn ending reloads quietly.
   const [asked, setAsked] = useState<number | null>(null)
-  // open lists the expanded files; diffs holds what each one loaded.
-  const [open, setOpen] = useState<string[]>([])
+  // open lists the expanded files; diffs holds what each one loaded. The
+  // files a session had open come back with the panel.
+  const [open, setOpen] = useState<string[]>(() => (sessionId ? changesViewOf(sessionId).open : []))
   const [diffs, setDiffs] = useState<Record<string, FileDiff>>({})
   const [counts, setCounts] = useState<Record<string, Counts>>({})
   const [viewing, setViewing] = useState<string | null>(null)
@@ -97,7 +99,8 @@ function SessionDiffPanel({ sessionId }: { sessionId: string | null }) {
   const openRef = useRef(open)
   useEffect(() => {
     openRef.current = open
-  }, [open])
+    if (sessionId) keepOpenFiles(sessionId, open)
+  }, [open, sessionId])
   useEffect(() => {
     const pending = requests
     return () => {
@@ -234,6 +237,37 @@ function SessionDiffPanel({ sessionId }: { sessionId: string | null }) {
     heads[next]!.scrollIntoView?.({ block: 'nearest' })
   }
 
+  // The panel comes back scrolled where the owner left it, once the list and
+  // the open diffs are in (until then it is too short to get there).
+  const panel = useRef<HTMLElement>(null)
+  const placed = useRef(false)
+  const ready = Boolean(listError) || goneHere || (settled !== null && open.every((p) => diffs[p] !== undefined && !diffs[p].loading))
+  useLayoutEffect(() => {
+    const el = panel.current
+    if (placed.current || !sessionId || !el) return
+    const scroll = changesViewOf(sessionId).scroll
+    if (scroll > 0) el.scrollTop = scroll
+    if (ready || scroll === 0) placed.current = true
+  })
+  useEffect(() => {
+    const el = panel.current
+    if (!el || !sessionId) return
+    let frame = 0
+    const save = () => {
+      frame = 0
+      // Until the place is back, scrolling is the page's, not the owner's.
+      if (placed.current) keepChangesScroll(sessionId, el.scrollTop)
+    }
+    const onScroll = () => {
+      if (!frame) frame = requestAnimationFrame(save)
+    }
+    el.addEventListener('scroll', onScroll, { passive: true })
+    return () => {
+      el.removeEventListener('scroll', onScroll)
+      if (frame) cancelAnimationFrame(frame)
+    }
+  }, [sessionId])
+
   const [head, headHeight] = useHeight<HTMLElement>()
   const total = totals(files)
   const counted = files.every((f) => f.added !== undefined || f.binary)
@@ -244,7 +278,7 @@ function SessionDiffPanel({ sessionId }: { sessionId: string | null }) {
 
   if (!sessionId) return <p className="tray-empty">Open a session to see its changes</p>
   return (
-    <section className="diff-panel" aria-label="Changes" onKeyDown={onKey} style={headHeight ? ({ '--diff-head-h': `${headHeight}px` } as CSSProperties) : undefined}>
+    <section ref={panel} className="diff-panel" aria-label="Changes" onKeyDown={onKey} style={headHeight ? ({ '--diff-head-h': `${headHeight}px` } as CSSProperties) : undefined}>
       <header className="diff-head" ref={head}>
         <h2 className="section-title">Changes</h2>
         {changes?.repository && files.length > 0 && counted && (

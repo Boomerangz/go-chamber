@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type MouseEvent } from 'react'
+import { useEffect, useRef, useState, type MouseEvent, type RefObject } from 'react'
 import { createPortal } from 'react-dom'
 import { PictureInPicture2 } from 'lucide-react'
 import { sessionTitle } from '../../lib/sessions'
@@ -94,6 +94,30 @@ async function markResultSeen(id: string): Promise<void> {
   }
 }
 
+// useFirstWaitingFocus: the Overview opens on its first waiting row, as the
+// chat does on a request card, so the row's a/s/d answer it at once. It
+// takes focus once, the first time a row is there, and never from a field
+// being typed in (nor anywhere in a touch screen's text fields: a row is no
+// text field, so no keyboard comes up). The floating panel is another window
+// and leaves focus where it is.
+function useFirstWaitingFocus(panel: RefObject<HTMLElement | null>, standalone: boolean, waiting: number) {
+  const done = useRef(false)
+  useEffect(() => {
+    if (!standalone || done.current || waiting === 0) return
+    const row = panel.current?.querySelector<HTMLElement>('.attention-inbox .tray-row')
+    if (!row) return
+    done.current = true
+    const active = row.ownerDocument.activeElement
+    if (active instanceof HTMLElement && (active.isContentEditable || active instanceof HTMLInputElement || active instanceof HTMLTextAreaElement)) return
+    if (active && panel.current?.contains(active)) return
+    row.focus({ preventScroll: true })
+  }, [panel, standalone, waiting])
+}
+
+// SAME_TIMER_MS: a wait that began this soon after its task reads as the
+// task's own clock.
+const SAME_TIMER_MS = 5000
+
 // pointToRequest moves to the session's request in the inbox above: the
 // card says it waits, the inbox is where it is answered.
 function pointToRequest(event: MouseEvent<HTMLButtonElement>, id: string) {
@@ -143,7 +167,9 @@ export function AttentionPanel({ standalone = false }: { standalone?: boolean })
     if (!standalone) window.focus()
   }
   const open = (s: Session) => { void select(s.id); returnToChat() }
-  return <section className={standalone ? "attention-panel attention-overview" : "attention-panel"} aria-label={standalone ? "Overview" : "Floating activity"}>
+  const panel = useRef<HTMLElement>(null)
+  useFirstWaitingFocus(panel, standalone, waitingCount)
+  return <section ref={panel} className={standalone ? "attention-panel attention-overview" : "attention-panel"} aria-label={standalone ? "Overview" : "Floating activity"}>
     <header>{standalone ? <h2>Overview</h2> : <strong>go-chamber</strong>}<button className="btn btn-xs attention-leave" onClick={() => { useSessionStore.getState().setPane(standalone ? 'sessions' : 'chat'); returnToChat() }}>{standalone ? 'Sessions' : 'Open workspace'}</button></header>
     {sessionsStatus === 'ready' && <p className="attention-summary">{running.length} running · {waitingCount} waiting</p>}
     <LiveStrip />
@@ -168,6 +194,9 @@ export function AttentionPanel({ standalone = false }: { standalone?: boolean })
         const start = entry?.startedAt ?? timestamp(s.activeAt)
         const end = entry?.endedAt ?? timestamp(s.endedAt)
         const clock = done && end === undefined ? '—' : elapsed(start, done ? end! : now)
+        // A wait that began with the task is the header's clock already;
+        // only one that began later has a clock of its own.
+        const waitClock = waitSince !== undefined && (start === undefined || waitSince - start >= SAME_TIMER_MS)
         const outcome = entry?.outcome ?? 'Finished'
         const task = entry?.summary || sessionTitle(s)
         return <article className="attention-session" key={s.id} data-outcome={done ? outcome : undefined}>
@@ -184,7 +213,7 @@ export function AttentionPanel({ standalone = false }: { standalone?: boolean })
             </div>
           </> : pending.length ? <button type="button" className="attention-waiting" title="Answer it in Waiting for you above" onClick={(e) => pointToRequest(e, s.id)}>
             <span>Waiting for you · answer above</span>
-            {waitSince !== undefined && <span aria-label="Waiting elapsed">{elapsed(waitSince, now)}</span>}
+            {waitClock && <span aria-label="Waiting elapsed">{elapsed(waitSince, now)}</span>}
           </button> : <p className="attention-action">
             <span className="attention-action-label">{action?.label || entry?.activity || 'Working'}</span>
             {actions.length > 1 && <small>+{actions.length - 1} parallel</small>}

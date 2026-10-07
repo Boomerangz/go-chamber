@@ -1,4 +1,14 @@
 .history { flex: none; padding: 4px 0; border-top: 1px solid var(--rule); }
+/* closed, History's heading stays pinned at the foot of the scrolling list,
+   so a list taller than the sidebar still says it is there; opened, it takes
+   its place after the sessions (the sidebar then scrolls as a whole).
+   Only where the list itself scrolls: on a phone or a short window the
+   whole sidebar does, and a pinned heading would cover its last rows. */
+@media (min-width: 721px) and (min-height: 501px) {
+  .sidebar-body > .history:not(.archived):not([open]) { position: sticky; bottom: 0; z-index: 2; background: var(--paper); }
+  /* a row scrolled into view (focus, the open session) clears the heading */
+  .sidebar-body:has(> .history:not(.archived):not([open])) { scroll-padding-bottom: 48px; }
+}
 .history summary { padding: 8px 14px; cursor: pointer; list-style: none; }
 @media (hover: hover) { .history summary:hover { color: var(--ink); } }
 .history summary::-webkit-details-marker { display: none; }

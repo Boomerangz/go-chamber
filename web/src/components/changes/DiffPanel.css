@@ -46,7 +46,10 @@
     background: linear-gradient(to right, transparent, var(--paper) 12px); pointer-events: none;
   }
   .diff-file:hover .diff-file-actions, .diff-file-head:focus-within .diff-file-actions { pointer-events: auto; }
-  .diff-file-head:has(> .diff-file-toggle[aria-expanded='true']) .diff-file-actions { position: static; padding-left: 0; background: none; }
+  /* and, having given them that room, shows them: no blank gap before its counts */
+  .diff-file-head:has(> .diff-file-toggle[aria-expanded='true']) .diff-file-actions {
+    position: static; padding-left: 0; background: none; opacity: 1; pointer-events: auto;
+  }
 }
 /* status: a lowercase word after a square mark whose form is the status */
 .diff-status {

@@ -6,6 +6,7 @@ import { resetLayout, useLayoutStore } from '../../stores/layout'
 import * as api from '../../lib/api'
 import { resetStore, useSessionStore } from '../../stores/session'
 import { useNotices } from '../../stores/notices'
+import { changesViewOf } from '../../stores/changesView'
 
 vi.mock('../../lib/api', async (orig) => ({
   ApiError: (await orig<typeof import('../../lib/api')>()).ApiError,
@@ -564,4 +565,71 @@ it('late diff must not replace the selected file',async()=>{
  await act(async()=>finishA({diff:'+A'}))
  expect(screen.getByText('B')).toBeInTheDocument()
 },20000)
+
+describe('DiffPanel remembers', () => {
+  const two = { repository: true, files: [{ path: 'a.go', status: 'M' }, { path: 'b.go', status: 'M' }] }
+  const frame = () => act(async () => new Promise<void>((r) => requestAnimationFrame(() => r())))
+
+  it('keeps a session’s open files when the panel comes back', async () => {
+    vi.mocked(api.getChanges).mockResolvedValue(two)
+    vi.mocked(api.getFileDiff).mockImplementation(async (_s, p) => ({ diff: `@@ -1 +1 @@\n+in ${p}\n` }))
+    const first = render(<DiffPanel sessionId="s1" />)
+    await userEvent.click(await screen.findByRole('button', { name: /b\.go/ }))
+    expect(await screen.findByText('in b.go')).toBeInTheDocument()
+    first.unmount()
+    render(<DiffPanel sessionId="s1" />)
+    expect(await screen.findByText('in b.go')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /b\.go/ })).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByRole('button', { name: /a\.go/ })).toHaveAttribute('aria-expanded', 'false')
+  })
+
+  it('keeps each session’s open files apart', async () => {
+    vi.mocked(api.getChanges).mockResolvedValue(two)
+    vi.mocked(api.getFileDiff).mockImplementation(async (_s, p) => ({ diff: `@@ -1 +1 @@\n+in ${p}\n` }))
+    const view = render(<DiffPanel sessionId="s1" />)
+    await userEvent.click(await screen.findByRole('button', { name: /a\.go/ }))
+    expect(await screen.findByText('in a.go')).toBeInTheDocument()
+    view.rerender(<DiffPanel sessionId="s2" />)
+    expect(await screen.findByRole('button', { name: /a\.go/ })).toHaveAttribute('aria-expanded', 'false')
+    view.rerender(<DiffPanel sessionId="s1" />)
+    expect(await screen.findByText('in a.go')).toBeInTheDocument()
+  })
+
+  it('takes the panel back to where it was scrolled', async () => {
+    vi.mocked(api.getChanges).mockResolvedValue(two)
+    vi.mocked(api.getFileDiff).mockImplementation(async (_s, p) => ({ diff: `@@ -1 +1 @@\n+in ${p}\n` }))
+    const first = render(<DiffPanel sessionId="s1" />)
+    await userEvent.click(await screen.findByRole('button', { name: /a\.go/ }))
+    await screen.findByText('in a.go')
+    const panel = screen.getByRole('region', { name: 'Changes' })
+    panel.scrollTop = 140
+    fireEvent.scroll(panel)
+    await frame()
+    first.unmount()
+    render(<DiffPanel sessionId="s1" />)
+    await screen.findByText('in a.go')
+    expect(screen.getByRole('region', { name: 'Changes' }).scrollTop).toBe(140)
+  })
+
+  it('does not save the page’s own scrolling before the place is back', async () => {
+    vi.mocked(api.getChanges).mockResolvedValue(two)
+    vi.mocked(api.getFileDiff).mockImplementation(async (_s, p) => ({ diff: `+in ${p}\n` }))
+    const first = render(<DiffPanel sessionId="s1" />)
+    await userEvent.click(await screen.findByRole('button', { name: /a\.go/ }))
+    await screen.findByText('in a.go')
+    const panel = screen.getByRole('region', { name: 'Changes' })
+    panel.scrollTop = 90
+    fireEvent.scroll(panel)
+    await frame()
+    first.unmount()
+    vi.mocked(api.getFileDiff).mockReturnValue(new Promise(() => {}))
+    render(<DiffPanel sessionId="s1" />)
+    await screen.findByRole('button', { name: /a\.go/ })
+    const again = screen.getByRole('region', { name: 'Changes' })
+    again.scrollTop = 5
+    fireEvent.scroll(again)
+    await frame()
+    expect(changesViewOf('s1').scroll).toBe(90)
+  })
+})
 

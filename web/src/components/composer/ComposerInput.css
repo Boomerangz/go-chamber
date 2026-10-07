@@ -34,6 +34,20 @@
   .completions li { min-height: 40px; }
   .completion-detail { display: none; }
 }
+/* The composer keeps its height when a turn starts and ends. Its row is
+   decided by the running layout (Attach, Stop, the hint, Steer), idle or
+   not: where that would not fit, the hint goes first, in both states; where
+   even without it the text would be squeezed under its 220px, the actions sit
+   under the text in both states. Widths are the content box's; the margins
+   take "Stopping…" and "Steering…". */
+.composer { container: composer / inline-size; }
+@container composer (max-width: 659.98px) {
+  .composer .composer-keys { display: none; }
+}
+@container composer (max-width: 439.98px) {
+  .composer .composer-input { flex-basis: 100%; }
+  .composer .composer-actions { width: 100%; justify-content: flex-end; }
+}
 /* a draft of several lines takes the whole width; the actions go beneath it */
 .composer.multiline .composer-input { flex-basis: 100%; }
 .composer.multiline .composer-actions { width: 100%; justify-content: flex-end; }
