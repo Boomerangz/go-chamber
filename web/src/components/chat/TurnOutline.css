@@ -1,0 +1,26 @@
+/* The turns, hung in the transcript's right margin. The nav is a zero-height
+   strip pinned to the top of the scroll; its list sits in the margin to the
+   right of the text column, never over it. Only a transcript wide enough
+   for the column and a margin of 184px on each side shows it. */
+.turn-outline { display: none; }
+@container transcript (min-width: 1020px) {
+  .turn-outline { display: block; position: sticky; top: 0; height: 0; z-index: 2; }
+  .turn-outline ol {
+    position: absolute; right: 0; top: 0;
+    width: min(220px, calc((100cqi - var(--column)) / 2 - 24px));
+    max-height: calc(100dvh - 240px); overflow: auto;
+    list-style: none; margin: 0; padding: 0;
+    border-left: 1px solid var(--rule);
+  }
+}
+.turn-outline button {
+  display: grid; grid-template-columns: 3ch minmax(0, 1fr); column-gap: 8px; align-items: baseline;
+  width: 100%; margin-left: -1px; padding: 3px 0 3px 10px;
+  border: 0; border-left: 1px solid transparent; background: none; text-align: left;
+  color: var(--ink-3); font-size: var(--t-small); line-height: 1.45;
+  transition: color var(--dur-fast), border-color var(--dur-fast);
+}
+@media (hover: hover) { .turn-outline button:hover { color: var(--ink); } }
+.turn-outline button[aria-current] { color: var(--ink); border-left-color: var(--ink); }
+.turn-outline-n { font-family: var(--font-mono); font-size: var(--t-meta); text-align: right; }
+.turn-outline-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

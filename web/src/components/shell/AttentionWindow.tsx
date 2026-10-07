@@ -7,6 +7,7 @@ import { markSeen, type Session } from '../../lib/api'
 import { failedTo } from '../../lib/failed'
 import { isUnseen } from '../../lib/visits'
 import { useWaitingCount } from '../../lib/waiting'
+import { fleet } from '../../lib/fleet'
 import { brief, elapsed, useAttention } from '../../stores/attention'
 import { fail } from '../../stores/notices'
 import { useSessionStore } from '../../stores/session'
@@ -156,9 +157,7 @@ export function AttentionPanel({ standalone = false }: { standalone?: boolean })
     void useAttention.getState().refresh(useSessionStore.getState().sessions, { catchUp })
   }, [connection, refreshKey])
   const top = sessions.filter((s) => !s.parentId)
-  // A turn held up by a question or permission counts as waiting, not
-  // also as running: each session is counted once.
-  const running = top.filter((s) => s.status === 'running' && !requests.some((r) => r.sessionId === s.id))
+  const { running } = fleet(sessions, requests, waitingCount)
   // A result is news until the owner looks at the session on any device.
   const isResult = (s: Session) => s.status !== 'running' && isUnseen(s) && !entries[s.id]?.dismissed
   const visible = top.filter((s) => s.status === 'running' || isResult(s))
@@ -173,7 +172,7 @@ export function AttentionPanel({ standalone = false }: { standalone?: boolean })
   useFirstWaitingFocus(panel, standalone, waitingCount)
   return <section ref={panel} className={standalone ? "attention-panel attention-overview" : "attention-panel"} aria-label={standalone ? "Overview" : "Floating activity"}>
     <header>{standalone ? <h2>Overview</h2> : <strong>go-chamber</strong>}<button className="btn btn-xs attention-leave" onClick={() => { useSessionStore.getState().setPane(standalone ? 'sessions' : 'chat'); returnToChat() }}>{standalone ? 'Sessions' : 'Open workspace'}</button></header>
-    {sessionsStatus === 'ready' && <p className="attention-summary">{running.length} running · {waitingCount} waiting</p>}
+    {sessionsStatus === 'ready' && <p className="attention-summary">{running} running · {waitingCount} waiting</p>}
     <LiveStrip />
     <div className="attention-inbox" onClick={(event) => {
       // RequestTray navigates questions and interrupted sessions in the main app.

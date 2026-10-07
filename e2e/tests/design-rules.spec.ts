@@ -317,3 +317,38 @@ test('amber stays on the REQUIRES block and the counts; waiting and Allow are in
   const tail = page.locator('.working-tail.waiting')
   if (await tail.count()) expect(await color(tail, 'color')).not.toBe(await color(card.locator('.request-kw'), 'color'))
 })
+
+// The wide screen's margin: the turns as a table of contents to the right of
+// the text column, never over it; a narrower screen has no room and no list.
+test('a wide transcript hangs its turns in the right margin', async ({ page, isMobile }) => {
+  test.skip(isMobile, 'a phone has no margin')
+  await page.setViewportSize({ width: 1680, height: 900 })
+  await newSession(page)
+  await say(page, 'first question')
+  await expect(page.locator('.item.assistant', { hasText: 'echo: first question' })).toBeVisible()
+  await say(page, 'second question')
+  await expect(page.locator('.item.assistant', { hasText: 'echo: second question' })).toBeVisible()
+  const nav = page.getByRole('navigation', { name: 'Turns' })
+  await expect(nav.getByRole('button')).toHaveCount(2)
+  const list = await box(nav.locator('ol'))
+  const column = await box(page.locator('.items'))
+  expect(list.left).toBeGreaterThanOrEqual(column.right)
+  await expect(nav.getByRole('button', { name: /second question/ })).toHaveAttribute('aria-current', 'location')
+  await nav.getByRole('button', { name: /first question/ }).click()
+  await expect(nav.getByRole('button', { name: /first question/ })).toHaveAttribute('aria-current', 'location')
+  // the bar says how the fleet stands, beside Overview's word
+  await expect(page.getByRole('button', { name: 'Overview', exact: true })).toBeVisible()
+  await page.setViewportSize({ width: 1100, height: 900 })
+  await expect(nav).toBeHidden()
+})
+
+test('Overview reads the fleet while a session waits', async ({ page, isMobile }) => {
+  test.skip(isMobile, 'the phone has no room for the line')
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await newSession(page)
+  await say(page, 'please permission')
+  await expect(page.locator('.request.permission')).toBeVisible()
+  const overview = page.getByRole('button', { name: 'Overview', exact: true })
+  await expect(overview).toHaveAccessibleDescription(/\d+ waiting/)
+  await expect(overview.locator('.fleet')).toBeVisible()
+})

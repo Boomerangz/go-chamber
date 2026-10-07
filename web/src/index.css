@@ -294,6 +294,10 @@ kbd {
    the views (focus, overview, floating), the alerts (notifications,
    sound), then help and the account */
 .bar-rule { flex: none; width: 1px; height: 16px; background: var(--rule); }
+/* the fleet at a glance, after Overview's word: what runs and what waits */
+.overview-toggle .fleet { color: var(--ink-3); white-space: nowrap; }
+.overview-toggle .fleet::before { content: '·'; margin-right: 6px; }
+@media (max-width: 1199px) { .overview-toggle .fleet { display: none; } }
 /* one control height across the bar: the toggles as tall as Focus and Sign out */
 @media (min-width: 721px) { .topbar-end .btn-icon { width: 30px; height: 30px; } }
 @media (max-width: 720px) { .topbar-end .signout, .focus-toggle, .shortcuts-help, .bar-rule { display: none; } }
@@ -687,7 +691,7 @@ button.health { border: 0; background: none; padding: 0; }
 .reviewer { display: flex; gap: 8px; align-items: center; font-family: var(--font-mono); font-size: var(--t-meta); color: var(--ink-3); }
 .usage { font-family: var(--font-mono); font-size: var(--t-meta); color: var(--ink-3); }
 
-.scroll { flex: 1; min-height: 0; overflow: auto; padding: 18px var(--gutter) 16px; border-bottom: 1px solid var(--rule); scroll-padding-bottom: 16px; }
+.scroll { flex: 1; min-height: 0; overflow: auto; padding: 18px var(--gutter) 16px; border-bottom: 1px solid var(--rule); scroll-padding-bottom: 16px; container: transcript / inline-size; }
 /* the text column, with a margin to its left for turn numbers */
 .items, .scroll > .request, .scroll > .request-slot, .chat-hint {
   max-width: var(--column); margin-left: auto; margin-right: auto; padding-left: 56px;

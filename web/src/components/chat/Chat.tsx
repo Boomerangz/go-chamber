@@ -38,7 +38,8 @@ import { useCLIs } from '../../lib/clis'
 import { useUnseen } from '../../lib/seen'
 import { isBlank, itemTree, withoutAnsweredQuestions } from '../../lib/tree'
 import { groupTools, lastItemId } from '../../lib/group'
-import { turnNumbers } from '../../lib/turns'
+import { turnNumbers, turnOutline } from '../../lib/turns'
+import TurnOutline from './TurnOutline'
 import { loadDraft, saveDraft } from '../../stores/drafts'
 import { useSessionStore } from '../../stores/session'
 import { useNotices } from '../../stores/notices'
@@ -134,6 +135,7 @@ export default function Chat() {
     [chat.order, chat.items],
   )
   const turns = useMemo(() => turnNumbers(nodes), [nodes])
+  const outline = useMemo(() => turnOutline(nodes), [nodes])
   // What the "latest" button counts: replies and requests, not tool lines.
   const news = useMemo(() => {
     const keys = chat.order.filter((id) => {
@@ -470,6 +472,7 @@ export default function Chat() {
       </div>
       {/* Focusable: a keyboard answer leaves focus here, where arrows scroll. */}
       <div className="scroll" ref={scrollRef} tabIndex={-1}>
+        {!notFound && <TurnOutline entries={outline} scrollRef={scrollRef} reduced={reduced} />}
         {notFound ? null : history === 'loading' && chat.order.length === 0 ? (
           <div className="chat-loading">
             <Skeleton rows={4} label="Loading transcript" />
