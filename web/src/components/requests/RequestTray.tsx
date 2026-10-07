@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { enter } from '../../lib/motion'
 import { basename } from '../../lib/format'
@@ -46,36 +46,8 @@ export default function RequestTray() {
     )
   }
 
-  // Focus in the tray stays in the tray, never drops to the page: with no
-  // line left to move on to after a keyboard answer it rests on the tray,
-  // and when what held it leaves (its line answered here or elsewhere, the
-  // list giving way to the empty tray) it moves to the tray, or to what the
-  // tray says once empty. Not to a line: a stray key would answer it.
-  const region = useRef<HTMLElement | null>(null)
-  const empty = useRef<HTMLElement | null>(null)
-  const held = useRef<Element | null>(null)
-  const setEmpty = (el: HTMLElement | null) => void (empty.current = el)
-  const settle = () => (region.current ?? empty.current)?.focus()
-  const onFocus = (e: { target: Element }) => void (held.current = e.target)
-  const recover = useRef(() => {})
-  recover.current = () => {
-    const was = held.current
-    const active = document.activeElement
-    if (!was || was.isConnected || (active && active !== document.body)) return
-    held.current = null
-    settle()
-  }
-  // A list that gives way to another root, or a line that leaves once its
-  // exit has played (no render of the tray marks that).
-  useLayoutEffect(() => recover.current())
   const none = requests.length === 0 && owed.length === 0
-  useEffect(() => {
-    const el = region.current
-    if (!el || typeof MutationObserver !== 'function') return
-    const watch = new MutationObserver(() => recover.current())
-    watch.observe(el, { childList: true, subtree: true })
-    return () => watch.disconnect()
-  }, [none])
+  const { region, setEmpty, onFocus, settle } = useTrayFocus(none)
 
   // This is what needs the owner: until it loaded, an empty inbox would be
   // a false all-clear.
@@ -266,6 +238,39 @@ function OwedLine({ session }: { session: Session }) {
       </div>
     </motion.li>
   )
+}
+
+// useTrayFocus keeps focus that is in the tray in the tray, never dropped
+// to the page: with no line left to move on to after a keyboard answer it
+// rests on the tray (settle), and when what held it leaves (its line
+// answered here or elsewhere, the list giving way to the empty tray) it
+// moves to the tray, or to what the tray says once empty. Not to a line:
+// a stray key would answer it.
+function useTrayFocus(none: boolean) {
+  const region = useRef<HTMLElement | null>(null)
+  const empty = useRef<HTMLElement | null>(null)
+  const held = useRef<Element | null>(null)
+  const setEmpty = useCallback((el: HTMLElement | null) => void (empty.current = el), [])
+  const onFocus = useCallback((e: { target: Element }) => void (held.current = e.target), [])
+  const settle = useCallback(() => (region.current ?? empty.current)?.focus(), [])
+  const recover = useCallback(() => {
+    const was = held.current
+    const active = document.activeElement
+    if (!was || was.isConnected || (active && active !== document.body)) return
+    held.current = null
+    settle()
+  }, [settle])
+  // A list that gives way to another root, or a line that leaves once its
+  // exit has played (no render of the tray marks that).
+  useLayoutEffect(() => recover())
+  useEffect(() => {
+    const el = region.current
+    if (!el || typeof MutationObserver !== 'function') return
+    const watch = new MutationObserver(recover)
+    watch.observe(el, { childList: true, subtree: true })
+    return () => watch.disconnect()
+  }, [none, recover])
+  return { region, setEmpty, onFocus, settle }
 }
 
 // nextRow is the waiting line after `at`, else the nearest one above it.
