@@ -126,6 +126,8 @@
   .terminal-tabs .close-terminal { width: 36px; height: 36px; }
   .term-row .close-terminal { width: 36px; height: 36px; }
   .term-find .btn-icon { width: 36px; height: 36px; }
+  .term-new { height: auto; }
+  .term-new .term-new-more { width: 36px; }
 }
 
 /* a failed exit is red in the list too, not only above the screen */

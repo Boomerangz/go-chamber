@@ -71,7 +71,7 @@
 .diff-new { order: -1; flex: 0 1 auto; min-width: 0; display: flex; overflow: hidden; }
 .diff-dir { flex: 0 1000 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; color: var(--ink-3); }
 /* the name gives way last, in its middle: its end and extension stay */
-.diff-base { flex: 0 1 auto; color: var(--ink); }
+.diff-base { flex: 0 0 auto; max-width: 100%; color: var(--ink); }
 /* the old path, quietest, takes at most half the line: its folder gives way
    first, then its name from the middle, with an ellipsis */
 .diff-from-part { flex: 0 1 auto; min-width: 0; max-width: 50%; display: flex; }
@@ -144,8 +144,22 @@
   .layout[data-dock='changes'] { --dock: max(300px, 40%); }
 }
 
-@media (max-width: 720px) {
+/* a finger's targets, on a phone and on any touch screen */
+@media (max-width: 720px), (pointer: coarse) {
   .diff-file-actions .btn-icon, .diff-action-gap { width: 36px; height: 36px; }
+}
+/* where the actions always keep their room (no mouse to hover them in) and
+   the panel is narrow, the counts go under the name: the path keeps the
+   line, so a long name still shows its end and extension */
+@media not ((hover: hover) and (pointer: fine)) {
+  @container (max-width: 360px) {
+    .diff-file-toggle { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; column-gap: 8px; row-gap: 0; align-items: baseline; }
+    .diff-file-toggle > .diff-counts { grid-column: 2; grid-row: 2; }
+    .diff-file-toggle > .diff-counts > span { min-width: 0; text-align: left; }
+  }
+}
+
+@media (max-width: 720px) {
   .layout[data-pane='changes'] > .changes-pane { display: flex; flex-direction: column; min-height: 0; }
   .changes-pane .diff-panel { --pad-y: 14px; --pad-x: var(--gutter); }
   .diff-status { width: 11.5ch; gap: 4px; }

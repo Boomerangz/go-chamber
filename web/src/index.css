@@ -1169,6 +1169,7 @@ button.health { border: 0; background: none; padding: 0; }
   /* a component's own smaller size (copy path, copy reply) yields here */
   .chat-path-line .chat-path-copy, .items .row .msg-copy { width: 36px; height: 36px; }
   .rail-btn { width: 36px; height: 36px; }
+  .show-sessions { min-width: 36px; height: 36px; }
 }
 
 /* the narrowest phones: the three modes and the toggles fit on one row,

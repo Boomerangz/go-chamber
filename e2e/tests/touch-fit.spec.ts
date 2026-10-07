@@ -1,5 +1,6 @@
-import { expect, test, type Page } from '@playwright/test'
-import { mkdtempSync, realpathSync } from 'node:fs'
+import { expect, test, type Locator, type Page } from '@playwright/test'
+import { execFileSync } from 'node:child_process'
+import { mkdirSync, mkdtempSync, realpathSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { token } from '../playwright.config'
@@ -73,4 +74,74 @@ test.describe('a phone held sideways', () => {
     await expect(page.locator('.term-sidebar')).toBeVisible()
     await expect.poll(() => edges(page, inset)).toEqual([])
   })
+})
+
+const gitEnv = { ...process.env, GIT_AUTHOR_NAME: 't', GIT_AUTHOR_EMAIL: 't@t', GIT_COMMITTER_NAME: 't', GIT_COMMITTER_EMAIL: 't@t' }
+const LONG = 'SomeVeryLongFileName_1.tsx'
+
+// changedRepo is a repository with a changed file deep in folders, under a
+// long name, beside a short one.
+function changedRepo() {
+  const dir = path.join(realpathSync(mkdtempSync(path.join(tmpdir(), 'gc-tab-'))), 'app')
+  execFileSync('git', ['init', '-q', '-b', 'main', dir], { env: gitEnv })
+  writeFileSync(path.join(dir, 'README.md'), 'hello\n')
+  execFileSync('git', ['add', '.'], { cwd: dir, env: gitEnv })
+  execFileSync('git', ['commit', '-q', '-m', 'init'], { cwd: dir, env: gitEnv })
+  mkdirSync(path.join(dir, 'src/components/deeply/nested'), { recursive: true })
+  writeFileSync(path.join(dir, 'src/components/deeply/nested', LONG), 'x\n'.repeat(120))
+  writeFileSync(path.join(dir, 'README.md'), 'hello\nagain\n')
+  return dir
+}
+
+async function openDock(page: Page, name: string) {
+  const button = page.getByRole('toolbar', { name: 'Dock' }).getByRole('button', { name: new RegExp(`^${name}`) })
+  if ((await button.getAttribute('aria-pressed')) !== 'true') await button.tap()
+  await expect(button).toHaveAttribute('aria-pressed', 'true')
+}
+
+async function side(l: Locator) {
+  const b = (await l.boundingBox())!
+  return Math.round(Math.min(b.width, b.height))
+}
+
+test.describe('a touch tablet', () => {
+  test.use({ hasTouch: true })
+  for (const [width, height] of [[768, 1024], [820, 1180], [1024, 768]]) {
+    test(`the docks' controls are finger-sized and a long name keeps its end at ${width}`, async ({ page }, info) => {
+      test.skip(info.project.name === 'mobile', 'the viewport is set here')
+      await page.addInitScript(() => Object.defineProperty(window, 'RTCPeerConnection', { value: undefined }))
+      await page.setViewportSize({ width, height })
+      const created = await page.request.post('/api/sessions', { headers, data: { agent: 'claude', cwd: changedRepo() } })
+      const { id } = (await created.json()) as { id: string }
+      await page.goto(`/?token=${token}`)
+      await page.goto(`/s/${id}`)
+      await expect(page.getByLabel('Message')).toBeVisible()
+
+      await openDock(page, 'Changes')
+      const panel = page.getByRole('region', { name: 'Changes' })
+      const row = panel.locator('.diff-file-head').filter({ hasText: 'nested' })
+      await expect(row).toBeVisible()
+      for (const name of ['Copy path', 'View file']) expect(await side(row.getByRole('button', { name })), name).toBeGreaterThanOrEqual(36)
+      if (width <= 1100) expect(await side(page.locator('.topbar .show-sessions')), 'Show sessions').toBeGreaterThanOrEqual(36)
+      // the name's end and extension show whole, inside the row, and some of its start besides
+      const tail = row.locator('.diff-base .midcut-tail')
+      await expect(tail).toHaveText(/_1\.tsx$/)
+      expect(await tail.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true)
+      const [t, clip] = [(await tail.boundingBox())!, (await row.locator('.diff-new').boundingBox())!]
+      expect(t.x + t.width).toBeLessThanOrEqual(clip.x + clip.width + 0.5)
+      expect((await row.locator('.diff-base').boundingBox())!.width).toBeGreaterThanOrEqual(t.width + 14)
+      // the counts show, inside the row
+      const [counts, head] = [(await row.locator('.diff-counts').boundingBox())!, (await row.boundingBox())!]
+      expect(counts.width).toBeGreaterThan(10)
+      expect(counts.x + counts.width).toBeLessThanOrEqual(head.x + head.width + 0.5)
+
+      await openDock(page, 'Terminal')
+      const terms = page.getByRole('region', { name: 'Terminals' })
+      await terms.getByRole('button', { name: 'New terminal in session dir' }).tap()
+      await expect(terms.getByRole('tab', { selected: true })).toBeVisible()
+      expect(await side(terms.getByRole('button', { name: 'More terminals' })), 'More terminals').toBeGreaterThanOrEqual(36)
+      await terms.getByRole('button', { name: /^Close terminal / }).first().tap()
+      await terms.getByRole('group', { name: /^Close terminal / }).getByRole('button', { name: 'Close', exact: true }).tap()
+    })
+  }
 })
