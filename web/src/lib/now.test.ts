@@ -28,6 +28,7 @@ describe('useNow', () => {
     rerender({ interval: null })
     act(() => vi.advanceTimersByTime(7300))
     rerender({ interval: 1000 })
+    act(() => vi.advanceTimersByTime(0))
     expect(result.current).toBe(8300)
   })
 
