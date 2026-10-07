@@ -1,5 +1,6 @@
 import { ChevronDown, RotateCw } from 'lucide-react'
 import { icon } from '../icon'
+import AgentAvatar from '../AgentAvatar'
 import { useCallback, useState } from 'react'
 import { refreshQuota, type AgentKind } from '../../lib/api'
 import { hasReset, resetLabel, windowLabel } from '../../lib/format'
@@ -50,7 +51,10 @@ export default function QuotaWidget() {
           const reset = fullest ? resetLabel(fullest.resetsAt, new Date(now)) : null
           return (
             <span key={q.agent} className="quota-mini">
-              <span>{agentName[q.agent] ?? q.agent}</span>
+              {/* the agent by its letter box, as everywhere it is named in a
+                  row; the name stays for screen readers */}
+              <AgentAvatar agent={q.agent} />
+              <span className="sr-only">{agentName[q.agent] ?? q.agent}</span>
               <span className={`bar bar-${level(top)}`} aria-hidden="true">
                 <span className="fill" style={{ transform: `scaleX(${top / 100})` }} />
               </span>

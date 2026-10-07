@@ -657,7 +657,8 @@ button.health { border: 0; background: none; padding: 0; }
 .quota-mini { display: inline-flex; align-items: center; gap: 7px; min-width: 0; max-width: 100%; white-space: nowrap; }
 .quota-mini > * { flex: none; }
 .quota-mini > .quota-when { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-.quota-mini .bar { display: block; width: 44px; }
+.quota-mini .bar { display: block; width: 36px; }
+.quota-mini .avatar { width: 18px; height: 18px; font-size: var(--t-mark); }
 .quota-mini .fill { display: block; }
 .quota-mini .pct, .window .pct { color: var(--ink); }
 .pct[data-stale] { color: var(--ink-3); text-decoration: underline dashed var(--rule-strong); text-underline-offset: 3px; }
@@ -1331,6 +1332,13 @@ button.health { border: 0; background: none; padding: 0; }
   .chat-path-line .chat-path-copy, .items .row .msg-copy { width: 36px; height: 36px; }
   .rail-btn { width: 36px; height: 36px; }
   .show-sessions { min-width: 36px; height: 36px; }
+}
+/* a phone's two hot rows, the composer's and a request's answers, take a
+   thumb's full 44px; Stop moves to the row's far end from Steer, so the
+   thumb that steers can't end the turn by a slip */
+@media (max-width: 720px) {
+  .composer-actions .btn, .request .btn { height: 44px; }
+  .composer-actions .stop { order: -1; }
 }
 
 /* a narrow tablet: Show sessions beside the masthead (a dock open) and a

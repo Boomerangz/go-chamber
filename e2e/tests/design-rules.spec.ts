@@ -352,3 +352,17 @@ test('Overview reads the fleet while a session waits', async ({ page, isMobile }
   await expect(overview).toHaveAccessibleDescription(/\d+ waiting/)
   await expect(overview.locator('.fleet')).toBeVisible()
 })
+
+// A phone's composer: Stop sits at the far end from Steer, so a thumb
+// reaching for Steer can't end the turn, and its buttons are a finger's 44px.
+test('on a phone Stop keeps the row width from Steer', async ({ page, isMobile }) => {
+  test.skip(!isMobile, 'the phone composer')
+  await newSession(page)
+  await say(page, 'please permission')
+  await expect(page.locator('.request.permission')).toBeVisible()
+  const stop = await box(page.getByRole('button', { name: 'Stop' }))
+  const steer = await box(page.locator('.composer button[type=submit]'))
+  expect(steer.left - stop.right).toBeGreaterThan(120)
+  expect(stop.height).toBeGreaterThanOrEqual(44)
+  expect(steer.height).toBeGreaterThanOrEqual(44)
+})
