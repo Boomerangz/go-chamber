@@ -1,52 +1,42 @@
 #!/usr/bin/env python3
-"""Check consumed HTTP/SSE fields against the installed OpenCode /doc.
-Uses an authenticated throwaway loopback server, without external plugins.
+"""Check consumed HTTP fields against the installed OpenCode /openapi.json.
+Uses an authenticated throwaway loopback server. The v2 event stream is not
+described there; recorded events in testdata cover it.
 --schema FILE checks an already captured schema; --record writes the contract.
 """
 import argparse, base64, json, os, pathlib, re, secrets, subprocess, urllib.request
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 CONTRACT = ROOT / 'internal/adapters/opencode/testdata/schema-contract.json'
-FIELDS = {
- '/session:post': ['id'],
- '/session/{sessionID}:get': ['id', 'directory', 'parentID'],
- '/session/{sessionID}/fork:post': ['id'],
- '/session/{sessionID}/abort:post': [],
- '/session/{sessionID}/prompt_async:post': [],
- '/session/{sessionID}/command:post': [],
- '/session/{sessionID}/message:get': [],
- '/session/{sessionID}/children:get': [],
- '/session/status:get': [],
- '/provider:get': [], '/config:get': [], '/command:get': [], '/global/event:get': [],
- '/permission:get': [], '/permission/{requestID}/reply:post': [],
- '/question:get': [], '/question/{requestID}/reply:post': [], '/question/{requestID}/reject:post': [],
- '/api/permission/request:get': [], '/api/question/request:get': [],
- '/api/session/{sessionID}/permission/{requestID}/reply:post': [],
- '/api/session/{sessionID}/question/{requestID}/reply:post': [],
- '/api/session/{sessionID}/question/{requestID}/reject:post': [],
-}
+BASELINE = '2.0.15'
+PATHS = [
+ '/api/session:post', '/api/session:get', '/api/session/{sessionID}:get',
+ '/api/session/{sessionID}/fork:post', '/api/session/{sessionID}/message:get',
+ '/api/session/{sessionID}/prompt:post', '/api/session/{sessionID}/command:post',
+ '/api/session/{sessionID}/model:post', '/api/session/{sessionID}/interrupt:post',
+ '/api/session/active:get', '/api/model:get', '/api/model/default:get', '/api/command:get',
+ '/api/permission/request:get', '/api/session/{sessionID}/permission/{requestID}/reply:post',
+ '/api/form:get', '/api/session/{sessionID}/form/{formID}/reply:post',
+ '/api/session/{sessionID}/form/{formID}:delete', '/api/event:get',
+]
 SCHEMAS = {
- 'Session':['id','directory','parentID'],
- 'Provider':['id','name','models'], 'Config':['model'],
- 'AssistantMessage':['id','sessionID','role','cost','tokens','error','time','providerID','modelID'],
- 'TextPart':['id','sessionID','messageID','type','text','time'],
- 'ReasoningPart':['id','sessionID','messageID','type','text','time'],
- 'ToolPart':['id','sessionID','messageID','tool','state'],
- 'ToolStateCompleted':['status','input','output','metadata'],
- 'ToolStateError':['status','input','error','metadata'],
- 'Model':['id','name','capabilities','variants'],
- 'PermissionRequest':['id','sessionID','permission','patterns','always','metadata'],
- 'PermissionV2Request':['id','sessionID','action','resources','save','metadata'],
- 'QuestionRequest':['id','sessionID','questions'], 'QuestionV2Request':['id','sessionID','questions'],
- 'QuestionInfo':['question','header','options','multiple','custom'],
- 'QuestionV2Info':['question','header','options','multiple','custom'],
- 'EventMessageUpdated':['type','properties'], 'EventMessagePartUpdated':['type','properties'],
- 'EventMessagePartDelta':['type','properties'], 'EventSessionStatus':['type','properties'],
- 'EventSessionCreated':['type','properties'], 'EventSessionError':['type','properties'],
- 'EventPermissionAsked':['type','properties'], 'EventPermissionReplied':['type','properties'],
- 'EventPermissionV2Asked':['type','properties'], 'EventPermissionV2Replied':['type','properties'],
- 'EventQuestionAsked':['type','properties'], 'EventQuestionReplied':['type','properties'], 'EventQuestionRejected':['type','properties'],
- 'EventQuestionV2Asked':['type','properties'], 'EventQuestionV2Replied':['type','properties'], 'EventQuestionV2Rejected':['type','properties'],
+ 'Session.Info':['id','parentID','title','cost','tokens','location'],
+ 'TokenUsage.Info':['input','output','reasoning','cache'],
+ 'Model.Ref':['id','providerID','variant'],
+ 'Model.Info':['id','providerID','name','enabled','capabilities','variants'],
+ 'Session.Message.User':['id','type','text'],
+ 'Session.Message.Assistant':['id','type','content','error'],
+ 'Session.Message.Assistant.Text':['type','text'],
+ 'Session.Message.Assistant.Reasoning':['type','text'],
+ 'Session.Message.Assistant.Tool':['type','id','name','state'],
+ 'Session.Message.ToolState.Completed':['status','input','content','metadata'],
+ 'Session.Message.ToolState.Error':['status','input','error','metadata'],
+ 'Session.StructuredError':['type','message'],
+ 'Permission.Request':['id','sessionID','action','resources','save','metadata'],
+ 'Form.Info':['id','sessionID','title','fields'],
+ 'Form.StringField':['key','type','title','description','hidden','options','custom'],
+ 'Form.MultiselectField':['key','type','title','description','hidden','options','custom'],
+ 'Form.Option':['value','label','description'],
 }
 def slim(v):
  if isinstance(v, list): return [slim(x) for x in v]
@@ -69,9 +59,10 @@ def references(value):
 
 def consumed(schema):
  out={'paths':{},'schemas':{}}
- for key in FIELDS:
+ for key in PATHS:
   path,method=key.rsplit(':',1); op=schema['paths'][path][method]
   out['paths'][key]={'operationId':op['operationId'],
+   'parameters':sorted(q['name'] for q in op.get('parameters',[])),
    'requestBody':slim(op.get('requestBody',{}).get('content',{}).get('application/json',{}).get('schema',{})),
    'response':slim(op.get('responses',{}).get('200',{}).get('content',{}).get('application/json',{}).get('schema',{}))}
  for name,fields in SCHEMAS.items():
@@ -90,7 +81,7 @@ def main():
  if args.schema: schema=json.loads(pathlib.Path(args.schema).read_text())
  else:
   password=secrets.token_hex(24);env={**os.environ,'OPENCODE_SERVER_USERNAME':'opencode','OPENCODE_SERVER_PASSWORD':password}
-  proc=subprocess.Popen([os.environ.get('OPENCODE','opencode'),'serve','--pure','--hostname','127.0.0.1','--port','0'],env=env,stdout=subprocess.PIPE,stderr=subprocess.DEVNULL,text=True)
+  proc=subprocess.Popen([os.environ.get('OPENCODE','opencode'),'serve','--hostname','127.0.0.1','--port','0'],env=env,stdout=subprocess.PIPE,stderr=subprocess.DEVNULL,text=True)
   try:
    # Startup stdout is finite; an outer 30-second watchdog also kills hung servers.
    import threading
@@ -99,7 +90,7 @@ def main():
     match=re.search(r'http://127\.0\.0\.1:\d+',line)
     if match:break
    else:raise RuntimeError('OpenCode exited before listening')
-   req=urllib.request.Request(match.group()+'/doc',headers={'Authorization':'Basic '+base64.b64encode(('opencode:'+password).encode()).decode()})
+   req=urllib.request.Request(match.group()+'/openapi.json',headers={'Authorization':'Basic '+base64.b64encode(('opencode:'+password).encode()).decode()})
    schema=json.load(urllib.request.urlopen(req,timeout=15))
   finally:
    watchdog.cancel();proc.terminate();proc.wait(timeout=10)
@@ -110,7 +101,7 @@ def main():
   for section,entries in expected.items():
    for name,value in entries.items():
     if actual[section].get(name)!=value:raise SystemExit(f'OpenCode consumed schema changed: {section}/{name}. Review adapter and fixtures before --record.')
- print('OpenCode consumed HTTP/SSE schema matches (baseline 1.18.34).')
+ print(f'OpenCode consumed HTTP schema matches (baseline {BASELINE}).')
 
 if __name__ == "__main__":
  main()

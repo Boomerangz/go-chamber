@@ -137,37 +137,41 @@ func (f *Factory) Start(ctx context.Context, req app.StartRequest) (app.AgentRun
 	if err != nil {
 		return nil, err
 	}
-	var info sessionInfo
-	path, method := "/session", http.MethodPost
-	if req.NativeID != "" {
-		path += "/" + url.PathEscape(req.NativeID)
-		method = http.MethodGet
-		if req.Fork {
-			path += "/fork"
-			method = http.MethodPost
-		}
+	var resp envelope[sessionInfo]
+	switch {
+	case req.NativeID == "":
+		err = s.call(ctx, http.MethodPost, "/api/session", map[string]any{"location": map[string]string{"directory": req.Cwd}}, &resp)
+	case req.Fork:
+		err = s.call(ctx, http.MethodPost, sessionPath(req.NativeID, "/fork"), map[string]any{}, &resp)
+	default:
+		err = s.call(ctx, http.MethodGet, sessionPath(req.NativeID, ""), nil, &resp)
 	}
-	if err = s.call(ctx, method, path, req.Cwd, nil, &info); err != nil {
+	if err != nil {
 		return nil, err
 	}
+	info := resp.Data
 	if info.ID == "" {
 		return nil, errors.New("opencode: empty native session id")
 	}
-	cwd := info.Directory
+	cwd := info.Location.Directory
 	if cwd == "" {
 		cwd = req.Cwd
 	}
-	var history []transcript
-	if err := s.call(ctx, http.MethodGet, "/session/"+url.PathEscape(info.ID)+"/message", cwd, nil, &history); err != nil {
+	history, err := s.history(ctx, info.ID)
+	if err != nil {
 		return nil, err
 	}
 	// Attach cannot wait for a consumer that starts only after Start returns.
 	// Reserve room for the complete initial replay plus live events.
 	capacity := 4096 + 2*len(history)
 	for _, msg := range history {
-		capacity += 3 * len(msg.Parts)
+		capacity += 3 * len(msg.Content)
 	}
 	rt := &Runtime{server: s, native: info.ID, cwd: cwd, events: make(chan domain.Event, capacity), done: make(chan struct{}), mapper: newMapper(req.SessionID, req.Passive || req.Fork), model: req.Model, variant: req.Effort}
+	if req.NativeID == "" {
+		// A new session already runs on the default model.
+		rt.applied = modelKey("", "")
+	}
 	s.mu.Lock()
 	if prev := s.runtimes[info.ID]; prev != nil {
 		s.mu.Unlock()
@@ -185,6 +189,39 @@ func (f *Factory) Start(ctx context.Context, req app.StartRequest) (app.AgentRun
 		rt.handle(ev)
 	}
 	return rt, nil
+}
+func sessionPath(id, suffix string) string { return "/api/session/" + url.PathEscape(id) + suffix }
+
+// located scopes a catalog request to a project directory.
+func located(path, cwd string) string {
+	if cwd == "" {
+		return path
+	}
+	return path + "?" + url.Values{"location[directory]": {cwd}}.Encode()
+}
+
+// history reads every stored message, oldest first. The next cursor is set
+// even on the last page, so a short page ends the walk.
+func (s *server) history(ctx context.Context, native string) ([]message, error) {
+	const limit = 200
+	var all []message
+	query := url.Values{"order": {"asc"}, "limit": {fmt.Sprint(limit)}}
+	for {
+		var page struct {
+			Data   []message `json:"data"`
+			Cursor struct {
+				Next string `json:"next"`
+			} `json:"cursor"`
+		}
+		if err := s.call(ctx, http.MethodGet, sessionPath(native, "/message?"+query.Encode()), nil, &page); err != nil {
+			return nil, err
+		}
+		all = append(all, page.Data...)
+		if len(page.Data) < limit || page.Cursor.Next == "" {
+			return all, nil
+		}
+		query = url.Values{"cursor": {page.Cursor.Next}, "limit": {fmt.Sprint(limit)}}
+	}
 }
 
 func (f *Factory) Close() error {
@@ -217,7 +254,11 @@ func (s *server) closeRuntimes() {
 	}
 }
 
-func (s *server) call(ctx context.Context, method, path, cwd string, body, out any) error {
+type envelope[T any] struct {
+	Data T `json:"data"`
+}
+
+func (s *server) call(ctx context.Context, method, path string, body, out any) error {
 	var reader io.Reader
 	if body != nil {
 		b, err := json.Marshal(body)
@@ -226,11 +267,7 @@ func (s *server) call(ctx context.Context, method, path, cwd string, body, out a
 		}
 		reader = strings.NewReader(string(b))
 	}
-	address := s.base + path
-	if cwd != "" {
-		address += "?" + url.Values{"directory": {cwd}}.Encode()
-	}
-	r, err := http.NewRequestWithContext(ctx, method, address, reader)
+	r, err := http.NewRequestWithContext(ctx, method, s.base+path, reader)
 	if err != nil {
 		return err
 	}
@@ -238,19 +275,17 @@ func (s *server) call(ctx context.Context, method, path, cwd string, body, out a
 	if body != nil {
 		r.Header.Set("Content-Type", "application/json")
 	}
-	client := s.client
-	if strings.HasSuffix(path, "/command") {
-		copy := *client
-		copy.Timeout = 0
-		client = &copy
-	}
-	resp, err := client.Do(r)
+	resp, err := s.client.Do(r)
 	if err != nil {
 		return fmt.Errorf("opencode: %s %s: %w", method, path, err)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return &httpError{Method: method, Path: path, Status: resp.StatusCode}
+		var reason struct {
+			Message string `json:"message"`
+		}
+		_ = json.NewDecoder(io.LimitReader(resp.Body, 64<<10)).Decode(&reason)
+		return &httpError{Method: method, Path: path, Status: resp.StatusCode, Message: reason.Message}
 	}
 	if out != nil {
 		if err := json.NewDecoder(io.LimitReader(resp.Body, 32<<20)).Decode(out); err != nil {
@@ -271,31 +306,25 @@ func (f *Factory) ModelsInFolder(ctx context.Context, _ domain.AgentKind, cwd st
 	return s.models(ctx, cwd)
 }
 func (s *server) models(ctx context.Context, cwd string) ([]app.ModelInfo, error) {
-	var err error
-	var ps providers
-	if err = s.call(ctx, http.MethodGet, "/provider", cwd, nil, &ps); err != nil {
+	var list envelope[[]modelInfo]
+	if err := s.call(ctx, http.MethodGet, located("/api/model", cwd), nil, &list); err != nil {
 		return nil, err
 	}
-	var config struct {
-		Model string `json:"model"`
-	}
-	if err = s.call(ctx, http.MethodGet, "/config", cwd, nil, &config); err != nil {
+	def, err := s.defaultModel(ctx, cwd)
+	if err != nil {
 		return nil, err
 	}
 	out := []app.ModelInfo{}
-	for _, p := range ps.All {
-		if !slices.Contains(ps.Connected, p.ID) {
+	for _, m := range list.Data {
+		if !m.Enabled {
 			continue
 		}
-		for id, m := range p.Models {
-			variants := make([]string, 0, len(m.Variants))
-			for v := range m.Variants {
-				variants = append(variants, v)
-			}
-			sort.Strings(variants)
-			image := m.Capabilities.Input.Image
-			out = append(out, app.ModelInfo{ID: p.ID + "/" + id, Name: m.Name, Provider: p.Name, Efforts: variants, Default: config.Model == p.ID+"/"+id, Images: &image})
+		variants := make([]string, 0, len(m.Variants))
+		for _, v := range m.Variants {
+			variants = append(variants, v.ID)
 		}
+		image := slices.Contains(m.Capabilities.Input, "image")
+		out = append(out, app.ModelInfo{ID: m.ProviderID + "/" + m.ID, Name: m.Name, Provider: m.ProviderID, Efforts: variants, Default: def != nil && *def == modelRef{ID: m.ID, ProviderID: m.ProviderID}, Images: &image})
 	}
 	sort.Slice(out, func(i, j int) bool {
 		if out[i].Provider != out[j].Provider {
@@ -305,30 +334,55 @@ func (s *server) models(ctx context.Context, cwd string) ([]app.ModelInfo, error
 	})
 	return out, nil
 }
+
+// defaultModel is the model a session uses unless one is selected, or nil.
+func (s *server) defaultModel(ctx context.Context, cwd string) (*modelRef, error) {
+	var def envelope[*modelInfo]
+	if err := s.call(ctx, http.MethodGet, located("/api/model/default", cwd), nil, &def); err != nil {
+		return nil, err
+	}
+	if def.Data == nil {
+		return nil, nil
+	}
+	return &modelRef{ID: def.Data.ID, ProviderID: def.Data.ProviderID}, nil
+}
 func (f *Factory) Commands(ctx context.Context, _ domain.AgentKind, cwd string) ([]app.Command, error) {
 	s, err := f.ensure(ctx)
 	if err != nil {
 		return nil, err
 	}
-	var out []app.Command
-	if err = s.call(ctx, http.MethodGet, "/command", cwd, nil, &out); err != nil {
+	return s.commands(ctx, cwd)
+}
+func (s *server) commands(ctx context.Context, cwd string) ([]app.Command, error) {
+	var list envelope[[]app.Command]
+	if err := s.call(ctx, http.MethodGet, located("/api/command", cwd), nil, &list); err != nil {
 		return nil, err
 	}
-	for i := range out {
-		out[i].Insert = "/" + out[i].Name
+	for i := range list.Data {
+		list.Data[i].Insert = "/" + list.Data[i].Name
 	}
-	return out, nil
+	return list.Data, nil
 }
+
+// Account reports the providers that have enabled models; credentials and
+// custom endpoints stay in OpenCode's own configuration.
 func (f *Factory) Account(ctx context.Context, agent domain.AgentKind) (app.AccountInfo, error) {
 	s, err := f.ensure(ctx)
 	if err != nil {
 		return app.AccountInfo{}, err
 	}
-	var ps providers
-	if err = s.call(ctx, http.MethodGet, "/provider", "", nil, &ps); err != nil {
+	var list envelope[[]modelInfo]
+	if err = s.call(ctx, http.MethodGet, "/api/model", nil, &list); err != nil {
 		return app.AccountInfo{}, err
 	}
-	return app.AccountInfo{Agent: agent, AuthMode: "config", LoggedIn: len(ps.Connected) > 0, Providers: ps.Connected}, nil
+	providers := []string{}
+	for _, m := range list.Data {
+		if m.Enabled && !slices.Contains(providers, m.ProviderID) {
+			providers = append(providers, m.ProviderID)
+		}
+	}
+	sort.Strings(providers)
+	return app.AccountInfo{Agent: agent, AuthMode: "config", LoggedIn: len(providers) > 0, Providers: providers}, nil
 }
 func (*Factory) StartLogin(context.Context, domain.AgentKind) (app.LoginChallenge, error) {
 	return app.LoginChallenge{}, app.ErrAccountsUnsupported
@@ -341,10 +395,13 @@ var _ app.CommandCatalog = (*Factory)(nil)
 var _ app.AccountManager = (*Factory)(nil)
 
 type httpError struct {
-	Method, Path string
-	Status       int
+	Method, Path, Message string
+	Status                int
 }
 
 func (e *httpError) Error() string {
+	if e.Message != "" {
+		return fmt.Sprintf("opencode: %s %s: HTTP %d: %s", e.Method, e.Path, e.Status, e.Message)
+	}
 	return fmt.Sprintf("opencode: %s %s: HTTP %d", e.Method, e.Path, e.Status)
 }

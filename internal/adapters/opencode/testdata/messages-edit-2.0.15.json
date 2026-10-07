@@ -1,0 +1,362 @@
+[
+ {
+  "id": "msg_116fe1a83001jN4mjSH2kavOPk",
+  "time": {
+   "created": 1791387118351
+  },
+  "text": "Read hello.txt, then use the edit tool to replace \"world\" with \"there\" in it. Then reply with one short sentence.",
+  "type": "user"
+ },
+ {
+  "id": "msg_116fe2d37001t3n59A5cC4uUjM",
+  "time": {
+   "created": 1791387121005,
+   "streamed": 1791387125963,
+   "completed": 1791387128036
+  },
+  "type": "assistant",
+  "agent": "build",
+  "model": {
+   "id": "cohere/north-mini-code:free",
+   "providerID": "openrouter",
+   "variant": "default"
+  },
+  "content": [
+   {
+    "type": "reasoning",
+    "text": "Let me break down this simple task:\n1. Read hello.txt file\n2. Replace \"world\" with \"there\" using the edit tool\n3. Reply with one short sentence\n\nI need to use the read tool first to see what's in hello.txt, then use the edit tool to make the replacement.\n\nLet me start by reading the file.",
+    "state": {
+     "reasoningField": "reasoning"
+    },
+    "time": {
+     "created": 1791387125020,
+     "completed": 1791387125751
+    }
+   },
+   {
+    "type": "tool",
+    "id": "read_cvbv21yectzc",
+    "name": "read",
+    "executed": false,
+    "state": {
+     "status": "completed",
+     "input": {
+      "path": "hello.txt"
+     },
+     "content": [
+      {
+       "type": "text",
+       "text": "Read file hello.txt, lines 1-1\n1: hello world"
+      }
+     ],
+     "metadata": {
+      "truncated": false
+     }
+    },
+    "time": {
+     "created": 1791387125640,
+     "ran": 1791387125933,
+     "completed": 1791387126507
+    }
+   }
+  ],
+  "snapshot": {
+   "start": "68aba62e560c0ebc3396e8ae9335232cd93a3f60",
+   "end": "68aba62e560c0ebc3396e8ae9335232cd93a3f60",
+   "files": []
+  },
+  "finish": "tool-calls",
+  "rawFinish": "tool_call",
+  "cost": 0,
+  "tokens": {
+   "input": 9614,
+   "output": 3,
+   "reasoning": 75,
+   "cache": {
+    "read": 0,
+    "write": 0
+   }
+  }
+ },
+ {
+  "id": "msg_116fe54fd001vXo8oqD4CGck20",
+  "time": {
+   "created": 1791387130564,
+   "streamed": 1791387146189,
+   "completed": 1791387146900
+  },
+  "type": "assistant",
+  "agent": "build",
+  "model": {
+   "id": "cohere/north-mini-code:free",
+   "providerID": "openrouter",
+   "variant": "default"
+  },
+  "content": [
+   {
+    "type": "reasoning",
+    "text": "I see the Code Mode tool catalog has been updated, but I don't need to use Code Mode for this task. I just need to:\n\n1. Read hello.txt (which I already did - it contains \"hello world\")\n2. Use the edit tool to replace \"world\" with \"there\" in hello.txt\n3. Reply with one short sentence\n\nThe file contains \"hello world\" and I need to replace \"world\" with \"there\", so the result should be \"hello there\".\n\nLet me use the edit tool to make this change.",
+    "state": {
+     "reasoningField": "reasoning"
+    },
+    "time": {
+     "created": 1791387134498,
+     "completed": 1791387146165
+    }
+   },
+   {
+    "type": "tool",
+    "id": "edit_416ea8cwdmg8",
+    "name": "edit",
+    "executed": false,
+    "state": {
+     "status": "completed",
+     "input": {
+      "path": "hello.txt",
+      "oldString": "hello world",
+      "newString": "hello there"
+     },
+     "content": [
+      {
+       "type": "text",
+       "text": "Edited hello.txt (1 replacement)"
+      }
+     ],
+     "metadata": {
+      "files": [
+       {
+        "file": "hello.txt",
+        "patch": "Index: hello.txt\n===================================================================\n--- hello.txt\n+++ hello.txt\n@@ -1,1 +1,1 @@\n-hello world\n+hello there\n",
+        "status": "modified",
+        "additions": 1,
+        "deletions": 1
+       }
+      ],
+      "truncated": false
+     }
+    },
+    "time": {
+     "created": 1791387145036,
+     "ran": 1791387146182,
+     "completed": 1791387146249
+    }
+   }
+  ],
+  "snapshot": {
+   "start": "68aba62e560c0ebc3396e8ae9335232cd93a3f60",
+   "end": "76b4676f21e49e7bc72588771391647a5eeb79de",
+   "files": [
+    "hello.txt"
+   ]
+  },
+  "finish": "tool-calls",
+  "rawFinish": "tool_call",
+  "cost": 0,
+  "tokens": {
+   "input": 11858,
+   "output": 16,
+   "reasoning": 114,
+   "cache": {
+    "read": 0,
+    "write": 0
+   }
+  }
+ },
+ {
+  "id": "msg_116fe9b9b001PSkCR0fBTpM8bO",
+  "time": {
+   "created": 1791387147782,
+   "streamed": 1791387150676,
+   "completed": 1791387150918
+  },
+  "type": "assistant",
+  "agent": "build",
+  "model": {
+   "id": "cohere/north-mini-code:free",
+   "providerID": "openrouter",
+   "variant": "default"
+  },
+  "content": [
+   {
+    "type": "reasoning",
+    "text": "The task has been completed successfully. I:\n1. Read hello.txt which contained \"hello world\"\n2. Used the edit tool to replace \"world\" with \"there\" in hello.txt\n3. The file is now updated to \"hello there\"\n\nNow I need to reply with one short sentence as requested.",
+    "state": {
+     "reasoningField": "reasoning"
+    },
+    "time": {
+     "created": 1791387149073,
+     "completed": 1791387150618
+    }
+   },
+   {
+    "type": "text",
+    "text": "Done! I've updated hello.txt from \"hello world\" to \"hello there\"."
+   }
+  ],
+  "snapshot": {
+   "start": "76b4676f21e49e7bc72588771391647a5eeb79de",
+   "end": "76b4676f21e49e7bc72588771391647a5eeb79de",
+   "files": []
+  },
+  "finish": "stop",
+  "rawFinish": "complete",
+  "cost": 0,
+  "tokens": {
+   "input": 14132,
+   "output": 11,
+   "reasoning": 68,
+   "cache": {
+    "read": 0,
+    "write": 0
+   }
+  }
+ },
+ {
+  "id": "msg_116feaa78001mb2adO2XqcF912",
+  "time": {
+   "created": 1791387150968
+  },
+  "type": "idle",
+  "outcome": "succeeded"
+ },
+ {
+  "id": "msg_116ff57ca001Xshd8cLO0tUa6v",
+  "time": {
+   "created": 1791387195647
+  },
+  "text": "Run this exact shell command with the bash tool: echo hi > out.txt && cat out.txt",
+  "type": "user"
+ },
+ {
+  "id": "msg_116ff5980001ZBHK9MTnsDufUc",
+  "time": {
+   "created": 1791387196463,
+   "streamed": 1791387200265,
+   "completed": 1791387201147
+  },
+  "type": "assistant",
+  "agent": "build",
+  "model": {
+   "id": "cohere/north-mini-code:free",
+   "providerID": "openrouter",
+   "variant": "default"
+  },
+  "content": [
+   {
+    "type": "reasoning",
+    "text": "The user wants me to run this exact shell command: `echo hi > out.txt && cat out.txt`\n\nI need to use the shell tool to run this command. The command has two parts separated by `&&`:\n1. `echo hi > out.txt` - writes \"hi\" to out.txt\n2. `cat out.txt` - reads and displays the content of out.txt\n\nI should use the shell tool to execute this command.",
+    "state": {
+     "reasoningField": "reasoning"
+    },
+    "time": {
+     "created": 1791387198474,
+     "completed": 1791387200200
+    }
+   },
+   {
+    "type": "tool",
+    "id": "shell_nwwbtkdzpwkr",
+    "name": "shell",
+    "executed": false,
+    "state": {
+     "status": "completed",
+     "input": {
+      "command": "echo hi > out.txt && cat out.txt"
+     },
+     "content": [
+      {
+       "type": "text",
+       "text": "hi\n"
+      }
+     ],
+     "metadata": {
+      "status": "completed",
+      "truncated": false,
+      "exit": 0
+     }
+    },
+    "time": {
+     "created": 1791387200037,
+     "ran": 1791387200250,
+     "completed": 1791387200471
+    }
+   }
+  ],
+  "snapshot": {
+   "start": "76b4676f21e49e7bc72588771391647a5eeb79de",
+   "end": "c15f723e2a2327c92a485f3b12868459820300ae",
+   "files": [
+    "out.txt"
+   ]
+  },
+  "finish": "tool-calls",
+  "rawFinish": "tool_call",
+  "cost": 0,
+  "tokens": {
+   "input": 14167,
+   "output": 25,
+   "reasoning": 88,
+   "cache": {
+    "read": 0,
+    "write": 0
+   }
+  }
+ },
+ {
+  "id": "msg_116ff6ec5001h47jk6sQ4TOtar",
+  "time": {
+   "created": 1791387201484,
+   "streamed": 1791387203483,
+   "completed": 1791387203678
+  },
+  "type": "assistant",
+  "agent": "build",
+  "model": {
+   "id": "cohere/north-mini-code:free",
+   "providerID": "openrouter",
+   "variant": "default"
+  },
+  "content": [
+   {
+    "type": "reasoning",
+    "text": "The shell command executed successfully. The output shows \"hi\", which means:\n1. `echo hi > out.txt` wrote \"hi\" to the file out.txt\n2. `cat out.txt` read and displayed the content \"hi\" from the file\n\nThe command worked as expected.",
+    "state": {
+     "reasoningField": "reasoning"
+    },
+    "time": {
+     "created": 1791387202551,
+     "completed": 1791387203413
+    }
+   },
+   {
+    "type": "text",
+    "text": "The command ran successfully. It wrote \"hi\" to out.txt and then displayed the content \"hi\" from the file."
+   }
+  ],
+  "snapshot": {
+   "start": "c15f723e2a2327c92a485f3b12868459820300ae",
+   "end": "c15f723e2a2327c92a485f3b12868459820300ae",
+   "files": []
+  },
+  "finish": "stop",
+  "rawFinish": "complete",
+  "cost": 0,
+  "tokens": {
+   "input": 14170,
+   "output": 25,
+   "reasoning": 59,
+   "cache": {
+    "read": 0,
+    "write": 0
+   }
+  }
+ },
+ {
+  "id": "msg_116ff7891001tvkwgtgnjrzoEC",
+  "time": {
+   "created": 1791387203729
+  },
+  "type": "idle",
+  "outcome": "succeeded"
+ }
+]
