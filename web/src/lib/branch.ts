@@ -56,11 +56,20 @@ export function branchPreview(name: string): BranchPreview {
 }
 
 // branchError reads a refused worktree in the new-session form's words.
-export function branchError(text: string): string {
+export function branchError(text: string): string | null {
   let m = /branch already exists: (\S+)/.exec(text)
   if (m) return `Branch ${m[1]} already exists`
   m = /worktree folder already exists: (.+)$/.exec(text)
   if (m) return `Its worktree folder ${m[1]} already exists`
   if (/invalid branch name/.test(text)) return 'Use latin letters or digits'
-  return text
+  return null
+}
+
+// folderError reads a server refusal of the folder a session was asked to
+// start in, for the form to say under its folder field; null when the
+// refusal isn't about the folder.
+export function folderError(text: string): string | null {
+  if (/^Folder .+ (doesn't exist|no longer exists)$/.test(text)) return text
+  if (/not a git repository/.test(text)) return 'Not a git repository'
+  return null
 }

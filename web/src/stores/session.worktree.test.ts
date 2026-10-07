@@ -32,7 +32,7 @@ beforeEach(() => {
 describe('worktree sessions', () => {
   it('leaves a refused worktree to the form to explain', async () => {
     ;(api.createWorktreeSession as Mock).mockRejectedValue(new Error('branch already exists: chamber/x'))
-    expect(await store().createSession('claude', '/repo', 'x')).toBe(false)
+    expect(await store().createSession('claude', '/repo', 'x', true)).toBe(false)
     expect(useNotices.getState().notices).toEqual([])
     expect(lastError()).toBe('branch already exists: chamber/x')
   })

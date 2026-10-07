@@ -7,6 +7,9 @@ import { LiveList } from '../lib/live-list'
 import { chimeOnEvent } from '../lib/chime'
 import { describeError, fail, useNotices } from './notices'
 import { parseRoute } from '../lib/route'
+import { branchError, folderError } from '../lib/branch'
+
+const START_FAILED = "Couldn't start the session"
 
 export type Connection = 'connecting' | 'online' | 'offline'
 
@@ -68,7 +71,8 @@ export interface SessionStore {
   loadRequests: () => Promise<void>
   loadQuotas: () => Promise<void>
   // createSession starts a session in cwd, or in a new worktree on branch chamber/<branch>.
-  createSession: (agent: api.AgentKind, cwd: string, branch?: string) => Promise<boolean>
+  // With inForm, a folder that isn't there is left to the form to say.
+  createSession: (agent: api.AgentKind, cwd: string, branch?: string, inForm?: boolean) => Promise<boolean>
   selectSession: (id: string) => Promise<void>
   // closeSession leaves the open session for the empty workspace.
   closeSession: () => void
@@ -200,7 +204,13 @@ function recordSessionChanges(before: api.Session | undefined, updated: api.Sess
 // replaceSession swaps in the server's copy: Go omits empty fields, so
 // merging would keep values the server has cleared.
 function replaceSession(sessions: api.Session[], updated: api.Session): api.Session[] {
-  recordSessionChanges(sessions.find((s) => s.id === updated.id), updated)
+  const before = sessions.find((s) => s.id === updated.id)
+  // A gone folder is seen by a listing or a refused send; a state update
+  // doesn't look, so it keeps the mark until a turn proves the folder back.
+  if (before?.folderGone && !('folderGone' in updated) && before.cwd === updated.cwd && updated.status !== 'running' && updated.status !== 'idle') {
+    updated = { ...updated, folderGone: true }
+  }
+  recordSessionChanges(before, updated)
   sessionLists.update(updated.id, updated)
   return sessions.some((s) => s.id === updated.id)
     ? sessions.map((s) => (s.id === updated.id ? updated : s))
@@ -365,17 +375,22 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     }
   },
 
-  async createSession(agent, cwd, branch) {
+  async createSession(agent, cwd, branch, inForm) {
     try {
       const created = branch
         ? await api.createWorktreeSession(agent, cwd, branch, startChoice(agent))
         : await api.createSession(agent, cwd, startChoice(agent))
       set({ sessions: replaceSession(get().sessions, created) })
+      // An earlier failed start is over now.
+      useNotices.getState().dismissKey(START_FAILED)
       await get().selectSession(created.id)
       return true
     } catch (err) {
-      // A refused worktree is explained by the form, under its branch.
-      fail("Couldn't start the session", err, undefined, { quiet: Boolean(branch) })
+      // The form explains a refused folder under its field, and a refused
+      // branch under the branch; anything else is a notice.
+      const why = describeError(err)
+      const inPlace = Boolean(inForm && (folderError(why) || (branch && branchError(why))))
+      fail(START_FAILED, err, undefined, { quiet: inPlace })
       return false
     }
   },
@@ -403,6 +418,12 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       useNotices.getState().dismissKey('send')
       return true
     } catch (err) {
+      // The folder is gone (422): the chat says so in the composer's place.
+      const session = get().sessions.find((s) => s.id === id)
+      if ((err as { status?: unknown } | null)?.status === 422 && session) {
+        set({ sessions: replaceSession(get().sessions, { ...session, folderGone: true }) })
+        return false
+      }
       fail('Message not sent', err, 'send')
       return false
     }

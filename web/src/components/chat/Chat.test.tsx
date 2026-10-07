@@ -153,6 +153,38 @@ describe('a removed worktree', () => {
   })
 })
 
+describe('a folder that is gone', () => {
+  const gone = { ...session, folderGone: true }
+
+  it('takes no more messages, names the folder and offers the archive', async () => {
+    const archiveSession = vi.fn(async () => true)
+    setup({ sessions: [gone], archiveSession, chat: chatOf([item('u1', 'user_message')]) })
+    expect(screen.queryByRole('combobox', { name: 'Message' })).toBeNull()
+    const note = screen.getByRole('group', { name: 'Folder gone' })
+    expect(note).toHaveTextContent('Folder gone · ~/project no longer exists')
+    expect(note.querySelector('[title="/home/me/project"]')).not.toBeNull()
+    // Its fork would start in the same missing folder.
+    expect(screen.queryByRole('button', { name: /Fork/ })).toBeNull()
+    await userEvent.click(screen.getByRole('button', { name: 'Archive' }))
+    expect(archiveSession).toHaveBeenCalledWith('s1')
+  })
+
+  it('offers no continue, no first-message hint and no archive once archived', () => {
+    const cut = { ...gone, status: 'interrupted' as const, interruption: { reason: 'crashed' }, archivedAt: '2026-10-06T09:00:00Z' }
+    setup({ sessions: [cut], chat: initialChat('interrupted') })
+    expect(screen.queryByRole('button', { name: /Continue/ })).toBeNull()
+    expect(screen.queryByText(/Send a message to start/)).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Archive' })).toBeNull()
+  })
+
+  it('leaves a removed worktree to say so itself', () => {
+    const worktree = { repo: '/home/me/project', path: '/home/me/wt', branch: 'chamber/fix', base: 'abc', removed: true }
+    setup({ sessions: [{ ...gone, worktree }] })
+    expect(screen.getByRole('group', { name: 'Worktree removed' })).toBeInTheDocument()
+    expect(screen.queryByRole('group', { name: 'Folder gone' })).toBeNull()
+  })
+})
+
 describe('an archived session', () => {
   it('says so in the header and unarchives from there', async () => {
     const unarchiveSession = vi.fn(async () => true)

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { branchError, branchPreview, slugify } from './branch'
+import { branchError, branchPreview, folderError, slugify } from './branch'
 
 describe('slugify', () => {
   // The same cases as the server's TestSlugify: the preview must say what
@@ -48,6 +48,21 @@ describe('branchError', () => {
     expect(branchError('branch already exists: chamber/fix')).toBe('Branch chamber/fix already exists')
     expect(branchError('worktree folder already exists: /w/app/fix')).toBe('Its worktree folder /w/app/fix already exists')
     expect(branchError('invalid branch name: use latin letters or digits')).toBe('Use latin letters or digits')
-    expect(branchError('not a git repository')).toBe('not a git repository')
+  })
+
+  it('leaves what is not about the branch to others', () => {
+    expect(branchError('not a git repository')).toBeNull()
+    expect(branchError('git rev-parse: : chdir /nonexistent/x: no such file or directory')).toBeNull()
+    expect(branchError('database is locked')).toBeNull()
+  })
+})
+
+describe('folderError', () => {
+  it('reads a refused folder in the form’s words', () => {
+    expect(folderError("Folder /nope doesn't exist")).toBe("Folder /nope doesn't exist")
+    expect(folderError('Folder /gone no longer exists')).toBe('Folder /gone no longer exists')
+    expect(folderError('not a git repository')).toBe('Not a git repository')
+    expect(folderError('database is locked')).toBeNull()
+    expect(folderError('branch already exists: chamber/fix')).toBeNull()
   })
 })
