@@ -42,6 +42,10 @@ test('archives, unarchives and deletes a session, live in another tab', async ({
   await expect(archived).toHaveAttribute('open', '')
   const shelved = archived.getByRole('button', { name: new RegExp(`^${name}`) })
   await expect(shelved).toBeVisible()
+  // The focus follows the row there: a neighbour taking it would scroll the
+  // list away again, sooner or later depending on which lands first, the
+  // archive's answer or the live update.
+  await expect(shelved).toBeFocused()
   // ...and its row is in sight, not under the account footer (the Undo
   // notice floats above everything and is left out).
   await expect

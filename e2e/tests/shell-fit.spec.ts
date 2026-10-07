@@ -32,10 +32,18 @@ test('a project chip shows its icon beside a shortened name, inside the list', a
   await startSession(page, cwd)
   await page.getByRole('radio', { name: /^Terminal/ }).click()
   const sidebar = page.locator('.term-sidebar')
-  const chip = sidebar.getByRole('button', { name: `Open terminal in ${longName}` })
+  // this test's own chip: its run on the other viewport names one the same
+  const chip = sidebar.getByRole('button', { name: `Open terminal in ${longName}` }).and(sidebar.locator(`[title="${cwd}"]`))
   const label = chip.locator('.chip-label')
   await expect(label).toBeVisible()
-  const [c, l, i, s] = await Promise.all([box(chip), box(label), box(chip.locator('svg')), box(sidebar)])
+  // measured in one go: other specs' sessions add chips to this list, and
+  // a chip moved between two separate measurements reads as misaligned
+  const [c, l, i, s] = await chip.evaluate((el) =>
+    [el, el.querySelector('.chip-label')!, el.querySelector('svg')!, el.closest('.term-sidebar')!].map((e) => {
+      const r = e.getBoundingClientRect()
+      return { x: r.x, y: r.y, width: r.width, height: r.height }
+    }),
+  )
   // the name is on the icon's line, not under it
   expect(Math.abs(l.y + l.height / 2 - (i.y + i.height / 2))).toBeLessThan(3)
   expect(l.width).toBeGreaterThan(40)
@@ -112,6 +120,35 @@ test('a session opened by its link is in view in the list, also on a phone', asy
   await expect(row).toBeInViewport({ ratio: 0.9 })
   const bar = page.getByRole('navigation', { name: 'Views' })
   if (await bar.isVisible()) expect((await box(row)).y + (await box(row)).height).toBeLessThanOrEqual((await box(bar)).y + 1)
+})
+
+test("the open session's row stays put when a session below it gets busy and moves up", async ({ page }) => {
+  const dir = fs.realpathSync(fs.mkdtempSync(`${os.tmpdir()}/gc-stay-`))
+  const headers = { Authorization: `Bearer ${token}` }
+  const create = async (cwd: string) => {
+    fs.mkdirSync(cwd, { recursive: true })
+    const r = await page.request.post('/api/sessions', { headers, data: { agent: 'claude', cwd } })
+    return ((await r.json()) as { id: string }).id
+  }
+  // in the open session's folder, the busy one is the oldest: below it
+  const busy = await create(`${dir}/target`)
+  const target = await create(`${dir}/target`)
+  for (let i = 0; i < 2; i++) await create(`${dir}/target`)
+  // and a long list of other folders above, so the list scrolls to it
+  for (let i = 0; i < 16; i++) await create(`${dir}/other-${i}`)
+  await page.goto(`/?token=${token}`)
+  await page.goto(`/s/${target}`)
+  await showPane(page, 'Sessions')
+  const row = page.locator('.sidebar button.session[aria-current="true"]')
+  await expect(row).toBeInViewport({ ratio: 0.9 })
+  const before = (await box(row)).y
+  await page.request.post(`/api/sessions/${busy}/messages`, { headers, data: { text: 'busy now' } })
+  // sessions in a group follow activity: the busy one moves above the open row...
+  const busyRow = page.locator(`.sidebar button.session[data-session="${busy}"]`)
+  await expect.poll(async () => (await box(busyRow)).y < (await box(row)).y).toBe(true)
+  // ...and the open row is still where it was on screen, not pushed down
+  // (a scroll lands on whole pixels, rows don't)
+  expect(Math.abs((await box(row)).y - before)).toBeLessThan(2)
 })
 
 test('unreachable accounts and quotas are said once, in place, with one Retry', async ({ page }) => {
@@ -216,13 +253,24 @@ test('a path shortened at its start lines up with the title above it', async ({ 
     await page.getByRole('radio', { name: /^Terminal/ }).click()
     for (const name of ['billing-service', 'docs']) {
       const row = page.locator('.term-sidebar [role="tab"]').filter({ hasText: `projects/${name}` })
-      // the server's other shells may push it down the list
-      await row.scrollIntoViewIfNeeded()
-      const [title, path] = [await box(row.locator('.term-title')), await box(row.locator('.path-text'))]
       expect(await row.locator('.path-head').evaluate((e) => e.scrollWidth > e.clientWidth)).toBe(true)
-      // where the ink starts: the title's first letter, the path's "…"
-      const clip = { x: title.x - 4, y: title.y, width: 40, height: path.y + path.height - title.y }
-      const png = (await page.screenshot({ clip })).toString('base64')
+      // where the ink starts: the title's first letter, the path's "…". The
+      // screenshot is taken of a row in view that held still for it: other
+      // specs' shells and projects come and go above it, pushing it down and
+      // out of the window, and a shot of where the row was a moment ago
+      // reads another row's ink, or none.
+      const rowBoxes = () => Promise.all([box(row.locator('.term-title')), box(row.locator('.path-text'))])
+      let shot: { title: Awaited<ReturnType<typeof box>>; path: Awaited<ReturnType<typeof box>>; png: string } | undefined
+      await expect(async () => {
+        await row.scrollIntoViewIfNeeded()
+        const [title, path] = await rowBoxes()
+        expect(path.y + path.height).toBeLessThanOrEqual(page.viewportSize()!.height)
+        const clip = { x: title.x - 4, y: title.y, width: 40, height: path.y + path.height - title.y }
+        const png = (await page.screenshot({ clip })).toString('base64')
+        expect(await rowBoxes()).toEqual([title, path])
+        shot = { title, path, png }
+      }).toPass()
+      const { title, path, png } = shot!
       const [t, p] = await page.evaluate(
         async ({ src, split }) => {
           const img = new Image()

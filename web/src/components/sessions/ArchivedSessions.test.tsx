@@ -103,6 +103,12 @@ describe('ArchivedSessions', () => {
     expect(screen.getByRole('button', { name: /^away/ })).toHaveAttribute('aria-current', 'true')
   })
 
+  it('names its session on the row, as the list does, so the focus can follow it here', () => {
+    useSessionStore.setState({ sessions: [s('away', { archivedAt: '2026-10-05T09:00:00Z' })], activeId: 'away' })
+    render(<ArchivedSessions />)
+    expect(screen.getByRole('button', { name: /^away/ })).toHaveAttribute('data-session', 'away')
+  })
+
   it('while searching, lists only the archived sessions that match, unfolded', () => {
     useSessionStore.setState({
       query: 'deploy',

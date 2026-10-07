@@ -4,7 +4,7 @@ import path from 'node:path'
 // E2E runs the real binary (make build) against a throwaway data dir with a
 // fixed token. Agent CLIs are replaced by fakes from testutil/ (PATH override)
 // so scenarios are deterministic and don't spend subscription quota.
-const port = 7788
+const port = Number(process.env.E2E_PORT) || 7788
 export const token = 'e2e-token'
 const repoRoot = path.resolve(process.cwd(), '..')
 const fakesPath = path.join(repoRoot, 'bin', 'fakes')

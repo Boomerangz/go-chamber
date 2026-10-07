@@ -394,6 +394,9 @@ button.health { border: 0; background: none; padding: 0; }
   flex: 1; min-height: 0; overflow: auto; margin: 0;
   display: flex; flex-direction: column; gap: 12px; scroll-padding-top: 44px;
 }
+/* the list keeps its rows in place itself (useListAnchor): the browser's
+   anchoring on top of it would move them twice */
+.sidebar, .sidebar-body { overflow-anchor: none; }
 .sidebar-body > .session-search { flex: none; position: sticky; top: 0; z-index: 2; margin: 0 14px; background: var(--paper); }
 
 .segmented {

@@ -36,7 +36,8 @@ test('works without motion: items appear and an answered request leaves', async 
 })
 
 test('marks what arrived since the session was last open', async ({ page }, info) => {
-  const text = `unseen ${info.project.name}: please permission`
+  const dir = ownDir()
+  const text = `unseen ${info.project.name} ${dir.split('/').pop()}: please permission`
   await page.goto(`/?token=${token}`)
   const open = async (dir: string) => {
     await showSessions(page)
@@ -45,7 +46,7 @@ test('marks what arrived since the session was last open', async ({ page }, info
     await page.getByRole('button', { name: 'New session', exact: true }).click()
     await expect(page.locator('.chat-hint')).toBeVisible()
   }
-  await open(ownDir())
+  await open(dir)
   await page.getByLabel('Message').fill(text)
   await page.getByRole('button', { name: 'Send' }).click()
   await expect(page.locator('.request-title', { hasText: 'Run command' })).toBeVisible()
@@ -58,10 +59,16 @@ test('marks what arrived since the session was last open', async ({ page }, info
   const own = sessions.find((s) => s.title?.includes(text))
   const requests: { id: string; sessionId: string }[] = await (await page.request.get('/api/requests')).json()
   const pending = requests.find((r) => r.sessionId === own?.id)!
+  const ended = async () => ((await (await page.request.get(`/api/sessions/${own!.id}`)).json()) as { endedAt?: string }).endedAt
+  const endedBefore = await ended()
   const answered = await page.request.post(`/api/sessions/${pending.sessionId}/requests/${pending.id}`, {
     data: { behavior: 'allow' },
   })
   expect(answered.ok()).toBe(true)
+  // Its reply lands while the owner is still away: what arrives while they
+  // look at the session is not news, so going back before the turn ends (as
+  // a busy machine let happen) found no mark, rightly.
+  await expect.poll(async () => (await ended()) !== endedBefore).toBe(true)
 
   await showSessions(page)
   await page.locator('.session', { hasText: text }).click()

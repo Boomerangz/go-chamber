@@ -88,10 +88,17 @@ test('the requests tray fits Allow, Allow for session and Deny on one row', asyn
   test.skip(isMobile, 'the desktop dock')
   await page.setViewportSize({ width: 1440, height: 900 })
   await newSession(page)
-  await say(page, 'please permission')
+  // the tray lists every session's requests on the one server: this test's
+  // row is found by its session's title, not as whichever row is first
+  const title = `tray row ${Date.now()}: please permission`
+  await say(page, title)
   await expect(page.locator('.request.permission')).toBeVisible()
   await page.getByRole('toolbar', { name: 'Dock' }).getByRole('button', { name: /^Requests/ }).click()
-  const actions = page.locator('.tray-actions').first()
+  const actions = page
+    .getByRole('complementary', { name: 'Pending requests' })
+    .locator('li')
+    .filter({ has: page.locator('.request-session', { hasText: title }) })
+    .locator('.tray-actions')
   await expect(actions.getByRole('button', { name: 'Deny' })).toBeVisible()
   const tops = await actions.locator('button').evaluateAll((els) => els.map((el) => Math.round(el.getBoundingClientRect().top)))
   expect(tops.length).toBe(3)

@@ -100,6 +100,8 @@ type fakeRuntime struct {
 	responses    []fakeResponse
 	steers       []string
 	stoppedTasks []string
+	// onRespond runs as the answer goes out, as the agent picking it up.
+	onRespond func()
 }
 
 type fakeResponse struct {
@@ -150,6 +152,9 @@ func (f *fakeRuntime) Respond(_ context.Context, id domain.RequestID, answer Req
 		return f.respondErr
 	}
 	f.responses = append(f.responses, fakeResponse{id, answer})
+	if f.onRespond != nil {
+		f.onRespond()
+	}
 	return nil
 }
 
@@ -716,6 +721,57 @@ func TestRespondRequestRecordsDecision(t *testing.T) {
 				t.Fatalf("last event = %+v", events[len(events)-1])
 			}
 		})
+	}
+}
+
+// The agent may answer the instant it hears the decision. Its reply comes
+// after the decision in the transcript: the owner who answered has seen up to
+// the decision, and the reply is news to them.
+func TestDecisionIsRecordedBeforeTheAgentsReply(t *testing.T) {
+	m, _, bus, factory, _ := newTestManager(t)
+	ctx := context.Background()
+	snap := createClaude(t, m)
+	rt := newFakeRuntime("n1")
+	factory.runtimes = []*fakeRuntime{rt}
+	if err := m.SendMessage(ctx, snap.ID, "hi"); err != nil {
+		t.Fatal(err)
+	}
+	rt.events <- requestEvent(snap.ID, "r1")
+	eventually(t, "pending", func() bool { return len(m.PendingRequests(ctx)) == 1 })
+	reply, err := domain.NewItem("reply", snap.ID, "t1", "", domain.ItemAssistantMessage)
+	if err != nil {
+		t.Fatal(err)
+	}
+	published := func() bool {
+		for _, ev := range bus.snapshot() {
+			if ev.Item != nil && ev.Item.ID == "reply" {
+				return true
+			}
+		}
+		return false
+	}
+	rt.onRespond = func() {
+		rt.events <- domain.Event{SessionID: snap.ID, Type: domain.EventItemUpdated, Item: reply}
+		// the reply would be out before the answer call returns
+		for deadline := time.Now().Add(300 * time.Millisecond); time.Now().Before(deadline) && !published(); {
+			time.Sleep(5 * time.Millisecond)
+		}
+	}
+	if err := m.RespondRequest(ctx, snap.ID, "r1", RequestAnswer{Allow: true}); err != nil {
+		t.Fatal(err)
+	}
+	eventually(t, "reply", published)
+	decision, replied := -1, -1
+	for i, ev := range bus.snapshot() {
+		if ev.Item != nil && ev.Item.Kind == domain.ItemDecision {
+			decision = i
+		}
+		if ev.Item != nil && ev.Item.ID == "reply" {
+			replied = i
+		}
+	}
+	if decision < 0 || replied < decision {
+		t.Fatalf("decision at %d, reply at %d: the reply came first", decision, replied)
 	}
 }
 

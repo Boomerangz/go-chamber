@@ -8,6 +8,7 @@ import QuotaWidget from '../quota/QuotaWidget'
 import ArchivedSessions from './ArchivedSessions'
 import { SignOut } from '../shell/Shell'
 import HistoryPanel from './HistoryPanel'
+import { useListAnchor } from './useListAnchor'
 import SessionList from './SessionList'
 import { branchError, branchPreview, continuable, folderError } from '../../lib/branch'
 import { cliMissingText, missingCLIs, useCLIs } from '../../lib/clis'
@@ -108,6 +109,8 @@ export default function Sidebar(props: SidebarProps) {
   const body = useRef<HTMLDivElement>(null)
   const query = useSessionStore((s) => s.query)
   const searched = useRef(query)
+  // Rows in sight stay in place while the list changes around them.
+  useListAnchor(body)
   useEffect(() => {
     if (searched.current === query) return
     searched.current = query

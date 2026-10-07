@@ -15,6 +15,9 @@ test('uses a direct DataChannel and restores WebSocket after peer loss', async (
  const panel = page.getByRole('region', { name: 'Terminals' })
  await panel.getByLabel('Terminal folder').fill('/tmp')
  await panel.getByRole('button', { name: 'New terminal' }).click()
+ // a shell attaches once its view shows: leaving before the open is
+ // answered (a busy server) leaves it "Not attached", with no channel at all
+ await expect(panel.getByTestId('terminal-view')).toBeVisible()
  await page.getByRole('radio', { name: 'Diagnostics' }).click()
  const table = page.getByRole('region', { name: 'Terminal diagnostics' })
  await expect(table).toContainText('webrtc', { timeout: 15000 })
@@ -67,6 +70,9 @@ test('opens a direct channel with available candidates while gathering remains p
  const panel = page.getByRole('region', { name: 'Terminals' })
  await panel.getByLabel('Terminal folder').fill('/tmp')
  await panel.getByRole('button', { name: 'New terminal' }).click()
+ // a shell attaches once its view shows: leaving before the open is
+ // answered (a busy server) leaves it "Not attached", with no channel at all
+ await expect(panel.getByTestId('terminal-view')).toBeVisible()
  await page.getByRole('radio', { name: 'Diagnostics' }).click()
  const table = page.getByRole('region', { name: 'Terminal diagnostics' })
  await expect(table).toContainText('webrtc', { timeout: 12000 })
@@ -85,6 +91,9 @@ test('turns WebRTC off and on for this device from Diagnostics', async ({ page }
  const panel = page.getByRole('region', { name: 'Terminals' })
  await panel.getByLabel('Terminal folder').fill('/tmp')
  await panel.getByRole('button', { name: 'New terminal' }).click()
+ // a shell attaches once its view shows: leaving before the open is
+ // answered (a busy server) leaves it "Not attached", with no channel at all
+ await expect(panel.getByTestId('terminal-view')).toBeVisible()
  await page.getByRole('radio', { name: 'Diagnostics' }).click()
  const table = page.getByRole('region', { name: 'Terminal diagnostics' })
  await expect(table.locator('tbody')).toContainText('webrtc', { timeout: 15000 })
