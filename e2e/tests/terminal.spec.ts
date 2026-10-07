@@ -59,7 +59,10 @@ test('independent terminal: run a command, survive reload, exit, close', async (
   // not type a second answer into the shell.
   // Compute the marker so the echoed command cannot satisfy the wait while
   // read is still consuming the terminal's device-attributes response.
-  await page.keyboard.type("printf '\\033[c'; read -rs -t 2 -d c; echo query-$((40+2))\n")
+  // Echo is off from before the query: an answer that lands before read
+  // starts (a busy machine's shell is slow to get there) would otherwise be
+  // echoed by the tty, and read waits as long as the answer takes.
+  await page.keyboard.type("stty -echo; printf '\\033[c'; read -rs -t 10 -d c; stty echo; echo query-$((40+2))\n")
   await expect(screen.locator('.xterm-rows')).toContainText('query-42')
   await page.keyboard.type('echo before-$((1+1))\n')
   await expect(screen.locator('.xterm-rows')).toContainText('before-2')
