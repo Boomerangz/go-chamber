@@ -65,3 +65,22 @@ test('the pane bar steps aside while the composer has focus on a phone', async (
   await expect(page.locator('html')).not.toHaveAttribute('data-typing', 'chat')
   await expect(bar).toBeVisible()
 })
+
+// A touch moves the focus only after the finger lifts: the first tap on Send
+// must still send, not land where the page grew back to.
+test('one tap on Send sends from a phone, and Submit takes a typed answer', async ({ page, isMobile }) => {
+  test.skip(!isMobile, 'a touch tap is a phone matter')
+  await newSession(page)
+  const box = page.getByLabel('Message')
+  await box.tap()
+  await box.fill('ask me something')
+  await page.getByRole('button', { name: 'Send' }).tap()
+  await expect(box).toHaveValue('')
+  const card = page.locator('.request.question')
+  await expect(card).toBeVisible()
+  const other = card.getByPlaceholder('Other…').first()
+  await other.tap()
+  await other.fill('my own answer')
+  await card.getByRole('button', { name: 'Submit' }).tap()
+  await expect(card).toHaveCount(0)
+})

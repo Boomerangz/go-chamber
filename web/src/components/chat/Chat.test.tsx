@@ -907,6 +907,40 @@ describe('typing on a phone', () => {
     expect(document.documentElement.dataset.typing).toBeUndefined()
   })
 
+  it('keeps the page still under a touch tap, whose focus moves only after the finger lifts, until its click', () => {
+    vi.useFakeTimers()
+    phone()
+    setup()
+    act(() => box().focus())
+    act(() => {
+      window.dispatchEvent(new Event('pointerdown'))
+      window.dispatchEvent(new Event('pointerup'))
+      vi.advanceTimersByTime(50)
+      box().blur()
+    })
+    expect(document.documentElement.dataset.typing).toBe('chat')
+    act(() => {
+      window.dispatchEvent(new Event('click'))
+      vi.runOnlyPendingTimers()
+    })
+    expect(document.documentElement.dataset.typing).toBeUndefined()
+  })
+
+  it('lets the page grow back after a tap whose click never comes', () => {
+    vi.useFakeTimers()
+    phone()
+    setup()
+    act(() => box().focus())
+    act(() => {
+      window.dispatchEvent(new Event('pointerdown'))
+      window.dispatchEvent(new Event('pointerup'))
+      box().blur()
+    })
+    expect(document.documentElement.dataset.typing).toBe('chat')
+    act(() => vi.advanceTimersByTime(1000))
+    expect(document.documentElement.dataset.typing).toBeUndefined()
+  })
+
   it('lets the keyboard go once a message is sent, so the reply has the screen', async () => {
     phone()
     setup()
