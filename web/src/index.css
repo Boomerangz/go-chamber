@@ -463,7 +463,7 @@ button.health { border: 0; background: none; padding: 0; }
 .session-status::before { content: ''; flex: none; width: 7px; height: 7px; border: 1px solid currentColor; border-radius: 1px; }
 /* "waiting for you" is what may give way in a full row: it keeps "waiting"
    on a narrow row, and ends in an ellipsis before the row spills */
-.session-meta > .session-status-waiting { flex: 0 10 auto; min-width: 0; }
+.session-meta > .session-status-waiting { flex: 0 10 auto; min-width: calc(8ch + 12px); }
 .session-status-waiting .status-word { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .session-status-running { color: var(--ink); }
 .session-status-running::before { background: currentColor; }
@@ -498,6 +498,7 @@ button.health { border: 0; background: none; padding: 0; }
 .session-time { flex: none; white-space: nowrap; margin-left: auto; }
 @container (max-width: 240px) {
   .status-more { display: none; }
+  .session-meta > .session-status-waiting { min-width: calc(7ch + 12px); }
   /* an archived row that waits says "archived" by its fold alone */
   .session-meta:has(.badge) .time-more { display: none; }
 }

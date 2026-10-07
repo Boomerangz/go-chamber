@@ -108,6 +108,29 @@ test.describe('a phone', () => {
   })
 })
 
+test.describe('the narrowest phone', () => {
+  test.use({ hasTouch: true, isMobile: true, viewport: { width: 360, height: 740 } })
+  test('a waiting worktree row keeps "waiting" whole; only the branch yields', async ({ page }, info) => {
+    const branch = `phone-390-${info.project.name}-long-branch-${Date.now() % 100000}`
+    const res = await page.request.post('/api/worktrees', { headers, data: { agent: 'claude', cwd: longRepo(), branch } })
+    const { id } = (await res.json()) as { id: string }
+    await page.request.post(`/api/sessions/${id}/messages`, { headers, data: { text: 'ask me something' } })
+    await page.goto(`/?token=${token}`)
+    const row = page.locator('.session').filter({ has: page.locator('.session-branch', { hasText: branch }) })
+    const status = row.locator('.session-status-waiting')
+    await expect(status).toBeVisible()
+    const fit = await row.evaluate((el) => {
+      const word = el.querySelector<HTMLElement>('.status-word')!
+      const b = el.querySelector<HTMLElement>('.session-branch')!
+      // the visible part of the word: up to "for you", which may fold away
+      const more = word.querySelector<HTMLElement>('.status-more')
+      const lead = more && more.getBoundingClientRect().width > 0 ? more.getBoundingClientRect().left : word.getBoundingClientRect().left + word.scrollWidth
+      return { waiting: word.getBoundingClientRect().right + 0.5 >= lead, branchCut: b.scrollWidth > b.clientWidth }
+    })
+    expect(fit).toEqual({ waiting: true, branchCut: true })
+  })
+})
+
 // changedRepo is a repository with a changed file deep in folders, under a
 // long name, beside a short one.
 function changedRepo() {
