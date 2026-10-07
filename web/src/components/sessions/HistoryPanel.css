@@ -1,4 +1,8 @@
 .history { flex: none; padding: 4px 0; border-top: 1px solid var(--rule); }
+/* closed, History's heading stays pinned at the foot of the scrolling list,
+   so a list taller than the sidebar still says it is there; opened, it takes
+   its place after the sessions (the sidebar then scrolls as a whole) */
+.sidebar-body > .history:not(.archived):not([open]) { position: sticky; bottom: 0; z-index: 2; background: var(--paper); }
 .history summary { padding: 8px 14px; cursor: pointer; list-style: none; }
 @media (hover: hover) { .history summary:hover { color: var(--ink); } }
 .history summary::-webkit-details-marker { display: none; }
