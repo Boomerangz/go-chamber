@@ -1,5 +1,5 @@
 import { ChevronRight } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { archivedSessions, matchingTree, relativeTime, sessionTitle } from '../../lib/sessions'
 import type { SessionNode } from '../../lib/tree'
 import { useNow } from '../../lib/now'
@@ -40,10 +40,19 @@ export default function ArchivedSessions() {
     setWasInside(activeInside)
     if (activeInside) setOpen(true)
   }
+  // ...and brings the open session's row out from under the footer.
+  const fold = useRef<HTMLDetailsElement>(null)
+  useEffect(() => {
+    if (!activeInside) return
+    const frame = requestAnimationFrame(() =>
+      fold.current?.querySelector<HTMLElement>('button.session[aria-current="true"]')?.scrollIntoView?.({ block: 'nearest' }),
+    )
+    return () => cancelAnimationFrame(frame)
+  }, [activeInside, activeId])
 
   if (nodes.length === 0) return null
   return (
-    <details className="history archived" open={open || searching} onToggle={(e) => !searching && setOpen(e.currentTarget.open)}>
+    <details ref={fold} className="history archived" open={open || searching} onToggle={(e) => !searching && setOpen(e.currentTarget.open)}>
       <summary className="section-title">
         <ChevronRight {...icon(14)} className="icon chevron" />
         Archived <span className="group-count">{nodes.length}</span>

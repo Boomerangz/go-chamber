@@ -39,12 +39,14 @@ function neighbourOf(trigger: React.RefObject<HTMLElement | null>): () => void {
 }
 
 // focusRestored puts the focus where a session brought back by Undo is
-// used: the composer when it is the open one, else its row in the list.
+// used: the composer when it is the open one (and on screen: a phone may
+// show the list instead), else its row in the list.
 function focusRestored(id: string) {
-  const open = useSessionStore.getState().activeId === id
-  const target = open
-    ? document.querySelector<HTMLElement>('textarea[aria-label="Message"]')
-    : document.querySelector<HTMLElement>(`button.session[data-session="${CSS.escape(id)}"]`)
+  const composer = useSessionStore.getState().activeId === id ? document.querySelector<HTMLElement>('textarea[aria-label="Message"]') : null
+  const target =
+    composer && (composer.checkVisibility?.() ?? true)
+      ? composer
+      : document.querySelector<HTMLElement>(`button.session[data-session="${CSS.escape(id)}"]`)
   target?.focus()
 }
 

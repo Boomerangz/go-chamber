@@ -40,7 +40,18 @@ test('archives, unarchives and deletes a session, live in another tab', async ({
   await expect(otherList.getByRole('button', { name: new RegExp(`^${name}`) })).toHaveCount(0)
   // The open session stays open, so its fold opens to show where you are.
   await expect(archived).toHaveAttribute('open', '')
-  await expect(archived.getByRole('button', { name: new RegExp(`^${name}`) })).toBeVisible()
+  const shelved = archived.getByRole('button', { name: new RegExp(`^${name}`) })
+  await expect(shelved).toBeVisible()
+  // ...and its row is in sight, not under the account footer.
+  await expect
+    .poll(() =>
+      shelved.evaluate((el) => {
+        const r = el.getBoundingClientRect()
+        const hit = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2)
+        return !!hit && el.contains(hit)
+      }),
+    )
+    .toBe(true)
 
   // Still works when opened: a message goes through.
   await showPane(page, 'Chat')
@@ -96,7 +107,11 @@ test('archiving a session that waits for you keeps the request in sight, with an
 
   const notice = page.getByRole('status').filter({ hasText: `Archived ${name}` })
   await notice.getByRole('button', { name: 'Undo' }).click()
-  await expect(page.locator('.groups').getByRole('button', { name: new RegExp(`^${name}`) })).toBeVisible()
+  const restored = page.locator('.groups').getByRole('button', { name: new RegExp(`^${name}`) })
+  await expect(restored).toBeVisible()
+  // The focus lands where the session is used: its composer, or its row on a phone's list.
+  if (await page.getByLabel('Message').isVisible()) await expect(page.getByLabel('Message')).toBeFocused()
+  else await expect(restored).toBeFocused()
   await showPane(page, 'Chat')
   await page.getByRole('button', { name: 'Allow', exact: true }).click()
 })
