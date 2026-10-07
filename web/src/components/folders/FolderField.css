@@ -1,3 +1,4 @@
 /* a required folder that was left empty: red frame until filled */
-.folder-field[data-invalid], .folder-field[data-invalid]:hover { border-color: var(--bad); }
+.folder-field[data-invalid] { border-color: var(--bad); }
+@media (hover: hover) { .folder-field[data-invalid]:hover { border-color: var(--bad); } }
 .folder-field[data-invalid]:focus-within { border-color: var(--bad); box-shadow: 0 0 0 1px var(--bad); }

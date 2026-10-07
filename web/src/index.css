@@ -119,17 +119,17 @@ svg.icon { flex: none; display: block; }
   transition: background var(--dur-fast), border-color var(--dur-fast), color var(--dur-fast);
 }
 /* a disabled control doesn't answer the pointer; :where keeps each hover's weight */
-.btn:hover:where(:not(:disabled)) { border-color: var(--ink); }
+@media (hover: hover) { .btn:hover:where(:not(:disabled)) { border-color: var(--ink); } }
 .btn:active:where(:not(:disabled)) { background: var(--paper-2); }
 .btn:disabled { color: var(--ink-3); border-color: var(--rule); cursor: default; }
 .btn-primary { border-color: var(--act); background: var(--act); color: var(--act-ink); }
-.btn-primary:hover { border-color: var(--ink); background: var(--act); }
+@media (hover: hover) { .btn-primary:hover { border-color: var(--ink); background: var(--act); } }
 /* disabled is one look everywhere: ink-3 on a plain rule border, on the sheet */
 .btn-primary:disabled { background: var(--paper); color: var(--ink-3); border-color: var(--rule); }
 .btn-danger { border-color: var(--bad); color: var(--bad); background: transparent; }
-.btn-danger:hover:where(:not(:disabled)) { background: var(--bad-wash); border-color: var(--bad); }
+@media (hover: hover) { .btn-danger:hover:where(:not(:disabled)) { background: var(--bad-wash); border-color: var(--bad); } }
 .btn-ghost { border-color: transparent; background: transparent; color: var(--ink-2); }
-.btn-ghost:hover:where(:not(:disabled)) { border-color: var(--rule); color: var(--ink); background: transparent; }
+@media (hover: hover) { .btn-ghost:hover:where(:not(:disabled)) { border-color: var(--rule); color: var(--ink); background: transparent; } }
 .btn-ghost:disabled { border-color: transparent; background: transparent; }
 .btn-xs { height: 24px; padding: 0 8px; font-size: 12px; }
 
@@ -143,7 +143,7 @@ input:is([type='radio'], [type='checkbox']) {
   border: 1px solid var(--rule-strong); border-radius: 1px; background: var(--paper);
   cursor: pointer; transition: border-color var(--dur-fast), background var(--dur-fast);
 }
-input:is([type='radio'], [type='checkbox']):hover:not(:disabled, :checked) { border-color: var(--ink); }
+@media (hover: hover) { input:is([type='radio'], [type='checkbox']):hover:not(:disabled, :checked) { border-color: var(--ink); } }
 input:is([type='radio'], [type='checkbox']):checked { border-color: var(--act); background: var(--act); }
 input[type='radio']:checked { box-shadow: inset 0 0 0 2px var(--paper); }
 input[type='checkbox']:checked::after {
@@ -159,7 +159,7 @@ input:is([type='radio'], [type='checkbox']):disabled { border-color: var(--rule)
   background: var(--paper); color: var(--ink);
   transition: border-color var(--dur-fast);
 }
-.field:hover { border-color: var(--ink-3); }
+@media (hover: hover) { .field:hover { border-color: var(--ink-3); } }
 .field:focus { outline: none; border-color: var(--act); box-shadow: 0 0 0 1px var(--act); }
 select.field {
   appearance: none; -webkit-appearance: none; padding-right: 26px;
@@ -278,6 +278,8 @@ kbd {
 .sidebar-signout.signout-confirm { justify-content: center; }
 .signout-question { font-size: 12.5px; color: var(--ink-2); }
 .focus-toggle[aria-pressed='true'] { color: var(--ink); border-color: var(--ink); }
+/* Focus, Overview and Sign out are words; a tight bar draws them as icons */
+svg.bar-icon { display: none; }
 .brand { display: flex; align-items: center; gap: 12px; }
 .show-sessions { display: inline-flex; align-items: center; gap: 4px; }
 @media (max-width: 720px) { .show-sessions { display: none; } }
@@ -288,8 +290,10 @@ kbd {
    is its icon and Focus and Sign out draw tighter */
 @media (min-width: 721px) and (max-width: 1100px) {
   .topbar { grid-template-columns: auto minmax(0, 1fr) auto; gap: 0 12px; }
-  .topbar .mode-switch { justify-self: center; min-width: 0; }
-  .topbar .segmented.mode-switch button { padding: 2px 10px 0; }
+  /* a tab never shrinks under its word; if the bar is ever too tight the
+     modes start after the masthead rather than spill over it */
+  .topbar .mode-switch { justify-self: safe center; min-width: 0; }
+  .topbar .segmented.mode-switch button { flex: none; padding: 2px 10px 0; }
   .brand { gap: 8px; }
   .show-sessions { width: 30px; height: 30px; padding: 0; justify-content: center; }
   .show-sessions-label { display: none; }
@@ -304,7 +308,7 @@ kbd {
   height: 44px; padding: 2px 14px 0; border: 0; border-bottom: 2px solid transparent; background: none;
   color: var(--ink-3); font-size: 13px; font-weight: 500;
 }
-.segmented.mode-switch button:hover { color: var(--ink); }
+@media (hover: hover) { .segmented.mode-switch button:hover { color: var(--ink); } }
 .segmented.mode-switch button[aria-checked="true"] { background: none; color: var(--ink); border-bottom-color: var(--ink); }
 /* on a wide bar the switch is centred on its own width: a count that took
    room would slide every tab sideways as it came and went. It sits on the
@@ -333,7 +337,7 @@ kbd {
 .health-connecting .dot { border-style: dashed; }
 button.health { border: 0; background: none; padding: 0; }
 .health-reconnecting { color: var(--ink); }
-.health-reconnecting:hover { color: var(--act); }
+@media (hover: hover) { .health-reconnecting:hover { color: var(--act); } }
 .health-reconnecting .dot { border-style: dashed; animation: mark-breathe 1.2s ease-in-out infinite; }
 
 .notice { max-width: 520px; margin: 12vh auto 0; padding: 0 var(--gutter); display: grid; gap: 10px; align-content: start; }
@@ -412,8 +416,9 @@ button.health { border: 0; background: none; padding: 0; }
   height: 30px; border: 0; background: none; color: var(--ink-2); font-weight: 500; font-size: 13px;
 }
 .segmented button + button { border-left: 1px solid var(--rule-strong); }
-.segmented button:hover { color: var(--ink); }
-.segmented button:disabled, .segmented button:disabled:hover { color: var(--ink-3); cursor: default; }
+@media (hover: hover) { .segmented button:hover { color: var(--ink); } }
+.segmented button:disabled { color: var(--ink-3); cursor: default; }
+@media (hover: hover) { .segmented button:disabled:hover { color: var(--ink-3); cursor: default; } }
 .segmented button:disabled .avatar { border-color: var(--rule); color: var(--ink-3); }
 .segmented button[aria-checked='true'] { color: var(--ink); background: var(--paper-3); }
 .segmented button[aria-checked='true'] .avatar { border-color: var(--ink); }
@@ -425,7 +430,7 @@ button.health { border: 0; background: none; padding: 0; }
   border: 1px solid var(--rule-strong); border-radius: var(--r); background: var(--paper);
   transition: border-color var(--dur-fast);
 }
-.folder-field:hover { border-color: var(--ink-3); }
+@media (hover: hover) { .folder-field:hover { border-color: var(--ink-3); } }
 .folder-field:focus-within { border-color: var(--act); box-shadow: 0 0 0 1px var(--act); }
 .folder-field input {
   flex: 1; min-width: 0; height: 100%; border: 0; outline: none; background: transparent;
@@ -434,7 +439,7 @@ button.health { border: 0; background: none; padding: 0; }
   font-family: var(--font-mono); font-size: 12.5px;
 }
 .folder-field .browse { color: var(--act); }
-.folder-field .browse:hover { border-color: var(--act); color: var(--act); }
+@media (hover: hover) { .folder-field .browse:hover { border-color: var(--act); color: var(--act); } }
 .folder-icon { flex: none; color: var(--ink-3); }
 .folder-icon-repo { color: var(--ink); }
 
@@ -460,7 +465,7 @@ button.health { border: 0; background: none; padding: 0; }
   height: 26px; padding: 0 2px; border: 0; background: none; text-align: left;
   font-family: var(--font-mono); font-size: 12.5px; color: var(--ink-2);
 }
-.group-toggle:hover:not(:disabled) { color: var(--ink); }
+@media (hover: hover) { .group-toggle:hover:not(:disabled) { color: var(--ink); } }
 .group-toggle:disabled { cursor: default; }
 .chevron { flex: none; color: var(--ink-3); transition: transform var(--dur-fast) var(--ease-out); }
 .group-toggle[aria-expanded='false'] .chevron { transform: rotate(-90deg); }
@@ -497,7 +502,7 @@ button.health { border: 0; background: none; padding: 0; }
   background: none; text-align: left; color: inherit;
   transition: background var(--dur-fast), border-color var(--dur-fast);
 }
-.session:hover { background: var(--paper-2); }
+@media (hover: hover) { .session:hover { background: var(--paper-2); } }
 .session.active { background: var(--paper-2); border-color: var(--rule-strong); }
 .session.active .session-title { color: var(--ink); }
 .session-text { display: grid; min-width: 0; gap: 1px; container-type: inline-size; }
@@ -700,11 +705,28 @@ button.health { border: 0; background: none; padding: 0; }
 .md a { color: var(--act); text-underline-offset: 3px; }
 .md blockquote { padding-left: 12px; border-left: 1px solid var(--rule-strong); color: var(--ink-2); }
 .md hr { border: 0; border-top: 1px solid var(--rule); margin: 12px 0; }
-.md table { border-collapse: collapse; display: block; max-width: 100%; overflow-x: auto; font-size: 13px; }
+/* a table scrolls in its own box, never the transcript; the box fades at
+   the edge that still has more, so a cut column reads as "scroll" */
+.md .md-table { max-width: 100%; overflow-x: auto; margin: 0 0 10px; --fade: 28px; }
+.md > .md-table:last-child { margin-bottom: 0; }
+.md-table[data-fade='end'] { mask-image: linear-gradient(to right, #000 calc(100% - var(--fade)), transparent); }
+.md-table[data-fade='start'] { mask-image: linear-gradient(to left, #000 calc(100% - var(--fade)), transparent); }
+.md-table[data-fade='start end'] {
+  mask-image: linear-gradient(to right, transparent, #000 var(--fade), #000 calc(100% - var(--fade)), transparent);
+}
+.md .md-table > table { margin: 0; border-collapse: collapse; font-size: 13px; }
 /* cells keep their words whole (".item" breaks anywhere, which cut "1290"
    into "129/0"); the table scrolls in its own box instead */
 .md th, .md td { padding: 4px 10px; border: 1px solid var(--rule); text-align: left; overflow-wrap: normal; word-break: normal; }
 .md th, .md td code, .md th code { white-space: nowrap; }
+/* a phone: a long path in code breaks where it must
+   rather than take the table and crush the words beside it to one
+   per line; words and numbers outside code still stay whole, and every
+   cell keeps a readable minimum */
+@media (max-width: 720px) {
+  .md td { min-width: calc(8ch + 20px); }
+  .md td code { white-space: normal; overflow-wrap: anywhere; }
+}
 /* images fit the column; remote ones are links, failed ones a line of words */
 .md img { display: block; max-width: 100%; height: auto; margin: 4px 0; }
 .md-image-link, .md-image-missing { font-family: var(--font-mono); font-size: 12px; }
@@ -781,7 +803,7 @@ button.health { border: 0; background: none; padding: 0; }
   border: 1px solid var(--rule-strong); border-radius: var(--r); background: var(--paper);
   transition: border-color var(--dur-fast);
 }
-.composer:hover { border-color: var(--ink-3); }
+@media (hover: hover) { .composer:hover { border-color: var(--ink-3); } }
 .composer:focus-within { border-color: var(--act); box-shadow: 0 0 0 1px var(--act); }
 .composer textarea {
   flex: 1; min-width: 0; min-height: 30px; max-height: 40vh; padding: 5px 0;
@@ -804,7 +826,8 @@ button.health { border: 0; background: none; padding: 0; }
   background: var(--paper); color: var(--ink); font-family: var(--font-mono); font-size: 12px;
   transition: border-color var(--dur-fast);
 }
-.model-button:hover, .model-button[aria-expanded='true'] { border-color: var(--ink); }
+.model-button[aria-expanded='true'] { border-color: var(--ink); }
+@media (hover: hover) { .model-button:hover { border-color: var(--ink); } }
 .model-button[aria-expanded='true'] .chevron { transform: rotate(180deg); }
 .model-name { max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .model-menu {
@@ -820,7 +843,7 @@ button.health { border: 0; background: none; padding: 0; }
   display: flex; align-items: flex-start; gap: 10px; width: 100%; padding: 8px;
   border: 0; border-radius: var(--r); background: none; color: var(--ink); text-align: left;
 }
-.model-option:hover { background: var(--paper-2); }
+@media (hover: hover) { .model-option:hover { background: var(--paper-2); } }
 .model-option[aria-checked='true'] { background: var(--act-wash); }
 .model-radio {
   flex: none; width: 12px; height: 12px; margin-top: 4px; border: 1px solid var(--rule-strong); border-radius: 1px; position: relative;
@@ -836,7 +859,7 @@ button.health { border: 0; background: none; padding: 0; }
   color: var(--ink-3); font-family: var(--font-mono); font-size: 12px;
 }
 .effort-options button + button { border-left: 1px solid var(--rule-strong); }
-.effort-options button:hover { color: var(--ink); }
+@media (hover: hover) { .effort-options button:hover { color: var(--ink); } }
 .effort-options button[aria-checked='true'] { background: var(--ink); color: var(--paper); }
 .model-hint { padding: 0 8px 4px; color: var(--ink-3); font-size: 12px; }
 
@@ -892,7 +915,7 @@ button.health { border: 0; background: none; padding: 0; }
   padding: 8px 10px; border: 1px solid var(--rule); border-radius: var(--r);
   background: var(--paper); cursor: pointer; transition: border-color var(--dur-fast), background var(--dur-fast);
 }
-.option:hover { border-color: var(--ink-3); }
+@media (hover: hover) { .option:hover { border-color: var(--ink-3); } }
 .option:has(input:checked) { border-color: var(--act); background: var(--act-wash); }
 .option-label { font-weight: 600; }
 .option small { grid-column: 2; color: var(--ink-2); font-size: 12.5px; }
@@ -908,7 +931,7 @@ button.health { border: 0; background: none; padding: 0; }
   padding: 9px 10px; border: 1px solid var(--rule); background: var(--paper); text-align: left; color: inherit;
   transition: background var(--dur-fast);
 }
-.request-tray li > button:hover { background: var(--req-wash); }
+@media (hover: hover) { .request-tray li > button:hover { background: var(--req-wash); } }
 /* answers (Allow, Continue) belong to their line: no rule between them */
 .request-tray li > button:has(+ .tray-actions) { border-bottom: 0; }
 /* a permission is answered right in the tray, under its line */
@@ -942,7 +965,7 @@ button.health { border: 0; background: none; padding: 0; }
   border: 1px solid transparent; border-radius: var(--r); background: none; color: var(--ink-2);
   transition: color var(--dur-fast), border-color var(--dur-fast);
 }
-.rail-btn:hover:where(:not(:disabled)) { color: var(--ink); border-color: var(--rule); }
+@media (hover: hover) { .rail-btn:hover:where(:not(:disabled)) { color: var(--ink); border-color: var(--rule); } }
 .rail-btn:disabled { color: var(--ink-3); cursor: default; }
 .rail-btn[aria-pressed='true'] { color: var(--ink); border-color: var(--ink); background: var(--paper); }
 .rail-count {
@@ -960,15 +983,17 @@ button.health { border: 0; background: none; padding: 0; }
   position: absolute; top: 0; bottom: 0; z-index: 4; width: 4px; padding: 0;
   border: 0; background: transparent; cursor: col-resize; touch-action: none;
 }
-.splitter:hover, .splitter:active, .splitter:focus-visible { background: var(--rule-strong); }
-.splitter:hover, .splitter:active { outline: none; }
+.splitter:active, .splitter:focus-visible { background: var(--rule-strong); }
+@media (hover: hover) { .splitter:hover { background: var(--rule-strong); } }
+.splitter:active { outline: none; }
+@media (hover: hover) { .splitter:hover { outline: none; } }
 .splitter-dock { left: -3px; }
 .splitter-sidebar { left: calc(var(--sb) - 2px); }
 .sidebar-show {
   left: 0; width: 14px; display: grid; place-items: center; cursor: pointer;
   color: var(--ink-3); border-right: 1px solid var(--rule);
 }
-.sidebar-show:hover { color: var(--ink); background: var(--paper-2); }
+@media (hover: hover) { .sidebar-show:hover { color: var(--ink); background: var(--paper-2); } }
 
 /* ---------- terminals ---------- */
 .terminals { display: flex; flex-direction: column; gap: 10px; flex: 1; min-height: 0; padding: 12px 14px 14px; }
@@ -983,9 +1008,10 @@ button.health { border: 0; background: none; padding: 0; }
 .terminal-tabs li:has([aria-selected='true']) { border-bottom-color: var(--ink); }
 .terminal-tabs button { height: 30px; border: 0; background: none; color: var(--ink-3); font-family: var(--font-mono); font-size: 12.5px; }
 .terminal-tabs [role='tab'] { display: inline-flex; align-items: center; gap: 6px; padding: 0 4px 0 10px; white-space: nowrap; }
-.terminal-tabs [role='tab']:hover, .terminal-tabs [role='tab'][aria-selected='true'] { color: var(--ink); }
+.terminal-tabs [role='tab'][aria-selected='true'] { color: var(--ink); }
+@media (hover: hover) { .terminal-tabs [role='tab']:hover { color: var(--ink); } }
 .terminal-tabs .close-terminal { display: grid; place-items: center; width: 24px; padding: 0; color: var(--ink-3); }
-.terminal-tabs .close-terminal:hover { color: var(--bad); }
+@media (hover: hover) { .terminal-tabs .close-terminal:hover { color: var(--bad); } }
 .terminal-hint { color: var(--ink-3); font-size: 13px; padding: 16px 0; }
 /* in the dock's column a failure is one line under the tabs, not a stretch of it */
 .terminals > .term-error { flex: none; }
@@ -1013,7 +1039,7 @@ button.health { border: 0; background: none; padding: 0; }
 .term-chips .chip-branch { flex: none; max-width: 70%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink-3); }
 .term-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 1px; }
 .term-row { display: flex; align-items: center; border: 1px solid transparent; border-radius: var(--r); transition: background var(--dur-fast); }
-.term-row:hover { background: var(--paper-2); }
+@media (hover: hover) { .term-row:hover { background: var(--paper-2); } }
 .term-row:has([aria-selected='true']) { background: var(--paper-2); border-color: var(--rule-strong); }
 .term-row [role='tab'] {
   flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; padding: 7px 8px;
@@ -1032,7 +1058,7 @@ button.health { border: 0; background: none; padding: 0; }
   background: none; color: var(--ink-3); opacity: 0; transition: opacity var(--dur-fast);
 }
 .term-row:hover .close-terminal, .term-row:has([aria-selected='true']) .close-terminal, .term-row .close-terminal:focus-visible { opacity: 1; }
-.term-row .close-terminal:hover { color: var(--bad); }
+@media (hover: hover) { .term-row .close-terminal:hover { color: var(--bad); } }
 @media (hover: none) { .term-row .close-terminal { opacity: 1; } }
 .term-main { display: flex; flex-direction: column; gap: 10px; min-width: 0; min-height: 0; padding: 12px var(--gutter) 14px; }
 .term-main > .hero { margin: auto; }
@@ -1063,7 +1089,7 @@ button.health { border: 0; background: none; padding: 0; }
   max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   height: 24px; padding: 0 4px; border: 0; background: none; color: var(--ink-2);
 }
-.crumb button:hover { color: var(--ink); text-decoration: underline; text-underline-offset: 3px; }
+@media (hover: hover) { .crumb button:hover { color: var(--ink); text-decoration: underline; text-underline-offset: 3px; } }
 .crumb .crumb-current { color: var(--ink); }
 
 .picker-filter .field { width: 100%; height: 34px; }
@@ -1077,7 +1103,7 @@ button.health { border: 0; background: none; padding: 0; }
 /* a long name stays one line inside its chip, cut at the end; the title has it all */
 .chip { max-width: 100%; min-width: 0; }
 .chip-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.chip:hover { border-color: var(--ink); color: var(--ink); }
+@media (hover: hover) { .chip:hover { border-color: var(--ink); color: var(--ink); } }
 .chip[aria-pressed='true'] { border-color: var(--ink); color: var(--ink); }
 /* the caption on the chips' first line, the chips wrapping beside it */
 .folder-chips { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: baseline; gap: 0 8px; min-width: 0; }
@@ -1097,7 +1123,8 @@ button.health { border: 0; background: none; padding: 0; }
   height: 36px; padding: 0 84px 0 8px; border: 0;
   background: none; color: var(--ink); text-align: left;
 }
-.folder-row:hover, .folder-item:focus-within .folder-row { background: var(--paper-2); }
+.folder-item:focus-within .folder-row { background: var(--paper-2); }
+@media (hover: hover) { .folder-row:hover { background: var(--paper-2); } }
 .folder-up { color: var(--ink-2); padding-right: 8px; }
 .folder-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--font-mono); font-size: 13px; }
 .repo-badge { font-family: var(--font-mono); font-size: 11.5px; color: var(--ink-3); }
@@ -1252,6 +1279,27 @@ button.health { border: 0; background: none; padding: 0; }
   .show-sessions { min-width: 36px; height: 36px; }
 }
 
+/* a narrow tablet: Show sessions beside the masthead (a dock open) and a
+   finger's 36px controls leave the modes no room between the masthead and
+   the controls. Focus, Overview and Sign out become named icons, the bar
+   draws tighter, and a touch screen drops the keyboard-shortcuts key (the
+   ? key still opens them) */
+@media (min-width: 721px) and (max-width: 960px) {
+  .topbar { gap: 0 8px; }
+  .topbar .segmented.mode-switch button { padding: 2px 8px 0; }
+  .topbar-end { gap: 4px; }
+  .topbar :is(.focus-toggle, .overview-toggle, .signout > .btn) { width: 30px; height: 30px; padding: 0; justify-content: center; }
+  .topbar svg.bar-icon { display: block; }
+  .topbar .bar-label {
+    position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+    overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+  }
+}
+@media (min-width: 721px) and (max-width: 960px) and (pointer: coarse) {
+  .topbar :is(.focus-toggle, .overview-toggle, .signout > .btn) { width: 36px; height: 36px; }
+  .topbar .shortcuts-help { display: none; }
+}
+
 /* the narrowest phones: the three modes and the toggles fit on one row,
    none under another, none scrolled away */
 @media (max-width: 360px) {
@@ -1283,7 +1331,8 @@ button.health { border: 0; background: none; padding: 0; }
 .editable-title { display: inline-flex; align-items: center; gap: 6px; min-width: 0; }
 .editable-title > span, .editable-title > h2 { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .rename-btn { display: inline-flex; align-items: center; vertical-align: middle; border: 0; background: none; padding: 0 2px; color: var(--ink-3); cursor: pointer; }
-.editable-title:hover .rename-btn, .rename-btn:focus-visible { color: var(--ink); }
+.rename-btn:focus-visible { color: var(--ink); }
+@media (hover: hover) { .editable-title:hover .rename-btn { color: var(--ink); } }
 .title-input { font: inherit; color: inherit; background: var(--paper); border: 1px solid var(--rule-strong); border-radius: var(--r); padding: 1px 6px; min-width: 12ch; width: 100%; max-width: 40ch; }
 
 

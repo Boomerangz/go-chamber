@@ -141,3 +141,76 @@ test('Show sessions in the top bar is a named icon beside a dock', async ({ page
   await expect(show).toHaveAccessibleName('Show sessions')
   expect((await show.boundingBox())!.width).toBeLessThanOrEqual(40)
 })
+
+// overlaps lists the top bar's parts that draw over one another: the
+// masthead, Show sessions, each mode and each control at the bar's end
+// (the health mark among them), and any word cut inside its own control.
+function overlaps(page: Page) {
+  return page.evaluate(() => {
+    const out: string[] = []
+    const parts: [string, DOMRect][] = []
+    const add = (name: string, e: Element | null) => {
+      if (!e) return
+      const r = e.getBoundingClientRect()
+      if (r.width < 1 || r.height < 1) return
+      parts.push([name, r])
+      // every word shown inside stays inside (a label kept only for its
+      // name, 1px and clipped, is not shown)
+      const walk = document.createTreeWalker(e, NodeFilter.SHOW_TEXT)
+      for (let n = walk.nextNode(); n; n = walk.nextNode()) {
+        if (n.parentElement!.getBoundingClientRect().width <= 1) continue
+        const range = document.createRange()
+        range.selectNodeContents(n)
+        const t = range.getBoundingClientRect()
+        if (t.width > 0 && (t.right > r.right + 0.5 || t.left < r.left - 0.5)) out.push(`${name} cut`)
+      }
+    }
+    add('h1', document.querySelector('.topbar .brand h1'))
+    add('show-sessions', document.querySelector('.topbar .show-sessions'))
+    for (const b of document.querySelectorAll('.topbar .mode-switch [role="radio"]')) add(`mode ${b.textContent}`, b)
+    for (const c of document.querySelectorAll('.topbar-end > *')) add(`end ${c.className || c.tagName}`, c)
+    for (let i = 0; i < parts.length; i++)
+      for (let j = i + 1; j < parts.length; j++) {
+        const [a, ra] = parts[i]
+        const [b, rb] = parts[j]
+        if (ra.right > rb.left + 0.5 && rb.right > ra.left + 0.5 && ra.bottom > rb.top + 0.5 && rb.bottom > ra.top + 0.5) out.push(`${a} over ${b}`)
+      }
+    if (document.documentElement.scrollWidth > window.innerWidth) out.push(`page ${document.documentElement.scrollWidth}`)
+    return out
+  })
+}
+
+// A touch tablet with a dock open: the dock takes the sessions list's place,
+// Show sessions joins the bar, and its finger-sized controls still sit side
+// by side — no mode under Show sessions, no health mark over Diagnostics.
+test.describe('the top bar of a touch tablet', () => {
+  test.use({ hasTouch: true })
+  test('nothing in the bar draws over anything else with a dock open', async ({ page, isMobile }) => {
+    test.skip(isMobile, 'a phone has its own bar')
+    test.setTimeout(120_000)
+    // a shell runs: the Terminal mode carries its count (and a request waits)
+    const headers = { Authorization: `Bearer ${token}` }
+    const made = await page.request.post('/api/sessions', { headers, data: { agent: 'claude', cwd: '/tmp' } })
+    const { id } = (await made.json()) as { id: string }
+    await page.request.post(`/api/sessions/${id}/messages`, { headers, data: { text: 'please permission' } })
+    const term = await page.request.post('/api/terminals', { headers, data: { cwd: '/tmp', cols: 80, rows: 24 } })
+    const { id: termId } = (await term.json()) as { id: string }
+    await page.setViewportSize({ width: 1280, height: 900 })
+    await newSession(page)
+    const modes = page.getByRole('radiogroup', { name: 'Mode' })
+    await expect(modes.locator('.count')).toBeVisible()
+    for (const width of [721, 768, 820, 900, 960, 961, 1024, 1100]) {
+      await page.setViewportSize({ width, height: 1180 })
+      for (const name of ['Requests', 'Changes']) {
+        await openDock(page, name)
+        await expect.poll(() => overlaps(page), { message: `${width} ${name}` }).toEqual([])
+      }
+    }
+    // Overview drops Focus but keeps its own toggle pressed
+    await page.setViewportSize({ width: 820, height: 1180 })
+    await page.locator('.topbar .overview-toggle').click()
+    await expect(page.locator('.topbar .overview-toggle')).toHaveAttribute('aria-pressed', 'true')
+    await expect.poll(() => overlaps(page), { message: 'overview' }).toEqual([])
+    await page.request.delete(`/api/terminals/${termId}`, { headers })
+  })
+})

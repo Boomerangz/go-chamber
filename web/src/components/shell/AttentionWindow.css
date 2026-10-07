@@ -26,7 +26,7 @@
   text-align: left; font: 600 14px/1.4 var(--font-ui); cursor: pointer;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-.attention-task:hover { text-decoration: underline; }
+@media (hover: hover) { .attention-task:hover { text-decoration: underline; } }
 .attention-action { display: flex; align-items: baseline; gap: 8px; color: var(--ink-2); font: 12px var(--font-mono); }
 .attention-action-label { flex: 1 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .attention-panel .attention-action, .attention-panel .attention-result { margin: 0; }
@@ -36,7 +36,7 @@
 }
 .attention-waiting > :first-child { flex: 1 1 auto; }
 .attention-waiting > :last-child:not(:first-child) { flex: none; font-variant-numeric: tabular-nums; }
-.attention-waiting:hover > :first-child { text-decoration: underline; }
+@media (hover: hover) { .attention-waiting:hover > :first-child { text-decoration: underline; } }
 /* outcome, result and its actions share one line while there is room */
 .attention-result-line { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; min-width: 0; }
 /* an outcome annotates the card: a bracketed mono keyword */
