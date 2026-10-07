@@ -14,6 +14,27 @@ describe('switcherEntries', () => {
     expect(switcherEntries(sessions, [], new Map(), '').filter((e) => e.kind === 'session').map((e) => e.id)).toEqual(['shown'])
   })
 
+  it('finds archived sessions when asked, below everything else', () => {
+    const away = '2026-01-02T00:00:00Z'
+    const sessions = [
+      s('checkout live'),
+      s('checkout old', { archivedAt: away }),
+      s('checkout sub', { parentId: 'checkout old' }),
+      s('other old', { archivedAt: away }),
+    ]
+    const found = switcherEntries(sessions, [t('checkout')], new Map(), 'checkout')
+    expect(found.map((e) => [e.kind, e.id, e.archived ?? false])).toEqual([
+      ['session', 'checkout live', false],
+      ['terminal', 'checkout', false],
+      ['new', 'claude:/p/checkout live', false],
+      ['new', 'codex:/p/checkout live', false],
+      ['session', 'checkout old', true],
+      ['session', 'checkout sub', true],
+    ])
+    // Without a query they stay out.
+    expect(switcherEntries(sessions, [], new Map(), '').some((e) => e.archived)).toBe(false)
+  })
+
   it('puts sessions that wait for the owner first, then running, then recent', () => {
     const sessions = [
       s('old', { activeAt: '2026-01-01T00:00:00Z' }),

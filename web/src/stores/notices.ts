@@ -12,6 +12,10 @@ export interface Notice {
   key?: string
   // action is one thing to do about it, e.g. Undo; it dismisses the notice.
   action?: { label: string; run: () => void }
+  // sessionId ties the notice to a session: it goes when the session is
+  // deleted. Leaving the session keeps it (a fork still wants to hear that
+  // the worktree went).
+  sessionId?: string
 }
 
 export interface NoticeStore {
@@ -47,6 +51,14 @@ export function notify(notice: Omit<Notice, 'id'>): number {
   useNotices.setState({ notices: [...rest, { ...notice, id }].slice(-MAX) })
   if (notice.kind === 'info') setTimeout(() => useNotices.getState().dismiss(id), notice.action ? ACTION_MS : INFO_MS)
   return id
+}
+
+// dropSessionNotices takes back the notices about sessions that are gone.
+export function dropSessionNotices(ids: Iterable<string>): void {
+  const gone = new Set(ids)
+  const notices = useNotices.getState().notices
+  const kept = notices.filter((n) => !n.sessionId || !gone.has(n.sessionId))
+  if (kept.length !== notices.length) useNotices.setState({ notices: kept })
 }
 
 // fail reports a failed action: "<title>: <reason>". With quiet, the

@@ -100,6 +100,19 @@ it('handles an explicit lag fallback and a terminal close without retrying RTC',
  conn.close()
 })
 
+it('resyncs in place over WebRTC', () => {
+ vi.stubGlobal('WebSocket', Socket); vi.stubGlobal('RTCPeerConnection', class {})
+ const handlers = { onOutput: vi.fn(), onReady: vi.fn(), onReset: vi.fn(), onExit: vi.fn(), onGiveUp: vi.fn() }
+ const conn = connectTerminal('resync', handlers)
+ Socket.instances[0].onmessage?.({ data: '{"type":"ready"}' })
+ const callbacks = vi.mocked(connectRTC).mock.calls[0][1]
+ callbacks.onOpen()
+ callbacks.onMessage('{"type":"resync"}')
+ expect(handlers.onReset).toHaveBeenLastCalledWith('resync')
+ expect(Socket.instances).toHaveLength(1)
+ conn.close()
+})
+
 it('stays on WebSocket while WebRTC is turned off on this device', () => {
  vi.stubGlobal('WebSocket', Socket); vi.stubGlobal('RTCPeerConnection', class {})
  setRTCEnabled(false)

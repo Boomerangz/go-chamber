@@ -97,6 +97,32 @@ func EventLogContract(t *testing.T, newLog func(t *testing.T) interface {
 		}
 	})
 
+	t.Run("search snippets are plain text around the phrase", func(t *testing.T) {
+		log := newLog(t)
+		var b strings.Builder
+		b.WriteString("Раздел 70 в начале.\n")
+		for i := range 80 {
+			b.WriteString("| a | b |\n|---|---|\n| 70 | 4900 |\n```go\nfunc f70() {}\n```\n")
+			if i == 60 {
+				b.WriteString("## Раздел 7\n**Итог:** готово\n")
+			}
+		}
+		if err := log.Append(ctx, msg(1, "a", "a1", domain.ItemAssistantMessage, domain.ItemCompleted, b.String())); err != nil {
+			t.Fatal(err)
+		}
+		hits, err := log.Search(ctx, "Раздел 7", 10)
+		if err != nil || len(hits) != 1 {
+			t.Fatalf("hits = %+v, %v", hits, err)
+		}
+		got := hits[0].Snippet
+		if !strings.Contains(got, "[[Раздел]] [[7]] Итог: готово") {
+			t.Fatalf("snippet %q is not around the phrase", got)
+		}
+		if strings.ContainsAny(got, "|`#*") {
+			t.Fatalf("snippet %q keeps markdown", got)
+		}
+	})
+
 	t.Run("history skips deltas a later item update replaces", func(t *testing.T) {
 		log := newLog(t)
 		upd := func(seq domain.Seq, id domain.ItemID) domain.Event {

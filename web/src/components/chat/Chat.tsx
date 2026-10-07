@@ -89,6 +89,7 @@ export default function Chat() {
   const history = useSessionStore((s) => s.history)
   const historyReason = useSessionStore((s) => s.historyError?.reason)
   const session = useSessionStore((s) => s.sessions.find((x) => x.id === s.activeId))
+  const pane = useSessionStore((s) => s.pane)
   const sessionsStatus = useSessionStore((s) => s.sessionsStatus)
   const dropped = useLiveDropped()
   const send = useSessionStore((s) => s.send)
@@ -141,8 +142,10 @@ export default function Chat() {
     return keys
   }, [chat.order, chat.items, chat.requests])
   const [scrollRef, stick] = useStickToBottom(chat, news)
+  // A phone shows one pane at a time: the chat is looked at only in front.
+  const inFront = !narrow || pane === 'chat'
   const unseen = useUnseen({
-    sessionId, order: chat.order, items: chat.items, ready: history === 'ready', pinned: stick.pinned, isPinned: stick.isPinned,
+    sessionId, session, shown: inFront, order: chat.order, items: chat.items, ready: history === 'ready', pinned: stick.pinned, isPinned: stick.isPinned,
   })
   const lastItem = chat.order.length ? chat.items[chat.order[chat.order.length - 1]!] : undefined
   const streaming = lastItem?.status === 'streaming'

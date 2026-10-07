@@ -85,8 +85,9 @@ export interface TerminalHandlers {
   // not be sent to the shell again, so input should wait for it.
   onReady: () => void
   // onReset runs when a reconnected socket opens, before the server replays
-  // the scrollback, so the screen must be cleared first.
-  onReset: (reason?: 'reconnect' | 'upgrade') => void
+  // the scrollback, so the screen must be cleared first; 'resync' when the
+  // server dropped a lagging client's backlog and replays it in place.
+  onReset: (reason?: 'reconnect' | 'upgrade' | 'resync') => void
   // onGiveUp runs when reconnecting failed maxAttempts times in a row while
   // the tab was hidden; reconnect() or showing the tab tries again.
   onGiveUp: () => void
@@ -96,7 +97,8 @@ export interface TerminalHandlers {
 }
 
 export interface TerminalConnection {
-  send: (text: string) => void
+  // send reports whether the input went to an open connection.
+  send: (text: string) => boolean
   resize: (cols: number, rows: number) => void
   // reconnect tries again now: after giving up, or instead of waiting out
   // the backoff.
@@ -186,6 +188,7 @@ export function connectTerminal(
         let msg: { type?: string; code?: number }
         try { msg = JSON.parse(data) } catch { return }
         if (msg.type === 'ready') { handlers.onReady(); state('live') }
+        else if (msg.type === 'resync') handlers.onReset('resync')
         else if (msg.type === 'exit') { handlers.onExit(msg.code ?? -1); state('exited'); close() }
         else if (msg.type === 'closed') close()
         else if (msg.type === 'fallback') fallback()
@@ -204,7 +207,7 @@ export function connectTerminal(
     socket = connectWebSocketTerminal(id, {
       onOutput(data) { if (current()) handlers.onOutput(data) },
       onReady() { if (current()) { socketReady = true; handlers.onReady(); state('live'); tryRTC() } },
-      onReset() { if (current()) handlers.onReset() },
+      onReset(reason) { if (current()) handlers.onReset(reason) },
       onExit(code) { if (current()) { handlers.onExit(code); state('exited'); close() } },
       onGiveUp() { if (current()) { gaveUp = true; handlers.onGiveUp(); state('disconnected') } },
       onRetry(attempt) { if (current()) state('reconnecting', attempt) },
@@ -229,7 +232,10 @@ export function connectTerminal(
   if (typeof document !== 'undefined') document.addEventListener('visibilitychange', onVisible)
   openSocket(false)
   return {
-    send(text) { if (!stopped) { if (active === 'webrtc') peer?.send(encoder.encode(text)); else socket.send(text) } },
+    send(text) {
+      if (stopped) return false
+      return active === 'webrtc' ? peer?.send(encoder.encode(text)) === true : socket.send(text)
+    },
     resize(cols, rows) {
       size = { cols, rows }
       if (!stopped) { if (active === 'webrtc') peer?.send(JSON.stringify({ type: 'resize', ...size })); else socket.resize(cols, rows) }
@@ -281,6 +287,8 @@ function connectWebSocketTerminal(
       if (msg.type === 'ready') {
         readyAt = Date.now()
         handlers.onReady()
+      } else if (msg.type === 'resync') {
+        handlers.onReset('resync')
       } else if (msg.type === 'exit') {
         handlers.onExit(msg.code ?? -1)
       }
@@ -303,7 +311,9 @@ function connectWebSocketTerminal(
 
   return {
     send: (text) => {
-      if (ws.readyState === WebSocket.OPEN) ws.send(encoder.encode(text))
+      if (ws.readyState !== WebSocket.OPEN) return false
+      ws.send(encoder.encode(text))
+      return true
     },
     resize: (cols, rows) => {
       size = { cols, rows }

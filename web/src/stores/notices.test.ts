@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { describeError, fail, lastError, notify, resetNotices, useNotices } from './notices'
+import { describeError, dropSessionNotices, fail, lastError, notify, resetNotices, useNotices } from './notices'
 
 const notices = () => useNotices.getState().notices
 
@@ -101,4 +101,14 @@ describe('quiet failures', () => {
     resetNotices()
     expect(lastError()).toBeNull()
   })
+
+  it('drops the notices about a session that is gone, and only them', () => {
+    notify({ kind: 'info', text: 'Worktree removed', sessionId: 'a' })
+    notify({ kind: 'error', title: 'Fork failed', text: 'x', sessionId: 'a' })
+    notify({ kind: 'info', text: 'Copied', sessionId: 'b' })
+    notify({ kind: 'info', text: 'Global' })
+    dropSessionNotices(['a'])
+    expect(notices().map((n) => n.text)).toEqual(['Copied', 'Global'])
+  })
+
 })

@@ -5,10 +5,12 @@ import { applyEvents, initialChat, type ChatState } from '../lib/events'
 import type { GroupMode } from '../lib/sessions'
 import { LiveList } from '../lib/live-list'
 import { chimeOnEvent } from '../lib/chime'
-import { describeError, fail, useNotices } from './notices'
+import { bindPresence, setActiveClient, startPresence } from '../lib/presence'
+import { describeError, dropSessionNotices, fail, useNotices } from './notices'
 import { parseRoute } from '../lib/route'
 import { branchError, folderError } from '../lib/branch'
 import { useCLIs } from '../lib/clis'
+import { RecentCache } from '../lib/chat-cache'
 
 const START_FAILED = "Couldn't start the session"
 
@@ -78,9 +80,10 @@ export interface SessionStore {
   loadSessions: () => Promise<void>
   loadRequests: () => Promise<void>
   loadQuotas: () => Promise<void>
-  // createSession starts a session in cwd, or in a new worktree on branch chamber/<branch>.
+  // createSession starts a session in cwd, or in a new worktree on branch chamber/<branch>
+  // (with existing, on that branch as it already is).
   // With inForm, a folder that isn't there is left to the form to say.
-  createSession: (agent: api.AgentKind, cwd: string, branch?: string, inForm?: boolean) => Promise<boolean>
+  createSession: (agent: api.AgentKind, cwd: string, branch?: string, inForm?: boolean, existing?: boolean) => Promise<boolean>
   selectSession: (id: string) => Promise<void>
   // closeSession leaves the open session for the empty workspace.
   closeSession: () => void
@@ -192,6 +195,11 @@ const DELTA_FLUSH_MS = 100
 // lastSeqs is the last live seq seen per session, to spot events the hub
 // dropped for sessions other than the open one.
 let lastSeqs: Record<string, number> = {}
+// chats keeps the last chats left: a revisit renders at once and fetches
+// only the events after their lastSeq.
+const chats = new RecentCache<ChatState>(5)
+// download is the history fetch under way; see fetchHistory.
+let download: { id: string; since: number; events: Promise<api.SessionEvent[]>; abort: AbortController } | null = null
 const sessionLists = new LiveList<api.Session>((s) => s.id)
 // A request id is unique only within its session.
 const requestKey = (r: api.SessionRequest) => `${r.sessionId}/${r.id}`
@@ -397,10 +405,10 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     }
   },
 
-  async createSession(agent, cwd, branch, inForm) {
+  async createSession(agent, cwd, branch, inForm, existing) {
     try {
       const created = branch
-        ? await api.createWorktreeSession(agent, cwd, branch, startChoice(agent))
+        ? await (existing ? api.createWorktreeSession(agent, cwd, branch, startChoice(agent), true) : api.createWorktreeSession(agent, cwd, branch, startChoice(agent)))
         : await api.createSession(agent, cwd, startChoice(agent))
       set({ sessions: replaceSession(get().sessions, created) })
       // An earlier failed start is over now.
@@ -423,15 +431,21 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       set({ pane: 'chat' })
       return
     }
+    keepChat(get)
     buffered = null
     dropQueued()
-    set({ activeId: id, chat: initialChat(), pane: 'chat', history: 'loading', historyError: null })
+    // A remembered chat shows at once; history stays 'loading' until it has
+    // caught up, so what arrived meanwhile still counts as news.
+    set({ activeId: id, chat: chats.get(id) ?? initialChat(), pane: 'chat', history: 'loading', historyError: null })
     connect(get, set)
     if (get().sessionsStatus === 'error') void fetchOpenSession(get, set, id)
     await resync(get, set, id)
   },
 
-  closeSession: () => closeChat(set),
+  closeSession: () => {
+    keepChat(get)
+    closeChat(set)
+  },
 
   async send(text, images) {
     const id = get().activeId
@@ -686,10 +700,17 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
   },
 }))
 
+// keepChat remembers the open chat, once loaded, for a later revisit.
+function keepChat(get: () => SessionStore): void {
+  const { activeId, chat, history } = get()
+  if (activeId && history === 'ready') chats.put(activeId, chat)
+}
+
 // closeChat empties the workspace, superseding the open chat's history
 // fetch and live queue.
 function closeChat(set: (partial: Partial<SessionStore>) => void): void {
   generation++
+  download?.abort.abort()
   buffered = null
   dropQueued()
   set({ activeId: null, chat: initialChat(), history: 'ready', historyError: null })
@@ -713,8 +734,10 @@ function removeSession(get: () => SessionStore, set: (partial: Partial<SessionSt
   for (const sid of gone) {
     sessionLists.update(sid, null)
     sessionRevisions.delete(sid)
+    chats.delete(sid)
     delete lastSeqs[sid]
   }
+  dropSessionNotices(gone)
   const dropped = pendingRequests.filter((r) => gone.has(r.sessionId))
   for (const r of dropped) requestLists.update(requestKey(r), null)
   set({
@@ -746,6 +769,16 @@ function connect(
   socket = ws
   set({ connection: 'connecting' })
   ws.onopen = () => {
+    // Say where this page is: the server pushes nothing about a session a
+    // focused page shows, and tells every page which one should chime.
+    startPresence()
+    bindPresence((frame) => {
+      try {
+        ws.send(frame)
+      } catch {
+        // Closing already: onclose unbinds, and the next socket says it again.
+      }
+    })
     reconnectDelay = 1000
     set({ connection: 'online', nextRetryAt: null })
     // Anything missed while offline: reload the lists the socket feeds.
@@ -761,6 +794,7 @@ function connect(
   ws.onclose = () => {
     if (socket !== ws) return
     socket = null
+    bindPresence(null)
     set({ connection: 'offline', nextRetryAt: Date.now() + reconnectDelay })
     reconnectTimer = setTimeout(() => {
       reconnectTimer = null
@@ -772,7 +806,12 @@ function connect(
   ws.onerror = () => set({ connection: 'offline' })
   ws.onmessage = (msg) => {
     try {
-      get().applyIncoming(JSON.parse(msg.data as string) as api.SessionEvent)
+      const frame = JSON.parse(msg.data as string) as api.SessionEvent | { type: 'presence'; active?: string }
+      if (frame.type === 'presence') {
+        setActiveClient((frame as { active?: string }).active ?? '')
+        return
+      }
+      get().applyIncoming(frame as api.SessionEvent)
     } catch {
       // ignore malformed frames
     }
@@ -858,7 +897,7 @@ async function resync(
   buffered = live
   let retry = false
   try {
-    const history = await api.fetchEvents(id, get().chat.lastSeq)
+    const history = await fetchHistory(id, get().chat.lastSeq, () => mine !== generation)
     if (mine !== generation) return
     const chat = applyEvents(get().chat, [...history, ...live])
     set({ chat, history: 'ready', historyError: null })
@@ -888,6 +927,28 @@ async function resync(
   } finally {
     // A newer resync owns the buffer now; leave it alone.
     if (mine === generation && !retry) buffered = null
+  }
+}
+
+// fetchHistory fetches id's events after since. A download of the same
+// events already under way (the selection's, when the socket opens) is
+// shared instead of downloading the transcript twice; as it may predate the
+// socket's subscription, only what came after it is asked for next. Any
+// other download belongs to a superseded resync and is aborted.
+async function fetchHistory(id: string, since: number, stale: () => boolean): Promise<api.SessionEvent[]> {
+  const shared = download?.id === id && download.since === since ? download.events : null
+  if (!shared) download?.abort.abort()
+  const first = shared ? await shared : []
+  if (stale()) return first
+  const after = first.reduce((seq, ev) => Math.max(seq, ev.seq), since)
+  const abort = new AbortController()
+  const events = api.fetchEvents(id, after, abort.signal)
+  const mine = { id, since: after, events, abort }
+  download = mine
+  try {
+    return [...first, ...(await events)]
+  } finally {
+    if (download === mine) download = null
   }
 }
 
@@ -936,6 +997,9 @@ export function resetStore(): void {
   if (resyncTimer) clearTimeout(resyncTimer)
   resyncTimer = null
   lastSeqs = {}
+  chats.clear()
+  download?.abort.abort()
+  download = null
   dropQueued()
   buffered = null
   generation++

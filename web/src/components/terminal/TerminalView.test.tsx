@@ -144,19 +144,33 @@ describe('TerminalView', () => {
     expect(conn.send).toHaveBeenCalledWith('user input')
   })
 
-  it('holds typing until the replay is done, without automatic replies', () => {
+  it('holds typing until connected and replayed, without automatic replies', () => {
     render(<TerminalView id="t1" {...props} />)
+    // Still connecting: the connection takes nothing yet.
+    conn().send.mockReturnValue(false)
     const input = xterms[0].onData.mock.calls[0][0] as (data: string) => void
     input('ls')
     input('\x1b[3;1R')
     input('\r')
-    expect(conn().send).not.toHaveBeenCalled()
+    conn().send.mockReturnValue(true)
     handlers().onReady()
     const ready = xterms[0].write.mock.calls.at(-1)![1] as () => void
     ready()
-    expect(conn().send).toHaveBeenCalledWith('ls\r')
+    expect(conn().send).toHaveBeenLastCalledWith('ls\r')
     input('x')
     expect(conn().send).toHaveBeenLastCalledWith('x')
+  })
+
+  // A flood keeps the replay (and a resync) from finishing on a slow
+  // client; Ctrl-C must still reach the shell.
+  it('sends typing at once while an open connection replays', () => {
+    render(<TerminalView id="t1" {...props} />)
+    conn().send.mockReturnValue(true)
+    act(() => handlers().onReset('resync'))
+    const input = xterms[0].onData.mock.calls[0][0] as (data: string) => void
+    input('\x1b[3;1R')
+    input('\x03')
+    expect(conn().send.mock.calls).toEqual([['\x03']])
   })
 
   it('keeps the connection state per terminal', () => {

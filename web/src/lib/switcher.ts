@@ -19,6 +19,9 @@ export interface SwitcherEntry {
   at?: string
   // current marks the open session.
   current?: boolean
+  // archived marks a session put away: found only by a query, and listed
+  // below everything else.
+  archived?: boolean
   agent?: AgentKind
   cwd?: string
 }
@@ -90,6 +93,10 @@ function rank(e: SwitcherEntry): number {
   return 2
 }
 
+// section orders the list's parts: what is found, the new sessions, then
+// what was archived.
+const section = (e: SwitcherEntry) => (e.archived ? 2 : e.kind === 'new' ? 1 : 0)
+
 const agentName: Record<AgentKind, string> = { claude: 'Claude', codex: 'Codex' }
 
 export interface SwitcherOptions {
@@ -97,10 +104,10 @@ export interface SwitcherOptions {
 }
 
 // switcherEntries is the quick switcher's list: what needs the owner first,
-// then what runs, then the most recent; terminals after sessions, and last
-// the new sessions it can start. Archived sessions stay out. A query keeps
-// entries whose title or folder holds every word's letters in order,
-// closest matches first.
+// then what runs, then the most recent; terminals after sessions, then the
+// new sessions it can start. A query keeps entries whose title or folder
+// holds every word's letters in order, closest matches first, and finds
+// archived sessions too, last of all; without one they stay out.
 export function switcherEntries(
   sessions: Session[],
   terminals: Terminal[],
@@ -118,7 +125,8 @@ export function switcherEntries(
   }
   const shelved = shelvedIds(sessions)
   for (const s of sessions) {
-    if (shelved.has(s.id)) continue
+    const archived = shelved.has(s.id)
+    if (archived && !words.length) continue
     add(
       {
         kind: 'session',
@@ -129,6 +137,7 @@ export function switcherEntries(
         status: s.status,
         at: s.activeAt ?? s.createdAt,
         current: s.id === activeId || undefined,
+        archived: archived || undefined,
       },
       s.activeAt ?? s.createdAt ?? '',
       `${s.cwd} ${s.agent}`,
@@ -154,7 +163,7 @@ export function switcherEntries(
   }
   return found
     .sort((a, b) => {
-      const byKind = (a.entry.kind === 'new' ? 1 : 0) - (b.entry.kind === 'new' ? 1 : 0)
+      const byKind = section(a.entry) - section(b.entry)
       if (byKind !== 0) return byKind
       if (words.length && a.score !== b.score) return b.score - a.score
       const byRank = rank(a.entry) - rank(b.entry)

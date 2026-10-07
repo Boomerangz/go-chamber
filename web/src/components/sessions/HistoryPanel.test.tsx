@@ -59,6 +59,31 @@ describe('HistoryPanel', () => {
     }
   })
 
+  it('scrolls its sidebar no further than the sessions above keep 40% of the view', async () => {
+    const { container } = render(
+      <div className="box" style={{ overflowY: 'auto' }}>
+        <HistoryPanel />
+      </div>,
+    )
+    const box = container.querySelector<HTMLElement>('.box')!
+    const fold = () => container.querySelector<HTMLElement>('details.history')!
+    // jsdom lays nothing out: a 500px view with History 700px down, 300 tall.
+    Object.defineProperty(box, 'clientHeight', { configurable: true, value: 500 })
+    box.getBoundingClientRect = () => ({ top: 100 }) as DOMRect
+    await userEvent.click(screen.getByText('History'))
+    fold().getBoundingClientRect = () => ({ top: 800 }) as DOMRect
+    Object.defineProperty(fold(), 'offsetHeight', { configurable: true, value: 300 })
+    expect(await screen.findByText('Fix the flaky test')).toBeInTheDocument()
+    // nearest would be 700 + 300 - 500 = 500; keeping 200 above allows 500.
+    // A taller History (900) would go to its top, 700, but stops at 500.
+    await waitFor(() => expect(box.scrollTop).toBe(500))
+    box.scrollTop = 0
+    Object.defineProperty(fold(), 'offsetHeight', { configurable: true, value: 900 })
+    await userEvent.click(screen.getByText('History'))
+    await userEvent.click(screen.getByText('History'))
+    await waitFor(() => expect(box.scrollTop).toBe(500))
+  })
+
   it('says why the list failed, in the words of its label, with Retry beside it', async () => {
     vi.mocked(api.listHistory).mockRejectedValueOnce(new Error('permission denied'))
     render(<HistoryPanel />)

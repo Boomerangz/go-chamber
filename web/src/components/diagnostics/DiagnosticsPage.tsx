@@ -128,7 +128,7 @@ export default function DiagnosticsPage() {
         <p className="diagnostics-note">Off keeps terminals on the WebSocket through the server. Open terminals switch right away.</p>
         {ids.length ? (
           <div className="diagnostics-table-wrap"><table>
-            <thead><tr><th>Terminal</th><th>Connection</th><th>Route</th><th>WebRTC attempt</th><th>WebRTC RTT</th><th>Browser pending</th><th>Browser peak</th><th>Reconnects</th><th>Server queued</th><th>Lag disconnects</th><th>Clients</th></tr></thead>
+            <thead><tr><th>Terminal</th><th>Connection</th><th>Route</th><th>WebRTC attempt</th><th>WebRTC RTT</th><th>Browser pending</th><th>Browser peak</th><th>Reconnects</th><th>Server queued</th><th>Lag resyncs</th><th>Clients</th></tr></thead>
             <tbody>{ids.map((id) => {
               const local = client.terminals.find((t) => t.id === id)
               const remote = server?.terminals.find((t) => t.id === id)
@@ -141,7 +141,7 @@ export default function DiagnosticsPage() {
                 ['Browser peak', local ? bytes(local.peakPendingBytes) : '—'],
                 ['Reconnects', local?.reconnects ?? '—'],
                 ['Server queued', remote ? bytes(remote.queuedBytes) : '—'],
-                ['Lag disconnects', remote?.laggedClients ?? '—'],
+                ['Lag resyncs', remote?.laggedClients ?? '—'],
                 ['Clients', remote?.clients ?? '—'],
               ]
               // data-label names each cell when a narrow screen lays rows out as cards.

@@ -93,6 +93,15 @@ func run(ctx context.Context, args []string, out io.Writer) error {
 		Accounts: codexFactory,
 		Quotas:   codexFactory,
 	}
+	terminals := app.NewTerminals(app.TerminalsConfig{
+		PTYs:     pty.Factory{},
+		Sessions: store.Sessions(),
+		Home:     home,
+		Folders:  fsys.Reader{},
+		Shell:    os.Getenv("SHELL"),
+	})
+	// Closing shells also ends their WebSockets, which Shutdown doesn't track.
+	defer terminals.CloseAll()
 	manager := app.NewManager(app.ManagerConfig{
 		Repo:          store.Sessions(),
 		Runtimes:      runtimes,
@@ -106,20 +115,12 @@ func run(ctx context.Context, args []string, out io.Writer) error {
 		Eraser:        store,
 		Folders:       fsys.Reader{},
 		CLIs:          fsys.PathCLIs{},
+		Terminals:     terminals,
 	})
 	defer manager.Close()
 	if _, err := manager.Restore(ctx); err != nil {
 		return err
 	}
-	terminals := app.NewTerminals(app.TerminalsConfig{
-		PTYs:     pty.Factory{},
-		Sessions: store.Sessions(),
-		Home:     home,
-		Folders:  fsys.Reader{},
-		Shell:    os.Getenv("SHELL"),
-	})
-	// Closing shells also ends their WebSockets, which Shutdown doesn't track.
-	defer terminals.CloseAll()
 
 	push, err := webpush.Open(*dataDir, "mailto:go-chamber@localhost")
 	if err != nil {
@@ -127,7 +128,9 @@ func run(ctx context.Context, args []string, out io.Writer) error {
 	}
 	notifySub := events.Subscribe()
 	defer notifySub.Close()
-	go app.NewNotifications(store.Sessions()).Watch(ctx, notifySub.Events(), push)
+	// Where the owner is, told by their open pages: no push for what they watch.
+	presence := app.NewPresence()
+	go app.NewNotifications(store.Sessions()).SkipWatched(presence).Watch(ctx, notifySub.Events(), push)
 
 	ln, err := net.Listen("tcp", *addr)
 	if err != nil {
@@ -151,13 +154,15 @@ func run(ctx context.Context, args []string, out io.Writer) error {
 				Commands: runtimes,
 			}),
 			Worktrees: app.NewWorktrees(app.WorktreesConfig{
-				Sessions: manager,
-				Git:      git.Repo{},
-				Root:     filepath.Join(*dataDir, "worktrees"),
-				Folders:  fsys.Reader{},
+				Sessions:  manager,
+				Git:       git.Repo{},
+				Root:      filepath.Join(*dataDir, "worktrees"),
+				Folders:   fsys.Reader{},
+				Terminals: terminals,
 			}),
-			Push:  push,
-			Files: app.NewSessionFiles(store.Sessions(), fsys.Resolver{}),
+			Push:     push,
+			Presence: presence,
+			Files:    app.NewSessionFiles(store.Sessions(), fsys.Resolver{}),
 			History: app.NewHistory(app.HistoryConfig{
 				Repo: store.Sessions(),
 				Bus:  events,
@@ -222,5 +227,7 @@ func claudeProjects(home string) string {
 // The rename routes are found by type assertion; keep them reachable.
 var (
 	_ httpapi.SessionRenamer  = (*app.Manager)(nil)
+	_ httpapi.SessionWatcher  = (*app.Manager)(nil)
+	_ httpapi.PresenceTracker = (*app.Presence)(nil)
 	_ httpapi.TerminalRenamer = (*app.Terminals)(nil)
 )

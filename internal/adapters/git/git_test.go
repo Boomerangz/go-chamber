@@ -276,8 +276,11 @@ func TestAddWorktreeFailures(t *testing.T) {
 	if _, err := (Repo{}).AddWorktree(ctx, repo, path, "chamber/x"); err != nil {
 		t.Fatal(err)
 	}
-	_, err := (Repo{}).AddWorktree(ctx, repo, path+"2", "chamber/x")
-	if !errors.Is(err, app.ErrBranchExists) || !strings.Contains(err.Error(), "chamber/x") {
+	// A branch checked out in a worktree is refused saying where (see
+	// TestBranchCheckedOutElsewhere); one that is only there, as such.
+	sh(t, repo, "branch", "chamber/kept")
+	_, err := (Repo{}).AddWorktree(ctx, repo, path+"2", "chamber/kept")
+	if !errors.Is(err, app.ErrBranchExists) || !strings.Contains(err.Error(), "chamber/kept") {
 		t.Fatalf("existing branch: err = %v", err)
 	}
 	_, err = (Repo{}).AddWorktree(ctx, repo, path, "chamber/other")

@@ -293,6 +293,36 @@ describe('connectTerminal', () => {
     expect(h.output).toEqual(['old'])
   })
 
+  // A client that fell behind is resynced on the same socket: no reconnect,
+  // no backoff, no resize sent again.
+  it('resyncs in place: clears the screen, replays and is ready again', () => {
+    const h = handlers()
+    const reasons: (string | undefined)[] = []
+    h.onReset = (reason) => { h.resets++; reasons.push(reason) }
+    const conn = connectTerminal('t1', h)
+    conn.resize(90, 20)
+    last().open()
+    last().message('{"type":"ready"}')
+    last().message('{"type":"resync"}')
+    expect(h.resets).toBe(1)
+    expect(reasons).toEqual(['resync'])
+    last().message(new TextEncoder().encode('screen').buffer)
+    last().message('{"type":"ready"}')
+    expect(h.readies).toBe(2)
+    expect(h.output).toEqual(['screen'])
+    expect(FakeSocket.instances).toHaveLength(1)
+    expect(last().sent).toEqual([JSON.stringify({ type: 'resize', cols: 90, rows: 20 })])
+  })
+
+  it('says whether input was handed to an open connection', () => {
+    const conn = connectTerminal('t1', handlers())
+    expect(conn.send('early')).toBe(false)
+    last().open()
+    expect(conn.send('x')).toBe(true)
+    last().drop(1006)
+    expect(conn.send('lost')).toBe(false)
+  })
+
   it('reconnects after lagging or a dropped connection, resetting once reopened', () => {
     const h = handlers()
     const conn = connectTerminal('t1', h, { reconnectDelayMs: 100 })

@@ -1,8 +1,11 @@
 import '@testing-library/jest-dom/vitest'
 import { cleanup } from '@testing-library/react'
 import { afterEach } from 'vitest'
+import { resetStableOrders } from '../lib/stable-order'
 
 afterEach(cleanup)
+// Each test is a fresh page: lists start in their natural order.
+afterEach(resetStableOrders)
 
 // Node 22+ ships its own global localStorage, which is undefined without
 // --localstorage-file and shadows jsdom's. Tests get an in-memory one.

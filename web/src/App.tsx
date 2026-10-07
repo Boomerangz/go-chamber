@@ -20,13 +20,15 @@ import TerminalWorkspace from './components/terminal/TerminalWorkspace'
 import { fetchHealth, UNAUTHORIZED_EVENT, type Health } from './lib/api'
 import { setAttentionIcon } from './lib/favicon'
 import { usePending } from './lib/pending'
+import { setPresenceSession } from './lib/presence'
+import { useMedia } from './components/chat/useMedia'
 import { sessionTitle } from './lib/sessions'
 import { attentionTitle } from './lib/title'
-import { endedTurns, markEnded, markVisited, unseenCount, useVisits } from './lib/visits'
+import { unseenCount } from './lib/visits'
 import { useWaitingCount } from './lib/waiting'
 import { settleRestoredDock, useLayoutStore, useLayoutVars, visibleDock } from './stores/layout'
 import { useSessionStore } from './stores/session'
-import { useTerminalStore } from './stores/terminals'
+import { followSessions, useTerminalStore } from './stores/terminals'
 
 export default function App() {
   const [health, retryHealth] = useHealth()
@@ -49,7 +51,7 @@ export default function App() {
   const loadTerminals = useTerminalStore((s) => s.load)
 
   useAttentionTitle()
-  useVisitMarks()
+  usePresenceSession()
   const [tryNow, trying] = usePending(retryHealth)
 
   useEffect(() => {
@@ -63,6 +65,7 @@ export default function App() {
   }, [health, loadSessions, loadRequests, loadQuotas, loadTerminals, connect])
 
   useEffect(() => monitorBrowser(), [])
+  useEffect(() => followSessions(), [])
 
   useRouteSync(health === 'online')
 
@@ -136,7 +139,7 @@ export default function App() {
       {health === 'online' && mode === 'agents' && (
         <>
           <div className="layout" data-pane={pane} data-dock={dock ?? 'closed'} data-focus={focus ? 'on' : undefined} data-sidebar={sidebar ? undefined : 'off'} style={layoutVars}>
-            <Sidebar sessions={sessions} onCreate={(agent, cwd, branch) => createSession(agent, cwd, branch, true)} />
+            <Sidebar sessions={sessions} onCreate={(agent, cwd, branch, existing) => (existing ? createSession(agent, cwd, branch, true, true) : createSession(agent, cwd, branch, true))} />
             <SidebarSplitter />
             {activeId ? <Chat key={activeId} /> : <EmptyChat />}
             <div className="dock">
@@ -214,6 +217,18 @@ function useHealth(): [Health | null, () => Promise<void>] {
   return [health, retry]
 }
 
+// usePresenceSession tells the server which session this page shows the
+// owner, for its pushes: none while it shows shells or diagnostics, nor on
+// a phone's other panes.
+function usePresenceSession() {
+  const activeId = useSessionStore((s) => s.activeId)
+  const pane = useSessionStore((s) => s.pane)
+  const mode = useLayoutStore((s) => s.mode)
+  const narrow = useMedia('(max-width: 720px)')
+  const shown = mode === 'agents' && (pane === 'chat' || !narrow) ? activeId : null
+  useEffect(() => setPresenceSession(shown), [shown])
+}
+
 // useAttentionTitle keeps the tab title and icon saying what needs the owner.
 function useAttentionTitle() {
   const pending = useWaitingCount()
@@ -227,28 +242,10 @@ function useAttentionTitle() {
   const terminalName = useTerminalStore((s) => s.terminals.find((t) => t.id === s.activeId)?.title)
   const session =
     mode === 'terminal' ? (terminalName ? `${terminalName} · Terminal` : 'Terminal') : mode === 'diagnostics' ? 'Diagnostics' : sessionName
-  const visits = useVisits()
-  const unseen = useSessionStore((s) => unseenCount(s.sessions, visits, s.activeId))
+  const unseen = useSessionStore((s) => unseenCount(s.sessions, s.activeId))
   useEffect(() => {
     document.title = attentionTitle({ pending, running, session, unseen })
     setAttentionIcon(pending > 0)
   }, [pending, running, session, unseen])
 }
 
-// useVisitMarks records that the open session has been seen as it is now,
-// so the list marks only what changed while the owner looked elsewhere.
-// A turn that ends in another session is marked as changed while away.
-function useVisitMarks() {
-  const active = useSessionStore((s) => s.sessions.find((x) => x.id === s.activeId))
-  useEffect(() => {
-    if (active) markVisited(active)
-  }, [active])
-  useEffect(
-    () =>
-      useSessionStore.subscribe((now, before) => {
-        if (now.sessions === before.sessions) return
-        for (const id of endedTurns(before.sessions, now.sessions)) if (id !== now.activeId) markEnded(id)
-      }),
-    [],
-  )
-}

@@ -27,6 +27,9 @@ type fakeGit struct {
 	commitsErr error
 	gotCommits string
 
+	continued   []string
+	continueErr error
+
 	ahead    int
 	head     string
 	aheadErr error
@@ -54,6 +57,14 @@ func (g *fakeGit) AddWorktree(_ context.Context, repo, path, branch string) (dom
 	}
 	g.added = append(g.added, repo+"|"+path+"|"+branch)
 	return domain.Worktree{Repo: repo, Path: path, Branch: branch, Base: "base1"}, nil
+}
+
+func (g *fakeGit) ContinueWorktree(_ context.Context, repo, path, branch string) (domain.Worktree, error) {
+	if g.continueErr != nil {
+		return domain.Worktree{}, g.continueErr
+	}
+	g.continued = append(g.continued, repo+"|"+path+"|"+branch)
+	return domain.Worktree{Repo: repo, Path: path, Branch: branch, Base: "fork1"}, nil
 }
 
 func (g *fakeGit) RemoveWorktree(_ context.Context, wt domain.Worktree, force bool) error {

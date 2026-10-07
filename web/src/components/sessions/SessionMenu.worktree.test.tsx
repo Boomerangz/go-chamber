@@ -5,6 +5,7 @@ import { resetStore, useSessionStore } from '../../stores/session'
 import type { DeleteOptions, Session } from '../../lib/api'
 import { ApiError } from '../../lib/api'
 import { useNotices } from '../../stores/notices'
+import { resetTerminals, useTerminalStore } from '../../stores/terminals'
 import SessionMenu from './SessionMenu'
 
 vi.mock('../../lib/home', () => ({ useHome: () => '/home/me' }))
@@ -37,6 +38,23 @@ function Row({ session = base }: { session?: Session }) {
 const open = async () => userEvent.click(screen.getByRole('button', { name: 'Actions for Fix it' }))
 
 describe('SessionMenu for a worktree session', () => {
+  it('says how many terminals close with the folder', async () => {
+    resetTerminals()
+    const shell = (id: string, cwd: string) => ({ id, cwd, shell: '/bin/sh', title: id, status: 'running' as const, exitCode: 0, createdAt: '' })
+    useTerminalStore.setState({ terminals: [shell('a', worktree.path), shell('b', worktree.path + '/web'), shell('c', '/src/app')] })
+    render(<Row />)
+    await open()
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Remove worktree…' }))
+    expect(screen.getByRole('group', { name: 'Remove the worktree of Fix it?' })).toHaveTextContent('2 terminals in it will close.')
+    await userEvent.click(screen.getByRole('button', { name: 'Keep' }))
+    await open()
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Delete…' }))
+    expect(screen.queryByText('2 terminals in it will close.')).toBeNull()
+    await userEvent.click(screen.getByRole('checkbox', { name: /Also remove the worktree folder/ }))
+    expect(screen.getByText('2 terminals in it will close.')).toBeInTheDocument()
+    resetTerminals()
+  })
+
   it('deletes the session alone unless asked to take the folder too', async () => {
     render(<Row />)
     await open()

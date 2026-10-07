@@ -50,6 +50,8 @@ type Config struct {
 	Push PushSubscriptions
 	// Files serves files agents mention inside their session folder when non-nil.
 	Files SessionFiles
+	// Presence learns where the owner is from the event socket when non-nil.
+	Presence PresenceTracker
 }
 
 type server struct {
@@ -73,6 +75,7 @@ func NewServer(cfg Config) http.Handler {
 	s.historyRoutes()
 	s.pushRoutes()
 	s.renameRoutes()
+	s.seenRoutes()
 	s.archiveRoutes()
 	s.fileRoutes()
 	return &auth{token: []byte(cfg.Token), next: s.mux}
