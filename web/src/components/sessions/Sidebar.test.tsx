@@ -85,6 +85,12 @@ describe('Sidebar new session', () => {
     expect(field).not.toHaveAttribute('aria-invalid')
   })
 
+  it('asks for the folder in words short enough for a 300px sidebar', () => {
+    setup()
+    // "Choose a project folder" was cut mid-word beside Browse
+    expect(screen.getByLabelText('Working directory')).toHaveAttribute('placeholder', 'Project folder')
+  })
+
   it('asks for a branch when starting in a worktree', async () => {
     const onCreate = setup()
     await userEvent.type(screen.getByLabelText('Working directory'), '/repo')

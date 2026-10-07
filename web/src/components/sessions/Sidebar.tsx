@@ -232,7 +232,7 @@ export default function Sidebar(props: SidebarProps) {
         </div>
         <FolderField
           label="Working directory"
-          placeholder="Choose a project folder"
+          placeholder="Project folder"
           value={cwd}
           onChange={(v) => {
             setCwd(v)

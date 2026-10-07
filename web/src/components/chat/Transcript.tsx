@@ -421,7 +421,7 @@ function SubagentView({ node, onStopTask }: { node: ItemNode; onStopTask: StopTa
         {item.agentId && !finished && (
           <button
             type="button"
-            className="btn btn-ghost btn-xs stop-task"
+            className="btn btn-danger btn-xs stop-task"
             aria-busy={stopping}
             onClick={() => void stop()}
           >

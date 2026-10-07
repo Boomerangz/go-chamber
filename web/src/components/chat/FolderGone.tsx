@@ -1,7 +1,7 @@
 import type { Session } from '../../lib/api'
 import { usePending } from '../../lib/pending'
 import { useSessionStore } from '../../stores/session'
-import PathText from '../ui/PathText'
+import GoneNote from '../ui/GoneNote'
 
 // FolderGone stands where the composer was once a session's folder is no
 // longer there: its agent can't start, and a fork would start in the same
@@ -12,9 +12,9 @@ export default function FolderGone({ session }: { session: Session }) {
   const [archive, archiving] = usePending(() => archiveSession(session.id))
   return (
     <div className="worktree-gone folder-gone" role="group" aria-label="Folder gone">
-      <p>
-        <span className="worktree-gone-kw">Folder gone</span> · <PathText path={session.cwd} /> no longer exists
-      </p>
+      <GoneNote label="Folder gone" path={session.cwd}>
+        This folder no longer exists, so the agent can’t start in it.
+      </GoneNote>
       {!session.archivedAt && (
         <div className="worktree-gone-actions">
           <button type="button" className="btn" aria-busy={archiving || undefined} onClick={() => void archive()}>

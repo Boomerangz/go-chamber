@@ -3,6 +3,7 @@ import { useSessionStore } from '../../stores/session'
 import { sessionTitle } from '../../lib/sessions'
 import { owesAnswer } from '../../lib/status'
 import { isMac, useMedia } from './useMedia'
+import Keys from '../ui/Keys'
 import { Skeleton } from '../ui/Loading'
 import './EmptyChat.css'
 
@@ -26,7 +27,7 @@ export default function EmptyChat() {
     .filter((x) => !x.parentId && !x.archivedAt)
     .sort((a, b) => (b.activeAt ?? b.createdAt ?? '').localeCompare(a.activeAt ?? a.createdAt ?? ''))
   const [title, list] = waiting.length ? ['Waiting for you', waiting] : ['Recent', recent]
-  const mod = isMac() ? '⌘' : 'Ctrl'
+  const mod = isMac() ? '⌘' : 'Ctrl+'
   // the rest wait in the Requests inbox
   const showRequests = () => {
     if (narrow) useSessionStore.getState().setPane('requests')
@@ -69,13 +70,8 @@ export default function EmptyChat() {
         )}
         {!narrow && (
           <p className="empty-keys">
-            <span>
-              <kbd>{mod}</kbd>
-              <kbd>K</kbd> <span>quick switch</span>
-            </span>
-            <span>
-              <kbd>?</kbd> <span>shortcuts</span>
-            </span>
+            <Keys keys={`${mod}K`} label="quick switch" />
+            <Keys keys="?" label="shortcuts" />
           </p>
         )}
       </div>

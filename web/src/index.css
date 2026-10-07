@@ -124,13 +124,33 @@ svg.icon { flex: none; display: block; }
 .btn:disabled { color: var(--ink-3); border-color: var(--rule); cursor: default; }
 .btn-primary { border-color: var(--act); background: var(--act); color: var(--act-ink); }
 .btn-primary:hover { border-color: var(--ink); background: var(--act); }
-.btn-primary:disabled { background: var(--paper-2); color: var(--ink-3); border-color: var(--rule); }
+/* disabled is one look everywhere: ink-3 on a plain rule border, on the sheet */
+.btn-primary:disabled { background: var(--paper); color: var(--ink-3); border-color: var(--rule); }
 .btn-danger { border-color: var(--bad); color: var(--bad); background: transparent; }
 .btn-danger:hover:where(:not(:disabled)) { background: var(--bad-wash); border-color: var(--bad); }
 .btn-ghost { border-color: transparent; background: transparent; color: var(--ink-2); }
 .btn-ghost:hover:where(:not(:disabled)) { border-color: var(--rule); color: var(--ink); background: transparent; }
 .btn-ghost:disabled { border-color: transparent; background: transparent; }
 .btn-xs { height: 24px; padding: 0 8px; font-size: 12px; }
+
+/* a choice is DESIGN's square, never the browser's control (whose dark
+   unchecked disc reads as chosen): the model picker's radio for a radio, the
+   same square with a tick for a checkbox. Still native inputs: Tab, Space
+   and the arrows work as they always do. */
+input:is([type='radio'], [type='checkbox']) {
+  appearance: none; -webkit-appearance: none; flex: none; position: relative;
+  width: 12px; height: 12px; margin: 0; vertical-align: middle;
+  border: 1px solid var(--rule-strong); border-radius: 1px; background: var(--paper);
+  cursor: pointer; transition: border-color var(--dur-fast), background var(--dur-fast);
+}
+input:is([type='radio'], [type='checkbox']):hover:not(:disabled, :checked) { border-color: var(--ink); }
+input:is([type='radio'], [type='checkbox']):checked { border-color: var(--act); background: var(--act); }
+input[type='radio']:checked { box-shadow: inset 0 0 0 2px var(--paper); }
+input[type='checkbox']:checked::after {
+  content: ''; position: absolute; left: 3px; top: 0; width: 3px; height: 7px;
+  border: solid var(--act-ink); border-width: 0 1.5px 1.5px 0; transform: rotate(45deg);
+}
+input:is([type='radio'], [type='checkbox']):disabled { border-color: var(--rule); background: var(--paper); cursor: default; }
 .btn-icon { width: 28px; height: 28px; padding: 0; }
 
 .field {
@@ -217,6 +237,10 @@ kbd {
   border: 1px solid var(--rule-strong); border-radius: var(--r);
   font-family: var(--font-mono); font-size: 11px; color: var(--ink-2); background: var(--paper);
 }
+/* a hint: one key per box, alternatives apart, then its word after one gap */
+.keys { display: inline-flex; align-items: center; gap: 2px; white-space: nowrap; vertical-align: middle; }
+.keys-or { margin: 0 3px; }
+.keys-label { margin-left: 4px; }
 
 /* agents are peers: a letter in a box, same weight for both */
 .avatar {
@@ -281,6 +305,16 @@ h1 { font-family: var(--font-mono); font-size: 14px; font-weight: 400; letter-sp
 }
 .segmented.mode-switch button:hover { color: var(--ink); }
 .segmented.mode-switch button[aria-checked="true"] { background: none; color: var(--ink); border-bottom-color: var(--ink); }
+/* on a wide bar the switch is centred on its own width: a count that took
+   room would slide every tab sideways as it came and went. It sits on the
+   tab's corner instead, in the padding after the word, like the dock rail's */
+@media (min-width: 1101px) {
+  .segmented.mode-switch button { position: relative; padding: 2px 16px 0; }
+  .mode-switch :is(.badge, .count) {
+    position: absolute; left: calc(100% - 15px); top: 6px;
+    min-width: 15px; height: 15px; padding: 0 3px; line-height: 15px;
+  }
+}
 
 .health {
   display: inline-flex; align-items: center; gap: 7px;
@@ -367,12 +401,12 @@ button.health { border: 0; background: none; padding: 0; }
 }
 .segmented button {
   display: flex; align-items: center; justify-content: center; gap: 8px;
-  height: 30px; border: 0; background: none; color: var(--ink-3); font-weight: 500; font-size: 13px;
+  height: 30px; border: 0; background: none; color: var(--ink-2); font-weight: 500; font-size: 13px;
 }
 .segmented button + button { border-left: 1px solid var(--rule-strong); }
 .segmented button:hover { color: var(--ink); }
-.segmented button:disabled { cursor: not-allowed; opacity: 0.45; }
-.segmented button:disabled:hover { color: var(--ink-3); }
+.segmented button:disabled, .segmented button:disabled:hover { color: var(--ink-3); cursor: default; }
+.segmented button:disabled .avatar { border-color: var(--rule); color: var(--ink-3); }
 .segmented button[aria-checked='true'] { color: var(--ink); background: var(--paper-3); }
 .segmented button[aria-checked='true'] .avatar { border-color: var(--ink); }
 .segmented .avatar { width: 18px; height: 18px; font-size: 11px; }
@@ -693,7 +727,9 @@ button.health { border: 0; background: none; padding: 0; }
 .decision-text { flex-basis: 100%; white-space: pre-wrap; color: var(--ink-3); font-size: 12.5px; }
 .decision-denied .decision-kw { color: var(--bad); }
 .subagent-head { display: flex; align-items: center; gap: 8px; font-family: var(--font-mono); font-size: 12.5px; color: var(--ink-2); }
-.subagent-head .stop-task { margin-left: auto; color: var(--bad); }
+/* Stop ends the task: a danger button right after what it stops, not at the far edge */
+.subagent-head .item-summary { flex: 0 1 auto; }
+.subagent-head .stop-task { flex: none; }
 .subagent-items {
   list-style: none; margin: 10px 0 0 6px; padding: 0 0 0 14px;
   border-left: 1px dashed var(--rule-strong);
@@ -800,6 +836,10 @@ button.health { border: 0; background: none; padding: 0; }
   content: ''; position: absolute; left: -1px; right: -1px; top: -1px; height: 3px; background: var(--req-mark);
 }
 .request.question { border-color: var(--act); }
+/* a permission card holds focus as a whole so A/S/D answer it: its focus is
+   its own frame drawn twice as heavy, not the blue ring a pixel outside the
+   amber one (a double frame); a question's focus is on its first option */
+.request.permission:focus { outline: none; box-shadow: 0 0 0 1px var(--req-mark); }
 .request.question::before { background: var(--act); }
 .request-title {
   position: relative; display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap;
@@ -834,7 +874,6 @@ button.health { border: 0; background: none; padding: 0; }
 }
 .option:hover { border-color: var(--ink-3); }
 .option:has(input:checked) { border-color: var(--act); background: var(--act-wash); }
-.option input { accent-color: var(--act); margin: 0; }
 .option-label { font-weight: 600; }
 .option small { grid-column: 2; color: var(--ink-2); font-size: 12.5px; }
 .question .other { display: flex; }
@@ -854,6 +893,11 @@ button.health { border: 0; background: none; padding: 0; }
 .request-tray li > button:has(+ .tray-actions) { border-bottom: 0; }
 /* a permission is answered right in the tray, under its line */
 .tray-actions kbd { margin-left: 4px; }
+/* Allow, Allow for session and Deny keep one row: a line narrower than the
+   three with their key boxes drops the boxes (the keys still answer, and ?
+   lists them) rather than wrapping Deny alone */
+.request-tray li { container: tray-line / inline-size; }
+@container tray-line (width < 360px) { .tray-actions kbd { display: none; } }
 .tray-actions { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 10px 9px; border: 1px solid var(--rule); border-top: 0; background: var(--paper); }
 .request-kind {
   grid-row: span 2; font-family: var(--font-mono); font-size: 11.5px; letter-spacing: 0.04em;
@@ -875,11 +919,11 @@ button.health { border: 0; background: none; padding: 0; }
 }
 .rail-btn {
   position: relative; display: grid; place-items: center; width: 32px; height: 32px; padding: 0;
-  border: 1px solid transparent; border-radius: var(--r); background: none; color: var(--ink-3);
+  border: 1px solid transparent; border-radius: var(--r); background: none; color: var(--ink-2);
   transition: color var(--dur-fast), border-color var(--dur-fast);
 }
-.rail-btn:hover { color: var(--ink); border-color: var(--rule); }
-.rail-btn:disabled { color: var(--ink-3); border-color: transparent; opacity: 0.5; cursor: default; }
+.rail-btn:hover:where(:not(:disabled)) { color: var(--ink); border-color: var(--rule); }
+.rail-btn:disabled { color: var(--ink-3); cursor: default; }
 .rail-btn[aria-pressed='true'] { color: var(--ink); border-color: var(--ink); background: var(--paper); }
 .rail-count {
   position: absolute; top: -4px; right: -5px; min-width: 15px; height: 15px; padding: 0 3px;
@@ -911,7 +955,7 @@ button.health { border: 0; background: none; padding: 0; }
 .dock-header { display: flex; align-items: center; justify-content: space-between; }
 .new-terminal { display: flex; gap: 8px; flex-wrap: wrap; }
 .new-terminal .folder-field { flex: 1 1 100%; }
-.new-terminal .btn { flex: 1; }
+.new-terminal > .btn { flex: 1; }
 /* the strip scrolls sideways only; it sits 1px over the rule below so the
    open tab's underline lands on it without overflowing downwards */
 .terminal-tabs { list-style: none; margin: 0 0 -1px; padding: 0; display: flex; flex: 1; min-width: 0; overflow-x: auto; overflow-y: hidden; scrollbar-width: thin; }
@@ -1049,7 +1093,6 @@ button.health { border: 0; background: none; padding: 0; }
 
 .picker-footer { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .hidden-toggle { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--ink-2); cursor: pointer; }
-.hidden-toggle input { accent-color: var(--act); margin: 0; }
 .picker-path {
   flex: 1; min-width: 0; font-family: var(--font-mono); font-size: 12px; color: var(--ink-3);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; direction: rtl; text-align: left;

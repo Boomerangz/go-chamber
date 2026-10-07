@@ -4,6 +4,7 @@ import { icon } from '../icon'
 import { useNow } from '../../lib/now'
 import { relativeTime } from '../../lib/sessions'
 import { switcherEntries, type SwitcherEntry } from '../../lib/switcher'
+import Keys from '../ui/Keys'
 import { LoadingLine } from '../ui/Loading'
 import { numberedParts } from '../terminal/numbered'
 import { useLayoutStore } from '../../stores/layout'
@@ -141,9 +142,9 @@ export default function QuickSwitcher({ onClose }: { onClose: () => void }) {
         )}
       </ul>
       <footer className="switcher-foot">
-        <span><kbd>↑</kbd><kbd>↓</kbd> move</span>
-        <span><kbd>↵</kbd> open</span>
-        <span><kbd>Esc</kbd> close</span>
+        <Keys keys="↑ ↓" label="move" />
+        <Keys keys="↵" label="open" />
+        <Keys keys="Esc" label="close" />
       </footer>
     </dialog>
   )
