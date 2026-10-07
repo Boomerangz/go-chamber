@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { branchError, branchPreview, folderError, slugify } from './branch'
+import { branchError, branchPreview, continuable, folderError, slugify } from './branch'
 
 describe('slugify', () => {
   // The same cases as the server's TestSlugify: the preview must say what
@@ -48,6 +48,15 @@ describe('branchError', () => {
     expect(branchError('branch already exists: chamber/fix')).toBe('Branch chamber/fix already exists')
     expect(branchError('worktree folder already exists: /w/app/fix')).toBe('Its worktree folder /w/app/fix already exists')
     expect(branchError('invalid branch name: use latin letters or digits')).toBe('Use latin letters or digits')
+    expect(branchError('branch chamber/fix is checked out at /w/app/fix')).toBe('Branch chamber/fix is checked out in /w/app/fix')
+    expect(branchError('no such branch: chamber/fix')).toBe('Branch chamber/fix is no longer there')
+  })
+
+  it('tells a branch that can be continued on', () => {
+    expect(continuable('branch already exists: chamber/fix')).toBe(true)
+    expect(continuable('branch chamber/fix is checked out at /w/app/fix')).toBe(false)
+    expect(continuable('database is locked')).toBe(false)
+    expect(continuable(null)).toBe(false)
   })
 
   it('leaves what is not about the branch to others', () => {

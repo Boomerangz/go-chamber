@@ -9,6 +9,8 @@ import { usePending } from '../../lib/pending'
 import { useLayoutStore } from '../../stores/layout'
 import { describeError, fail, notify } from '../../stores/notices'
 import { useSessionStore } from '../../stores/session'
+import { useShellsWithin } from '../../stores/terminals'
+import { closingNote } from '../../lib/shells'
 import { icon } from '../icon'
 import { FileViewer } from '../markdown/FileLink'
 import { LoadFailed, LoadingLine } from '../ui/Loading'
@@ -566,6 +568,7 @@ function WorktreeBar({ session, worktree, changed, commits }: { session: api.Ses
   )
   const merge = `git -C ${worktree.repo} merge ${worktree.branch}`
   const losing = dirty || changed > 0
+  const closing = closingNote(useShellsWithin(worktree.path))
   return (
     <div className="worktree-bar">
       {commits > 0 ? (
@@ -590,6 +593,7 @@ function WorktreeBar({ session, worktree, changed, commits }: { session: api.Ses
           <p>Remove the worktree folder?</p>
           <PathText path={worktree.path} className="worktree-path" />
           {losing && <p className="worktree-dirty">{lossOf(changed, commits)}</p>}
+          {closing && <p className="worktree-closing">{closing}</p>}
           <p>
             Branch {worktree.branch} is kept{commits > 0 ? `, with its ${commits} ${commits === 1 ? 'commit' : 'commits'}` : ''}.
           </p>

@@ -93,6 +93,15 @@ func run(ctx context.Context, args []string, out io.Writer) error {
 		Accounts: codexFactory,
 		Quotas:   codexFactory,
 	}
+	terminals := app.NewTerminals(app.TerminalsConfig{
+		PTYs:     pty.Factory{},
+		Sessions: store.Sessions(),
+		Home:     home,
+		Folders:  fsys.Reader{},
+		Shell:    os.Getenv("SHELL"),
+	})
+	// Closing shells also ends their WebSockets, which Shutdown doesn't track.
+	defer terminals.CloseAll()
 	manager := app.NewManager(app.ManagerConfig{
 		Repo:          store.Sessions(),
 		Runtimes:      runtimes,
@@ -106,20 +115,12 @@ func run(ctx context.Context, args []string, out io.Writer) error {
 		Eraser:        store,
 		Folders:       fsys.Reader{},
 		CLIs:          fsys.PathCLIs{},
+		Terminals:     terminals,
 	})
 	defer manager.Close()
 	if _, err := manager.Restore(ctx); err != nil {
 		return err
 	}
-	terminals := app.NewTerminals(app.TerminalsConfig{
-		PTYs:     pty.Factory{},
-		Sessions: store.Sessions(),
-		Home:     home,
-		Folders:  fsys.Reader{},
-		Shell:    os.Getenv("SHELL"),
-	})
-	// Closing shells also ends their WebSockets, which Shutdown doesn't track.
-	defer terminals.CloseAll()
 
 	push, err := webpush.Open(*dataDir, "mailto:go-chamber@localhost")
 	if err != nil {
@@ -151,10 +152,11 @@ func run(ctx context.Context, args []string, out io.Writer) error {
 				Commands: runtimes,
 			}),
 			Worktrees: app.NewWorktrees(app.WorktreesConfig{
-				Sessions: manager,
-				Git:      git.Repo{},
-				Root:     filepath.Join(*dataDir, "worktrees"),
-				Folders:  fsys.Reader{},
+				Sessions:  manager,
+				Git:       git.Repo{},
+				Root:      filepath.Join(*dataDir, "worktrees"),
+				Folders:   fsys.Reader{},
+				Terminals: terminals,
 			}),
 			Push:  push,
 			Files: app.NewSessionFiles(store.Sessions(), fsys.Resolver{}),

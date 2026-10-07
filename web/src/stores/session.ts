@@ -78,9 +78,10 @@ export interface SessionStore {
   loadSessions: () => Promise<void>
   loadRequests: () => Promise<void>
   loadQuotas: () => Promise<void>
-  // createSession starts a session in cwd, or in a new worktree on branch chamber/<branch>.
+  // createSession starts a session in cwd, or in a new worktree on branch chamber/<branch>
+  // (with existing, on that branch as it already is).
   // With inForm, a folder that isn't there is left to the form to say.
-  createSession: (agent: api.AgentKind, cwd: string, branch?: string, inForm?: boolean) => Promise<boolean>
+  createSession: (agent: api.AgentKind, cwd: string, branch?: string, inForm?: boolean, existing?: boolean) => Promise<boolean>
   selectSession: (id: string) => Promise<void>
   // closeSession leaves the open session for the empty workspace.
   closeSession: () => void
@@ -397,10 +398,10 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     }
   },
 
-  async createSession(agent, cwd, branch, inForm) {
+  async createSession(agent, cwd, branch, inForm, existing) {
     try {
       const created = branch
-        ? await api.createWorktreeSession(agent, cwd, branch, startChoice(agent))
+        ? await (existing ? api.createWorktreeSession(agent, cwd, branch, startChoice(agent), true) : api.createWorktreeSession(agent, cwd, branch, startChoice(agent)))
         : await api.createSession(agent, cwd, startChoice(agent))
       set({ sessions: replaceSession(get().sessions, created) })
       // An earlier failed start is over now.

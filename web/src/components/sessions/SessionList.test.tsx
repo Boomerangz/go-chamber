@@ -432,3 +432,24 @@ describe('a gone folder', () => {
     expect(screen.getByRole('button', { name: /^Fine work/ }).querySelector('.session-gone')).toBeNull()
   })
 })
+
+describe('folder groups', () => {
+  const at = (id: string, cwd: string, activeAt: string): Session => ({ ...session(id, id), cwd, activeAt })
+  const order = () => screen.getAllByRole('region').map((r) => r.getAttribute('aria-label'))
+
+  it('keep their place while the page is open; a new folder comes in on top', () => {
+    useSessionStore.setState({ sessions: [at('a', '/w/shop', '2026-01-02T00:00:00Z'), at('b', '/w/api', '2026-01-01T00:00:00Z')] })
+    render(<SessionList onCreateIn={() => {}} />)
+    expect(order()).toEqual(['Project shop', 'Project api'])
+    // api gets busy: it stays below shop.
+    act(() => useSessionStore.setState({ sessions: [at('a', '/w/shop', '2026-01-02T00:00:00Z'), at('b', '/w/api', '2026-01-03T00:00:00Z')] }))
+    expect(order()).toEqual(['Project shop', 'Project api'])
+    // A folder not seen before comes in on top, even when it is older.
+    act(() =>
+      useSessionStore.setState({
+        sessions: [at('a', '/w/shop', '2026-01-02T00:00:00Z'), at('b', '/w/api', '2026-01-03T00:00:00Z'), at('c', '/w/docs', '2025-12-01T00:00:00Z')],
+      }),
+    )
+    expect(order()).toEqual(['Project docs', 'Project shop', 'Project api'])
+  })
+})

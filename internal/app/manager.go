@@ -44,6 +44,13 @@ type ManagerConfig struct {
 	// CLIs optionally tells whether each agent's CLI is installed; without
 	// it every CLI is assumed to be.
 	CLIs CLIFinder
+	// Terminals optionally lets go of a deleted session's shells.
+	Terminals ShellUnbinder
+}
+
+// ShellUnbinder forgets the sessions shells were opened for.
+type ShellUnbinder interface {
+	Unbind(ids ...domain.SessionID)
 }
 
 // FolderProbe tells whether a folder exists.

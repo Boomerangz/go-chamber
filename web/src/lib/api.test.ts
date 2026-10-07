@@ -294,6 +294,15 @@ describe('request timeouts', () => {
     expect(settled).toBe(true)
   })
 
+  it('asks for the existing branch only when told to', async () => {
+    const fetch = stubFetch(async () => json({ id: 's1' }))
+    await createWorktreeSession('claude', '/p', 'b')
+    await createWorktreeSession('claude', '/p', 'b', undefined, true)
+    const bodies = fetch.mock.calls.map(([, init]) => JSON.parse(String(init?.body)) as Record<string, unknown>)
+    expect(bodies[0]).toEqual({ agent: 'claude', cwd: '/p', branch: 'b' })
+    expect(bodies[1]).toEqual({ agent: 'claude', cwd: '/p', branch: 'b', continue: true })
+  })
+
   it('stops the clock once the answer arrives', async () => {
     vi.useFakeTimers()
     stubFetch(async () => json([]))
