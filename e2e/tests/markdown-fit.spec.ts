@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
 import { token } from '../playwright.config'
-import { openNewSession } from './pane'
+import { openNewSession, showPane } from './pane'
 
 async function newSession(page: Page) {
   await page.goto(`/?token=${token}`)
@@ -146,4 +146,16 @@ test('a wide table fades at the edge it scrolls toward', async ({ page }) => {
   await expect(box).toHaveAttribute('data-fade', 'start')
   await box.evaluate((el) => el.scrollTo({ left: 20 }))
   await expect(box).toHaveAttribute('data-fade', 'start end')
+})
+
+// A session is named after its first message as it reads: the sessions
+// list and the chat header show no markdown syntax.
+test('a session named from a markdown message reads plain', async ({ page }) => {
+  await newSession(page)
+  await page.getByLabel('Message').fill('Plan the **auth refactor** in `internal/app`')
+  await page.getByRole('button', { name: 'Send' }).click()
+  await expect(page.locator('.item.assistant', { hasText: 'echo: Plan' })).toBeVisible()
+  await expect(page.locator('.chat-heading h2')).toHaveText('Plan the auth refactor in internal/app')
+  await showPane(page, 'Sessions')
+  await expect(page.locator('button.session', { hasText: 'Plan the auth refactor in internal/app' }).first()).toBeVisible()
 })
