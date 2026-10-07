@@ -107,6 +107,10 @@ describe('Sidebar new session', () => {
     const box = screen.getByLabelText(/In a new worktree/)
     await waitFor(() => expect(box).toBeDisabled())
     expect(box).toHaveAccessibleDescription('· not a git repository')
+    // One run of text beside the box, so a narrow sidebar wraps it as a
+    // line of text, not as two columns.
+    const text = box.closest('label')!.querySelector(':scope > span')!
+    expect(text).toHaveTextContent('In a new worktree · not a git repository')
     await userEvent.clear(field)
     await userEvent.type(field, '/w/app')
     await waitFor(() => expect(box).toBeEnabled())

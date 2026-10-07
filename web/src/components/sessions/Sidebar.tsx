@@ -260,12 +260,14 @@ export default function Sidebar(props: SidebarProps) {
             aria-describedby={repo === false ? 'new-session-worktree-off' : undefined}
             onChange={(e) => setInWorktree(e.target.checked)}
           />
-          In a new worktree
-          {repo === false && (
-            <span className="worktree-off" id="new-session-worktree-off">
-              · not a git repository
-            </span>
-          )}
+          <span>
+            In a new worktree
+            {repo === false && (
+              <span className="worktree-off" id="new-session-worktree-off">
+                {' '}· not a git repository
+              </span>
+            )}
+          </span>
         </label>
         {inWorktree && (
           <label className="worktree-branch">
