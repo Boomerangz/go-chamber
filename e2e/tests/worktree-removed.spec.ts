@@ -120,6 +120,61 @@ test('a worktree session’s menu removes its folder, or takes it along with the
   expect(execFileSync('git', ['branch', '--list', second.worktree.branch], { cwd: repo, encoding: 'utf8' })).toContain(second.worktree.branch)
 })
 
+// A fork made after the worktree went works in the repository; the branch
+// it left behind still holds a commit, and the fork says so until merged.
+test('a fork of a removed worktree names the commits its branch still holds', async ({ page }, info) => {
+  const repo = newRepo()
+  const title = `left behind ${info.project.name}`
+  const { id, worktree } = await worktreeSession(page.request, repo, `behind-${info.project.name}`, title)
+  writeFileSync(path.join(worktree.path, 'work.txt'), 'done\n')
+  execFileSync('git', ['add', '.'], { cwd: worktree.path, env })
+  execFileSync('git', ['commit', '-q', '-m', 'work'], { cwd: worktree.path, env })
+  expect((await page.request.delete(`/api/sessions/${id}/worktree`, { headers })).status()).toBe(200)
+
+  await page.goto(`/s/${id}?token=${token}`)
+  await page.getByRole('button', { name: 'Fork into app' }).click()
+  await expect(page.getByLabel('Message')).toBeVisible()
+  const note = page.getByRole('status', { name: 'Unmerged branch' })
+  await expect(note).toContainText(`Branch ${worktree.branch} has 1 commit not in main`)
+  await expect(note.locator('.unmerged-cmd')).toHaveText(`git -C ${repo} merge ${worktree.branch}`)
+  await expect(note.getByRole('button', { name: 'Copy merge command' })).toBeVisible()
+  expect(await note.evaluate((el) => el.scrollWidth <= el.clientWidth + 1)).toBe(true)
+
+  // Merged, it has nothing more to say.
+  execFileSync('git', ['merge', '-q', worktree.branch], { cwd: repo, env })
+  await page.reload()
+  await expect(page.getByLabel('Message')).toBeVisible()
+  await expect(note).toHaveCount(0)
+})
+
+// The removed-worktree session's header (repo, removed branch, archived-
+// style tags) stays one row at 1440 beside the Changes dock: "⋯" included.
+test('a removed worktree session keeps a one-row header beside Changes', async ({ page, isMobile }, info) => {
+  test.skip(isMobile, 'a phone folds by its own rules')
+  const repo = newRepo()
+  const { id } = await worktreeSession(page.request, repo, `header-${info.project.name}`, `a rather long title for a removed worktree ${info.project.name}`)
+  expect((await page.request.delete(`/api/sessions/${id}/worktree?force=1`, { headers })).status()).toBe(200)
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.goto(`/s/${id}?token=${token}`)
+  await openChanges(page)
+  const header = page.locator('.chat-header')
+  await expect(header).toHaveAttribute('data-fold')
+  const box = await header.boundingBox()
+  const more = await page.getByRole('button', { name: 'Session details' }).boundingBox()
+  const title = await header.locator('.chat-heading').boundingBox()
+  expect(more!.y).toBeLessThan(title!.y + title!.height)
+  expect(more!.x).toBeGreaterThan(title!.x + title!.width - 1)
+  expect(box!.height).toBeLessThan(90)
+})
+
+// A session can't be made in a folder that is gone: the server says which.
+test('a session in a missing folder is refused with the folder named', async ({ page }) => {
+  const gone = path.join(realpathSync(mkdtempSync(path.join(tmpdir(), 'gc-e2e-'))), 'gone')
+  const res = await page.request.post('/api/sessions', { headers, data: { agent: 'claude', cwd: gone } })
+  expect(res.status()).toBe(422)
+  expect(((await res.json()) as { error: string }).error).toBe(`Folder ${gone} no longer exists`)
+})
+
 test('the branch field previews its branch, refuses in place, and unticks once started', async ({ page }, info) => {
   const repo = newRepo()
   const taken = `taken-${info.project.name}`

@@ -82,6 +82,9 @@ type Interruption struct {
 	// WithRequest is set when the turn was cut off while it waited for the
 	// owner (a question or a permission was open): the owner still owes it.
 	WithRequest bool `json:"withRequest,omitempty"`
+	// Request is the gist of the request that was waiting (see
+	// Request.Gist), so the owner knows what they still owe.
+	Request string `json:"request,omitempty"`
 }
 
 // Session is the aggregate for a conversation with one agent. The agent
@@ -305,11 +308,16 @@ func (s *Session) TurnInterrupted(reason ExitReason) error {
 }
 
 // InterruptedWithRequest notes that the interrupted turn was waiting for
-// the owner when it was cut off.
-func (s *Session) InterruptedWithRequest() {
-	if s.status == StatusInterrupted {
-		s.interruption.WithRequest = true
+// the owner on req when it was cut off; the first request stopped is the
+// one named.
+func (s *Session) InterruptedWithRequest(req *Request) {
+	if s.status != StatusInterrupted {
+		return
 	}
+	if !s.interruption.WithRequest {
+		s.interruption.Request = req.Gist()
+	}
+	s.interruption.WithRequest = true
 }
 
 // QuotaExhausted marks the running turn as stopped by a subscription limit.

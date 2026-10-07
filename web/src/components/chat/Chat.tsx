@@ -8,19 +8,22 @@ import InterruptedBanner from './InterruptedBanner'
 import WorktreeGone from './WorktreeGone'
 import ChatHeader from './ChatHeader'
 import LiveStrip from './LiveStrip'
+import UnmergedNote from './UnmergedNote'
 import RequestCard from '../requests/RequestCard'
+import { lastInput } from '../requests/modality'
 import { LoadFailed, Skeleton } from '../ui/Loading'
 import { icon } from '../icon'
 import { Row } from './Transcript'
 import { isMac, matches, useMedia } from './useMedia'
 import { useAnnouncement } from './useAnnouncement'
 import { useStickToBottom } from './useStickToBottom'
+import { useTypingMark } from './useTypingMark'
 import { SENT_HOLD_MS, untilBack, useLiveDropped } from './useLiveDropped'
 import { beginAgentView, endAgentView, recordAgentCommit } from '../../lib/diagnostics'
 import { SessionFiles } from '../../lib/files'
-import type { RequestAnswerInput, SessionStatus, TurnResult } from '../../lib/api'
+import type { RequestAnswerInput, Session, SessionStatus, TurnResult } from '../../lib/api'
 import { forgetCommands } from '../../lib/complete'
-import { displayStatus } from '../../lib/format'
+import { basename, displayStatus } from '../../lib/format'
 import { enter } from '../../lib/motion'
 import { useJustFinished } from '../../lib/finished'
 import { useNow } from '../../lib/now'
@@ -288,7 +291,8 @@ export default function Chat() {
     }
     if (useSessionStore.getState().activeId === sessionId) {
       stick.stick()
-      if (!document.activeElement?.closest('.request')) input.current?.focus()
+      // On a touch screen the keyboard goes, so the reply has the screen.
+      if (!matches('(pointer: coarse)') && !document.activeElement?.closest('.request')) input.current?.focus()
     }
     return true
   }
@@ -396,11 +400,13 @@ export default function Chat() {
   const gone = session?.worktree?.removed ? session.worktree : undefined
 
   // An answer that went through moves focus on: to the next request waiting,
-  // or back to the composer, instead of dropping it on the page.
+  // or back to the composer, instead of dropping it on the page. One given
+  // from the keyboard stays off the composer, so the next keys stay shortcuts.
   const answer = useCallback(
     async (sid: string, requestId: string, reply: RequestAnswerInput) => {
+      const via = lastInput()
       const ok = await respond(sid, requestId, reply)
-      if (ok) focusAfterAnswer(scrollRef.current, requestId, input.current)
+      if (ok) focusAfterAnswer(scrollRef.current, requestId, via === 'keyboard' ? scrollRef.current : input.current)
       return ok
     },
     [respond, scrollRef],
@@ -420,9 +426,11 @@ export default function Chat() {
   // A long message says how long it is; the box itself stops growing.
   const lines = text ? text.split('\n').length : 0
   const multiline = useMultiline(input, text)
+  const section = useRef<HTMLElement>(null)
+  useTypingMark(section)
 
   return (
-    <section className="chat panel">
+    <section className="chat panel" ref={section}>
       <ChatHeader
         session={session}
         status={shown}
@@ -435,7 +443,8 @@ export default function Chat() {
       <div className="sr-only chat-announce" role="status" aria-live="polite">
         <span key={announcement.n}>{announcement.text}</span>
       </div>
-      <div className="scroll" ref={scrollRef}>
+      {/* Focusable: a keyboard answer leaves focus here, where arrows scroll. */}
+      <div className="scroll" ref={scrollRef} tabIndex={-1}>
         {notFound ? null : history === 'loading' && chat.order.length === 0 ? (
           <div className="chat-loading">
             <Skeleton rows={4} label="Loading transcript" />
@@ -486,9 +495,11 @@ export default function Chat() {
         )}
         {!notFound && !gone && history === 'ready' && chat.order.length === 0 && pendingSends.length === 0 && status !== 'interrupted' && !busy && (
           <div className="chat-hint">
-            <p className="chat-hint-where">Send a message to start. The agent runs in {session?.cwd ?? 'the session folder'}.</p>
+            <p className="chat-hint-where">
+              Send a message to start. The agent runs in <HintWhere session={session} />.
+            </p>
             <p className="chat-hint-keys">
-              <kbd>@</kbd> file · <kbd>/</kbd> commands · paste or drop images
+              <kbd>@</kbd> file · <kbd>/</kbd> commands · paste or {touch ? 'attach' : 'drop'} images
             </p>
           </div>
         )}
@@ -532,6 +543,7 @@ export default function Chat() {
         />
       )}
       <LiveStrip note={stopSent ? 'stop sent · waiting for the agent' : undefined} />
+      {!notFound && session && !gone && <UnmergedNote session={session} />}
       {!notFound && session && gone && <WorktreeGone session={session} worktree={gone} />}
       {!notFound && !gone && (
       <form
@@ -593,6 +605,18 @@ export default function Chat() {
   )
 }
 
+// HintWhere names the session folder in the first-message hint: a worktree
+// as the header names it, its repository and branch, the folder on hover.
+function HintWhere({ session }: { session: Session | undefined }) {
+  const wt = session?.worktree
+  if (!wt) return <>{session?.cwd ?? 'the session folder'}</>
+  return (
+    <span title={wt.path}>
+      {basename(wt.repo)} ⎇ {wt.branch.replace(/^chamber\//, '')}
+    </span>
+  )
+}
+
 // WorkingTail ends a running turn's transcript: the running mark and how
 // long the turn has taken, or that it waits for the owner. While text streams
 // the words speak for themselves and only the clock stays. Without the live
@@ -651,9 +675,11 @@ const resolve: TargetAndTransition = {
 }
 
 // focusAfterAnswer moves focus on from an answered request: to the next
-// request still waiting, else to the composer (with a mouse; on a phone that
-// would pop the keyboard). Focus the owner already moved elsewhere stays.
-function focusAfterAnswer(root: HTMLElement | null, answered: string, composer: HTMLTextAreaElement | null) {
+// request still waiting, else to `then` (the composer after a click, the
+// transcript after a key; with a mouse only: on a phone the composer would
+// pop the keyboard). A touch screen brings the next request into view
+// without focusing it. Focus the owner already moved elsewhere stays.
+function focusAfterAnswer(root: HTMLElement | null, answered: string, then: HTMLElement | null) {
   const active = document.activeElement
   const card = active instanceof Element ? active.closest('[data-request-id]') : null
   const lost = !active || active === document.body || card?.getAttribute('data-request-id') === answered
@@ -663,8 +689,9 @@ function focusAfterAnswer(root: HTMLElement | null, answered: string, composer: 
     const id = el.dataset.requestId
     return id && id !== answered && waiting[id]
   })
-  if (next) next.focus()
-  else if (matches('(pointer: fine)')) composer?.focus()
+  if (next && matches('(pointer: coarse)')) next.scrollIntoView?.({ block: 'nearest' })
+  else if (next) next.focus()
+  else if (matches('(pointer: fine)')) then?.focus()
 }
 
 // backToSessions leaves a session that doesn't exist for the sessions list.

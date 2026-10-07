@@ -302,7 +302,7 @@ describe('RequestTray', () => {
 })
 
 describe('a turn cut off while it waited for the owner', () => {
-  const owed = { id: 's2', agent: 'claude' as const, cwd: '/tmp/proj', status: 'interrupted' as const, nativeId: 'n2', title: 'ask me', interruption: { reason: 'server_restart', withRequest: true } }
+  const owed = { id: 's2', agent: 'claude' as const, cwd: '/tmp/proj', status: 'interrupted' as const, nativeId: 'n2', title: 'ask me', interruption: { reason: 'server_restart', withRequest: true, request: 'Which branch?' } }
 
   it('still waits in the inbox, and continues from there', async () => {
     vi.mocked(api.continueSession).mockResolvedValue(undefined as never)
@@ -311,11 +311,21 @@ describe('a turn cut off while it waited for the owner', () => {
     expect(screen.getByLabelText('Pending requests')).toBeInTheDocument()
     expect(document.querySelector('.section-title .badge')).toHaveTextContent('1')
     const line = screen.getByRole('button', { name: /ask me/ })
-    expect(line).toHaveTextContent('interrupted — continue?')
+    // What it asked leads; the session's name follows; "interrupted" once.
+    expect(line.querySelector('.request-label')).toHaveTextContent('Which branch?')
+    expect(line.querySelector('.request-session')).toHaveTextContent('ask me')
+    expect(line.textContent?.match(/interrupted/gi)).toHaveLength(1)
     await userEvent.click(screen.getByRole('button', { name: 'Continue' }))
     expect(api.continueSession).toHaveBeenCalledWith('s2')
     await userEvent.click(line)
     expect(useSessionStore.getState().activeId).toBe('s2')
+  })
+
+  it('says it stopped waiting when the request is not known', () => {
+    useSessionStore.setState({ requestsStatus: 'ready', sessions: [{ ...owed, interruption: { reason: 'crashed', withRequest: true } }] })
+    render(<RequestTray />)
+    const line = screen.getByRole('button', { name: /ask me/ })
+    expect(line.querySelector('.request-label')).toHaveTextContent('stopped while waiting for you')
   })
 
   it('leaves out a session already continued', () => {

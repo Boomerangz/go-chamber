@@ -148,7 +148,9 @@ test('a turn cut off with a permission open still waits in the inbox', async ({ 
   if (await bar.isVisible()) await bar.getByRole('button', { name: /^Requests/ }).click()
   else await page.getByRole('toolbar', { name: 'Dock' }).getByRole('button', { name: /^Requests/ }).click()
   const line = page.getByRole('complementary', { name: 'Pending requests' }).getByRole('listitem').filter({ hasText: text })
-  await expect(line).toContainText('interrupted — continue?')
+  // It names what the stopped permission asked (the fake runs the message).
+  await expect(line.locator('.request-kind')).toHaveText(/interrupted/i)
+  await expect(line.locator('.request-label')).toHaveText(text)
   await line.getByRole('button', { name: 'Continue', exact: true }).click()
   await expect(line).toHaveCount(0)
 })

@@ -200,14 +200,18 @@ function OwedLine({ session }: { session: Session }) {
     { holdOnSuccess: true },
   )
   const name = session.title || basename(session.cwd)
+  // What the stopped request asked leads, as a live one's gist does.
+  const asked = session.interruption?.request?.trim() || 'stopped while waiting for you'
   return (
     <motion.li {...arrive}>
       <button className="tray-row" data-key={`owed/${session.id}`} onClick={() => void selectSession(session.id)}>
         <span className="request-kind kind-interrupted">Interrupted</span>
-        <span className="request-label" title={name}>
+        <span className="request-label" title={asked}>
+          {asked}
+        </span>
+        <span className="request-session" title={name}>
           {name}
         </span>
-        <span className="request-session">interrupted — continue?</span>
       </button>
       <div className="tray-actions">
         <button className="btn btn-xs btn-primary" aria-busy={continuing} onClick={() => void resume()}>

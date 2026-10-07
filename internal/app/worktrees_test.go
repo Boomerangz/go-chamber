@@ -26,6 +26,16 @@ type fakeGit struct {
 	commits    int
 	commitsErr error
 	gotCommits string
+
+	ahead    int
+	head     string
+	aheadErr error
+	gotAhead string
+}
+
+func (g *fakeGit) Ahead(_ context.Context, repo, branch string) (int, string, error) {
+	g.gotAhead = repo + "|" + branch
+	return g.ahead, g.head, g.aheadErr
 }
 
 func (g *fakeGit) Toplevel(_ context.Context, dir string) (string, error) {

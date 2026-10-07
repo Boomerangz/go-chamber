@@ -610,6 +610,39 @@ describe('answering requests', () => {
     await waitFor(() => expect(box()).toHaveFocus())
   })
 
+  it('after a keyboard answer to the last one, focuses the transcript so the next keys stay shortcuts', async () => {
+    pointerFine()
+    const respond = vi.fn(async () => true)
+    setup({ chat: running([item('u1', 'user_message')], { requests: { r1: permission('r1') } }), respond })
+    screen.getByRole('button', { name: 'Allow' }).focus()
+    await userEvent.keyboard('{Enter}')
+    expect(respond).toHaveBeenCalledWith('s1', 'r1', expect.anything())
+    await waitFor(() => expect(document.activeElement).toHaveClass('scroll'))
+    expect(box()).not.toHaveFocus()
+  })
+
+  it('after a keyboard answer, moves on to the next card', async () => {
+    pointerFine()
+    const respond = vi.fn(async () => true)
+    setup({ chat: running([item('u1', 'user_message')], { requests: { r1: permission('r1'), r2: permission('r2') } }), respond })
+    screen.getAllByRole('button', { name: 'Allow' })[0]!.focus()
+    await userEvent.keyboard('{Enter}')
+    await waitFor(() => expect(document.activeElement).toHaveAttribute('data-request-id', 'r2'))
+  })
+
+  it('on a touch screen brings the next card into view without focusing it', async () => {
+    vi.stubGlobal('matchMedia', (q: string) => ({
+      matches: q.includes('pointer: coarse'), media: q, addEventListener: () => {}, removeEventListener: () => {},
+    }))
+    const respond = vi.fn(async () => true)
+    setup({ chat: running([item('u1', 'user_message')], { requests: { r1: permission('r1'), r2: permission('r2') } }), respond })
+    const next = document.querySelector<HTMLElement>('[data-request-id="r2"]')!
+    vi.mocked(next.scrollIntoView).mockClear()
+    await userEvent.click(screen.getAllByRole('button', { name: 'Allow' })[0]!)
+    await waitFor(() => expect(next.scrollIntoView).toHaveBeenCalled())
+    expect(document.activeElement).not.toBe(next)
+  })
+
   it('leaves focus where it is when the answer failed', async () => {
     pointerFine()
     const respond = vi.fn(async () => false)
@@ -834,10 +867,108 @@ describe('screen reader', () => {
   })
 })
 
+describe('typing on a phone', () => {
+  const phone = (coarse = true) =>
+    vi.stubGlobal('matchMedia', (q: string) => ({
+      matches: q.includes('max-width: 720px') || (coarse && q.includes('pointer: coarse')),
+      media: q, addEventListener: () => {}, removeEventListener: () => {},
+    }))
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    delete document.documentElement.dataset.typing
+  })
+
+  it('marks the page while a chat field has the keyboard, so the chrome can make room', () => {
+    phone()
+    const { unmount } = setup()
+    act(() => box().focus())
+    expect(document.documentElement.dataset.typing).toBe('chat')
+    act(() => box().blur())
+    expect(document.documentElement.dataset.typing).toBeUndefined()
+    act(() => box().focus())
+    unmount()
+    expect(document.documentElement.dataset.typing).toBeUndefined()
+  })
+
+  it('keeps the page still under a tap that takes the focus, until the tap is over', () => {
+    vi.useFakeTimers()
+    phone()
+    setup()
+    act(() => box().focus())
+    act(() => {
+      window.dispatchEvent(new Event('pointerdown'))
+      box().blur()
+    })
+    expect(document.documentElement.dataset.typing).toBe('chat')
+    act(() => {
+      window.dispatchEvent(new Event('pointerup'))
+      vi.runOnlyPendingTimers()
+    })
+    expect(document.documentElement.dataset.typing).toBeUndefined()
+  })
+
+  it('lets the keyboard go once a message is sent, so the reply has the screen', async () => {
+    phone()
+    setup()
+    await userEvent.type(box(), 'hello')
+    await userEvent.click(screen.getByRole('button', { name: 'Send' }))
+    await waitFor(() => expect(fns.send).toHaveBeenCalled())
+    await act(async () => {})
+    expect(box()).not.toHaveFocus()
+  })
+
+  it('leaves a mouse, or a wide screen, alone', () => {
+    phone(false)
+    setup()
+    act(() => box().focus())
+    expect(document.documentElement.dataset.typing).toBeUndefined()
+  })
+
+  it("brings a card's field back into view once the keyboard is up", () => {
+    vi.useFakeTimers()
+    phone()
+    const question: api.SessionRequest = {
+      id: 'q1', sessionId: 's1', kind: 'question', state: 'pending', title: 'Pick',
+      payload: { input: { questions: [{ question: 'Which?', options: [{ label: 'a' }, { label: 'b' }] }] } },
+    }
+    setup({ chat: running([item('u1', 'user_message')], { requests: { q1: question } }) })
+    const card = document.querySelector<HTMLElement>('[data-request-id="q1"]')!
+    const field = screen.getByLabelText('Other Which?')
+    vi.mocked(card.scrollIntoView).mockClear()
+    act(() => field.focus())
+    expect(document.documentElement.dataset.typing).toBe('chat')
+    act(() => {
+      window.dispatchEvent(new Event('resize'))
+    })
+    expect(card.scrollIntoView).toHaveBeenCalledWith({ block: 'nearest' })
+    expect(field.scrollIntoView).toHaveBeenCalledWith({ block: 'nearest' })
+  })
+})
+
 describe('first message hint', () => {
   it('lists what the composer understands', () => {
     setup()
     expect(document.querySelector('.chat-hint-keys')).toHaveTextContent('@ file · / commands · paste or drop images')
+  })
+
+  it('says attach, not drop, on a touch screen', () => {
+    vi.stubGlobal('matchMedia', (q: string) => ({
+      matches: q.includes('pointer: coarse'), media: q, addEventListener: () => {}, removeEventListener: () => {},
+    }))
+    setup()
+    expect(document.querySelector('.chat-hint-keys')).toHaveTextContent('paste or attach images')
+    vi.unstubAllGlobals()
+  })
+
+  it('names a worktree as its repository and branch, the whole folder on hover', () => {
+    const wt: api.Session = {
+      ...session, cwd: '/data/worktrees/project/fix-login',
+      worktree: { repo: '/home/me/project', path: '/data/worktrees/project/fix-login', branch: 'chamber/fix-login', base: 'abc' },
+    }
+    setup({ sessions: [wt] })
+    const where = document.querySelector('.chat-hint-where')!
+    expect(where).toHaveTextContent('The agent runs in project ⎇ fix-login.')
+    expect(where.querySelector('[title="/data/worktrees/project/fix-login"]')).not.toBeNull()
   })
 })
 

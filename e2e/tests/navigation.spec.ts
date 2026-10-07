@@ -1,16 +1,20 @@
 import { expect, test, type Page } from '@playwright/test'
-import { mkdirSync } from 'node:fs'
+import { mkdirSync, rmSync } from 'node:fs'
 import { token } from '../playwright.config'
 import { openNewSession, showPane } from './pane'
 
-async function startIn(page: Page, cwd: string, text: string, { make = true } = {}) {
-  if (make) mkdirSync(cwd, { recursive: true })
+// startIn starts a session in cwd and sends text; with gone the folder goes
+// once the session is made, so the message fails (a session can't be made
+// in a folder that is already gone).
+async function startIn(page: Page, cwd: string, text: string, { gone = false } = {}) {
+  mkdirSync(cwd, { recursive: true })
   await showPane(page, 'Sessions')
   await openNewSession(page)
   await page.getByLabel('Working directory').fill(cwd)
   await page.getByRole('button', { name: 'New session', exact: true }).click()
   // On a phone the folder sits behind the header's "⋯"; it is there all the same.
   await expect(page.locator('.chat-path', { hasText: cwd })).toBeAttached()
+  if (gone) rmSync(cwd, { recursive: true, force: true })
   await page.getByLabel('Message').fill(text)
   await page.getByRole('button', { name: 'Send' }).click()
 }
@@ -111,7 +115,7 @@ test('on a phone, Back from a chat returns to the list and notices stay clear of
   await expect(page.getByRole('navigation', { name: 'Views' }).getByRole('button', { name: /^Sessions/ })).toHaveAttribute('aria-pressed', 'true')
 
   // A failure notice sits over the transcript: under the chat header, above the composer.
-  await startIn(page, `/tmp/missing-${info.project.name}-${Date.now()}`, 'nowhere', { make: false })
+  await startIn(page, `/tmp/missing-${info.project.name}-${Date.now()}`, 'nowhere', { gone: true })
   const toast = page.locator('.toast-error').first()
   await expect(toast).toBeVisible()
   const composer = await page.locator('.composer').boundingBox()
@@ -182,7 +186,7 @@ test('a failure notice covers no control: not the header, the dock rail, the com
   await page.goto(`/?token=${token}`)
   await startIn(page, `/tmp/notice-${info.project.name}-${Date.now()}`, 'notice place')
   await expect(page.getByText('echo: notice place')).toBeVisible()
-  await startIn(page, `/tmp/missing-${info.project.name}-${Date.now()}`, 'nowhere', { make: false })
+  await startIn(page, `/tmp/missing-${info.project.name}-${Date.now()}`, 'nowhere', { gone: true })
   const toast = page.locator('.toast-error').first()
   await expect(toast).toBeVisible()
   const box = (await toast.boundingBox())!

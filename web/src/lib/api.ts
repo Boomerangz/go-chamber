@@ -9,6 +9,8 @@ export interface Interruption {
   // withRequest: the turn was cut off while a question or permission waited
   // for the owner, who still owes it an answer.
   withRequest?: boolean
+  // request: the gist of the request it was waiting on, when known.
+  request?: string
 }
 
 // ApprovalReviewer decides who reviews the agent's approval requests (Codex);
@@ -533,6 +535,21 @@ export function createWorktreeSession(agent: AgentKind, cwd: string, branch: str
 
 export function getChanges(id: string): Promise<Changes> {
   return request<Changes>(`/api/sessions/${encodeURIComponent(id)}/changes`)
+}
+
+// Unmerged is a worktree branch a fork left behind (its parent's worktree
+// was removed) with commits the repository's branch `into` lacks.
+export interface Unmerged {
+  branch: string
+  into: string
+  ahead: number
+  // merge is the command that merges branch into `into`.
+  merge: string
+}
+
+export async function getUnmerged(id: string): Promise<Unmerged | null> {
+  const body = await request<{ unmerged: Unmerged | null }>(`/api/sessions/${encodeURIComponent(id)}/unmerged`)
+  return body.unmerged
 }
 
 export function getFileDiff(id: string, path: string): Promise<{ diff: string }> {

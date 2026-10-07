@@ -26,6 +26,7 @@ import {
   createWorktreeSession,
   requestRaw,
   TIMEOUT_MS,
+  getUnmerged,
 } from './api'
 import { describeError } from '../stores/notices'
 
@@ -42,6 +43,17 @@ function stubFetch(impl: (url: string, init?: RequestInit) => Promise<Response>)
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } })
+
+describe('getUnmerged', () => {
+  it("returns the fork's left-behind branch, or null when there is none", async () => {
+    const branch = { branch: 'chamber/x', into: 'main', ahead: 2, merge: 'git -C /r merge chamber/x' }
+    const fn = stubFetch(async () => json({ unmerged: branch }))
+    expect(await getUnmerged('a b')).toEqual(branch)
+    expect(fn.mock.calls[0]![0]).toBe('/api/sessions/a%20b/unmerged')
+    stubFetch(async () => json({ unmerged: null }))
+    expect(await getUnmerged('f1')).toBeNull()
+  })
+})
 
 describe('fetchHealth', () => {
   it('returns online when server answers ok', async () => {

@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"path"
+	"strings"
 )
 
 var (
@@ -79,3 +81,53 @@ func (r *Request) MarkStale() {
 		r.State = RequestStale
 	}
 }
+
+// Gist says in one line what the request asks: the question, the command to
+// run, the file to change; its generic title only when nothing more telling
+// is known. The web's requestGist reads a live request the same way.
+func (r *Request) Gist() string {
+	var p struct {
+		ToolName string `json:"toolName"`
+		Input    struct {
+			Questions []struct {
+				Question string `json:"question"`
+			} `json:"questions"`
+			Command  string `json:"command"`
+			FilePath string `json:"file_path"`
+			Path     string `json:"path"`
+		} `json:"input"`
+	}
+	_ = json.Unmarshal(r.Payload, &p)
+	in := p.Input
+	if len(in.Questions) > 0 {
+		if first := flat(in.Questions[0].Question); first != "" {
+			if more := len(in.Questions) - 1; more > 0 {
+				return fmt.Sprintf("%s (+%d more)", first, more)
+			}
+			return first
+		}
+	}
+	if c := flat(in.Command); c != "" {
+		return c
+	}
+	file := in.FilePath
+	if file == "" {
+		file = in.Path
+	}
+	if strings.TrimSpace(file) != "" {
+		name := path.Base(strings.TrimRight(file, "/"))
+		if p.ToolName != "" {
+			return p.ToolName + " " + name
+		}
+		return name
+	}
+	for _, text := range []string{r.Prompt, r.Title, p.ToolName} {
+		if t := flat(text); t != "" {
+			return t
+		}
+	}
+	return "Request"
+}
+
+// flat folds runs of white space into single spaces.
+func flat(s string) string { return strings.Join(strings.Fields(s), " ") }

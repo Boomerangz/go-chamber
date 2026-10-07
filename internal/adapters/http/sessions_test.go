@@ -192,6 +192,14 @@ func TestCreateSessionEndpoint(t *testing.T) {
 	}
 }
 
+func TestCreateSessionInAMissingFolder(t *testing.T) {
+	h := newSessionsServer(&fakeSessions{err: domain.FolderGone("/tmp/gone")}, nil)
+	rec := do(h, authed("POST", "/api/sessions", `{"agent":"claude","cwd":"/tmp/gone"}`))
+	if rec.Code != http.StatusUnprocessableEntity || !strings.Contains(rec.Body.String(), "Folder /tmp/gone no longer exists") {
+		t.Fatalf("code = %d body=%s", rec.Code, rec.Body.String())
+	}
+}
+
 func TestCreateSessionBadBody(t *testing.T) {
 	h := newSessionsServer(&fakeSessions{}, nil)
 	rec := do(h, authed("POST", "/api/sessions", `{`))
