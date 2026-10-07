@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { decodeKey, disablePush, enablePush, pushEnabled, pushSupported, WorkerUnavailable } from './push'
+import { decodeKey, disablePush, enablePush, pushBlocked, pushEnabled, pushFailure, pushNeedsHttps, pushSupported, WorkerUnavailable } from './push'
 
 function install({ permission = 'granted', existing = null as null | { endpoint: string } } = {}) {
   const sub = { endpoint: 'https://push.example/1', toJSON: () => ({ endpoint: 'https://push.example/1', keys: { p256dh: 'k', auth: 'a' } }), unsubscribe: vi.fn(async () => true) }
@@ -43,8 +43,43 @@ describe('push', () => {
 
   it('refuses when notifications are not allowed', async () => {
     const { pushManager } = install({ permission: 'denied' })
-    await expect(enablePush()).rejects.toThrow(/not allowed/)
+    await expect(enablePush()).rejects.toThrow(/blocked for this site/)
     expect(pushManager.subscribe).not.toHaveBeenCalled()
+  })
+
+  it('says when the permission prompt was dismissed', async () => {
+    install({ permission: 'default' })
+    await expect(enablePush()).rejects.toThrow("The browser didn't allow notifications: its prompt was closed")
+  })
+
+  it('knows a blocked permission', () => {
+    install({ permission: 'denied' })
+    expect(pushBlocked()).toBe(true)
+    install({ permission: 'granted' })
+    expect(pushBlocked()).toBe(false)
+  })
+
+  it('knows when plain HTTP is why the browser cannot push', () => {
+    vi.stubGlobal('navigator', {})
+    vi.stubGlobal('isSecureContext', false)
+    expect(pushNeedsHttps()).toBe(true)
+    vi.stubGlobal('isSecureContext', true)
+    expect(pushNeedsHttps()).toBe(false)
+    install()
+    vi.stubGlobal('isSecureContext', false)
+    expect(pushNeedsHttps()).toBe(false)
+  })
+
+  it('puts the browser subscribe failures in plain words', () => {
+    expect(pushFailure(new DOMException('Registration failed - permission denied', 'NotAllowedError'))).toMatch(/blocked for this site/)
+    expect(pushFailure(new DOMException('Registration failed - push service error', 'AbortError'))).toBe(
+      "The browser's push service didn't answer. Try again in a moment.",
+    )
+    expect(pushFailure(new DOMException('Registration failed - push service not available', 'NotSupportedError'))).toBe(
+      "This browser can't receive notifications here.",
+    )
+    expect(pushFailure(new WorkerUnavailable())).toBe(new WorkerUnavailable().message)
+    expect(pushFailure(new Error('500 Internal Server Error'))).toBe('500 Internal Server Error')
   })
 
   it('unsubscribes on both sides', async () => {
