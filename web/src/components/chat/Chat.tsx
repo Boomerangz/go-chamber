@@ -18,9 +18,9 @@ import { useStickToBottom } from './useStickToBottom'
 import { SENT_HOLD_MS, untilBack, useLiveDropped } from './useLiveDropped'
 import { beginAgentView, endAgentView, recordAgentCommit } from '../../lib/diagnostics'
 import { SessionFiles } from '../../lib/files'
-import type { RequestAnswerInput, SessionStatus, TurnResult } from '../../lib/api'
+import type { RequestAnswerInput, Session, SessionStatus, TurnResult } from '../../lib/api'
 import { forgetCommands } from '../../lib/complete'
-import { displayStatus } from '../../lib/format'
+import { basename, displayStatus } from '../../lib/format'
 import { enter } from '../../lib/motion'
 import { useJustFinished } from '../../lib/finished'
 import { useNow } from '../../lib/now'
@@ -486,9 +486,11 @@ export default function Chat() {
         )}
         {!notFound && !gone && history === 'ready' && chat.order.length === 0 && pendingSends.length === 0 && status !== 'interrupted' && !busy && (
           <div className="chat-hint">
-            <p className="chat-hint-where">Send a message to start. The agent runs in {session?.cwd ?? 'the session folder'}.</p>
+            <p className="chat-hint-where">
+              Send a message to start. The agent runs in <HintWhere session={session} />.
+            </p>
             <p className="chat-hint-keys">
-              <kbd>@</kbd> file · <kbd>/</kbd> commands · paste or drop images
+              <kbd>@</kbd> file · <kbd>/</kbd> commands · paste or {touch ? 'attach' : 'drop'} images
             </p>
           </div>
         )}
@@ -590,6 +592,18 @@ export default function Chat() {
       </form>
       )}
     </section>
+  )
+}
+
+// HintWhere names the session folder in the first-message hint: a worktree
+// as the header names it, its repository and branch, the folder on hover.
+function HintWhere({ session }: { session: Session | undefined }) {
+  const wt = session?.worktree
+  if (!wt) return <>{session?.cwd ?? 'the session folder'}</>
+  return (
+    <span title={wt.path}>
+      {basename(wt.repo)} ⎇ {wt.branch.replace(/^chamber\//, '')}
+    </span>
   )
 }
 

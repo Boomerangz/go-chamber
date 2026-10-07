@@ -839,6 +839,26 @@ describe('first message hint', () => {
     setup()
     expect(document.querySelector('.chat-hint-keys')).toHaveTextContent('@ file · / commands · paste or drop images')
   })
+
+  it('says attach, not drop, on a touch screen', () => {
+    vi.stubGlobal('matchMedia', (q: string) => ({
+      matches: q.includes('pointer: coarse'), media: q, addEventListener: () => {}, removeEventListener: () => {},
+    }))
+    setup()
+    expect(document.querySelector('.chat-hint-keys')).toHaveTextContent('paste or attach images')
+    vi.unstubAllGlobals()
+  })
+
+  it('names a worktree as its repository and branch, the whole folder on hover', () => {
+    const wt: api.Session = {
+      ...session, cwd: '/data/worktrees/project/fix-login',
+      worktree: { repo: '/home/me/project', path: '/data/worktrees/project/fix-login', branch: 'chamber/fix-login', base: 'abc' },
+    }
+    setup({ sessions: [wt] })
+    const where = document.querySelector('.chat-hint-where')!
+    expect(where).toHaveTextContent('The agent runs in project ⎇ fix-login.')
+    expect(where.querySelector('[title="/data/worktrees/project/fix-login"]')).not.toBeNull()
+  })
 })
 
 describe('approval reviewer', () => {
