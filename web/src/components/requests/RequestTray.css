@@ -11,6 +11,11 @@
 /* sent, but the line never left: the answer waits on the agent */
 .tray-waiting { font-family: var(--font-mono); font-size: 12px; color: var(--ink-3); }
 
+/* A focused line frames itself and its answers as one. The frame sits inside
+   the line, so the tray's scroll box doesn't cut its sides off. */
+.request-tray li > .tray-row:focus-visible { outline: none; }
+.request-tray li:has(> .tray-row:focus-visible) { outline: 2px solid var(--act-ring); outline-offset: -2px; }
+
 /* Focus rests here after the last keyboard answer: a place, not a control. */
 .request-tray:focus, .tray-empty:focus { outline: none; }
 
