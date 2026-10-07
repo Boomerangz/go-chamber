@@ -1,6 +1,7 @@
 import { useLayoutStore } from '../../stores/layout'
 import { useSessionStore } from '../../stores/session'
-import { sessionTitle } from '../../lib/sessions'
+import { folderNames, relativeTime, sessionTitle, startFolder } from '../../lib/sessions'
+import { useNow } from '../../lib/now'
 import { owesAnswer } from '../../lib/status'
 import { isMac, useMedia } from './useMedia'
 import { Skeleton } from '../ui/Loading'
@@ -26,6 +27,12 @@ export default function EmptyChat() {
     .filter((x) => !x.parentId && !x.archivedAt)
     .sort((a, b) => (b.activeAt ?? b.createdAt ?? '').localeCompare(a.activeAt ?? a.createdAt ?? ''))
   const [title, list] = waiting.length ? ['Waiting for you', waiting] : ['Recent', recent]
+  // Like the switcher, each row says where and when: titles alone are often
+  // the same default. A worktree is named by its repository and branch.
+  const now = useNow(60_000)
+  const folder = startFolder(sessions)
+  const shown = list.slice(0, MAX)
+  const names = folderNames(shown.map(folder))
   const mod = isMac() ? '⌘' : 'Ctrl'
   // the rest wait in the Requests inbox
   const showRequests = () => {
@@ -50,10 +57,15 @@ export default function EmptyChat() {
           <div className="empty-sessions">
             <h3 className="section-title">{title}</h3>
             <ul>
-              {list.slice(0, MAX).map((x) => (
+              {shown.map((x) => (
                 <li key={x.id}>
                   <button type="button" className="btn btn-ghost empty-session" onClick={() => void selectSession(x.id)}>
-                    {sessionTitle(x)}
+                    <span className="empty-session-title">{sessionTitle(x)}</span>
+                    <span className="empty-session-meta">
+                      <span title={folder(x)}>{names.get(folder(x))}</span>
+                      {x.worktree && <span title={x.worktree.path}>⎇ {x.worktree.branch.replace(/^chamber\//, '')}</span>}
+                      <span>{relativeTime(x.activeAt ?? x.createdAt, new Date(now))}</span>
+                    </span>
                   </button>
                 </li>
               ))}
