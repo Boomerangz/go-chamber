@@ -19,6 +19,8 @@ test('chimes when the agent asks for a decision once sounds are on', async ({ pa
   await toggle.click()
   await expect(toggle).toHaveAttribute('aria-pressed', 'true')
   await expect.poll(() => page.evaluate(() => (window as unknown as { tones: number }).tones)).toBe(1)
+  // chimes within 600ms of each other make one sound: let the toggle's pass
+  await page.waitForTimeout(700)
 
   await openNewSession(page)
   await page.getByLabel('Working directory').fill('/tmp')

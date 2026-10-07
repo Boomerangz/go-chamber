@@ -1127,6 +1127,10 @@ button.health { border: 0; background: none; padding: 0; }
   .topbar-end { gap: 0; }
   .segmented.mode-switch button { gap: 4px; padding: 0 4px; font-size: 12.5px; }
 }
+/* below that, every pixel goes to the modes */
+@media (max-width: 340px) {
+  .topbar { padding-left: 0; }
+}
 
 /* nothing moves or breathes; an animation only snaps to its end, so a
    delayed reveal (like "searching…" after 180ms) still waits */
