@@ -21,6 +21,7 @@ vi.mock('../lib/api', () => ({
   setPermissionMode: vi.fn(),
   setAutoContinue: vi.fn(),
   importHistory: vi.fn(),
+  fetchHealth: vi.fn(),
 }))
 
 vi.mock('../lib/chime', () => ({ chimeOnEvent: vi.fn() }))
@@ -1005,6 +1006,51 @@ describe('audit fixes', () => {
       expect(api.listSessions).toHaveBeenCalled()
       expect(api.listRequests).toHaveBeenCalled()
       expect(api.getQuotas).toHaveBeenCalled()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('reconnects as soon as the server answers again instead of waiting out a long backoff', async () => {
+    vi.useFakeTimers()
+    try {
+      const sockets: { onopen: (() => void) | null; onclose: (() => void) | null }[] = []
+      class FakeWS {
+        onopen: (() => void) | null = null
+        onclose: (() => void) | null = null
+        onerror: (() => void) | null = null
+        onmessage: ((m: { data: string }) => void) | null = null
+        constructor() {
+          sockets.push(this)
+        }
+        close() {}
+      }
+      vi.stubGlobal('WebSocket', FakeWS)
+      ;(api.listSessions as Mock).mockResolvedValue([])
+      ;(api.listRequests as Mock).mockResolvedValue([])
+      ;(api.getQuotas as Mock).mockResolvedValue([])
+      ;(api.fetchHealth as Mock).mockResolvedValue('offline')
+      store().connect()
+      // Several failed attempts grow the backoff to 16s.
+      for (let i = 0; i < 4; i++) {
+        sockets[sockets.length - 1]!.onclose?.()
+        await vi.advanceTimersByTimeAsync(2 ** i * 1000)
+      }
+      sockets[sockets.length - 1]!.onclose?.()
+      const before = sockets.length
+      expect(store().nextRetryAt! - Date.now()).toBe(16_000)
+      await vi.advanceTimersByTimeAsync(3000)
+      expect(sockets).toHaveLength(before)
+      expect(api.fetchHealth).toHaveBeenCalled()
+      ;(api.fetchHealth as Mock).mockResolvedValue('online')
+      await vi.advanceTimersByTimeAsync(2000)
+      expect(sockets).toHaveLength(before + 1)
+      expect(store().connection).toBe('connecting')
+      // Once connected, nothing keeps probing.
+      sockets[sockets.length - 1]!.onopen?.()
+      ;(api.fetchHealth as Mock).mockClear()
+      await vi.advanceTimersByTimeAsync(10_000)
+      expect(api.fetchHealth).not.toHaveBeenCalled()
     } finally {
       vi.useRealTimers()
     }

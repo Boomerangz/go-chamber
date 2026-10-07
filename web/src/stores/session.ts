@@ -165,6 +165,11 @@ let generation = 0
 let resyncTimer: ReturnType<typeof setTimeout> | null = null
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null
 let reconnectDelay = 1000
+let healthTimer: ReturnType<typeof setTimeout> | null = null
+// HEALTH_PROBE_MS is how often a dropped socket asks /api/health whether the
+// server is back: a cheap request, so a restart is noticed within a second or
+// two instead of after a backoff that may have grown to half a minute.
+const HEALTH_PROBE_MS = 1500
 // queued holds live events for the active chat not yet folded in: text
 // deltas are applied at most every DELTA_FLUSH_MS so fast streams don't
 // re-render the whole chat per token.
@@ -689,6 +694,7 @@ function connect(
     clearTimeout(reconnectTimer)
     reconnectTimer = null
   }
+  stopHealthProbe()
   const scheme = typeof location !== 'undefined' && location.protocol === 'https:' ? 'wss' : 'ws'
   const host = typeof location !== 'undefined' ? location.host : 'localhost'
   const ws = new WebSocket(`${scheme}://${host}/api/ws`)
@@ -716,6 +722,7 @@ function connect(
       connect(get, set)
     }, reconnectDelay)
     reconnectDelay = Math.min(reconnectDelay * 2, 30_000)
+    probeHealth(get, set)
   }
   ws.onerror = () => set({ connection: 'offline' })
   ws.onmessage = (msg) => {
@@ -725,6 +732,28 @@ function connect(
       // ignore malformed frames
     }
   }
+}
+
+// probeHealth asks the server, every HEALTH_PROBE_MS while the socket is
+// down, whether it is back, and reconnects the moment it says so.
+function probeHealth(get: () => SessionStore, set: (partial: Partial<SessionStore>) => void): void {
+  stopHealthProbe()
+  healthTimer = setTimeout(() => {
+    healthTimer = null
+    void Promise.resolve()
+      .then(() => api.fetchHealth())
+      .catch(() => 'offline' as const)
+      .then((health) => {
+        if (socket) return
+        if (health === 'online') retryNow(get, set)
+        else if (!healthTimer) probeHealth(get, set)
+      })
+  }, HEALTH_PROBE_MS)
+}
+
+function stopHealthProbe(): void {
+  if (healthTimer) clearTimeout(healthTimer)
+  healthTimer = null
 }
 
 // retryNow skips the rest of the backoff: the owner asked, or the page
@@ -841,6 +870,7 @@ export function resetStore(): void {
   if (reconnectTimer) clearTimeout(reconnectTimer)
   reconnectTimer = null
   reconnectDelay = 1000
+  stopHealthProbe()
   if (resyncTimer) clearTimeout(resyncTimer)
   resyncTimer = null
   lastSeqs = {}
