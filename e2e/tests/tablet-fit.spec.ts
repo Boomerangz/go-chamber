@@ -57,6 +57,24 @@ test('no dock pushes the shell past the window at tablet widths', async ({ page,
   }
 })
 
+// A small laptop (up to 1100px): an open dock takes the sessions list's
+// place, so the chat keeps a readable width beside it.
+test('the chat keeps its room beside a dock on a small laptop', async ({ page, isMobile }) => {
+  test.skip(isMobile, 'a phone shows one pane at a time')
+  await page.setViewportSize({ width: 1280, height: 900 })
+  await newSession(page)
+  for (const width of [1024, 1100]) {
+    await page.setViewportSize({ width, height: 800 })
+    for (const name of ['Requests', 'Changes', 'Terminal']) {
+      await openDock(page, name)
+      await expect.poll(() => page.locator('.layout > .chat').evaluate((e) => e.getBoundingClientRect().width), { message: `${width} ${name}` }).toBeGreaterThanOrEqual(480)
+    }
+  }
+  // wider, the sessions list stays beside the dock
+  await page.setViewportSize({ width: 1280, height: 800 })
+  await expect(page.locator('.layout > .sidebar')).toBeVisible()
+})
+
 test('Show sessions in the top bar is a named icon beside a dock', async ({ page, isMobile }) => {
   test.skip(isMobile, 'a phone shows one pane at a time')
   await page.setViewportSize({ width: 768, height: 1024 })

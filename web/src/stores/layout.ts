@@ -97,7 +97,7 @@ export function visibleDock(layout: Pick<Layout, 'dock' | 'focus'>, pending: num
 // CROWDED is a window too narrow for the sessions list, the chat and an open
 // dock side by side (above the phone layout, which shows one pane at a time).
 // There an open dock takes the sessions list's place: one side panel at a time.
-export const CROWDED = '(min-width: 721px) and (max-width: 1000px)'
+export const CROWDED = '(min-width: 721px) and (max-width: 1100px)'
 
 const crowdedNow = () => typeof window !== 'undefined' && !!window.matchMedia?.(CROWDED).matches
 

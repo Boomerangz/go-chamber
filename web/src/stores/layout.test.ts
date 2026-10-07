@@ -151,7 +151,7 @@ describe('panel sizes', () => {
     // crowded stubs the media query for a window too narrow for the
     // sessions list, the chat and an open dock side by side.
     const crowded = (on: boolean) =>
-      vi.stubGlobal('matchMedia', (q: string) => ({ matches: on && q.includes('1000px'), addEventListener() {}, removeEventListener() {} }))
+      vi.stubGlobal('matchMedia', (q: string) => ({ matches: on && q.includes('1100px'), addEventListener() {}, removeEventListener() {} }))
     afterEach(() => vi.unstubAllGlobals())
 
     it('an open dock crowds the sessions list out, and only then', () => {
