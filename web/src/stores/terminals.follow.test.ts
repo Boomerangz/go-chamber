@@ -42,6 +42,19 @@ describe('followSessions', () => {
     expect(api.listTerminals).toHaveBeenCalledTimes(1)
   })
 
+  it('reloads the shells when live updates come back: a restart ends them', () => {
+    // The first connect is the page's own load, which lists them already.
+    useSessionStore.setState({ connection: 'connecting' })
+    useSessionStore.setState({ connection: 'online' })
+    expect(api.listTerminals).not.toHaveBeenCalled()
+    // Lost, then back through another try.
+    useSessionStore.setState({ connection: 'offline' })
+    useSessionStore.setState({ connection: 'connecting' })
+    expect(api.listTerminals).not.toHaveBeenCalled()
+    useSessionStore.setState({ connection: 'online' })
+    expect(api.listTerminals).toHaveBeenCalledTimes(1)
+  })
+
   it('leaves the shells alone on other changes', () => {
     useSessionStore.setState({ sessions: [session('a', wt), session('b'), session('c')] })
     useSessionStore.setState({ activeId: 'b' })

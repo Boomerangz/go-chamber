@@ -230,6 +230,8 @@ export default function Chat() {
     if (!markEl) return
     stick.unpin()
     markEl.scrollIntoView?.({ block: 'start' })
+    // A chat too short to scroll is all in view: read, and nothing below.
+    stick.recheck()
   }, [history, chat.order.length, unseen, stick, scrollRef, restored])
 
   const input = useRef<HTMLTextAreaElement>(null)

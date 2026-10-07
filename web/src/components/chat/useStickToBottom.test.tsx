@@ -16,10 +16,14 @@ class Observer {
 }
 
 let unpin: () => void = () => {}
+let recheck: () => void = () => {}
+let pinned = true
 function Chat({ dep }: { dep: number }) {
   const [ref, stick] = useStickToBottom(dep, [])
   useEffect(() => {
     unpin = stick.unpin
+    recheck = stick.recheck
+    pinned = stick.pinned
   })
   return (
     <div ref={ref} data-testid="scroll">
@@ -27,6 +31,25 @@ function Chat({ dep }: { dep: number }) {
     </div>
   )
 }
+
+describe('useStickToBottom recheck', () => {
+  it('pins again a view that a jump left at its end, as a short chat is', () => {
+    const { getByTestId } = render(<Chat dep={0} />)
+    const el = getByTestId('scroll')
+    Object.defineProperty(el, 'scrollHeight', { configurable: true, value: 300 })
+    Object.defineProperty(el, 'clientHeight', { configurable: true, value: 300 })
+    act(() => unpin())
+    expect(pinned).toBe(false)
+    // Nothing to scroll: no scroll event would ever pin it again.
+    act(() => recheck())
+    expect(pinned).toBe(true)
+    // A view left above its end stays unpinned.
+    Object.defineProperty(el, 'scrollHeight', { configurable: true, value: 900 })
+    act(() => unpin())
+    act(() => recheck())
+    expect(pinned).toBe(false)
+  })
+})
 
 describe('useStickToBottom', () => {
   afterEach(() => {

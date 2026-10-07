@@ -386,9 +386,14 @@ export function useShellsWithin(dir: string | undefined): number {
 
 // followSessions refreshes the shell list when a session goes or loses its
 // worktree folder: the server then let go of its shells, or closed those in
-// the folder. It returns the unsubscribe.
+// the folder. Live updates back after a loss refresh it too: a restart of
+// go-chamber ended every shell. It returns the unsubscribe.
 export function followSessions(): () => void {
+  let lost = false
   return useSessionStore.subscribe((s, prev) => {
-    if (shellsMayHaveGone(prev.sessions, s.sessions)) void useTerminalStore.getState().load()
+    if (s.connection === 'offline') lost = true
+    const back = lost && s.connection === 'online' && prev.connection !== 'online'
+    if (back) lost = false
+    if (back || shellsMayHaveGone(prev.sessions, s.sessions)) void useTerminalStore.getState().load()
   })
 }

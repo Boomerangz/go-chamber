@@ -100,6 +100,10 @@
   font-family: var(--font-mono); font-size: 12px; color: var(--ink-2);
 }
 .live-strip .btn { margin-left: auto; }
+/* the words wrap beside their mark in a narrow pane (the requests tray),
+   rather than leaving the mark alone on its line */
+.live-strip > span:not(.busy-mark) { flex: 1 1 14ch; min-width: 0; }
+.request-tray .live-strip, .live-strip:has(+ .tray-empty) { width: auto; margin: 10px 14px; }
 /* a fork's left-behind branch: one quiet line above the composer, the merge
    command cut before the words are */
 .unmerged-note {

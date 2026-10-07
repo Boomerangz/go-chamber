@@ -318,7 +318,8 @@ kbd {
 }
 
 .health {
-  display: inline-flex; align-items: center; gap: 7px;
+  /* one line: "reconnecting · 3s" broken in two reads as two things */
+  display: inline-flex; align-items: center; gap: 7px; white-space: nowrap; flex: none;
   font-family: var(--font-mono); font-size: 12px; color: var(--ink-3);
 }
 .health .dot { width: 7px; height: 7px; border: 1px solid currentColor; border-radius: 1px; }
@@ -391,6 +392,9 @@ button.health { border: 0; background: none; padding: 0; }
 /* the sessions, archived and history read as one column that scrolls under
    a pinned search, so no part squeezes another */
 .sidebar-body {
+  /* positioned: an off-screen label (.sr-only) in the list is laid out
+     inside it, not past the window, where it made the page scroll */
+  position: relative;
   flex: 1; min-height: 0; overflow: auto; margin: 0;
   display: flex; flex-direction: column; gap: 12px; scroll-padding-top: 44px;
 }
@@ -1197,7 +1201,8 @@ button.health { border: 0; background: none; padding: 0; }
   .term-main { padding: 10px; }
   .scroll { padding: 14px var(--gutter) 10px; }
   .items, .scroll > .request, .scroll > .request-slot, .chat-hint { padding-left: 0; }
-  .turn-no, .row-user_message:first-child .turn-no { position: static; flex: none; width: auto; margin: 3px 10px 0 0; }
+  /* room for "10." from the start, so turn 10 doesn't move the words */
+  .turn-no, .row-user_message:first-child .turn-no { position: static; flex: none; width: auto; min-width: 3ch; margin: 3px 10px 0 0; }
   .chat-meta { margin-left: 0; width: 100%; gap: 12px; }
   .chat-header > .avatar { display: none; }
   .composer { width: calc(100% - 2 * var(--gutter)); margin-bottom: 10px; }

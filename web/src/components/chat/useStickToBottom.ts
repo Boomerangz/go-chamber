@@ -56,8 +56,14 @@ export function useStickToBottom(dep: unknown, news: string[]) {
     if (el) el.scrollTop = el.scrollHeight
   }, [setPinnedTo])
   const unpin = useCallback(() => setPinnedTo(false), [setPinnedTo])
+  // recheck pins the view again when a jump left it at its end: a chat too
+  // short to scroll sends no scroll event that would.
+  const recheck = useCallback(() => {
+    const el = ref.current
+    if (el) setPinnedTo(el.scrollHeight - el.scrollTop - el.clientHeight < 48)
+  }, [setPinnedTo])
   const isPinned = useCallback(() => pinnedRef.current, [])
   const unread = pinned ? 0 : news.filter((key) => !base.has(key)).length
-  const state = useMemo(() => ({ pinned, unread, stick, unpin, isPinned }), [pinned, unread, stick, unpin, isPinned])
+  const state = useMemo(() => ({ pinned, unread, stick, unpin, recheck, isPinned }), [pinned, unread, stick, unpin, recheck, isPinned])
   return [ref, state] as const
 }
