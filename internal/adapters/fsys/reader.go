@@ -2,6 +2,8 @@
 package fsys
 
 import (
+	"errors"
+	"io/fs"
 	"os"
 	"path/filepath"
 
@@ -11,6 +13,20 @@ import (
 // Reader lists subdirectories with os.ReadDir. Symlinks to directories count
 // as directories; broken links and files are skipped.
 type Reader struct{}
+
+// FolderExists reports whether path is a directory (a link to one counts).
+// Only a path that is not there is missing: a folder that can't be checked
+// is an error.
+func (Reader) FolderExists(path string) (bool, error) {
+	info, err := os.Stat(path)
+	switch {
+	case errors.Is(err, fs.ErrNotExist):
+		return false, nil
+	case err != nil:
+		return false, err
+	}
+	return info.IsDir(), nil
+}
 
 func (Reader) ReadFolder(dir string) ([]app.FolderEntry, error) {
 	entries, err := os.ReadDir(dir)

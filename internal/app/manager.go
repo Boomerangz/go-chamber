@@ -39,6 +39,29 @@ type ManagerConfig struct {
 	IdleTimeout time.Duration
 	// Eraser optionally removes deleted sessions' records.
 	Eraser SessionEraser
+	// Folders optionally checks a new session's folder exists.
+	Folders FolderProbe
+}
+
+// FolderProbe tells whether a folder exists.
+type FolderProbe interface {
+	FolderExists(path string) (bool, error)
+}
+
+// checkFolder refuses a folder that is gone, so no session is made where
+// its agent could never start.
+func (m *Manager) checkFolder(path string) error {
+	if m.cfg.Folders == nil {
+		return nil
+	}
+	ok, err := m.cfg.Folders.FolderExists(path)
+	switch {
+	case err != nil:
+		return err
+	case !ok:
+		return domain.FolderGone(path)
+	}
+	return nil
 }
 
 // EventHistory replays a session's published events.
@@ -102,6 +125,9 @@ func (m *Manager) CreateSession(ctx context.Context, agent domain.AgentKind, cwd
 	id := domain.SessionID(m.cfg.NewID())
 	s, err := domain.NewSession(id, agent, cwd)
 	if err != nil {
+		return domain.SessionSnapshot{}, err
+	}
+	if err := m.checkFolder(cwd); err != nil {
 		return domain.SessionSnapshot{}, err
 	}
 	s.Touch(m.cfg.Now().UTC())
