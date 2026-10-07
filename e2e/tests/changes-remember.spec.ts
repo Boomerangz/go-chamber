@@ -89,3 +89,26 @@ test('Changes keeps a session’s open files and scroll across the dock, Overvie
   await open(page, `remember one ${stamp}`)
   await back('session')
 })
+
+// An open file's header has given its actions room already: they show there
+// without a hover, instead of a blank gap before the counts.
+test('an open file shows its copy and view actions without a hover', async ({ page, isMobile }) => {
+  test.skip(isMobile, 'a touch screen shows every row’s actions')
+  const dir = repo()
+  const id = await session(page, dir, `actions ${Date.now().toString(36)}`)
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.goto(`/s/${id}?token=${token}`)
+  await dock(page).getByRole('button', { name: 'Changes' }).click()
+  const panel = page.getByRole('region', { name: 'Changes' })
+  await panel.getByRole('button', { name: /^a\.go/ }).click()
+  await expect(panel.getByText('// a.go line 0')).toBeVisible()
+  // the pointer rests elsewhere, and focus leaves the row
+  await panel.getByRole('heading', { name: 'Changes' }).hover()
+  await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur())
+  // past the actions' fade, were they to fade
+  await page.waitForTimeout(400)
+  const rows = panel.locator('.diff-file-head')
+  await expect(rows.nth(0).locator('.diff-file-actions')).toHaveCSS('opacity', '1')
+  // a closed row keeps them hidden until hovered
+  await expect(rows.nth(1).locator('.diff-file-actions')).toHaveCSS('opacity', '0')
+})
