@@ -888,6 +888,8 @@ button.health { border: 0; background: none; padding: 0; }
 .term-projects { display: grid; gap: 8px; }
 .term-chips { display: flex; flex-wrap: wrap; gap: 6px; min-width: 0; }
 .term-chips .chip .icon { color: var(--ink-3); }
+/* a worktree chip: its repository, then the branch as context */
+.term-chips .chip-branch { color: var(--ink-3); }
 .term-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 1px; }
 .term-row { display: flex; align-items: center; border: 1px solid transparent; border-radius: var(--r); transition: background var(--dur-fast); }
 .term-row:hover { background: var(--paper-2); }
@@ -1106,6 +1108,13 @@ button.health { border: 0; background: none; padding: 0; }
   .panebar button[aria-pressed='true'] { color: var(--ink); border-top-color: var(--ink); }
   /* anchored by its left edge past the icon, so a wider count grows away from it */
   .panebar .badge { position: absolute; top: 6px; left: calc(50% + 6px); }
+  /* while the owner types (the chat marks it on the root; a sidebar field
+     says it by its focus), the keyboard has the bottom: the pane bar steps
+     aside so the transcript keeps its room */
+  html[data-typing='chat'] .panebar,
+  .app:has(.sidebar :is(input:not([type='checkbox'], [type='radio']), textarea):focus) .panebar { display: none; }
+  html[data-typing='chat'] .layout,
+  .app:has(.sidebar :is(input:not([type='checkbox'], [type='radio']), textarea):focus) .layout { padding-bottom: env(safe-area-inset-bottom); }
   /* without a transcript on screen: just above the pane bar */
   .notices { bottom: calc(64px + env(safe-area-inset-bottom)); right: 14px; left: 14px; width: auto; }
 }
@@ -1113,7 +1122,8 @@ button.health { border: 0; background: none; padding: 0; }
 /* the narrowest phones: the three modes and the toggles fit on one row,
    none under another, none scrolled away */
 @media (max-width: 360px) {
-  .topbar { gap: 0 4px; padding-left: 0; padding-right: 6px; }
+  /* the first tab's word still starts on the 14px gutter, as on wider phones */
+  .topbar { gap: 0 4px; padding-left: 10px; padding-right: 6px; }
   .topbar-end { gap: 0; }
   .segmented.mode-switch button { gap: 4px; padding: 0 4px; font-size: 12.5px; }
 }

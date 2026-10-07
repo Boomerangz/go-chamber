@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { crumbs, filterFolders, isPathInput, recentFolders } from './folders'
+import { crumbs, filterFolders, isPathInput, liveWorktrees, recentFolders } from './folders'
 import type { Session } from './api'
 
 describe('crumbs', () => {
@@ -63,5 +63,22 @@ describe('recentFolders', () => {
     const gone: Session = { ...s('/data/worktrees/app/x'), worktree: { repo: '/p/app', path: '/data/worktrees/app/x', branch: 'chamber/x', base: 'main', removed: true } }
     const fork: Session = { ...s('/data/worktrees/app/x'), id: 'fork' }
     expect(recentFolders([s('/p/other'), gone, fork], 3)).toEqual(['/p/app', '/p/other'])
+  })
+})
+
+describe('liveWorktrees', () => {
+  const wt = (id: string, path: string, removed = false): Session => ({
+    id,
+    agent: 'claude',
+    cwd: path,
+    status: 'idle',
+    worktree: { repo: '/p/app', path, branch: `chamber/${id}`, base: 'main', removed },
+  })
+  it('lists the worktrees still on disk, newest first, each once, with their repository', () => {
+    const sessions = [wt('old', '/w/old'), wt('gone', '/w/gone', true), wt('fix', '/w/fix'), { ...wt('fix2', '/w/fix'), id: 'again' }]
+    expect(liveWorktrees(sessions)).toEqual([
+      { repo: '/p/app', path: '/w/fix', branch: 'fix2' },
+      { repo: '/p/app', path: '/w/old', branch: 'old' },
+    ])
   })
 })

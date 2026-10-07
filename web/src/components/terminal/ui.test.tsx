@@ -294,6 +294,23 @@ describe('TerminalWorkspace on a phone', () => {
     expect(screen.queryByRole('button', { name: 'New shell' })).toBeNull()
   })
 
+  it('offers each live worktree beside its repository, and opens a shell in it', async () => {
+    useTerminalStore.setState({ loaded: true })
+    ;(api.openTerminal as Mock).mockReturnValue(new Promise(() => {}))
+    const wt = (id: string, path: string, removed = false) => ({
+      id, agent: 'claude' as const, cwd: path, status: 'idle' as const,
+      worktree: { repo: '/w/app', path, branch: `chamber/${id}`, base: 'main', removed },
+    })
+    render(<TerminalWorkspace sessions={[{ id: 's', agent: 'claude', cwd: '/w/app', status: 'idle' }, wt('phone-fix', '/data/wt/app/phone-fix'), wt('old', '/data/wt/app/old', true)]} />)
+    const chip = screen.getByRole('button', { name: 'Open terminal in app ⎇ phone-fix' })
+    expect(chip).toHaveAttribute('title', '/data/wt/app/phone-fix')
+    expect(screen.queryByRole('button', { name: /old/ })).toBeNull()
+    // the repository's own chip comes first
+    expect(screen.getByRole('button', { name: 'Open terminal in app' }).compareDocumentPosition(chip) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    await userEvent.click(chip)
+    expect(api.openTerminal).toHaveBeenCalledWith(expect.objectContaining({ cwd: '/data/wt/app/phone-fix' }))
+  })
+
   it('marks only the project chip being opened as busy', async () => {
     useTerminalStore.setState({ loaded: true })
     ;(api.openTerminal as Mock).mockReturnValue(new Promise(() => {}))
