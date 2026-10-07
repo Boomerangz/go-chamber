@@ -181,3 +181,40 @@ test('at 900 and 1024px, waiting rows (archived too) and the footer stay inside 
     await expect(row.locator('.badge')).toBeVisible()
   }
 })
+
+// A worktree row's age reads whole beside its branch, and a removed
+// worktree's row still names its branch, at the sidebar's narrow widths.
+test('worktree rows keep their age and branch, removed or not', async ({ page, isMobile }) => {
+  test.skip(isMobile, 'the sidebar beside the chat')
+  const repo = newRepo()
+  const headers = { Authorization: `Bearer ${token}` }
+  const branches = ['feature-a', 'feature-b']
+  const ids: string[] = []
+  for (const branch of branches) {
+    const res = await page.request.post('/api/worktrees', { headers, data: { agent: 'claude', cwd: repo, branch } })
+    ids.push(((await res.json()) as { id: string }).id)
+  }
+  expect((await page.request.delete(`/api/sessions/${ids[1]}/worktree?force=1`, { headers })).status()).toBe(200)
+  await page.goto(`/?token=${token}`)
+  // to the fraction of a pixel: an ellipsis shows for a box 0.1px short
+  const cut = (l: Locator) =>
+    l.evaluate((e) => {
+      const r = document.createRange()
+      r.selectNodeContents(e)
+      return e.scrollWidth > e.clientWidth || r.getBoundingClientRect().width > e.getBoundingClientRect().width + 0.01
+    })
+  for (const width of [1024, 1280]) {
+    await page.setViewportSize({ width, height: 900 })
+    for (const branch of branches) {
+      const row = page.locator('.groups button.session').filter({ has: page.locator('.session-branch', { hasText: branch }) })
+      await expect(row).toBeVisible()
+      const what = `${width} ${branch}`
+      await expect.poll(() => cut(row.locator('.session-time')), { message: `${what} time` }).toBe(false)
+      const name = row.locator('.session-branch')
+      await expect.poll(() => cut(name), { message: `${what} branch` }).toBe(false)
+      const b = await box(name)
+      const t = await box(row.locator('.session-time'))
+      expect(b.x + b.width, what).toBeLessThanOrEqual(t.x)
+    }
+  }
+})

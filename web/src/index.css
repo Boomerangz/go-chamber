@@ -460,8 +460,16 @@ button.health { border: 0; background: none; padding: 0; }
    so it is what yields when the row is short of room */
 .session-branch { flex: 0 100 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--font-mono); font-size: 11.5px; color: var(--ink-3); }
 .session-branch::before { content: '⎇ '; }
-/* the worktree folder is gone; the branch stays */
+/* the worktree folder is gone; the branch stays. A narrow row keeps the
+   branch's name and says "removed" by a dashed glyph (gone, as a detached
+   status's dashed mark), the words in its tooltip */
 .session-branch[data-removed]::before { content: '⎇ removed · '; }
+@container (max-width: 280px) {
+  .session-branch[data-removed]::before {
+    content: '⎇'; display: inline-block; margin-right: 3px; padding: 0 1px; line-height: 1.2;
+    border: 1px dashed currentColor; border-radius: 1px;
+  }
+}
 .session-status-interrupted { color: var(--ink); }
 .session-status-interrupted::before { background: linear-gradient(to top right, transparent 45%, currentColor 45% 60%, transparent 60%); }
 .session-status-detached { color: var(--ink-3); }
@@ -474,7 +482,8 @@ button.health { border: 0; background: none; padding: 0; }
   flex: none; font-family: var(--font-mono); font-size: 11.5px; letter-spacing: 0.06em; text-transform: uppercase;
   color: var(--ink); border-bottom: 1px dashed var(--ink); line-height: 1.2;
 }
-.session-time { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-left: auto; }
+/* the age is short and reads whole: the branch beside it yields instead */
+.session-time { flex: none; white-space: nowrap; margin-left: auto; }
 @container (max-width: 240px) {
   .status-more { display: none; }
   /* an archived row that waits says "archived" by its fold alone */
