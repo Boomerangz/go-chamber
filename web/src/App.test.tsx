@@ -372,7 +372,8 @@ describe('App', () => {
     await userEvent.click(await screen.findByText('Thought'))
     expect(await screen.findByText('hmm')).toBeInTheDocument()
     expect(screen.getByText('ls')).toBeInTheDocument()
-    expect(screen.getByText('/tmp/x.go')).toBeInTheDocument()
+    // Written from the session folder; the full path is on hover.
+    expect(document.querySelector('.item.file > code[title="/tmp/x.go"]')).toHaveTextContent('x.go')
     expect(screen.getByText('WebFetch')).toBeInTheDocument()
     expect(screen.getByText('subagent: Task')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Stop' })).toBeInTheDocument()
