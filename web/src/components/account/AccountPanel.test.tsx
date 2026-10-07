@@ -29,6 +29,15 @@ async function startSignIn() {
 }
 
 describe('AccountPanel', () => {
+  it('says a missing CLI is missing, and how to install it, instead of offering to sign in', async () => {
+    vi.mocked(api.getAccount).mockResolvedValue({ agent: 'codex', loggedIn: false, cliMissing: true })
+    render(<AccountPanel agent="codex" />)
+    expect(await screen.findByText('Codex CLI not found on PATH')).toBeInTheDocument()
+    expect(screen.getByText('npm install -g @openai/codex')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Sign in to Codex' })).toBeNull()
+    expect(screen.queryByRole('alert')).toBeNull()
+  })
+
   it('shows the account once the device-code login completes', async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true })
     await startSignIn()

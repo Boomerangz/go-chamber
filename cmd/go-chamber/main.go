@@ -105,6 +105,7 @@ func run(ctx context.Context, args []string, out io.Writer) error {
 		IdleTimeout:   *idle,
 		Eraser:        store,
 		Folders:       fsys.Reader{},
+		CLIs:          fsys.PathCLIs{},
 	})
 	defer manager.Close()
 	if _, err := manager.Restore(ctx); err != nil {

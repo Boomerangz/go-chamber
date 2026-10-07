@@ -14,6 +14,25 @@ import (
 func (s *server) diagnosticsRoutes() {
 	s.mux.HandleFunc("GET /api/diagnostics", s.diagnostics)
 	s.mux.HandleFunc("GET /api/diagnostics/ws", s.diagnosticsEcho)
+	s.mux.HandleFunc("GET /api/agents", s.agents)
+}
+
+// CLIReporter tells which agent CLIs are installed.
+type CLIReporter interface {
+	CLIs() []app.CLIStatus
+}
+
+func (s *server) clis() []app.CLIStatus {
+	if r, ok := s.cfg.Sessions.(CLIReporter); ok {
+		return r.CLIs()
+	}
+	return []app.CLIStatus{}
+}
+
+// agents says which agent CLIs are installed, for the new-session form.
+func (s *server) agents(w http.ResponseWriter, _ *http.Request) {
+	w.Header().Set("Cache-Control", "no-store")
+	writeJSON(w, http.StatusOK, s.clis())
 }
 
 func (s *server) diagnostics(w http.ResponseWriter, _ *http.Request) {
@@ -36,7 +55,8 @@ func (s *server) diagnostics(w http.ResponseWriter, _ *http.Request) {
 		HeapBytes     uint64                   `json:"heapBytes"`
 		Events        hub.Stats                `json:"events"`
 		Terminals     []app.TerminalDiagnostic `json:"terminals"`
-	}{time.Since(s.started).Seconds(), runtime.NumGoroutine(), memory.HeapAlloc, events, terminals})
+		CLIs          []app.CLIStatus          `json:"clis"`
+	}{time.Since(s.started).Seconds(), runtime.NumGoroutine(), memory.HeapAlloc, events, terminals, s.clis()})
 }
 
 // A separate bounded echo channel measures round trips with the browser's

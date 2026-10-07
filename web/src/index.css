@@ -347,6 +347,8 @@ button.health { border: 0; background: none; padding: 0; }
 }
 .segmented button + button { border-left: 1px solid var(--rule-strong); }
 .segmented button:hover { color: var(--ink); }
+.segmented button:disabled { cursor: not-allowed; opacity: 0.45; }
+.segmented button:disabled:hover { color: var(--ink-3); }
 .segmented button[aria-checked='true'] { color: var(--ink); background: var(--paper-3); }
 .segmented button[aria-checked='true'] .avatar { border-color: var(--ink); }
 .segmented .avatar { width: 18px; height: 18px; font-size: 11px; }

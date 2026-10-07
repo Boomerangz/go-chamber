@@ -18,6 +18,11 @@ const agentName: Record<AgentKind, string> = { claude: 'Claude', codex: 'Codex' 
 
 const agents: AgentKind[] = ['claude', 'codex']
 
+const installHint: Record<AgentKind, string> = {
+  claude: 'npm install -g @anthropic-ai/claude-code',
+  codex: 'npm install -g @openai/codex',
+}
+
 // Accounts shows each agent's login on its own line, whichever agent the
 // new-session switch has chosen. Checks that failed are said once, with
 // the quotas when they failed too, and one Retry asks again for all.
@@ -150,6 +155,19 @@ export default function AccountPanel({ agent, quietFailure = false }: { agent: A
     write.then(
       () => setCopied(true),
       (err: unknown) => fail("Couldn't copy the code", err, 'copy-code'),
+    )
+  }
+
+  if (account?.cliMissing) {
+    return (
+      <div className="account">
+        <span className="signed-in">
+          <span className="account-missing">{`${name} CLI not found on PATH`}</span>
+          <span className="account-hint">
+            install: <code>{installHint[agent]}</code>
+          </span>
+        </span>
+      </div>
     )
   }
 

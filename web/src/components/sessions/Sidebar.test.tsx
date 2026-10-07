@@ -5,6 +5,7 @@ import { fail } from '../../stores/notices'
 import { resetStore, useSessionStore } from '../../stores/session'
 import type { Session } from '../../lib/api'
 import Sidebar from './Sidebar'
+import { resetCLIs } from '../../lib/clis'
 import * as api from '../../lib/api'
 
 vi.mock('../../lib/api', async (orig) => ({
@@ -12,6 +13,10 @@ vi.mock('../../lib/api', async (orig) => ({
   getAccount: vi.fn(async () => ({ agent: 'codex', loggedIn: true, email: 'dev@example.com' })),
   listHistory: vi.fn(async () => []),
   listFolders: vi.fn(),
+  listAgents: vi.fn(async () => [
+    { agent: 'claude', found: true, path: '/bin/claude' },
+    { agent: 'codex', found: true, path: '/bin/codex' },
+  ]),
 }))
 
 const session: Session = { id: 's1', title: 'One', agent: 'claude', cwd: '/src/app', status: 'idle' }
@@ -19,6 +24,7 @@ const session: Session = { id: 's1', title: 'One', agent: 'claude', cwd: '/src/a
 beforeEach(() => {
   localStorage.clear()
   resetStore()
+  resetCLIs()
   useSessionStore.setState({ searchMessages: vi.fn(async () => {}), sessionsStatus: 'ready' })
   Element.prototype.scrollIntoView = vi.fn()
 })
@@ -30,6 +36,22 @@ function setup(onCreate = vi.fn(async () => true), sessions: Session[] = []) {
 }
 
 describe('Sidebar new session', () => {
+  it('offers only agents whose CLI is installed, and says why not', async () => {
+    localStorage.setItem('gc.lastAgent', 'codex')
+    vi.mocked(api.listAgents).mockResolvedValueOnce([
+      { agent: 'claude', found: true, path: '/bin/claude' },
+      { agent: 'codex', found: false, hint: 'npm install -g @openai/codex' },
+    ])
+    const onCreate = setup()
+    const codex = screen.getByRole('radio', { name: /Codex/ })
+    await waitFor(() => expect(codex).toBeDisabled())
+    expect(codex).toHaveAttribute('title', 'Codex CLI not found on PATH. Install it with npm install -g @openai/codex')
+    expect(screen.getByRole('radio', { name: /Claude/ })).toHaveAttribute('aria-checked', 'true')
+    await userEvent.type(screen.getByLabelText('Working directory'), '/tmp')
+    await userEvent.click(screen.getByRole('button', { name: 'New session' }))
+    await waitFor(() => expect(onCreate).toHaveBeenCalledWith('claude', '/tmp', undefined))
+  })
+
   it('folds the form behind one line on phones, and folds it again once a session starts', async () => {
     const onCreate = setup()
     const form = document.querySelector('form.new-session')!

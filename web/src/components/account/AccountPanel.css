@@ -9,3 +9,6 @@
 .accounts { display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; }
 .account .account-agent { font-family: var(--font-mono); font-size: 12px; color: var(--ink); }
 .account .account-agent::after { content: ' ·'; color: var(--ink-3); }
+.account .account-missing { font-family: var(--font-mono); font-size: 12px; color: var(--ink); }
+.account .account-hint { display: block; font-size: 12px; color: var(--ink-3); overflow-wrap: anywhere; }
+.account .account-hint code { font-family: var(--font-mono); font-size: 11.5px; color: var(--ink-2); }

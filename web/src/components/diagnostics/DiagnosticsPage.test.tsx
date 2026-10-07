@@ -15,6 +15,7 @@ const server: ServerDiagnostics = {
   heapBytes: 1024,
   events: { published: 1, persistCalls: 1, persistErrors: 0, persistMeanMs: 1, persistMaxMs: 1, lockWaitMeanMs: 1, lockWaitMaxMs: 1 },
   terminals: [],
+  clis: [],
 }
 
 const state = (over: Partial<ReturnType<typeof useDiagnostics>>) =>
@@ -22,6 +23,22 @@ const state = (over: Partial<ReturnType<typeof useDiagnostics>>) =>
 
 describe('DiagnosticsPage', () => {
   beforeEach(() => vi.clearAllMocks())
+
+  it('shows where each agent CLI is, or how to install a missing one', () => {
+    state({
+      server: {
+        ...server,
+        clis: [
+          { agent: 'claude', found: true, path: '/usr/local/bin/claude' },
+          { agent: 'codex', found: false, hint: 'npm install -g @openai/codex' },
+        ],
+      },
+    })
+    render(<DiagnosticsPage />)
+    const section = screen.getByRole('region', { name: 'Server diagnostics' })
+    expect(section).toHaveTextContent('Claude Code CLI/usr/local/bin/claude')
+    expect(section).toHaveTextContent('Codex CLInot found on PATH · npm install -g @openai/codex')
+  })
 
   it('only mentions the last snapshot when there is one', () => {
     state({ error: 'HTTP 502' })

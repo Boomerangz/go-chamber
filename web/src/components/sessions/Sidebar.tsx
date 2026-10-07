@@ -10,6 +10,7 @@ import { SignOut } from '../shell/Shell'
 import HistoryPanel from './HistoryPanel'
 import SessionList from './SessionList'
 import { branchError, branchPreview } from '../../lib/branch'
+import { cliMissingText, missingCLIs, useCLIs } from '../../lib/clis'
 import { recentFolders } from '../../lib/folders'
 import { usePending } from '../../lib/pending'
 import { useIsRepo } from '../../lib/useIsRepo'
@@ -20,6 +21,7 @@ import './Sidebar.css'
 import type { AgentKind, Session } from '../../lib/api'
 
 const AGENT_KEY = 'gc.lastAgent'
+const AGENTS = ['claude', 'codex'] as const
 
 function lastAgent(): AgentKind {
   try {
@@ -79,7 +81,13 @@ export default function Sidebar(props: SidebarProps) {
   const setCwd = setTyped
   // creatingIn is the folder whose group "+" is starting a session.
   const [creatingIn, setCreatingIn] = useState<string | null>(null)
-  const [agent, setAgent] = useState<AgentKind>(lastAgent)
+  const [picked, setAgent] = useState<AgentKind>(lastAgent)
+  // An agent whose CLI is missing can't start: the other one is chosen.
+  const clis = useCLIs((s) => s.clis)
+  const loadCLIs = useCLIs((s) => s.load)
+  useEffect(() => void loadCLIs(), [loadCLIs])
+  const noCLI = missingCLIs(clis)
+  const agent = noCLI.includes(picked) ? (AGENTS.find((a) => !noCLI.includes(a)) ?? picked) : picked
   const [wantWorktree, setInWorktree] = useState(false)
   // A worktree needs a repository: a folder known not to be one can't have it.
   const repo = useIsRepo(cwd)
@@ -172,21 +180,26 @@ export default function Sidebar(props: SidebarProps) {
           Start a session
         </button>
         <div className="segmented" role="radiogroup" aria-label="Agent">
-          {(['claude', 'codex'] as const).map((a) => (
-            <button
-              key={a}
-              type="button"
-              role="radio"
-              aria-checked={agent === a}
-              onClick={() => {
-                setAgent(a)
-                rememberAgent(a)
-              }}
-            >
-              <AgentAvatar agent={a} />
-              {a === 'claude' ? 'Claude' : 'Codex'}
-            </button>
-          ))}
+          {AGENTS.map((a) => {
+            const absent = clis.find((c) => c.agent === a && !c.found)
+            return (
+              <button
+                key={a}
+                type="button"
+                role="radio"
+                aria-checked={agent === a}
+                disabled={!!absent}
+                title={absent ? cliMissingText(absent) : undefined}
+                onClick={() => {
+                  setAgent(a)
+                  rememberAgent(a)
+                }}
+              >
+                <AgentAvatar agent={a} />
+                {a === 'claude' ? 'Claude' : 'Codex'}
+              </button>
+            )
+          })}
         </div>
         <FolderField
           label="Working directory"

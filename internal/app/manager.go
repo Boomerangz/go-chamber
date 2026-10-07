@@ -41,6 +41,9 @@ type ManagerConfig struct {
 	Eraser SessionEraser
 	// Folders optionally checks a new session's folder exists.
 	Folders FolderProbe
+	// CLIs optionally tells whether each agent's CLI is installed; without
+	// it every CLI is assumed to be.
+	CLIs CLIFinder
 }
 
 // FolderProbe tells whether a folder exists.
@@ -125,6 +128,9 @@ func (m *Manager) CreateSession(ctx context.Context, agent domain.AgentKind, cwd
 	id := domain.SessionID(m.cfg.NewID())
 	s, err := domain.NewSession(id, agent, cwd)
 	if err != nil {
+		return domain.SessionSnapshot{}, err
+	}
+	if err := m.checkCLI(agent); err != nil {
 		return domain.SessionSnapshot{}, err
 	}
 	if err := m.checkFolder(cwd); err != nil {
@@ -386,6 +392,9 @@ func (m *Manager) RefreshQuota(ctx context.Context, agent domain.AgentKind) (dom
 	if m.cfg.QuotaProvider == nil {
 		return domain.QuotaSnapshot{}, ErrQuotasUnsupported
 	}
+	if err := m.checkCLI(agent); err != nil {
+		return domain.QuotaSnapshot{}, err
+	}
 	q, err := m.cfg.QuotaProvider.RateLimits(ctx, agent)
 	if err != nil {
 		return domain.QuotaSnapshot{}, err
@@ -511,6 +520,9 @@ func (m *Manager) Models(ctx context.Context, agent domain.AgentKind) ([]ModelIn
 	if m.cfg.Models == nil {
 		return nil, ErrModelsUnsupported
 	}
+	if err := m.checkCLI(agent); err != nil {
+		return nil, err
+	}
 	return m.cfg.Models.Models(ctx, agent)
 }
 
@@ -536,6 +548,9 @@ func (m *Manager) Account(ctx context.Context, agent domain.AgentKind) (AccountI
 	if m.cfg.Accounts == nil {
 		return AccountInfo{}, ErrAccountsUnsupported
 	}
+	if m.checkCLI(agent) != nil {
+		return AccountInfo{Agent: agent, CLIMissing: true}, nil
+	}
 	return m.cfg.Accounts.Account(ctx, agent)
 }
 
@@ -543,6 +558,9 @@ func (m *Manager) Account(ctx context.Context, agent domain.AgentKind) (AccountI
 func (m *Manager) StartLogin(ctx context.Context, agent domain.AgentKind) (LoginChallenge, error) {
 	if m.cfg.Accounts == nil {
 		return LoginChallenge{}, ErrAccountsUnsupported
+	}
+	if err := m.checkCLI(agent); err != nil {
+		return LoginChallenge{}, err
 	}
 	return m.cfg.Accounts.StartLogin(ctx, agent)
 }
@@ -615,6 +633,11 @@ func (m *Manager) ensureRuntimeFor(ctx context.Context, s *domain.Session, nativ
 	req.Model, req.Effort = s.Model()
 	m.mu.Unlock()
 
+	if !passive {
+		if err := m.checkCLI(req.Agent); err != nil {
+			return nil, err
+		}
+	}
 	rt, err := m.cfg.Runtimes.Start(ctx, req)
 	if err != nil {
 		return nil, fmt.Errorf("start %s: %w", s.Agent(), err)
