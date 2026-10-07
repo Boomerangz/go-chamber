@@ -890,6 +890,23 @@ describe('typing on a phone', () => {
     expect(document.documentElement.dataset.typing).toBeUndefined()
   })
 
+  it('keeps the page still under a tap that takes the focus, until the tap is over', () => {
+    vi.useFakeTimers()
+    phone()
+    setup()
+    act(() => box().focus())
+    act(() => {
+      window.dispatchEvent(new Event('pointerdown'))
+      box().blur()
+    })
+    expect(document.documentElement.dataset.typing).toBe('chat')
+    act(() => {
+      window.dispatchEvent(new Event('pointerup'))
+      vi.runOnlyPendingTimers()
+    })
+    expect(document.documentElement.dataset.typing).toBeUndefined()
+  })
+
   it('leaves a mouse, or a wide screen, alone', () => {
     phone(false)
     setup()

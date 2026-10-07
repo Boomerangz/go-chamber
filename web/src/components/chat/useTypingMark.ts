@@ -46,17 +46,39 @@ export function useTypingMark(root: RefObject<HTMLElement | null>) {
         window.removeEventListener('resize', show)
       }
     }
+    const clear = () => {
+      if (html.dataset.typing === 'chat' && !isTextField(document.activeElement)) delete html.dataset.typing
+    }
+    // A tap that takes the focus (Send) must land where it started: the
+    // page grows back only once the press is over and its click went.
+    let pressed = false
+    let cleared: ReturnType<typeof setTimeout> | undefined
+    const onDown = () => {
+      pressed = true
+    }
+    const onUp = () => {
+      pressed = false
+      clearTimeout(cleared)
+      cleared = setTimeout(clear, 0)
+    }
     const onOut = (e: FocusEvent) => {
       // Focus moving on to another of the chat's fields keeps the mark.
       if (isTextField(e.relatedTarget) && el.contains(e.relatedTarget)) return
       settle()
-      if (html.dataset.typing === 'chat') delete html.dataset.typing
+      if (!pressed) clear()
     }
     el.addEventListener('focusin', onIn)
     el.addEventListener('focusout', onOut)
+    window.addEventListener('pointerdown', onDown, true)
+    window.addEventListener('pointerup', onUp, true)
+    window.addEventListener('pointercancel', onUp, true)
     return () => {
       el.removeEventListener('focusin', onIn)
       el.removeEventListener('focusout', onOut)
+      window.removeEventListener('pointerdown', onDown, true)
+      window.removeEventListener('pointerup', onUp, true)
+      window.removeEventListener('pointercancel', onUp, true)
+      clearTimeout(cleared)
       settle()
       if (html.dataset.typing === 'chat') delete html.dataset.typing
     }

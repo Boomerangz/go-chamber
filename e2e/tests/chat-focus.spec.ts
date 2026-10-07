@@ -51,3 +51,17 @@ test('typing on a phone makes room for the transcript', async ({ page, isMobile 
   await expect(page.locator('html')).not.toHaveAttribute('data-typing', 'chat')
   await expect(header.locator('.chat-meta')).toBeVisible()
 })
+
+// The composer with the keyboard up hides the pane bar; it is back on blur.
+test('the pane bar steps aside while the composer has focus on a phone', async ({ page, isMobile }) => {
+  test.skip(!isMobile, 'the on-screen keyboard is a phone matter')
+  await newSession(page)
+  const bar = page.getByRole('navigation', { name: 'Views' })
+  await expect(bar).toBeVisible()
+  await page.getByLabel('Message').focus()
+  await expect(page.locator('html')).toHaveAttribute('data-typing', 'chat')
+  await expect(bar).toBeHidden()
+  await page.getByLabel('Message').blur()
+  await expect(page.locator('html')).not.toHaveAttribute('data-typing', 'chat')
+  await expect(bar).toBeVisible()
+})
