@@ -37,7 +37,7 @@
 .request-raw > summary::-webkit-details-marker { display: none; }
 .request-raw > summary::before { content: '+ '; }
 .request-raw[open] > summary::before { content: '− '; }
-.request-raw > summary:hover { color: var(--ink); }
+@media (hover: hover) { .request-raw > summary:hover { color: var(--ink); } }
 .request-raw[open] > .request-input { margin-top: 4px; }
 
 /* what "Allow for session" adds */

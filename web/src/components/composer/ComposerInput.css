@@ -16,9 +16,10 @@
 .completions-note.searching { animation: completions-wait 0s linear 180ms backwards; }
 @keyframes completions-wait { from { visibility: hidden; } }
 /* dragging files over the composer: a dashed "not yet settled" border */
-.composer.dragging, .composer.dragging:hover, .composer.dragging:focus-within {
+.composer.dragging, .composer.dragging:focus-within {
   border-style: dashed; border-color: var(--act); box-shadow: none;
 }
+@media (hover: hover) { .composer.dragging:hover { border-style: dashed; border-color: var(--act); box-shadow: none; } }
 .completions li {
   display: flex; align-items: baseline; gap: 10px; min-height: 30px; padding: 5px 12px;
   cursor: pointer; font-family: var(--font-mono); font-size: 13px;

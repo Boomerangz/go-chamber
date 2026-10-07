@@ -1,6 +1,6 @@
 .history { flex: none; padding: 4px 0; border-top: 1px solid var(--rule); }
 .history summary { padding: 8px 14px; cursor: pointer; list-style: none; }
-.history summary:hover { color: var(--ink); }
+@media (hover: hover) { .history summary:hover { color: var(--ink); } }
 .history summary::-webkit-details-marker { display: none; }
 .history summary .chevron { margin-left: -2px; transition: transform var(--dur-fast) var(--ease-out); }
 .history[open] summary .chevron { transform: rotate(90deg); }

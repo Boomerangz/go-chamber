@@ -281,3 +281,45 @@ test.describe('a touch tablet', () => {
     })
   }
 })
+
+// A tap leaves no hover behind: a touch screen keeps the last-tapped
+// element ":hover" until the next tap, so a tint that means "the pointer
+// is here" would stay on whatever was tapped (an opened file's name, half
+// its header). Tints, colours and borders on hover are a mouse's only.
+test.describe('a tap on a touch screen', () => {
+  test.use({ hasTouch: true, isMobile: true, viewport: { width: 390, height: 844 } })
+
+  test('every hover tint is for a pointer that hovers', async ({ page }) => {
+    await page.goto(`/?token=${token}`)
+    await expect(page.getByRole('radiogroup', { name: 'Mode' })).toBeVisible()
+    const loose = await page.evaluate(() => {
+      const out: string[] = []
+      const visual = ['background', 'background-color', 'color', 'border-color', 'border-top-color', 'border-bottom-color', 'text-decoration', 'text-decoration-line', 'outline']
+      const walk = (rules: CSSRuleList, guarded: boolean) => {
+        for (const rule of rules) {
+          if (rule instanceof CSSMediaRule) walk(rule.cssRules, guarded || /\(hover:\s*hover\)/.test(rule.conditionText))
+          else if (rule instanceof CSSStyleRule) {
+            if (!guarded && rule.selectorText.includes(':hover') && visual.some((p) => rule.style.getPropertyValue(p) !== '')) out.push(rule.selectorText)
+          } else if ('cssRules' in rule) walk((rule as CSSGroupingRule).cssRules, guarded)
+        }
+      }
+      for (const sheet of document.styleSheets) walk(sheet.cssRules, false)
+      return out
+    })
+    expect(loose).toEqual([])
+  })
+
+  test('an opened file keeps one header, not a tapped half', async ({ page }) => {
+    const created = await page.request.post('/api/sessions', { headers, data: { agent: 'claude', cwd: changedRepo() } })
+    const { id } = (await created.json()) as { id: string }
+    await page.goto(`/?token=${token}`)
+    await page.goto(`/s/${id}`)
+    await expect(page.getByLabel('Message')).toBeVisible()
+    expect(await page.evaluate(() => matchMedia('(hover: hover)').matches)).toBe(false)
+    await page.getByRole('navigation', { name: 'Views' }).getByRole('button', { name: /^Changes/ }).tap()
+    const toggle = page.locator('.diff-file-toggle').filter({ hasText: 'README' })
+    await toggle.tap()
+    await expect(toggle).toHaveAttribute('aria-expanded', 'true')
+    await expect.poll(() => toggle.evaluate((el) => getComputedStyle(el).backgroundColor)).toBe('rgba(0, 0, 0, 0)')
+  })
+})

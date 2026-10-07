@@ -82,7 +82,7 @@
 .terminal-tabs .term-tab-title { flex: 0 1 auto; }
 .terminal-tabs .term-tab-cwd { flex: 0 100 auto; min-width: 0; }
 .terminal-tabs .term-tab-rename { width: 24px; height: 24px; color: var(--ink-3); }
-.terminal-tabs .term-tab-rename:hover { color: var(--ink); }
+@media (hover: hover) { .terminal-tabs .term-tab-rename:hover { color: var(--ink); } }
 
 /* terminal mode on a phone: with a shell attached the list folds to one line */
 .term-switch { display: none; }
@@ -125,7 +125,8 @@
   display: flex; align-items: baseline; gap: 6px; width: 100%; min-height: 28px; padding: 0 6px;
   border: 0; border-radius: var(--r); background: none; color: var(--ink-2); font-family: var(--font-mono); font-size: 12.5px; text-align: left;
 }
-.term-all-row:hover, .term-all-row[aria-current='true'] { background: var(--paper-2); color: var(--ink); }
+.term-all-row[aria-current='true'] { background: var(--paper-2); color: var(--ink); }
+@media (hover: hover) { .term-all-row:hover { background: var(--paper-2); color: var(--ink); } }
 .term-all-row .term-tab-title { flex: 0 1 auto; max-width: none; min-width: 0; }
 .term-all-row .term-tab-cwd { flex: none; }
 .term-new-folder { display: flex; gap: 6px; align-items: center; min-width: 0; }

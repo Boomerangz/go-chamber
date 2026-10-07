@@ -53,7 +53,7 @@
   transform: translateY(calc(-100% - 8px));
   border-color: var(--rule-strong); background: var(--paper); color: var(--ink);
 }
-.jump-latest .btn:hover { border-color: var(--ink); }
+@media (hover: hover) { .jump-latest .btn:hover { border-color: var(--ink); } }
 
 @media (max-width: 720px) {
   .chat-loading, .working-tail { padding-left: 0; }
@@ -169,7 +169,6 @@
 }
 
 /* a touch screen keeps no hover: a tapped "⋯" doesn't keep a border */
-@media (hover: none) { .chat-header .chat-more:hover { border-color: transparent; } }
 
 /* a wide header is one row whose height never changes with the session, the
    mode or a dock: the usage line gives way first (cut, then hidden), then

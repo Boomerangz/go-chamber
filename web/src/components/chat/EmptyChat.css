@@ -13,7 +13,7 @@
 }
 .empty-session-meta > span:first-child { overflow: hidden; text-overflow: ellipsis; }
 .empty-session-meta > span:not(:first-child) { flex: none; }
-.empty-session:hover { color: var(--act); border-color: transparent; }
+@media (hover: hover) { .empty-session:hover { color: var(--act); border-color: transparent; } }
 .empty-keys {
   display: flex; flex-wrap: wrap; gap: 6px 18px; margin-top: 12px;
   font-family: var(--font-mono); font-size: 12px; color: var(--ink-3);
