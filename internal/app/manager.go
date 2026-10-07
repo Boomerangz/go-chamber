@@ -48,9 +48,9 @@ type FolderProbe interface {
 	FolderExists(path string) (bool, error)
 }
 
-// checkFolder refuses a folder that is gone, so no session is made where
-// its agent could never start.
-func (m *Manager) checkFolder(path string) error {
+// checkFolder refuses a folder that is gone, so no agent is started where
+// it never could; missing names the refusal.
+func (m *Manager) checkFolder(path string, missing func(string) error) error {
 	if m.cfg.Folders == nil {
 		return nil
 	}
@@ -59,9 +59,32 @@ func (m *Manager) checkFolder(path string) error {
 	case err != nil:
 		return err
 	case !ok:
-		return domain.FolderGone(path)
+		return missing(path)
 	}
 	return nil
+}
+
+// markGoneFolders sets FolderGone on sessions whose folder is not there,
+// looking at each folder once. A folder that can't be looked at isn't
+// called gone; a removed worktree is marked as such already.
+func (m *Manager) markGoneFolders(snaps []domain.SessionSnapshot) {
+	if m.cfg.Folders == nil {
+		return
+	}
+	gone := map[string]bool{}
+	for i := range snaps {
+		s := &snaps[i]
+		if s.Worktree != nil && s.Worktree.Removed {
+			continue
+		}
+		g, seen := gone[s.Cwd]
+		if !seen {
+			ok, err := m.cfg.Folders.FolderExists(s.Cwd)
+			g = err == nil && !ok
+			gone[s.Cwd] = g
+		}
+		s.FolderGone = g
+	}
 }
 
 // EventHistory replays a session's published events.
@@ -127,7 +150,7 @@ func (m *Manager) CreateSession(ctx context.Context, agent domain.AgentKind, cwd
 	if err != nil {
 		return domain.SessionSnapshot{}, err
 	}
-	if err := m.checkFolder(cwd); err != nil {
+	if err := m.checkFolder(cwd, domain.NoFolder); err != nil {
 		return domain.SessionSnapshot{}, err
 	}
 	s.Touch(m.cfg.Now().UTC())
@@ -142,7 +165,12 @@ func (m *Manager) CreateSession(ctx context.Context, agent domain.AgentKind, cwd
 
 // ListSessions returns persisted sessions in creation order.
 func (m *Manager) ListSessions(ctx context.Context) ([]domain.SessionSnapshot, error) {
-	return m.cfg.Repo.List(ctx)
+	snaps, err := m.cfg.Repo.List(ctx)
+	if err != nil {
+		return nil, err
+	}
+	m.markGoneFolders(snaps)
+	return snaps, nil
 }
 
 // GetSession returns a snapshot, restoring the session into memory if needed.
@@ -153,8 +181,10 @@ func (m *Manager) GetSession(ctx context.Context, id domain.SessionID) (domain.S
 	}
 	// Runtime goroutines mutate sessions under m.mu.
 	m.mu.Lock()
-	defer m.mu.Unlock()
-	return s.Snapshot(), nil
+	snap := []domain.SessionSnapshot{s.Snapshot()}
+	m.mu.Unlock()
+	m.markGoneFolders(snap)
+	return snap[0], nil
 }
 
 // Restore loads persisted sessions into memory, normalizing statuses left
@@ -615,9 +645,13 @@ func (m *Manager) ensureRuntimeFor(ctx context.Context, s *domain.Session, nativ
 	req.Model, req.Effort = s.Model()
 	m.mu.Unlock()
 
+	if err := m.checkFolder(req.Cwd, domain.FolderGone); err != nil {
+		return nil, err
+	}
+	// The runtime's error names its agent already.
 	rt, err := m.cfg.Runtimes.Start(ctx, req)
 	if err != nil {
-		return nil, fmt.Errorf("start %s: %w", s.Agent(), err)
+		return nil, err
 	}
 
 	m.mu.Lock()

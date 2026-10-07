@@ -92,9 +92,6 @@ func (m *Manager) Fork(ctx context.Context, id domain.SessionID) (domain.Session
 	if err != nil {
 		return domain.SessionSnapshot{}, err
 	}
-	if err := m.checkFolder(fork.Cwd()); err != nil {
-		return domain.SessionSnapshot{}, err
-	}
 	fork.Touch(m.cfg.Now().UTC())
 	m.mu.Lock()
 	m.sessions[fork.ID()] = fork
