@@ -14,6 +14,15 @@ test('the dock fits its terminal tabs before it clips one', async ({ page, isMob
   const root = fs.realpathSync(fs.mkdtempSync(`${os.tmpdir()}/gc-tabs-`))
   const cwd = `${root}/fix-the-very-long-branch-name-for-header-fold-test`
   fs.mkdirSync(cwd)
+  // The dock has a tab for every shell, and one server runs every spec:
+  // another spec's shell open at the time would be a tab here too. The page
+  // gets this test's shells only.
+  await page.route('**/api/terminals', async (route) => {
+    if (route.request().method() !== 'GET') return route.fallback()
+    const res = await route.fetch()
+    const all = (await res.json()) as { cwd: string }[]
+    await route.fulfill({ response: res, json: all.filter((t) => t.cwd.startsWith(`${root}/`)) })
+  })
   const r = await page.request.post('/api/sessions', { headers, data: { agent: 'claude', cwd } })
   const { id } = (await r.json()) as { id: string }
   await page.setViewportSize({ width: 1100, height: 800 })
