@@ -263,4 +263,16 @@ describe('recentProjects', () => {
     )
     expect(projects).toEqual([{ cwd: '/p/alpha', name: 'alpha' }])
   })
+
+  it('leaves out a folder that is gone', () => {
+    const projects = recentProjects(
+      [
+        s('a', '/p/alpha', '2026-09-25T10:00:00Z'),
+        s('b', '/p/beta', '2026-09-26T10:00:00Z', { folderGone: true }),
+        s('c', '/p/beta', '2026-09-24T10:00:00Z'),
+      ],
+      4,
+    )
+    expect(projects).toEqual([{ cwd: '/p/alpha', name: 'alpha' }])
+  })
 })

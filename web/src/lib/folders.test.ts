@@ -64,6 +64,12 @@ describe('recentFolders', () => {
     const fork: Session = { ...s('/data/worktrees/app/x'), id: 'fork' }
     expect(recentFolders([s('/p/other'), gone, fork], 3)).toEqual(['/p/app', '/p/other'])
   })
+
+  it('never offers a folder that is gone; a gone worktree still offers its repository', () => {
+    const missing: Session = { ...s('/p/missing'), folderGone: true }
+    const wt: Session = { ...s('/data/worktrees/app/x'), folderGone: true, worktree: { repo: '/p/app', path: '/data/worktrees/app/x', branch: 'chamber/x', base: 'main' } }
+    expect(recentFolders([s('/p/other'), s('/p/missing'), missing, wt], 3)).toEqual(['/p/app', '/p/other'])
+  })
 })
 
 describe('liveWorktrees', () => {
