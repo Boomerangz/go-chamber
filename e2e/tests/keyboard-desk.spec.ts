@@ -49,15 +49,17 @@ test('j and k step through the sessions without typing into the composer', async
   await page.keyboard.press('Escape')
   await expect(composer).not.toBeFocused()
 
+  let want = ''
   for (const key of ['j', 'j', 'j', 'k']) {
     const { ids, current } = await sessionOrder(page)
-    const want = ids[Math.max(0, Math.min(ids.length - 1, current + (key === 'j' ? 1 : -1)))]!
+    want = ids[Math.max(0, Math.min(ids.length - 1, current + (key === 'j' ? 1 : -1)))]!
     await page.keyboard.press(key)
     await expect(rows(page).and(page.locator('[aria-current="true"]'))).toHaveAttribute('data-session', want)
     await expect(page).toHaveURL(new RegExp(`/s/${want}`))
   }
-  const { current } = await sessionOrder(page)
-  expect(current).toBe(first + 2)
+  // Ended where the last step went: by id, as other specs may add rows
+  // above it on the shared server meanwhile.
+  await expect(rows(page).and(page.locator('[aria-current="true"]'))).toHaveAttribute('data-session', want)
   await expect(composer).toHaveValue('')
   await expect(composer).not.toBeFocused()
 })
