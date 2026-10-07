@@ -2,10 +2,13 @@ import '@testing-library/jest-dom/vitest'
 import { cleanup } from '@testing-library/react'
 import { afterEach } from 'vitest'
 import { resetStableOrders } from '../lib/stable-order'
+import { resetChangesViews } from '../stores/changesView'
 
 afterEach(cleanup)
-// Each test is a fresh page: lists start in their natural order.
+// Each test is a fresh page: lists start in their natural order, and the
+// Changes panel with nothing open.
 afterEach(resetStableOrders)
+afterEach(resetChangesViews)
 
 // Node 22+ ships its own global localStorage, which is undefined without
 // --localstorage-file and shadows jsdom's. Tests get an in-memory one.
