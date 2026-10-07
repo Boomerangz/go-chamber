@@ -2,6 +2,7 @@ import { ChevronDown } from 'lucide-react'
 import { icon } from '../icon'
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react'
 import type { ModelChoice, Session } from '../../lib/api'
+import { failedTo } from '../../lib/failed'
 import { effortsFor, modelLabel } from '../../lib/models'
 import { useSessionStore } from '../../stores/session'
 import { LoadFailed, LoadingLine } from '../ui/Loading'
@@ -15,6 +16,7 @@ const agentConfig = { claude: 'Claude settings', codex: 'Codex config' } as cons
 export default function ModelPicker({ session }: { session: Session }) {
   const models = useSessionStore((s) => s.models[session.agent])
   const status = useSessionStore((s) => s.modelsStatus[session.agent])
+  const modelsError = useSessionStore((s) => s.modelsError[session.agent])
   const loadModels = useSessionStore((s) => s.loadModels)
   const setModel = useSessionStore((s) => s.setModel)
   const [open, setOpen] = useState(false)
@@ -122,7 +124,7 @@ export default function ModelPicker({ session }: { session: Session }) {
             ))}
             {(status === 'loading' || (status === undefined && models === undefined)) && <LoadingLine>loading models…</LoadingLine>}
             {status === 'error' && (
-              <LoadFailed onRetry={() => void loadModels(session.agent)}>Couldn't load models</LoadFailed>
+              <LoadFailed onRetry={() => void loadModels(session.agent)}>{failedTo('load models', modelsError)}</LoadFailed>
             )}
             {status === 'ready' && models?.length === 0 && <p className="model-none">this agent doesn't list models</p>}
           </div>

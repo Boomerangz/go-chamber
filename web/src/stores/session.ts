@@ -43,6 +43,8 @@ export interface SessionStore {
   models: Partial<Record<api.AgentKind, api.ModelInfo[]>>
   // modelsStatus tells a catalog loading or failed from an empty one.
   modelsStatus: Partial<Record<api.AgentKind, LoadStatus>>
+  // modelsError says why an agent's catalog failed to load.
+  modelsError: Partial<Record<api.AgentKind, string>>
   // sessionsStatus tells a list still loading (or failed) from an empty one.
   sessionsStatus: LoadStatus
   // sessionsError, requestsError and quotasError say why a first load
@@ -257,6 +259,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
   searchHits: [],
   models: {},
   modelsStatus: {},
+  modelsError: {},
   sessionsStatus: 'loading',
   sessionsError: null,
   requestsError: null,
@@ -291,16 +294,19 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     try {
       const list = await api.listModels(agent)
       modelsFailed.delete(agent)
-      set({ models: { ...get().models, [agent]: list }, modelsStatus: { ...get().modelsStatus, [agent]: 'ready' } })
+      const { [agent]: _, ...modelsError } = get().modelsError
+      set({ models: { ...get().models, [agent]: list }, modelsStatus: { ...get().modelsStatus, [agent]: 'ready' }, modelsError })
     } catch (err) {
       // An agent without a catalog says so: that is an answer. Anything else
       // failed: the picker offers only the default and a retry, and asks
       // again next time it opens.
-      const unsupported = /not supported/i.test(describeError(err))
+      const why = describeError(err)
+      const unsupported = /not supported/i.test(why)
       if (!unsupported) modelsFailed.add(agent)
       set({
         models: { ...get().models, [agent]: [] },
         modelsStatus: { ...get().modelsStatus, [agent]: unsupported ? 'ready' : 'error' },
+        ...(unsupported ? {} : { modelsError: { ...get().modelsError, [agent]: why } }),
       })
     }
   },
@@ -939,6 +945,7 @@ export function resetStore(): void {
     searchHits: [],
     models: {},
     modelsStatus: {},
+    modelsError: {},
     sessionsStatus: 'loading',
     sessionsError: null,
     requestsError: null,

@@ -369,11 +369,13 @@ describe('session store', () => {
     await store().loadModels('claude')
     expect(store().models.claude).toEqual([])
     expect(store().modelsStatus.claude).toBe('error')
+    expect(store().modelsError.claude).toBe('no')
     const again = store().loadModels('claude')
     expect(store().modelsStatus.claude).toBe('loading')
     await again
     expect(store().models.claude).toEqual([{ id: 'm' }])
     expect(store().modelsStatus.claude).toBe('ready')
+    expect(store().modelsError.claude).toBeUndefined()
   })
 
   it('takes an agent that lists no models as an answer, not a failure', async () => {
