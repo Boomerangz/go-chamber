@@ -22,7 +22,9 @@ type Runtime struct {
 	done           chan struct{}
 	closeOnce      sync.Once
 	model, variant string
-	auto           map[string]bool
+	// applied is the model selection the native session last took.
+	applied string
+	auto    map[string]bool
 }
 
 func (r *Runtime) NativeID() string            { return r.native }
@@ -64,17 +66,19 @@ func (r *Runtime) child(info sessionInfo) {
 	r.mapper.children[info.ID] = true
 	r.emit([]domain.Event{{SessionID: r.mapper.session, Type: domain.EventSubagentSpawned, Subagent: &domain.SubagentSpawn{ThreadID: info.ID, Title: info.Title}}})
 }
-func (r *Runtime) path(suffix string) string { return "/session/" + url.PathEscape(r.native) + suffix }
+func (r *Runtime) path(suffix string) string { return sessionPath(r.native, suffix) }
 
 func (r *Runtime) Send(ctx context.Context, turn domain.TurnID, text string) error {
-	return r.send(ctx, turn, text, nil)
+	return r.send(ctx, turn, text, nil, "")
 }
-func (r *Runtime) Steer(ctx context.Context, text string) error { return r.send(ctx, "", text, nil) }
+func (r *Runtime) Steer(ctx context.Context, text string) error {
+	return r.send(ctx, "", text, nil, "steer")
+}
 func (r *Runtime) SendImages(ctx context.Context, turn domain.TurnID, text string, images []app.Image) error {
 	r.mu.Lock()
 	model := r.model
 	r.mu.Unlock()
-	models, err := r.serverModels(ctx)
+	models, err := r.server.models(ctx, r.cwd)
 	if err != nil {
 		return err
 	}
@@ -88,12 +92,9 @@ func (r *Runtime) SendImages(ctx context.Context, turn domain.TurnID, text strin
 	if !supported {
 		return app.ErrImagesUnsupported
 	}
-	return r.send(ctx, turn, text, images)
+	return r.send(ctx, turn, text, images, "")
 }
-func (r *Runtime) serverModels(ctx context.Context) ([]app.ModelInfo, error) {
-	return r.server.models(ctx, r.cwd)
-}
-func (r *Runtime) send(ctx context.Context, turn domain.TurnID, text string, images []app.Image) error {
+func (r *Runtime) send(ctx context.Context, turn domain.TurnID, text string, images []app.Image, delivery string) error {
 	r.mu.Lock()
 	select {
 	case <-r.done:
@@ -106,71 +107,70 @@ func (r *Runtime) send(ctx context.Context, turn domain.TurnID, text string, ima
 	}
 	model, variant := r.model, r.variant
 	r.mu.Unlock()
-	body := map[string]any{}
-	parts := []map[string]any{{"type": "text", "text": text}}
-	for _, image := range images {
-		u := url.URL{Scheme: "file", Path: filepath.ToSlash(image.Path)}
-		parts = append(parts, map[string]any{"type": "file", "mime": image.MimeType, "url": u.String()})
+	if err := r.selectModel(ctx, model, variant); err != nil {
+		return err
 	}
-	body["parts"] = parts
-	if model != "" {
-		p, m, ok := strings.Cut(model, "/")
-		if !ok || p == "" || m == "" {
-			return errors.New("opencode: expected provider/model")
-		}
-		body["model"] = map[string]string{"providerID": p, "modelID": m}
-	}
-	if variant != "" {
-		body["variant"] = variant
-	}
-	path := r.path("/prompt_async")
-	// Only catalogued slash commands use /command; ordinary slash-prefixed
+	// Only catalogued slash commands run as commands; other slash-prefixed
 	// text stays a prompt, so the model can discuss paths and unknown commands.
 	if strings.HasPrefix(text, "/") && len(images) == 0 {
-		var cmds []app.Command
-		if err := r.server.call(ctx, http.MethodGet, "/command", r.cwd, nil, &cmds); err != nil {
+		cmds, err := r.server.commands(ctx, r.cwd)
+		if err != nil {
 			return err
 		}
 		name, args, _ := strings.Cut(strings.TrimPrefix(text, "/"), " ")
 		for _, c := range cmds {
 			if name == c.Name {
-				path = r.path("/command")
-				body["command"], body["arguments"] = name, args
-				delete(body, "parts")
-				if model != "" {
-					body["model"] = model
-				}
-				break
+				return r.server.call(ctx, http.MethodPost, r.path("/command"), map[string]any{"name": name, "text": args}, nil)
 			}
 		}
 	}
-	if strings.HasSuffix(path, "/command") {
-		go r.command(path, body)
+	body := map[string]any{"text": text}
+	if len(images) > 0 {
+		files := []map[string]string{}
+		for _, image := range images {
+			u := url.URL{Scheme: "file", Path: filepath.ToSlash(image.Path)}
+			files = append(files, map[string]string{"uri": u.String(), "name": filepath.Base(image.Path)})
+		}
+		body["files"] = files
+	}
+	if delivery != "" {
+		body["delivery"] = delivery
+	}
+	return r.server.call(ctx, http.MethodPost, r.path("/prompt"), body, nil)
+}
+
+func modelKey(model, variant string) string { return model + "\x00" + variant }
+
+// selectModel switches the native session's model before a prompt. The
+// selection sticks to the session, so it is sent only when it changes; an
+// empty model goes back to the configured default.
+func (r *Runtime) selectModel(ctx context.Context, model, variant string) error {
+	key := modelKey(model, variant)
+	r.mu.Lock()
+	same := key == r.applied
+	r.mu.Unlock()
+	if same {
 		return nil
 	}
-	return r.server.call(ctx, http.MethodPost, path, r.cwd, body, nil)
-}
-func (r *Runtime) command(path string, body any) {
-	ctx, cancel := context.WithCancel(r.server.ctx)
-	defer cancel()
-	go func() {
-		select {
-		case <-r.done:
-			cancel()
-		case <-ctx.Done():
+	ref := &modelRef{}
+	if model == "" {
+		var err error
+		if ref, err = r.server.defaultModel(ctx, r.cwd); err != nil {
+			return err
 		}
-	}()
-	if err := r.server.call(ctx, http.MethodPost, path, r.cwd, body, nil); err != nil {
-		r.mu.Lock()
-		defer r.mu.Unlock()
-		select {
-		case <-r.done:
-			return
-		default:
-		}
-		r.emit(r.mapper.fail(err.Error()))
-		r.emit(r.mapper.status(status{Type: "idle"}))
+	} else {
+		ref.ProviderID, ref.ID, _ = strings.Cut(model, "/")
 	}
+	if ref != nil {
+		ref.Variant = variant
+		if err := r.server.call(ctx, http.MethodPost, r.path("/model"), map[string]any{"model": ref}, nil); err != nil {
+			return err
+		}
+	}
+	r.mu.Lock()
+	r.applied = key
+	r.mu.Unlock()
+	return nil
 }
 func (r *Runtime) SetModel(_ context.Context, model, variant string) error {
 	if model != "" {
@@ -185,16 +185,21 @@ func (r *Runtime) SetModel(_ context.Context, model, variant string) error {
 	return nil
 }
 func (r *Runtime) Interrupt(ctx context.Context) error {
-	return r.server.call(ctx, http.MethodPost, r.path("/abort"), r.cwd, nil, nil)
+	return r.server.call(ctx, http.MethodPost, r.path("/interrupt"), nil, nil)
+}
+func (r *Runtime) children(ctx context.Context) ([]sessionInfo, error) {
+	var list envelope[[]sessionInfo]
+	err := r.server.call(ctx, http.MethodGet, "/api/session?"+url.Values{"parentID": {r.native}}.Encode(), nil, &list)
+	return list.Data, err
 }
 func (r *Runtime) StopTask(ctx context.Context, id string) error {
-	var children []sessionInfo
-	if err := r.server.call(ctx, http.MethodGet, r.path("/children"), r.cwd, nil, &children); err != nil {
+	children, err := r.children(ctx)
+	if err != nil {
 		return err
 	}
 	for _, child := range children {
 		if child.ID == id {
-			return r.server.call(ctx, http.MethodPost, "/session/"+url.PathEscape(id)+"/abort", r.cwd, nil, nil)
+			return r.server.call(ctx, http.MethodPost, sessionPath(id, "/interrupt"), nil, nil)
 		}
 	}
 	return errors.New("opencode: task is not a child of this session")
@@ -206,7 +211,7 @@ func (r *Runtime) Respond(ctx context.Context, id domain.RequestID, answer app.R
 	if !ok {
 		return app.ErrRequestNotFound
 	}
-	remembered := answer.Allow && answer.AllowForSession && len(pending.Questions) == 0
+	remembered := answer.Allow && answer.AllowForSession && !pending.Form
 	if remembered {
 		r.server.remember(r.native, pending)
 	}
@@ -253,44 +258,21 @@ func (r *Runtime) approveRemembered(p request) {
 	}
 }
 func (r *Runtime) replyNative(ctx context.Context, pending request, answer app.RequestAnswer) error {
-	id := domain.RequestID(pending.ID)
-	path := "/permission/" + url.PathEscape(string(id)) + "/reply"
-	body := map[string]any{}
-	if len(pending.Questions) > 0 {
-		path = "/question/" + url.PathEscape(string(id)) + "/reply"
+	if pending.Form {
+		path := r.path("/form/" + url.PathEscape(pending.ID))
 		if !answer.Allow {
-			path = "/question/" + url.PathEscape(string(id)) + "/reject"
-		} else {
-			answers := make([][]string, len(pending.Questions))
-			for i, q := range pending.Questions {
-				answers[i] = answer.Answers[q.Question]
-				if answers[i] == nil {
-					answers[i] = []string{}
-				}
-			}
-			body["answers"] = answers
+			return r.server.call(ctx, http.MethodDelete, path, nil, nil)
 		}
-	} else {
-		reply := "reject"
-		if answer.Allow {
-			reply = "once"
-		}
-		body["reply"] = reply
-		if answer.Message != "" {
-			body["message"] = answer.Message
-		}
+		return r.server.call(ctx, http.MethodPost, path+"/reply", map[string]any{"answer": formAnswer(pending, answer.Answers)}, nil)
 	}
-	if pending.V2 {
-		if len(pending.Questions) > 0 {
-			path = "/api" + r.path("/question/") + url.PathEscape(string(id)) + "/reply"
-			if !answer.Allow {
-				path = "/api" + r.path("/question/") + url.PathEscape(string(id)) + "/reject"
-			}
-		} else {
-			path = "/api" + r.path("/permission/") + url.PathEscape(string(id)) + "/reply"
-		}
+	body := map[string]any{"decision": "reject"}
+	if answer.Allow {
+		body["decision"] = "once"
 	}
-	return r.server.call(ctx, http.MethodPost, path, r.cwd, body, nil)
+	if answer.Message != "" {
+		body["message"] = answer.Message
+	}
+	return r.server.call(ctx, http.MethodPost, r.path("/permission/"+url.PathEscape(pending.ID)+"/reply"), body, nil)
 }
 func (r *Runtime) Close() error {
 	r.closeOnce.Do(func() {
@@ -307,15 +289,37 @@ func (r *Runtime) Close() error {
 	return nil
 }
 
-func (r *Runtime) reconcile(ctx context.Context, replayUsers bool, initial ...[]transcript) error {
-	var msgs []transcript
+// running reports whether the native session is executing; idle sessions are
+// absent from the active list.
+func (r *Runtime) running(ctx context.Context) (bool, error) {
+	var active envelope[map[string]struct {
+		Type string `json:"type"`
+	}]
+	if err := r.server.call(ctx, http.MethodGet, "/api/session/active", nil, &active); err != nil {
+		return false, err
+	}
+	_, ok := active.Data[r.native]
+	return ok, nil
+}
+
+// reconcile recovers what an event gap may have hidden: history, usage,
+// pending permissions and forms, children, and whether a turn still runs.
+func (r *Runtime) reconcile(ctx context.Context, replayUsers bool, initial ...[]message) error {
+	var msgs []message
 	if len(initial) > 0 {
 		msgs = initial[0]
-	} else if err := r.server.call(ctx, http.MethodGet, r.path("/message"), r.cwd, nil, &msgs); err != nil {
+	} else {
+		var err error
+		if msgs, err = r.server.history(ctx, r.native); err != nil {
+			return err
+		}
+	}
+	var info envelope[sessionInfo]
+	if err := r.server.call(ctx, http.MethodGet, r.path(""), nil, &info); err != nil {
 		return err
 	}
-	var states map[string]status
-	if err := r.server.call(ctx, http.MethodGet, "/session/status", r.cwd, nil, &states); err != nil {
+	busy, err := r.running(ctx)
+	if err != nil {
 		return err
 	}
 	r.mu.Lock()
@@ -325,82 +329,66 @@ func (r *Runtime) reconcile(ctx context.Context, replayUsers bool, initial ...[]
 		return nil
 	default:
 	}
-	if states[r.native].Type != "" && states[r.native].Type != "idle" && r.mapper.turn == "" {
+	if busy && r.mapper.turn == "" {
 		r.mapper.begin(domain.TurnID("native-" + r.native))
 		r.emit([]domain.Event{{SessionID: r.mapper.session, Type: domain.EventTurnStarted}})
 	}
 	r.mapper.replayUsers = replayUsers
 	for _, msg := range msgs {
-		r.emit(r.mapper.message(msg.Info))
-		for _, p := range msg.Parts {
-			r.emit(r.mapper.replayPart(p))
-		}
+		r.emit(r.mapper.message(msg))
 	}
 	r.mapper.replayUsers = false
+	r.emit(r.mapper.setUsage(info.Data.Cost, info.Data.Tokens))
 	r.mu.Unlock()
-	// The native endpoint omits idle sessions. Decode into a fresh map so a
-	// session that became idle during replay does not retain its old status.
-	states = nil
-	if err := r.server.call(ctx, http.MethodGet, "/session/status", r.cwd, nil, &states); err != nil {
+	// Ask again: a turn that ended while history was read must not linger.
+	if busy, err = r.running(ctx); err != nil {
 		return err
 	}
-	for _, kind := range []string{"permission", "question"} {
-		var pending []request
-		if err := r.server.call(ctx, http.MethodGet, "/"+kind, r.cwd, nil, &pending); err != nil {
+	for _, form := range []bool{false, true} {
+		path := "/api/permission/request"
+		if form {
+			path = "/api/form"
+		}
+		var pending envelope[[]request]
+		if err := r.server.call(ctx, http.MethodGet, located(path, r.cwd), nil, &pending); err != nil {
 			return err
-		}
-		var v2 struct {
-			Data []request `json:"data"`
-		}
-		if err := r.server.call(ctx, http.MethodGet, "/api/"+kind+"/request", r.cwd, nil, &v2); err != nil {
-			return err
-		}
-		for _, p := range v2.Data {
-			p.V2 = true
-			if kind == "permission" {
-				p.Permission, p.Patterns, p.Always = p.Action, p.Resources, p.Save
-			}
-			pending = append(pending, p)
 		}
 		seen := map[string]bool{}
 		r.mu.Lock()
-		for _, p := range pending {
-			if p.SessionID == r.native {
-				seen[p.ID] = true
-				if r.server.allowed(r.native, p) {
-					r.queueApproval(p)
-				} else {
-					r.emit(r.mapper.openRequest(p))
-				}
+		for _, p := range pending.Data {
+			if p.SessionID != r.native {
+				continue
+			}
+			p.Form = form
+			seen[p.ID] = true
+			if r.server.allowed(r.native, p) {
+				r.queueApproval(p)
+			} else {
+				r.emit(r.mapper.openRequest(p))
 			}
 		}
 		for id, p := range r.mapper.requests {
-			if (len(p.Questions) > 0) == (kind == "question") && !seen[id] {
+			if p.Form == form && !seen[id] {
 				r.emit(r.mapper.resolveRequest(id, domain.RequestStale))
 			}
 		}
 		r.mu.Unlock()
 	}
-
-	var children []sessionInfo
-	if err := r.server.call(ctx, http.MethodGet, r.path("/children"), r.cwd, nil, &children); err != nil {
+	children, err := r.children(ctx)
+	if err != nil {
 		return err
 	}
 	for _, child := range children {
 		r.child(child)
 	}
-	st := states[r.native]
-	if st.Type == "" {
-		st.Type = "idle"
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if busy && r.mapper.turn == "" {
+		r.mapper.begin(domain.TurnID("native-" + r.native))
+		r.emit([]domain.Event{{SessionID: r.mapper.session, Type: domain.EventTurnStarted}})
 	}
-	{
-		r.mu.Lock()
-		if st.Type != "idle" && r.mapper.turn == "" {
-			r.mapper.begin(domain.TurnID("native-" + r.native))
-			r.emit([]domain.Event{{SessionID: r.mapper.session, Type: domain.EventTurnStarted}})
-		}
-		r.emit(r.mapper.status(st))
-		r.mu.Unlock()
+	if !busy {
+		r.emit(r.mapper.idle())
 	}
 	return nil
 }

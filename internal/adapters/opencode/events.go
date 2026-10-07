@@ -12,7 +12,7 @@ import (
 )
 
 func (s *server) openEvents(_ context.Context) (io.ReadCloser, error) {
-	r, err := http.NewRequestWithContext(s.ctx, http.MethodGet, s.base+"/global/event", nil)
+	r, err := http.NewRequestWithContext(s.ctx, http.MethodGet, s.base+"/api/event", nil)
 	if err != nil {
 		return nil, err
 	}
@@ -90,46 +90,37 @@ func (s *server) readEvents(body io.ReadCloser) {
 	}
 }
 func (s *server) dispatch(raw []byte) {
-	var env envelope
-	if json.Unmarshal(raw, &env) != nil {
+	var ev event
+	if json.Unmarshal(raw, &ev) != nil {
 		return
 	}
-	ev := env.Payload
-	var p struct {
-		SessionID string      `json:"sessionID"`
-		Info      sessionInfo `json:"info"`
-		Part      part        `json:"part"`
+	var d struct {
+		SessionID string `json:"sessionID"`
+		ParentID  string `json:"parentID"`
+		Title     string `json:"title"`
+		Form      struct {
+			SessionID string `json:"sessionID"`
+		} `json:"form"`
 	}
-	if json.Unmarshal(ev.Properties, &p) != nil {
+	if json.Unmarshal(ev.Data, &d) != nil {
 		return
 	}
-	id := p.SessionID
+	id := d.SessionID
 	if id == "" {
-		id = p.Part.SessionID
-	}
-	if id == "" {
-		id = p.Info.ID
-	}
-	if ev.Type == "message.updated" {
-		var props struct {
-			Info message `json:"info"`
-		}
-		_ = json.Unmarshal(ev.Properties, &props)
-		id = props.Info.SessionID
+		id = d.Form.SessionID
 	}
 	s.mu.Lock()
-	rt := s.runtimes[id]
-	if ev.Type == "session.created" && p.Info.ParentID != "" {
-		parent := s.runtimes[p.Info.ParentID]
-		if parent != nil && parent.cwd == env.Directory {
-			if _, ok := s.orphans[p.Info.ID]; !ok {
-				s.orphans[p.Info.ID] = nil
+	if ev.Type == "session.created" && d.ParentID != "" {
+		if parent := s.runtimes[d.ParentID]; parent != nil {
+			if _, ok := s.orphans[id]; !ok {
+				s.orphans[id] = nil
 			}
 			s.mu.Unlock()
-			parent.child(p.Info)
+			parent.child(sessionInfo{ID: id, ParentID: d.ParentID, Title: d.Title})
 			return
 		}
 	}
+	rt := s.runtimes[id]
 	if rt == nil {
 		if events, known := s.orphans[id]; known && len(events) < 256 {
 			s.orphans[id] = append(events, ev)
@@ -138,8 +129,5 @@ func (s *server) dispatch(raw []byte) {
 		return
 	}
 	s.mu.Unlock()
-	if env.Directory != "" && env.Directory != rt.cwd {
-		return
-	}
 	rt.handle(ev)
 }

@@ -1,19 +1,22 @@
 {
   "paths": {
-    "/api/permission/request:get": {
-      "operationId": "v2.permission.request.list",
+    "/api/command:get": {
+      "operationId": "command.list",
+      "parameters": [
+        "location"
+      ],
       "requestBody": {},
       "response": {
         "additionalProperties": false,
         "properties": {
           "data": {
             "items": {
-              "$ref": "#/components/schemas/PermissionV2Request"
+              "$ref": "#/components/schemas/Command.Info"
             },
             "type": "array"
           },
           "location": {
-            "$ref": "#/components/schemas/LocationInfo"
+            "$ref": "#/components/schemas/Location.PublicRef"
           }
         },
         "required": [
@@ -23,20 +26,29 @@
         "type": "object"
       }
     },
-    "/api/question/request:get": {
-      "operationId": "v2.question.request.list",
+    "/api/event:get": {
+      "operationId": "event.subscribe",
+      "parameters": [],
+      "requestBody": {},
+      "response": {}
+    },
+    "/api/form:get": {
+      "operationId": "form.list",
+      "parameters": [
+        "location"
+      ],
       "requestBody": {},
       "response": {
         "additionalProperties": false,
         "properties": {
           "data": {
             "items": {
-              "$ref": "#/components/schemas/QuestionV2Request"
+              "$ref": "#/components/schemas/Form.Info"
             },
             "type": "array"
           },
           "location": {
-            "$ref": "#/components/schemas/LocationInfo"
+            "$ref": "#/components/schemas/Location.PublicRef"
           }
         },
         "required": [
@@ -45,1763 +57,998 @@
         ],
         "type": "object"
       }
+    },
+    "/api/model/default:get": {
+      "operationId": "model.default",
+      "parameters": [
+        "location"
+      ],
+      "requestBody": {},
+      "response": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Model.Info"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "location": {
+            "$ref": "#/components/schemas/Location.PublicRef"
+          }
+        },
+        "required": [
+          "location",
+          "data"
+        ],
+        "type": "object"
+      }
+    },
+    "/api/model:get": {
+      "operationId": "model.list",
+      "parameters": [
+        "location"
+      ],
+      "requestBody": {},
+      "response": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/Model.Info"
+            },
+            "type": "array"
+          },
+          "location": {
+            "$ref": "#/components/schemas/Location.PublicRef"
+          }
+        },
+        "required": [
+          "location",
+          "data"
+        ],
+        "type": "object"
+      }
+    },
+    "/api/permission/request:get": {
+      "operationId": "permission.request.list",
+      "parameters": [
+        "location"
+      ],
+      "requestBody": {},
+      "response": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/Permission.Request"
+            },
+            "type": "array"
+          },
+          "location": {
+            "$ref": "#/components/schemas/Location.PublicRef"
+          }
+        },
+        "required": [
+          "location",
+          "data"
+        ],
+        "type": "object"
+      }
+    },
+    "/api/session/active:get": {
+      "operationId": "session.active",
+      "parameters": [],
+      "requestBody": {},
+      "response": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "type": "object"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "type": "object"
+      }
+    },
+    "/api/session/{sessionID}/command:post": {
+      "operationId": "session.command",
+      "parameters": [
+        "sessionID"
+      ],
+      "requestBody": {
+        "additionalProperties": false,
+        "properties": {
+          "agents": {
+            "items": {
+              "$ref": "#/components/schemas/Prompt.AgentAttachment"
+            },
+            "type": "array"
+          },
+          "delivery": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Session.Inbox.Delivery"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "files": {
+            "items": {
+              "$ref": "#/components/schemas/PromptInput.FileAttachment"
+            },
+            "type": "array"
+          },
+          "name": {
+            "type": "string"
+          },
+          "skills": {
+            "items": {
+              "$ref": "#/components/schemas/PromptInput.SkillAttachment"
+            },
+            "type": "array"
+          },
+          "text": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "text"
+        ],
+        "type": "object"
+      },
+      "response": {}
+    },
+    "/api/session/{sessionID}/fork:post": {
+      "operationId": "session.fork",
+      "parameters": [
+        "sessionID"
+      ],
+      "requestBody": {
+        "additionalProperties": false,
+        "properties": {
+          "before": {
+            "anyOf": [
+              {
+                "pattern": "^msg_",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object"
+      },
+      "response": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/Session.Info"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "type": "object"
+      }
+    },
+    "/api/session/{sessionID}/form/{formID}/reply:post": {
+      "operationId": "session.form.reply",
+      "parameters": [
+        "formID",
+        "sessionID"
+      ],
+      "requestBody": {
+        "$ref": "#/components/schemas/Form.Reply"
+      },
+      "response": {}
+    },
+    "/api/session/{sessionID}/form/{formID}:delete": {
+      "operationId": "session.form.cancel",
+      "parameters": [
+        "formID",
+        "sessionID"
+      ],
+      "requestBody": {},
+      "response": {}
+    },
+    "/api/session/{sessionID}/interrupt:post": {
+      "operationId": "session.interrupt",
+      "parameters": [
+        "resume",
+        "sessionID"
+      ],
+      "requestBody": {},
+      "response": {
+        "$ref": "#/components/schemas/SessionInterruptResponse"
+      }
+    },
+    "/api/session/{sessionID}/message:get": {
+      "operationId": "session.message.list",
+      "parameters": [
+        "cursor",
+        "limit",
+        "order",
+        "sessionID",
+        "type"
+      ],
+      "requestBody": {},
+      "response": {
+        "$ref": "#/components/schemas/SessionMessagesResponse"
+      }
+    },
+    "/api/session/{sessionID}/model:post": {
+      "operationId": "session.switchModel",
+      "parameters": [
+        "sessionID"
+      ],
+      "requestBody": {
+        "additionalProperties": false,
+        "properties": {
+          "model": {
+            "$ref": "#/components/schemas/Model.Ref"
+          }
+        },
+        "required": [
+          "model"
+        ],
+        "type": "object"
+      },
+      "response": {}
     },
     "/api/session/{sessionID}/permission/{requestID}/reply:post": {
-      "operationId": "v2.session.permission.reply",
+      "operationId": "session.permission.reply",
+      "parameters": [
+        "requestID",
+        "sessionID"
+      ],
       "requestBody": {
         "additionalProperties": false,
         "properties": {
+          "decision": {
+            "$ref": "#/components/schemas/Permission.Reply"
+          },
           "message": {
-            "type": "string"
-          },
-          "reply": {
-            "$ref": "#/components/schemas/PermissionV2Reply"
-          }
-        },
-        "required": [
-          "reply"
-        ],
-        "type": "object"
-      },
-      "response": {}
-    },
-    "/api/session/{sessionID}/question/{requestID}/reject:post": {
-      "operationId": "v2.session.question.reject",
-      "requestBody": {},
-      "response": {}
-    },
-    "/api/session/{sessionID}/question/{requestID}/reply:post": {
-      "operationId": "v2.session.question.reply",
-      "requestBody": {
-        "$ref": "#/components/schemas/QuestionV2Reply"
-      },
-      "response": {}
-    },
-    "/command:get": {
-      "operationId": "command.list",
-      "requestBody": {},
-      "response": {
-        "items": {
-          "$ref": "#/components/schemas/Command"
-        },
-        "type": "array"
-      }
-    },
-    "/config:get": {
-      "operationId": "config.get",
-      "requestBody": {},
-      "response": {
-        "$ref": "#/components/schemas/Config"
-      }
-    },
-    "/global/event:get": {
-      "operationId": "global.event",
-      "requestBody": {},
-      "response": {}
-    },
-    "/permission/{requestID}/reply:post": {
-      "operationId": "permission.reply",
-      "requestBody": {
-        "additionalProperties": false,
-        "properties": {
-          "message": {
-            "type": "string"
-          },
-          "reply": {
-            "enum": [
-              "once",
-              "always",
-              "reject"
-            ],
-            "type": "string"
-          }
-        },
-        "required": [
-          "reply"
-        ],
-        "type": "object"
-      },
-      "response": {
-        "type": "boolean"
-      }
-    },
-    "/permission:get": {
-      "operationId": "permission.list",
-      "requestBody": {},
-      "response": {
-        "items": {
-          "$ref": "#/components/schemas/PermissionRequest"
-        },
-        "type": "array"
-      }
-    },
-    "/provider:get": {
-      "operationId": "provider.list",
-      "requestBody": {},
-      "response": {
-        "additionalProperties": false,
-        "properties": {
-          "all": {
-            "items": {
-              "$ref": "#/components/schemas/Provider"
-            },
-            "type": "array"
-          },
-          "connected": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array"
-          },
-          "default": {
-            "additionalProperties": {
-              "type": "string"
-            },
-            "type": "object"
-          }
-        },
-        "required": [
-          "all",
-          "default",
-          "connected"
-        ],
-        "type": "object"
-      }
-    },
-    "/question/{requestID}/reject:post": {
-      "operationId": "question.reject",
-      "requestBody": {},
-      "response": {
-        "type": "boolean"
-      }
-    },
-    "/question/{requestID}/reply:post": {
-      "operationId": "question.reply",
-      "requestBody": {
-        "additionalProperties": false,
-        "properties": {
-          "answers": {
-            "items": {
-              "$ref": "#/components/schemas/QuestionAnswer"
-            },
-            "type": "array"
-          }
-        },
-        "required": [
-          "answers"
-        ],
-        "type": "object"
-      },
-      "response": {
-        "type": "boolean"
-      }
-    },
-    "/question:get": {
-      "operationId": "question.list",
-      "requestBody": {},
-      "response": {
-        "items": {
-          "$ref": "#/components/schemas/QuestionRequest"
-        },
-        "type": "array"
-      }
-    },
-    "/session/status:get": {
-      "operationId": "session.status",
-      "requestBody": {},
-      "response": {
-        "additionalProperties": {
-          "$ref": "#/components/schemas/SessionStatus"
-        },
-        "type": "object"
-      }
-    },
-    "/session/{sessionID}/abort:post": {
-      "operationId": "session.abort",
-      "requestBody": {},
-      "response": {
-        "type": "boolean"
-      }
-    },
-    "/session/{sessionID}/children:get": {
-      "operationId": "session.children",
-      "requestBody": {},
-      "response": {
-        "items": {
-          "$ref": "#/components/schemas/Session"
-        },
-        "type": "array"
-      }
-    },
-    "/session/{sessionID}/command:post": {
-      "operationId": "session.command",
-      "requestBody": {
-        "additionalProperties": false,
-        "properties": {
-          "agent": {
-            "type": "string"
-          },
-          "arguments": {
-            "type": "string"
-          },
-          "command": {
-            "type": "string"
-          },
-          "messageID": {
-            "pattern": "^msg",
-            "type": "string"
-          },
-          "model": {
-            "type": "string"
-          },
-          "parts": {
-            "items": {
-              "additionalProperties": false,
-              "properties": {
-                "filename": {
-                  "type": "string"
-                },
-                "id": {
-                  "pattern": "^prt",
-                  "type": "string"
-                },
-                "mime": {
-                  "type": "string"
-                },
-                "source": {
-                  "$ref": "#/components/schemas/FilePartSource"
-                },
-                "type": {
-                  "enum": [
-                    "file"
-                  ],
-                  "type": "string"
-                },
-                "url": {
-                  "type": "string"
-                }
-              },
-              "required": [
-                "type",
-                "mime",
-                "url"
-              ],
-              "type": "object"
-            },
-            "type": "array"
-          },
-          "variant": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "arguments",
-          "command"
-        ],
-        "type": "object"
-      },
-      "response": {
-        "properties": {
-          "info": {
-            "$ref": "#/components/schemas/AssistantMessage"
-          },
-          "parts": {
-            "items": {
-              "$ref": "#/components/schemas/Part"
-            },
-            "type": "array"
-          }
-        },
-        "required": [
-          "info",
-          "parts"
-        ],
-        "type": "object"
-      }
-    },
-    "/session/{sessionID}/fork:post": {
-      "operationId": "session.fork",
-      "requestBody": {
-        "additionalProperties": false,
-        "properties": {
-          "messageID": {
-            "pattern": "^msg",
-            "type": "string"
-          }
-        },
-        "type": "object"
-      },
-      "response": {
-        "$ref": "#/components/schemas/Session"
-      }
-    },
-    "/session/{sessionID}/message:get": {
-      "operationId": "session.messages",
-      "requestBody": {},
-      "response": {
-        "items": {
-          "additionalProperties": false,
-          "properties": {
-            "info": {
-              "$ref": "#/components/schemas/Message"
-            },
-            "parts": {
-              "items": {
-                "$ref": "#/components/schemas/Part"
-              },
-              "type": "array"
-            }
-          },
-          "required": [
-            "info",
-            "parts"
-          ],
-          "type": "object"
-        },
-        "type": "array"
-      }
-    },
-    "/session/{sessionID}/prompt_async:post": {
-      "operationId": "session.prompt_async",
-      "requestBody": {
-        "additionalProperties": false,
-        "properties": {
-          "agent": {
-            "type": "string"
-          },
-          "format": {
-            "$ref": "#/components/schemas/OutputFormat"
-          },
-          "messageID": {
-            "pattern": "^msg",
-            "type": "string"
-          },
-          "model": {
-            "additionalProperties": false,
-            "properties": {
-              "modelID": {
+            "anyOf": [
+              {
                 "type": "string"
               },
-              "providerID": {
-                "type": "string"
+              {
+                "type": "null"
               }
-            },
-            "required": [
-              "providerID",
-              "modelID"
-            ],
-            "type": "object"
-          },
-          "noReply": {
-            "type": "boolean"
-          },
-          "parts": {
-            "items": {
-              "anyOf": [
-                {
-                  "$ref": "#/components/schemas/TextPartInput"
-                },
-                {
-                  "$ref": "#/components/schemas/FilePartInput"
-                },
-                {
-                  "$ref": "#/components/schemas/AgentPartInput"
-                },
-                {
-                  "$ref": "#/components/schemas/SubtaskPartInput"
-                }
-              ]
-            },
-            "type": "array"
-          },
-          "system": {
-            "type": "string"
-          },
-          "tools": {
-            "additionalProperties": {
-              "type": "boolean"
-            },
-            "type": "object"
-          },
-          "variant": {
-            "type": "string"
+            ]
           }
         },
         "required": [
-          "parts"
+          "decision"
         ],
         "type": "object"
       },
       "response": {}
     },
-    "/session/{sessionID}:get": {
-      "operationId": "session.get",
-      "requestBody": {},
-      "response": {
-        "$ref": "#/components/schemas/Session"
-      }
-    },
-    "/session:post": {
-      "operationId": "session.create",
+    "/api/session/{sessionID}/prompt:post": {
+      "operationId": "session.prompt",
+      "parameters": [
+        "sessionID"
+      ],
       "requestBody": {
         "additionalProperties": false,
         "properties": {
-          "agent": {
-            "type": "string"
+          "agents": {
+            "items": {
+              "$ref": "#/components/schemas/Prompt.AgentAttachment"
+            },
+            "type": "array"
+          },
+          "delivery": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Session.Inbox.Delivery"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "files": {
+            "items": {
+              "$ref": "#/components/schemas/PromptInput.FileAttachment"
+            },
+            "type": "array"
+          },
+          "id": {
+            "anyOf": [
+              {
+                "pattern": "^msg_",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "metadata": {
             "type": "object"
           },
-          "model": {
-            "additionalProperties": false,
-            "properties": {
-              "id": {
-                "type": "string"
+          "resume": {
+            "anyOf": [
+              {
+                "type": "boolean"
               },
-              "providerID": {
-                "type": "string"
-              },
-              "variant": {
-                "type": "string"
+              {
+                "type": "null"
               }
+            ]
+          },
+          "skills": {
+            "items": {
+              "$ref": "#/components/schemas/PromptInput.SkillAttachment"
             },
-            "required": [
-              "id",
-              "providerID"
-            ],
-            "type": "object"
+            "type": "array"
           },
-          "parentID": {
-            "pattern": "^ses",
+          "text": {
             "type": "string"
+          }
+        },
+        "required": [
+          "text"
+        ],
+        "type": "object"
+      },
+      "response": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/Session.Inbox.User"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "type": "object"
+      }
+    },
+    "/api/session/{sessionID}:get": {
+      "operationId": "session.get",
+      "parameters": [
+        "sessionID"
+      ],
+      "requestBody": {},
+      "response": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/Session.Info"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "type": "object"
+      }
+    },
+    "/api/session:get": {
+      "operationId": "session.list",
+      "parameters": [
+        "cursor",
+        "directory",
+        "limit",
+        "order",
+        "parentID",
+        "project",
+        "search",
+        "subpath"
+      ],
+      "requestBody": {},
+      "response": {
+        "$ref": "#/components/schemas/SessionsResponse"
+      }
+    },
+    "/api/session:post": {
+      "operationId": "session.create",
+      "parameters": [],
+      "requestBody": {
+        "additionalProperties": false,
+        "properties": {
+          "agent": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
-          "permission": {
-            "$ref": "#/components/schemas/PermissionRuleset"
+          "id": {
+            "anyOf": [
+              {
+                "pattern": "^ses",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "location": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Location.PublicRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "metadata": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Session.Metadata"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "model": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Model.Ref"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "permissions": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Permission.Ruleset"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "title": {
-            "type": "string"
-          },
-          "workspaceID": {
-            "pattern": "^wrk",
-            "type": "string"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "type": "object"
       },
       "response": {
-        "$ref": "#/components/schemas/Session"
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/Session.Info"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "type": "object"
       }
     }
   },
   "schemas": {
-    "APIError": {
+    "Command.Info": {
       "additionalProperties": false,
       "properties": {
-        "data": {
-          "additionalProperties": false,
-          "properties": {
-            "isRetryable": {
-              "type": "boolean"
-            },
-            "message": {
-              "type": "string"
-            },
-            "metadata": {
-              "additionalProperties": {
-                "type": "string"
-              },
-              "type": "object"
-            },
-            "responseBody": {
-              "type": "string"
-            },
-            "responseHeaders": {
-              "additionalProperties": {
-                "type": "string"
-              },
-              "type": "object"
-            },
-            "statusCode": {
-              "minimum": 0,
-              "type": "integer"
-            }
-          },
-          "required": [
-            "message",
-            "isRetryable"
-          ],
-          "type": "object"
-        },
-        "name": {
-          "enum": [
-            "APIError"
-          ],
-          "type": "string"
-        }
-      },
-      "required": [
-        "name",
-        "data"
-      ],
-      "type": "object"
-    },
-    "AgentPart": {
-      "additionalProperties": false,
-      "properties": {
-        "id": {
-          "pattern": "^prt",
-          "type": "string"
-        },
-        "messageID": {
-          "pattern": "^msg",
+        "description": {
           "type": "string"
         },
         "name": {
           "type": "string"
-        },
-        "sessionID": {
-          "pattern": "^ses",
-          "type": "string"
-        },
-        "source": {
-          "additionalProperties": false,
-          "properties": {
-            "end": {
-              "minimum": 0,
-              "type": "integer"
-            },
-            "start": {
-              "minimum": 0,
-              "type": "integer"
-            },
-            "value": {
-              "type": "string"
-            }
-          },
-          "required": [
-            "value",
-            "start",
-            "end"
-          ],
-          "type": "object"
-        },
-        "type": {
-          "enum": [
-            "agent"
-          ],
-          "type": "string"
         }
       },
       "required": [
-        "id",
-        "sessionID",
-        "messageID",
-        "type",
         "name"
       ],
       "type": "object"
     },
-    "AgentPartInput": {
-      "additionalProperties": false,
-      "properties": {
-        "id": {
-          "pattern": "^prt",
-          "type": "string"
-        },
-        "name": {
-          "type": "string"
-        },
-        "source": {
-          "additionalProperties": false,
-          "properties": {
-            "end": {
-              "minimum": 0,
-              "type": "integer"
-            },
-            "start": {
-              "minimum": 0,
-              "type": "integer"
-            },
-            "value": {
-              "type": "string"
-            }
-          },
-          "required": [
-            "value",
-            "start",
-            "end"
-          ],
-          "type": "object"
-        },
-        "type": {
-          "enum": [
-            "agent"
-          ],
-          "type": "string"
-        }
+    "Form.Answer": {
+      "additionalProperties": {
+        "$ref": "#/components/schemas/Form.Value"
       },
-      "required": [
-        "type",
-        "name"
-      ],
       "type": "object"
     },
-    "AssistantMessage": {
-      "cost": {
-        "type": "number"
-      },
-      "error": {
-        "anyOf": [
-          {
-            "$ref": "#/components/schemas/ProviderAuthError"
-          },
-          {
-            "$ref": "#/components/schemas/UnknownError"
-          },
-          {
-            "$ref": "#/components/schemas/MessageOutputLengthError"
-          },
-          {
-            "$ref": "#/components/schemas/MessageAbortedError"
-          },
-          {
-            "$ref": "#/components/schemas/StructuredOutputError"
-          },
-          {
-            "$ref": "#/components/schemas/ContextOverflowError"
-          },
-          {
-            "$ref": "#/components/schemas/ContentFilterError"
-          },
-          {
-            "$ref": "#/components/schemas/APIError"
-          }
-        ]
-      },
-      "id": {
-        "pattern": "^msg",
-        "type": "string"
-      },
-      "modelID": {
-        "type": "string"
-      },
-      "providerID": {
-        "type": "string"
-      },
-      "role": {
-        "enum": [
-          "assistant"
-        ],
-        "type": "string"
-      },
-      "sessionID": {
-        "pattern": "^ses",
-        "type": "string"
-      },
-      "time": {
-        "additionalProperties": false,
-        "properties": {
-          "completed": {
-            "minimum": 0,
-            "type": "integer"
-          },
-          "created": {
-            "minimum": 0,
-            "type": "integer"
-          }
-        },
-        "required": [
-          "created"
-        ],
-        "type": "object"
-      },
-      "tokens": {
-        "additionalProperties": false,
-        "properties": {
-          "cache": {
-            "additionalProperties": false,
-            "properties": {
-              "read": {
-                "type": "number"
-              },
-              "write": {
-                "type": "number"
-              }
-            },
-            "required": [
-              "read",
-              "write"
-            ],
-            "type": "object"
-          },
-          "input": {
-            "type": "number"
-          },
-          "output": {
-            "type": "number"
-          },
-          "reasoning": {
-            "type": "number"
-          },
-          "total": {
-            "type": "number"
-          }
-        },
-        "required": [
-          "input",
-          "output",
-          "reasoning",
-          "cache"
-        ],
-        "type": "object"
-      }
-    },
-    "Command": {
+    "Form.BooleanField": {
       "additionalProperties": false,
       "properties": {
-        "agent": {
-          "type": "string"
+        "default": {
+          "type": "boolean"
         },
         "description": {
           "type": "string"
         },
-        "hints": {
+        "hidden": {
+          "type": "boolean"
+        },
+        "key": {
+          "type": "string"
+        },
+        "required": {
+          "type": "boolean"
+        },
+        "title": {
+          "type": "string"
+        },
+        "type": {
+          "enum": [
+            "boolean"
+          ],
+          "type": "string"
+        },
+        "when": {
+          "items": {
+            "$ref": "#/components/schemas/Form.When"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "key",
+        "type"
+      ],
+      "type": "object"
+    },
+    "Form.ExternalField": {
+      "additionalProperties": false,
+      "properties": {
+        "description": {
+          "type": "string"
+        },
+        "key": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "type": {
+          "enum": [
+            "external"
+          ],
+          "type": "string"
+        },
+        "url": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "key",
+        "type",
+        "url"
+      ],
+      "type": "object"
+    },
+    "Form.Field": {
+      "anyOf": [
+        {
+          "$ref": "#/components/schemas/Form.StringField"
+        },
+        {
+          "$ref": "#/components/schemas/Form.NumberField"
+        },
+        {
+          "$ref": "#/components/schemas/Form.IntegerField"
+        },
+        {
+          "$ref": "#/components/schemas/Form.BooleanField"
+        },
+        {
+          "$ref": "#/components/schemas/Form.MultiselectField"
+        },
+        {
+          "$ref": "#/components/schemas/Form.ExternalField"
+        }
+      ]
+    },
+    "Form.Fields": {
+      "items": {
+        "$ref": "#/components/schemas/Form.Field"
+      },
+      "type": "array"
+    },
+    "Form.Info": {
+      "fields": {
+        "$ref": "#/components/schemas/Form.Fields"
+      },
+      "id": {
+        "pattern": "^frm_",
+        "type": "string"
+      },
+      "sessionID": {
+        "type": "string"
+      },
+      "title": {
+        "type": "string"
+      }
+    },
+    "Form.IntegerField": {
+      "additionalProperties": false,
+      "properties": {
+        "default": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "enum": [
+                "Infinity",
+                "-Infinity",
+                "NaN"
+              ],
+              "type": "string"
+            }
+          ]
+        },
+        "description": {
+          "type": "string"
+        },
+        "hidden": {
+          "type": "boolean"
+        },
+        "key": {
+          "type": "string"
+        },
+        "maximum": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "enum": [
+                "Infinity",
+                "-Infinity",
+                "NaN"
+              ],
+              "type": "string"
+            }
+          ]
+        },
+        "minimum": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "enum": [
+                "Infinity",
+                "-Infinity",
+                "NaN"
+              ],
+              "type": "string"
+            }
+          ]
+        },
+        "required": {
+          "type": "boolean"
+        },
+        "title": {
+          "type": "string"
+        },
+        "type": {
+          "enum": [
+            "integer"
+          ],
+          "type": "string"
+        },
+        "when": {
+          "items": {
+            "$ref": "#/components/schemas/Form.When"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "key",
+        "type"
+      ],
+      "type": "object"
+    },
+    "Form.MultiselectField": {
+      "custom": {
+        "type": "boolean"
+      },
+      "description": {
+        "type": "string"
+      },
+      "hidden": {
+        "type": "boolean"
+      },
+      "key": {
+        "type": "string"
+      },
+      "options": {
+        "items": {
+          "$ref": "#/components/schemas/Form.Option"
+        },
+        "type": "array"
+      },
+      "title": {
+        "type": "string"
+      },
+      "type": {
+        "enum": [
+          "multiselect"
+        ],
+        "type": "string"
+      }
+    },
+    "Form.NumberField": {
+      "additionalProperties": false,
+      "properties": {
+        "default": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "enum": [
+                "Infinity",
+                "-Infinity",
+                "NaN"
+              ],
+              "type": "string"
+            }
+          ]
+        },
+        "description": {
+          "type": "string"
+        },
+        "hidden": {
+          "type": "boolean"
+        },
+        "key": {
+          "type": "string"
+        },
+        "maximum": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "enum": [
+                "Infinity",
+                "-Infinity",
+                "NaN"
+              ],
+              "type": "string"
+            }
+          ]
+        },
+        "minimum": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "enum": [
+                "Infinity",
+                "-Infinity",
+                "NaN"
+              ],
+              "type": "string"
+            }
+          ]
+        },
+        "required": {
+          "type": "boolean"
+        },
+        "title": {
+          "type": "string"
+        },
+        "type": {
+          "enum": [
+            "number"
+          ],
+          "type": "string"
+        },
+        "when": {
+          "items": {
+            "$ref": "#/components/schemas/Form.When"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "key",
+        "type"
+      ],
+      "type": "object"
+    },
+    "Form.Option": {
+      "description": {
+        "type": "string"
+      },
+      "label": {
+        "type": "string"
+      },
+      "value": {
+        "type": "string"
+      }
+    },
+    "Form.Reply": {
+      "additionalProperties": false,
+      "properties": {
+        "answer": {
+          "$ref": "#/components/schemas/Form.Answer"
+        }
+      },
+      "required": [
+        "answer"
+      ],
+      "type": "object"
+    },
+    "Form.StringField": {
+      "custom": {
+        "type": "boolean"
+      },
+      "description": {
+        "type": "string"
+      },
+      "hidden": {
+        "type": "boolean"
+      },
+      "key": {
+        "type": "string"
+      },
+      "options": {
+        "items": {
+          "$ref": "#/components/schemas/Form.Option"
+        },
+        "type": "array"
+      },
+      "title": {
+        "type": "string"
+      },
+      "type": {
+        "enum": [
+          "string"
+        ],
+        "type": "string"
+      }
+    },
+    "Form.Value": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "enum": [
+                "Infinity",
+                "-Infinity",
+                "NaN"
+              ],
+              "type": "string"
+            }
+          ]
+        },
+        {
+          "type": "boolean"
+        },
+        {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      ]
+    },
+    "Form.When": {
+      "additionalProperties": false,
+      "properties": {
+        "key": {
+          "type": "string"
+        },
+        "op": {
+          "enum": [
+            "eq",
+            "neq"
+          ],
+          "type": "string"
+        },
+        "value": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "enum": [
+                    "Infinity",
+                    "-Infinity",
+                    "NaN"
+                  ],
+                  "type": "string"
+                }
+              ]
+            },
+            {
+              "type": "boolean"
+            }
+          ]
+        }
+      },
+      "required": [
+        "key",
+        "op",
+        "value"
+      ],
+      "type": "object"
+    },
+    "Location.PublicRef": {
+      "additionalProperties": false,
+      "properties": {
+        "directory": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "directory"
+      ],
+      "type": "object"
+    },
+    "Model.Capabilities": {
+      "additionalProperties": false,
+      "properties": {
+        "input": {
           "items": {
             "type": "string"
           },
           "type": "array"
         },
-        "model": {
-          "type": "string"
+        "output": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
         },
-        "name": {
-          "type": "string"
-        },
-        "source": {
-          "enum": [
-            "command",
-            "mcp",
-            "skill"
-          ],
-          "type": "string"
-        },
-        "subtask": {
+        "tools": {
           "type": "boolean"
-        },
-        "template": {
-          "type": "string"
         }
       },
       "required": [
-        "name",
-        "template",
-        "hints"
+        "tools",
+        "input",
+        "output"
       ],
       "type": "object"
     },
-    "CompactionPart": {
-      "additionalProperties": false,
-      "properties": {
-        "auto": {
-          "type": "boolean"
-        },
-        "id": {
-          "pattern": "^prt",
-          "type": "string"
-        },
-        "messageID": {
-          "pattern": "^msg",
-          "type": "string"
-        },
-        "overflow": {
-          "type": "boolean"
-        },
-        "sessionID": {
-          "pattern": "^ses",
-          "type": "string"
-        },
-        "tail_start_id": {
-          "pattern": "^msg",
-          "type": "string"
-        },
-        "type": {
-          "enum": [
-            "compaction"
-          ],
-          "type": "string"
-        }
-      },
-      "required": [
-        "id",
-        "sessionID",
-        "messageID",
-        "type",
-        "auto"
-      ],
-      "type": "object"
-    },
-    "Config": {
-      "model": {
-        "type": "string"
-      }
-    },
-    "ContentFilterError": {
-      "additionalProperties": false,
-      "properties": {
-        "data": {
-          "additionalProperties": false,
-          "properties": {
-            "message": {
-              "type": "string"
-            }
-          },
-          "required": [
-            "message"
-          ],
-          "type": "object"
-        },
-        "name": {
-          "enum": [
-            "ContentFilterError"
-          ],
-          "type": "string"
-        }
-      },
-      "required": [
-        "name",
-        "data"
-      ],
-      "type": "object"
-    },
-    "ContextOverflowError": {
-      "additionalProperties": false,
-      "properties": {
-        "data": {
-          "additionalProperties": false,
-          "properties": {
-            "message": {
-              "type": "string"
-            },
-            "responseBody": {
-              "type": "string"
-            }
-          },
-          "required": [
-            "message"
-          ],
-          "type": "object"
-        },
-        "name": {
-          "enum": [
-            "ContextOverflowError"
-          ],
-          "type": "string"
-        }
-      },
-      "required": [
-        "name",
-        "data"
-      ],
-      "type": "object"
-    },
-    "EventMessagePartDelta": {
-      "properties": {
-        "additionalProperties": false,
-        "properties": {
-          "delta": {
-            "type": "string"
-          },
-          "field": {
-            "type": "string"
-          },
-          "messageID": {
-            "pattern": "^msg",
-            "type": "string"
-          },
-          "partID": {
-            "pattern": "^prt",
-            "type": "string"
-          },
-          "sessionID": {
-            "pattern": "^ses",
-            "type": "string"
-          }
-        },
-        "required": [
-          "sessionID",
-          "messageID",
-          "partID",
-          "field",
-          "delta"
-        ],
-        "type": "object"
-      },
-      "type": {
-        "enum": [
-          "message.part.delta"
-        ],
-        "type": "string"
-      }
-    },
-    "EventMessagePartUpdated": {
-      "properties": {
-        "additionalProperties": false,
-        "properties": {
-          "part": {
-            "$ref": "#/components/schemas/Part"
-          },
-          "sessionID": {
-            "pattern": "^ses",
-            "type": "string"
-          },
-          "time": {
-            "type": "number"
-          }
-        },
-        "required": [
-          "sessionID",
-          "part",
-          "time"
-        ],
-        "type": "object"
-      },
-      "type": {
-        "enum": [
-          "message.part.updated"
-        ],
-        "type": "string"
-      }
-    },
-    "EventMessageUpdated": {
-      "properties": {
-        "additionalProperties": false,
-        "properties": {
-          "info": {
-            "$ref": "#/components/schemas/Message"
-          },
-          "sessionID": {
-            "pattern": "^ses",
-            "type": "string"
-          }
-        },
-        "required": [
-          "sessionID",
-          "info"
-        ],
-        "type": "object"
-      },
-      "type": {
-        "enum": [
-          "message.updated"
-        ],
-        "type": "string"
-      }
-    },
-    "EventPermissionAsked": {
-      "properties": {
-        "additionalProperties": false,
-        "properties": {
-          "always": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array"
-          },
-          "id": {
-            "pattern": "^per",
-            "type": "string"
-          },
-          "metadata": {
-            "type": "object"
-          },
-          "patterns": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array"
-          },
-          "permission": {
-            "type": "string"
-          },
-          "sessionID": {
-            "pattern": "^ses",
-            "type": "string"
-          },
-          "tool": {
-            "additionalProperties": false,
-            "properties": {
-              "callID": {
-                "type": "string"
-              },
-              "messageID": {
-                "type": "string"
-              }
-            },
-            "required": [
-              "messageID",
-              "callID"
-            ],
-            "type": "object"
-          }
-        },
-        "required": [
-          "id",
-          "sessionID",
-          "permission",
-          "patterns",
-          "metadata",
-          "always"
-        ],
-        "type": "object"
-      },
-      "type": {
-        "enum": [
-          "permission.asked"
-        ],
-        "type": "string"
-      }
-    },
-    "EventPermissionReplied": {
-      "properties": {
-        "additionalProperties": false,
-        "properties": {
-          "reply": {
-            "enum": [
-              "once",
-              "always",
-              "reject"
-            ],
-            "type": "string"
-          },
-          "requestID": {
-            "pattern": "^per",
-            "type": "string"
-          },
-          "sessionID": {
-            "pattern": "^ses",
-            "type": "string"
-          }
-        },
-        "required": [
-          "sessionID",
-          "requestID",
-          "reply"
-        ],
-        "type": "object"
-      },
-      "type": {
-        "enum": [
-          "permission.replied"
-        ],
-        "type": "string"
-      }
-    },
-    "EventPermissionV2Asked": {
-      "properties": {
-        "additionalProperties": false,
-        "properties": {
-          "action": {
-            "type": "string"
-          },
-          "id": {
-            "pattern": "^per",
-            "type": "string"
-          },
-          "metadata": {
-            "type": "object"
-          },
-          "resources": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array"
-          },
-          "save": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array"
-          },
-          "sessionID": {
-            "pattern": "^ses",
-            "type": "string"
-          },
-          "source": {
-            "$ref": "#/components/schemas/PermissionV2Source"
-          }
-        },
-        "required": [
-          "id",
-          "sessionID",
-          "action",
-          "resources"
-        ],
-        "type": "object"
-      },
-      "type": {
-        "enum": [
-          "permission.v2.asked"
-        ],
-        "type": "string"
-      }
-    },
-    "EventPermissionV2Replied": {
-      "properties": {
-        "additionalProperties": false,
-        "properties": {
-          "reply": {
-            "$ref": "#/components/schemas/PermissionV2Reply"
-          },
-          "requestID": {
-            "pattern": "^per",
-            "type": "string"
-          },
-          "sessionID": {
-            "pattern": "^ses",
-            "type": "string"
-          }
-        },
-        "required": [
-          "sessionID",
-          "requestID",
-          "reply"
-        ],
-        "type": "object"
-      },
-      "type": {
-        "enum": [
-          "permission.v2.replied"
-        ],
-        "type": "string"
-      }
-    },
-    "EventQuestionAsked": {
-      "properties": {
-        "additionalProperties": false,
-        "properties": {
-          "id": {
-            "pattern": "^que",
-            "type": "string"
-          },
-          "questions": {
-            "items": {
-              "$ref": "#/components/schemas/QuestionInfo"
-            },
-            "type": "array"
-          },
-          "sessionID": {
-            "pattern": "^ses",
-            "type": "string"
-          },
-          "tool": {
-            "$ref": "#/components/schemas/QuestionTool"
-          }
-        },
-        "required": [
-          "id",
-          "sessionID",
-          "questions"
-        ],
-        "type": "object"
-      },
-      "type": {
-        "enum": [
-          "question.asked"
-        ],
-        "type": "string"
-      }
-    },
-    "EventQuestionRejected": {
-      "properties": {
-        "additionalProperties": false,
-        "properties": {
-          "requestID": {
-            "pattern": "^que",
-            "type": "string"
-          },
-          "sessionID": {
-            "pattern": "^ses",
-            "type": "string"
-          }
-        },
-        "required": [
-          "sessionID",
-          "requestID"
-        ],
-        "type": "object"
-      },
-      "type": {
-        "enum": [
-          "question.rejected"
-        ],
-        "type": "string"
-      }
-    },
-    "EventQuestionReplied": {
-      "properties": {
-        "additionalProperties": false,
-        "properties": {
-          "answers": {
-            "items": {
-              "$ref": "#/components/schemas/QuestionAnswer"
-            },
-            "type": "array"
-          },
-          "requestID": {
-            "pattern": "^que",
-            "type": "string"
-          },
-          "sessionID": {
-            "pattern": "^ses",
-            "type": "string"
-          }
-        },
-        "required": [
-          "sessionID",
-          "requestID",
-          "answers"
-        ],
-        "type": "object"
-      },
-      "type": {
-        "enum": [
-          "question.replied"
-        ],
-        "type": "string"
-      }
-    },
-    "EventQuestionV2Asked": {
-      "properties": {
-        "additionalProperties": false,
-        "properties": {
-          "id": {
-            "pattern": "^que",
-            "type": "string"
-          },
-          "questions": {
-            "items": {
-              "$ref": "#/components/schemas/QuestionV2Info"
-            },
-            "type": "array"
-          },
-          "sessionID": {
-            "pattern": "^ses",
-            "type": "string"
-          },
-          "tool": {
-            "$ref": "#/components/schemas/QuestionV2Tool"
-          }
-        },
-        "required": [
-          "id",
-          "sessionID",
-          "questions"
-        ],
-        "type": "object"
-      },
-      "type": {
-        "enum": [
-          "question.v2.asked"
-        ],
-        "type": "string"
-      }
-    },
-    "EventQuestionV2Rejected": {
-      "properties": {
-        "additionalProperties": false,
-        "properties": {
-          "requestID": {
-            "pattern": "^que",
-            "type": "string"
-          },
-          "sessionID": {
-            "pattern": "^ses",
-            "type": "string"
-          }
-        },
-        "required": [
-          "sessionID",
-          "requestID"
-        ],
-        "type": "object"
-      },
-      "type": {
-        "enum": [
-          "question.v2.rejected"
-        ],
-        "type": "string"
-      }
-    },
-    "EventQuestionV2Replied": {
-      "properties": {
-        "additionalProperties": false,
-        "properties": {
-          "answers": {
-            "items": {
-              "$ref": "#/components/schemas/QuestionV2Answer"
-            },
-            "type": "array"
-          },
-          "requestID": {
-            "pattern": "^que",
-            "type": "string"
-          },
-          "sessionID": {
-            "pattern": "^ses",
-            "type": "string"
-          }
-        },
-        "required": [
-          "sessionID",
-          "requestID",
-          "answers"
-        ],
-        "type": "object"
-      },
-      "type": {
-        "enum": [
-          "question.v2.replied"
-        ],
-        "type": "string"
-      }
-    },
-    "EventSessionCreated": {
-      "properties": {
-        "additionalProperties": false,
-        "properties": {
-          "info": {
-            "$ref": "#/components/schemas/Session"
-          },
-          "sessionID": {
-            "pattern": "^ses",
-            "type": "string"
-          }
-        },
-        "required": [
-          "sessionID",
-          "info"
-        ],
-        "type": "object"
-      },
-      "type": {
-        "enum": [
-          "session.created"
-        ],
-        "type": "string"
-      }
-    },
-    "EventSessionError": {
-      "properties": {
-        "additionalProperties": false,
-        "properties": {
-          "error": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/ProviderAuthError"
-              },
-              {
-                "$ref": "#/components/schemas/UnknownError"
-              },
-              {
-                "$ref": "#/components/schemas/MessageOutputLengthError"
-              },
-              {
-                "$ref": "#/components/schemas/MessageAbortedError"
-              },
-              {
-                "$ref": "#/components/schemas/StructuredOutputError"
-              },
-              {
-                "$ref": "#/components/schemas/ContextOverflowError"
-              },
-              {
-                "$ref": "#/components/schemas/ContentFilterError"
-              },
-              {
-                "$ref": "#/components/schemas/APIError"
-              }
-            ]
-          },
-          "sessionID": {
-            "pattern": "^ses",
-            "type": "string"
-          }
-        },
-        "type": "object"
-      },
-      "type": {
-        "enum": [
-          "session.error"
-        ],
-        "type": "string"
-      }
-    },
-    "EventSessionStatus": {
-      "properties": {
-        "additionalProperties": false,
-        "properties": {
-          "sessionID": {
-            "pattern": "^ses",
-            "type": "string"
-          },
-          "status": {
-            "$ref": "#/components/schemas/SessionStatus"
-          }
-        },
-        "required": [
-          "sessionID",
-          "status"
-        ],
-        "type": "object"
-      },
-      "type": {
-        "enum": [
-          "session.status"
-        ],
-        "type": "string"
-      }
-    },
-    "FilePart": {
-      "additionalProperties": false,
-      "properties": {
-        "filename": {
-          "type": "string"
-        },
-        "id": {
-          "pattern": "^prt",
-          "type": "string"
-        },
-        "messageID": {
-          "pattern": "^msg",
-          "type": "string"
-        },
-        "mime": {
-          "type": "string"
-        },
-        "sessionID": {
-          "pattern": "^ses",
-          "type": "string"
-        },
-        "source": {
-          "$ref": "#/components/schemas/FilePartSource"
-        },
-        "type": {
-          "enum": [
-            "file"
-          ],
-          "type": "string"
-        },
-        "url": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "id",
-        "sessionID",
-        "messageID",
-        "type",
-        "mime",
-        "url"
-      ],
-      "type": "object"
-    },
-    "FilePartInput": {
-      "additionalProperties": false,
-      "properties": {
-        "filename": {
-          "type": "string"
-        },
-        "id": {
-          "pattern": "^prt",
-          "type": "string"
-        },
-        "mime": {
-          "type": "string"
-        },
-        "source": {
-          "$ref": "#/components/schemas/FilePartSource"
-        },
-        "type": {
-          "enum": [
-            "file"
-          ],
-          "type": "string"
-        },
-        "url": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "type",
-        "mime",
-        "url"
-      ],
-      "type": "object"
-    },
-    "FilePartSource": {
-      "anyOf": [
-        {
-          "$ref": "#/components/schemas/FileSource"
-        },
-        {
-          "$ref": "#/components/schemas/SymbolSource"
-        },
-        {
-          "$ref": "#/components/schemas/ResourceSource"
-        }
-      ]
-    },
-    "FilePartSourceText": {
-      "additionalProperties": false,
-      "properties": {
-        "end": {
-          "type": "number"
-        },
-        "start": {
-          "type": "number"
-        },
-        "value": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "value",
-        "start",
-        "end"
-      ],
-      "type": "object"
-    },
-    "FileSource": {
-      "additionalProperties": false,
-      "properties": {
-        "path": {
-          "type": "string"
-        },
-        "text": {
-          "$ref": "#/components/schemas/FilePartSourceText"
-        },
-        "type": {
-          "enum": [
-            "file"
-          ],
-          "type": "string"
-        }
-      },
-      "required": [
-        "text",
-        "type",
-        "path"
-      ],
-      "type": "object"
-    },
-    "JSONSchema": {
-      "type": "object"
-    },
-    "LocationInfo": {
-      "additionalProperties": false,
-      "properties": {
-        "directory": {
-          "type": "string"
-        },
-        "project": {
-          "additionalProperties": false,
-          "properties": {
-            "directory": {
-              "type": "string"
-            },
-            "id": {
-              "type": "string"
-            }
-          },
-          "required": [
-            "id",
-            "directory"
-          ],
-          "type": "object"
-        },
-        "workspaceID": {
-          "pattern": "^wrk",
-          "type": "string"
-        }
-      },
-      "required": [
-        "directory",
-        "project"
-      ],
-      "type": "object"
-    },
-    "Message": {
-      "anyOf": [
-        {
-          "$ref": "#/components/schemas/UserMessage"
-        },
-        {
-          "$ref": "#/components/schemas/AssistantMessage"
-        }
-      ]
-    },
-    "MessageAbortedError": {
-      "additionalProperties": false,
-      "properties": {
-        "data": {
-          "additionalProperties": false,
-          "properties": {
-            "message": {
-              "type": "string"
-            }
-          },
-          "required": [
-            "message"
-          ],
-          "type": "object"
-        },
-        "name": {
-          "enum": [
-            "MessageAbortedError"
-          ],
-          "type": "string"
-        }
-      },
-      "required": [
-        "name",
-        "data"
-      ],
-      "type": "object"
-    },
-    "MessageOutputLengthError": {
-      "additionalProperties": false,
-      "properties": {
-        "data": {
-          "properties": {},
-          "type": "object"
-        },
-        "name": {
-          "enum": [
-            "MessageOutputLengthError"
-          ],
-          "type": "string"
-        }
-      },
-      "required": [
-        "name",
-        "data"
-      ],
-      "type": "object"
-    },
-    "Model": {
+    "Model.Info": {
       "capabilities": {
-        "additionalProperties": false,
-        "properties": {
-          "attachment": {
-            "type": "boolean"
-          },
-          "input": {
-            "additionalProperties": false,
-            "properties": {
-              "audio": {
-                "type": "boolean"
-              },
-              "image": {
-                "type": "boolean"
-              },
-              "pdf": {
-                "type": "boolean"
-              },
-              "text": {
-                "type": "boolean"
-              },
-              "video": {
-                "type": "boolean"
-              }
-            },
-            "required": [
-              "text",
-              "audio",
-              "image",
-              "video",
-              "pdf"
-            ],
-            "type": "object"
-          },
-          "interleaved": {
-            "anyOf": [
-              {
-                "type": "boolean"
-              },
-              {
-                "additionalProperties": false,
-                "properties": {
-                  "field": {
-                    "anyOf": [
-                      {
-                        "enum": [
-                          "reasoning",
-                          "reasoning_content",
-                          "reasoning_text"
-                        ],
-                        "type": "string"
-                      },
-                      {
-                        "type": "string"
-                      }
-                    ]
-                  }
-                },
-                "required": [
-                  "field"
-                ],
-                "type": "object"
-              }
-            ]
-          },
-          "output": {
-            "additionalProperties": false,
-            "properties": {
-              "audio": {
-                "type": "boolean"
-              },
-              "image": {
-                "type": "boolean"
-              },
-              "pdf": {
-                "type": "boolean"
-              },
-              "text": {
-                "type": "boolean"
-              },
-              "video": {
-                "type": "boolean"
-              }
-            },
-            "required": [
-              "text",
-              "audio",
-              "image",
-              "video",
-              "pdf"
-            ],
-            "type": "object"
-          },
-          "reasoning": {
-            "type": "boolean"
-          },
-          "temperature": {
-            "type": "boolean"
-          },
-          "toolcall": {
-            "type": "boolean"
-          }
-        },
-        "required": [
-          "temperature",
-          "reasoning",
-          "attachment",
-          "toolcall",
-          "input",
-          "output",
-          "interleaved"
-        ],
-        "type": "object"
+        "$ref": "#/components/schemas/Model.Capabilities"
+      },
+      "enabled": {
+        "type": "boolean"
       },
       "id": {
         "type": "string"
@@ -1809,143 +1056,69 @@
       "name": {
         "type": "string"
       },
+      "providerID": {
+        "type": "string"
+      },
       "variants": {
-        "additionalProperties": {
-          "type": "object"
+        "items": {
+          "$ref": "#/components/schemas/Model.Variant"
         },
-        "type": "object"
+        "type": "array"
       }
     },
-    "OutputFormat": {
-      "anyOf": [
-        {
-          "$ref": "#/components/schemas/OutputFormatText"
-        },
-        {
-          "$ref": "#/components/schemas/OutputFormatJsonSchema"
-        }
-      ]
+    "Model.Ref": {
+      "id": {
+        "type": "string"
+      },
+      "providerID": {
+        "type": "string"
+      },
+      "variant": {
+        "type": "string"
+      }
     },
-    "OutputFormatJsonSchema": {
-      "additionalProperties": false,
+    "Model.Settings": {
+      "allOf": [
+        {
+          "additionalProperties": {},
+          "type": "object"
+        }
+      ],
       "properties": {
-        "retryCount": {
-          "minimum": 0,
-          "type": "integer"
-        },
-        "schema": {
-          "$ref": "#/components/schemas/JSONSchema"
-        },
-        "type": {
-          "enum": [
-            "json_schema"
-          ],
-          "type": "string"
+        "compaction": {
+          "$ref": "#/components/schemas/Provider.Compaction"
         }
       },
-      "required": [
-        "type",
-        "schema"
-      ],
       "type": "object"
     },
-    "OutputFormatText": {
+    "Model.Variant": {
       "additionalProperties": false,
       "properties": {
-        "type": {
-          "enum": [
-            "text"
-          ],
-          "type": "string"
-        }
-      },
-      "required": [
-        "type"
-      ],
-      "type": "object"
-    },
-    "Part": {
-      "anyOf": [
-        {
-          "$ref": "#/components/schemas/TextPart"
+        "body": {
+          "type": "object"
         },
-        {
-          "$ref": "#/components/schemas/SubtaskPart"
-        },
-        {
-          "$ref": "#/components/schemas/ReasoningPart"
-        },
-        {
-          "$ref": "#/components/schemas/FilePart"
-        },
-        {
-          "$ref": "#/components/schemas/ToolPart"
-        },
-        {
-          "$ref": "#/components/schemas/StepStartPart"
-        },
-        {
-          "$ref": "#/components/schemas/StepFinishPart"
-        },
-        {
-          "$ref": "#/components/schemas/SnapshotPart"
-        },
-        {
-          "$ref": "#/components/schemas/PatchPart"
-        },
-        {
-          "$ref": "#/components/schemas/AgentPart"
-        },
-        {
-          "$ref": "#/components/schemas/RetryPart"
-        },
-        {
-          "$ref": "#/components/schemas/CompactionPart"
-        }
-      ]
-    },
-    "PatchPart": {
-      "additionalProperties": false,
-      "properties": {
-        "files": {
-          "items": {
+        "headers": {
+          "additionalProperties": {
             "type": "string"
           },
-          "type": "array"
-        },
-        "hash": {
-          "type": "string"
+          "type": "object"
         },
         "id": {
-          "pattern": "^prt",
           "type": "string"
         },
-        "messageID": {
-          "pattern": "^msg",
-          "type": "string"
-        },
-        "sessionID": {
-          "pattern": "^ses",
-          "type": "string"
-        },
-        "type": {
-          "enum": [
-            "patch"
-          ],
-          "type": "string"
+        "settings": {
+          "$ref": "#/components/schemas/Model.Settings"
         }
       },
       "required": [
-        "id",
-        "sessionID",
-        "messageID",
-        "type",
-        "hash",
-        "files"
+        "id"
       ],
       "type": "object"
     },
-    "PermissionAction": {
+    "Money.USD": {
+      "type": "number"
+    },
+    "Permission.Effect": {
       "enum": [
         "allow",
         "deny",
@@ -1953,61 +1126,7 @@
       ],
       "type": "string"
     },
-    "PermissionRequest": {
-      "always": {
-        "items": {
-          "type": "string"
-        },
-        "type": "array"
-      },
-      "id": {
-        "pattern": "^per",
-        "type": "string"
-      },
-      "metadata": {
-        "type": "object"
-      },
-      "patterns": {
-        "items": {
-          "type": "string"
-        },
-        "type": "array"
-      },
-      "permission": {
-        "type": "string"
-      },
-      "sessionID": {
-        "pattern": "^ses",
-        "type": "string"
-      }
-    },
-    "PermissionRule": {
-      "additionalProperties": false,
-      "properties": {
-        "action": {
-          "$ref": "#/components/schemas/PermissionAction"
-        },
-        "pattern": {
-          "type": "string"
-        },
-        "permission": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "permission",
-        "pattern",
-        "action"
-      ],
-      "type": "object"
-    },
-    "PermissionRuleset": {
-      "items": {
-        "$ref": "#/components/schemas/PermissionRule"
-      },
-      "type": "array"
-    },
-    "PermissionV2Reply": {
+    "Permission.Reply": {
       "enum": [
         "once",
         "always",
@@ -2015,7 +1134,7 @@
       ],
       "type": "string"
     },
-    "PermissionV2Request": {
+    "Permission.Request": {
       "action": {
         "type": "string"
       },
@@ -2043,338 +1162,170 @@
         "type": "string"
       }
     },
-    "PermissionV2Source": {
+    "Permission.Rule": {
       "additionalProperties": false,
       "properties": {
-        "callID": {
+        "action": {
           "type": "string"
         },
-        "messageID": {
-          "type": "string"
+        "effect": {
+          "$ref": "#/components/schemas/Permission.Effect"
         },
-        "type": {
-          "enum": [
-            "tool"
-          ],
+        "resource": {
           "type": "string"
         }
       },
       "required": [
-        "type",
-        "messageID",
-        "callID"
+        "action",
+        "resource",
+        "effect"
       ],
       "type": "object"
     },
-    "Provider": {
-      "id": {
-        "type": "string"
+    "Permission.Ruleset": {
+      "items": {
+        "$ref": "#/components/schemas/Permission.Rule"
       },
-      "models": {
-        "additionalProperties": {
-          "$ref": "#/components/schemas/Model"
-        },
-        "type": "object"
-      },
-      "name": {
-        "type": "string"
-      }
+      "type": "array"
     },
-    "ProviderAuthError": {
+    "Prompt.AgentAttachment": {
+      "additionalProperties": false,
+      "properties": {
+        "mention": {
+          "$ref": "#/components/schemas/Prompt.Mention"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "type": "object"
+    },
+    "Prompt.Base64": {
+      "pattern": "^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$",
+      "type": "string"
+    },
+    "Prompt.FileAttachment": {
       "additionalProperties": false,
       "properties": {
         "data": {
+          "$ref": "#/components/schemas/Prompt.Base64"
+        },
+        "description": {
+          "type": "string"
+        },
+        "mention": {
+          "$ref": "#/components/schemas/Prompt.Mention"
+        },
+        "mime": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "source": {
+          "$ref": "#/components/schemas/Prompt.FileSource"
+        }
+      },
+      "required": [
+        "data",
+        "mime",
+        "source"
+      ],
+      "type": "object"
+    },
+    "Prompt.FileSource": {
+      "anyOf": [
+        {
           "additionalProperties": false,
           "properties": {
-            "message": {
-              "type": "string"
-            },
-            "providerID": {
+            "type": {
+              "enum": [
+                "inline"
+              ],
               "type": "string"
             }
           },
           "required": [
-            "providerID",
-            "message"
+            "type"
           ],
           "type": "object"
         },
-        "name": {
-          "enum": [
-            "ProviderAuthError"
-          ],
-          "type": "string"
-        }
-      },
-      "required": [
-        "name",
-        "data"
-      ],
-      "type": "object"
-    },
-    "QuestionAnswer": {
-      "items": {
-        "type": "string"
-      },
-      "type": "array"
-    },
-    "QuestionInfo": {
-      "custom": {
-        "type": "boolean"
-      },
-      "header": {
-        "type": "string"
-      },
-      "multiple": {
-        "type": "boolean"
-      },
-      "options": {
-        "items": {
-          "$ref": "#/components/schemas/QuestionOption"
-        },
-        "type": "array"
-      },
-      "question": {
-        "type": "string"
-      }
-    },
-    "QuestionOption": {
-      "additionalProperties": false,
-      "properties": {
-        "description": {
-          "type": "string"
-        },
-        "label": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "label",
-        "description"
-      ],
-      "type": "object"
-    },
-    "QuestionRequest": {
-      "id": {
-        "pattern": "^que",
-        "type": "string"
-      },
-      "questions": {
-        "items": {
-          "$ref": "#/components/schemas/QuestionInfo"
-        },
-        "type": "array"
-      },
-      "sessionID": {
-        "pattern": "^ses",
-        "type": "string"
-      }
-    },
-    "QuestionTool": {
-      "additionalProperties": false,
-      "properties": {
-        "callID": {
-          "type": "string"
-        },
-        "messageID": {
-          "pattern": "^msg",
-          "type": "string"
-        }
-      },
-      "required": [
-        "messageID",
-        "callID"
-      ],
-      "type": "object"
-    },
-    "QuestionV2Answer": {
-      "items": {
-        "type": "string"
-      },
-      "type": "array"
-    },
-    "QuestionV2Info": {
-      "custom": {
-        "type": "boolean"
-      },
-      "header": {
-        "type": "string"
-      },
-      "multiple": {
-        "type": "boolean"
-      },
-      "options": {
-        "items": {
-          "$ref": "#/components/schemas/QuestionV2Option"
-        },
-        "type": "array"
-      },
-      "question": {
-        "type": "string"
-      }
-    },
-    "QuestionV2Option": {
-      "additionalProperties": false,
-      "properties": {
-        "description": {
-          "type": "string"
-        },
-        "label": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "label",
-        "description"
-      ],
-      "type": "object"
-    },
-    "QuestionV2Reply": {
-      "additionalProperties": false,
-      "properties": {
-        "answers": {
-          "items": {
-            "$ref": "#/components/schemas/QuestionV2Answer"
+        {
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "enum": [
+                "uri"
+              ],
+              "type": "string"
+            },
+            "uri": {
+              "type": "string"
+            }
           },
-          "type": "array"
+          "required": [
+            "type",
+            "uri"
+          ],
+          "type": "object"
         }
-      },
-      "required": [
-        "answers"
-      ],
-      "type": "object"
+      ]
     },
-    "QuestionV2Request": {
-      "id": {
-        "pattern": "^que",
-        "type": "string"
-      },
-      "questions": {
-        "items": {
-          "$ref": "#/components/schemas/QuestionV2Info"
-        },
-        "type": "array"
-      },
-      "sessionID": {
-        "pattern": "^ses",
-        "type": "string"
-      }
-    },
-    "QuestionV2Tool": {
-      "additionalProperties": false,
-      "properties": {
-        "callID": {
-          "type": "string"
-        },
-        "messageID": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "messageID",
-        "callID"
-      ],
-      "type": "object"
-    },
-    "Range": {
+    "Prompt.Mention": {
       "additionalProperties": false,
       "properties": {
         "end": {
-          "additionalProperties": false,
-          "properties": {
-            "character": {
-              "minimum": 0,
-              "type": "integer"
-            },
-            "line": {
-              "minimum": 0,
-              "type": "integer"
-            }
-          },
-          "required": [
-            "line",
-            "character"
-          ],
-          "type": "object"
+          "type": "number"
         },
         "start": {
-          "additionalProperties": false,
-          "properties": {
-            "character": {
-              "minimum": 0,
-              "type": "integer"
-            },
-            "line": {
-              "minimum": 0,
-              "type": "integer"
-            }
-          },
-          "required": [
-            "line",
-            "character"
-          ],
-          "type": "object"
+          "type": "number"
+        },
+        "text": {
+          "type": "string"
         }
       },
       "required": [
         "start",
-        "end"
+        "end",
+        "text"
       ],
       "type": "object"
     },
-    "ReasoningPart": {
-      "id": {
-        "pattern": "^prt",
-        "type": "string"
-      },
-      "messageID": {
-        "pattern": "^msg",
-        "type": "string"
-      },
-      "sessionID": {
-        "pattern": "^ses",
-        "type": "string"
-      },
-      "text": {
-        "type": "string"
-      },
-      "time": {
-        "additionalProperties": false,
-        "properties": {
-          "end": {
-            "minimum": 0,
-            "type": "integer"
-          },
-          "start": {
-            "minimum": 0,
-            "type": "integer"
-          }
-        },
-        "required": [
-          "start"
-        ],
-        "type": "object"
-      },
-      "type": {
-        "enum": [
-          "reasoning"
-        ],
-        "type": "string"
-      }
-    },
-    "ResourceSource": {
+    "Prompt.SkillAttachment": {
       "additionalProperties": false,
       "properties": {
-        "clientName": {
+        "id": {
+          "type": "string"
+        },
+        "mention": {
+          "$ref": "#/components/schemas/Prompt.Mention"
+        },
+        "name": {
           "type": "string"
         },
         "text": {
-          "$ref": "#/components/schemas/FilePartSourceText"
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "name"
+      ],
+      "type": "object"
+    },
+    "PromptInput.FileAttachment": {
+      "additionalProperties": false,
+      "properties": {
+        "description": {
+          "type": "string"
         },
-        "type": {
-          "enum": [
-            "resource"
-          ],
+        "mention": {
+          "$ref": "#/components/schemas/Prompt.Mention"
+        },
+        "name": {
           "type": "string"
         },
         "uri": {
@@ -2382,30 +1333,78 @@
         }
       },
       "required": [
-        "text",
-        "type",
-        "clientName",
         "uri"
       ],
       "type": "object"
     },
-    "RetryPart": {
+    "PromptInput.SkillAttachment": {
       "additionalProperties": false,
       "properties": {
-        "attempt": {
-          "minimum": 0,
-          "type": "integer"
+        "id": {
+          "type": "string"
         },
-        "error": {
-          "$ref": "#/components/schemas/APIError"
+        "mention": {
+          "$ref": "#/components/schemas/Prompt.Mention"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "type": "object"
+    },
+    "Provider.Compaction": {
+      "anyOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "enum": [
+                "summary"
+              ],
+              "type": "string"
+            }
+          },
+          "required": [
+            "type"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "enum": [
+                "native"
+              ],
+              "type": "string"
+            }
+          },
+          "required": [
+            "type"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "Session.Inbox.Delivery": {
+      "enum": [
+        "steer",
+        "queue"
+      ],
+      "type": "string"
+    },
+    "Session.Inbox.User": {
+      "additionalProperties": false,
+      "properties": {
+        "delivery": {
+          "$ref": "#/components/schemas/Session.Inbox.Delivery"
         },
         "id": {
-          "pattern": "^prt",
+          "pattern": "^msg_",
           "type": "string"
         },
-        "messageID": {
-          "pattern": "^msg",
-          "type": "string"
+        "payload": {
+          "$ref": "#/components/schemas/Session.Inbox.UserPayload"
         },
         "sessionID": {
           "pattern": "^ses",
@@ -2415,8 +1414,7 @@
           "additionalProperties": false,
           "properties": {
             "created": {
-              "minimum": 0,
-              "type": "integer"
+              "type": "number"
             }
           },
           "required": [
@@ -2426,7 +1424,7 @@
         },
         "type": {
           "enum": [
-            "retry"
+            "user"
           ],
           "type": "string"
         }
@@ -2434,512 +1432,156 @@
       "required": [
         "id",
         "sessionID",
-        "messageID",
+        "time",
         "type",
-        "attempt",
-        "error",
-        "time"
+        "payload",
+        "delivery"
       ],
       "type": "object"
     },
-    "Session": {
-      "directory": {
-        "type": "string"
+    "Session.Inbox.UserPayload": {
+      "additionalProperties": false,
+      "properties": {
+        "agents": {
+          "items": {
+            "$ref": "#/components/schemas/Prompt.AgentAttachment"
+          },
+          "type": "array"
+        },
+        "files": {
+          "items": {
+            "$ref": "#/components/schemas/Prompt.FileAttachment"
+          },
+          "type": "array"
+        },
+        "metadata": {
+          "type": "object"
+        },
+        "skills": {
+          "items": {
+            "$ref": "#/components/schemas/Prompt.SkillAttachment"
+          },
+          "type": "array"
+        },
+        "text": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "text"
+      ],
+      "type": "object"
+    },
+    "Session.Info": {
+      "cost": {
+        "$ref": "#/components/schemas/Money.USD"
       },
       "id": {
         "pattern": "^ses",
         "type": "string"
+      },
+      "location": {
+        "$ref": "#/components/schemas/Location.PublicRef"
       },
       "parentID": {
         "pattern": "^ses",
         "type": "string"
+      },
+      "title": {
+        "type": "string"
+      },
+      "tokens": {
+        "$ref": "#/components/schemas/TokenUsage.Info"
       }
     },
-    "SessionStatus": {
-      "anyOf": [
-        {
-          "additionalProperties": false,
-          "properties": {
-            "type": {
-              "enum": [
-                "idle"
-              ],
-              "type": "string"
-            }
-          },
-          "required": [
-            "type"
-          ],
-          "type": "object"
-        },
-        {
-          "additionalProperties": false,
-          "properties": {
-            "action": {
-              "additionalProperties": false,
-              "properties": {
-                "label": {
-                  "type": "string"
-                },
-                "link": {
-                  "type": "string"
-                },
-                "message": {
-                  "type": "string"
-                },
-                "provider": {
-                  "type": "string"
-                },
-                "reason": {
-                  "type": "string"
-                },
-                "title": {
-                  "type": "string"
-                }
-              },
-              "required": [
-                "reason",
-                "provider",
-                "title",
-                "message",
-                "label"
-              ],
-              "type": "object"
-            },
-            "attempt": {
-              "minimum": 0,
-              "type": "integer"
-            },
-            "message": {
-              "type": "string"
-            },
-            "next": {
-              "minimum": 0,
-              "type": "integer"
-            },
-            "type": {
-              "enum": [
-                "retry"
-              ],
-              "type": "string"
-            }
-          },
-          "required": [
-            "type",
-            "attempt",
-            "message",
-            "next"
-          ],
-          "type": "object"
-        },
-        {
-          "additionalProperties": false,
-          "properties": {
-            "type": {
-              "enum": [
-                "busy"
-              ],
-              "type": "string"
-            }
-          },
-          "required": [
-            "type"
-          ],
-          "type": "object"
-        }
-      ]
-    },
-    "SnapshotFileDiff": {
-      "additionalProperties": false,
-      "properties": {
-        "additions": {
-          "type": "number"
-        },
-        "deletions": {
-          "type": "number"
-        },
-        "file": {
-          "type": "string"
-        },
-        "patch": {
-          "type": "string"
-        },
-        "status": {
-          "enum": [
-            "added",
-            "deleted",
-            "modified"
-          ],
-          "type": "string"
-        }
-      },
-      "required": [
-        "additions",
-        "deletions"
-      ],
-      "type": "object"
-    },
-    "SnapshotPart": {
-      "additionalProperties": false,
-      "properties": {
-        "id": {
-          "pattern": "^prt",
-          "type": "string"
-        },
-        "messageID": {
-          "pattern": "^msg",
-          "type": "string"
-        },
-        "sessionID": {
-          "pattern": "^ses",
-          "type": "string"
-        },
-        "snapshot": {
-          "type": "string"
-        },
-        "type": {
-          "enum": [
-            "snapshot"
-          ],
-          "type": "string"
-        }
-      },
-      "required": [
-        "id",
-        "sessionID",
-        "messageID",
-        "type",
-        "snapshot"
-      ],
-      "type": "object"
-    },
-    "StepFinishPart": {
-      "additionalProperties": false,
-      "properties": {
-        "cost": {
-          "type": "number"
-        },
-        "id": {
-          "pattern": "^prt",
-          "type": "string"
-        },
-        "messageID": {
-          "pattern": "^msg",
-          "type": "string"
-        },
-        "reason": {
-          "type": "string"
-        },
-        "sessionID": {
-          "pattern": "^ses",
-          "type": "string"
-        },
-        "snapshot": {
-          "type": "string"
-        },
-        "tokens": {
-          "additionalProperties": false,
-          "properties": {
-            "cache": {
-              "additionalProperties": false,
-              "properties": {
-                "read": {
-                  "type": "number"
-                },
-                "write": {
-                  "type": "number"
-                }
-              },
-              "required": [
-                "read",
-                "write"
-              ],
-              "type": "object"
-            },
-            "input": {
-              "type": "number"
-            },
-            "output": {
-              "type": "number"
-            },
-            "reasoning": {
-              "type": "number"
-            },
-            "total": {
-              "type": "number"
-            }
-          },
-          "required": [
-            "input",
-            "output",
-            "reasoning",
-            "cache"
-          ],
-          "type": "object"
-        },
-        "type": {
-          "enum": [
-            "step-finish"
-          ],
-          "type": "string"
-        }
-      },
-      "required": [
-        "id",
-        "sessionID",
-        "messageID",
-        "type",
-        "reason",
-        "cost",
-        "tokens"
-      ],
-      "type": "object"
-    },
-    "StepStartPart": {
-      "additionalProperties": false,
-      "properties": {
-        "id": {
-          "pattern": "^prt",
-          "type": "string"
-        },
-        "messageID": {
-          "pattern": "^msg",
-          "type": "string"
-        },
-        "sessionID": {
-          "pattern": "^ses",
-          "type": "string"
-        },
-        "snapshot": {
-          "type": "string"
-        },
-        "type": {
-          "enum": [
-            "step-start"
-          ],
-          "type": "string"
-        }
-      },
-      "required": [
-        "id",
-        "sessionID",
-        "messageID",
-        "type"
-      ],
-      "type": "object"
-    },
-    "StructuredOutputError": {
-      "additionalProperties": false,
-      "properties": {
-        "data": {
-          "additionalProperties": false,
-          "properties": {
-            "message": {
-              "type": "string"
-            },
-            "retries": {
-              "minimum": 0,
-              "type": "integer"
-            }
-          },
-          "required": [
-            "message",
-            "retries"
-          ],
-          "type": "object"
-        },
-        "name": {
-          "enum": [
-            "StructuredOutputError"
-          ],
-          "type": "string"
-        }
-      },
-      "required": [
-        "name",
-        "data"
-      ],
-      "type": "object"
-    },
-    "SubtaskPart": {
+    "Session.Message.AgentSelected": {
       "additionalProperties": false,
       "properties": {
         "agent": {
           "type": "string"
         },
-        "command": {
-          "type": "string"
-        },
-        "description": {
-          "type": "string"
-        },
         "id": {
-          "pattern": "^prt",
+          "pattern": "^msg_",
           "type": "string"
         },
-        "messageID": {
-          "pattern": "^msg",
+        "metadata": {
+          "type": "object"
+        },
+        "previous": {
           "type": "string"
         },
-        "model": {
+        "time": {
           "additionalProperties": false,
           "properties": {
-            "modelID": {
-              "type": "string"
-            },
-            "providerID": {
-              "type": "string"
+            "created": {
+              "type": "number"
             }
           },
           "required": [
-            "providerID",
-            "modelID"
+            "created"
           ],
           "type": "object"
         },
-        "prompt": {
-          "type": "string"
-        },
-        "sessionID": {
-          "pattern": "^ses",
-          "type": "string"
-        },
         "type": {
           "enum": [
-            "subtask"
+            "agent-switched"
           ],
           "type": "string"
         }
       },
       "required": [
         "id",
-        "sessionID",
-        "messageID",
+        "time",
         "type",
-        "prompt",
-        "description",
         "agent"
       ],
       "type": "object"
     },
-    "SubtaskPartInput": {
-      "additionalProperties": false,
-      "properties": {
-        "agent": {
-          "type": "string"
-        },
-        "command": {
-          "type": "string"
-        },
-        "description": {
-          "type": "string"
-        },
-        "id": {
-          "pattern": "^prt",
-          "type": "string"
-        },
-        "model": {
-          "additionalProperties": false,
-          "properties": {
-            "modelID": {
-              "type": "string"
+    "Session.Message.Assistant": {
+      "content": {
+        "items": {
+          "anyOf": [
+            {
+              "$ref": "#/components/schemas/Session.Message.Assistant.Text"
             },
-            "providerID": {
-              "type": "string"
+            {
+              "$ref": "#/components/schemas/Session.Message.Assistant.Reasoning"
+            },
+            {
+              "$ref": "#/components/schemas/Session.Message.Assistant.Tool"
             }
-          },
-          "required": [
-            "providerID",
-            "modelID"
-          ],
-          "type": "object"
+          ]
         },
-        "prompt": {
-          "type": "string"
-        },
-        "type": {
-          "enum": [
-            "subtask"
-          ],
-          "type": "string"
-        }
+        "type": "array"
       },
-      "required": [
-        "type",
-        "prompt",
-        "description",
-        "agent"
-      ],
-      "type": "object"
-    },
-    "SymbolSource": {
-      "additionalProperties": false,
-      "properties": {
-        "kind": {
-          "minimum": 0,
-          "type": "integer"
-        },
-        "name": {
-          "type": "string"
-        },
-        "path": {
-          "type": "string"
-        },
-        "range": {
-          "$ref": "#/components/schemas/Range"
-        },
-        "text": {
-          "$ref": "#/components/schemas/FilePartSourceText"
-        },
-        "type": {
-          "enum": [
-            "symbol"
-          ],
-          "type": "string"
-        }
+      "error": {
+        "$ref": "#/components/schemas/Session.StructuredError"
       },
-      "required": [
-        "text",
-        "type",
-        "path",
-        "range",
-        "name",
-        "kind"
-      ],
-      "type": "object"
-    },
-    "TextPart": {
       "id": {
-        "pattern": "^prt",
+        "pattern": "^msg_",
         "type": "string"
       },
-      "messageID": {
-        "pattern": "^msg",
+      "type": {
+        "enum": [
+          "assistant"
+        ],
         "type": "string"
-      },
-      "sessionID": {
-        "pattern": "^ses",
-        "type": "string"
-      },
+      }
+    },
+    "Session.Message.Assistant.Reasoning": {
       "text": {
         "type": "string"
       },
-      "time": {
-        "additionalProperties": false,
-        "properties": {
-          "end": {
-            "minimum": 0,
-            "type": "integer"
-          },
-          "start": {
-            "minimum": 0,
-            "type": "integer"
-          }
-        },
-        "required": [
-          "start"
+      "type": {
+        "enum": [
+          "reasoning"
         ],
-        "type": "object"
+        "type": "string"
+      }
+    },
+    "Session.Message.Assistant.Text": {
+      "text": {
+        "type": "string"
       },
       "type": {
         "enum": [
@@ -2948,21 +1590,556 @@
         "type": "string"
       }
     },
-    "TextPartInput": {
+    "Session.Message.Assistant.Tool": {
+      "id": {
+        "type": "string"
+      },
+      "name": {
+        "type": "string"
+      },
+      "state": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/Session.Message.ToolState.Streaming"
+          },
+          {
+            "$ref": "#/components/schemas/Session.Message.ToolState.Running"
+          },
+          {
+            "$ref": "#/components/schemas/Session.Message.ToolState.Completed"
+          },
+          {
+            "$ref": "#/components/schemas/Session.Message.ToolState.Error"
+          }
+        ]
+      },
+      "type": {
+        "enum": [
+          "tool"
+        ],
+        "type": "string"
+      }
+    },
+    "Session.Message.Compaction": {
+      "anyOf": [
+        {
+          "$ref": "#/components/schemas/Session.Message.Compaction.Running"
+        },
+        {
+          "$ref": "#/components/schemas/Session.Message.Compaction.Completed"
+        },
+        {
+          "$ref": "#/components/schemas/Session.Message.Compaction.Failed"
+        }
+      ]
+    },
+    "Session.Message.Compaction.Completed": {
       "additionalProperties": false,
       "properties": {
-        "id": {
-          "pattern": "^prt",
-          "type": "string"
+        "cost": {
+          "$ref": "#/components/schemas/Money.USD"
         },
-        "ignored": {
-          "type": "boolean"
+        "id": {
+          "pattern": "^msg_",
+          "type": "string"
         },
         "metadata": {
           "type": "object"
         },
-        "synthetic": {
-          "type": "boolean"
+        "model": {
+          "$ref": "#/components/schemas/Model.Ref"
+        },
+        "providerContext": {
+          "$ref": "#/components/schemas/Session.ProviderContext"
+        },
+        "providerState": {
+          "$ref": "#/components/schemas/Session.Message.ProviderState_5"
+        },
+        "reason": {
+          "enum": [
+            "auto",
+            "manual"
+          ],
+          "type": "string"
+        },
+        "recent": {
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "completed"
+          ],
+          "type": "string"
+        },
+        "summary": {
+          "type": "string"
+        },
+        "time": {
+          "additionalProperties": false,
+          "properties": {
+            "created": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "created"
+          ],
+          "type": "object"
+        },
+        "tokens": {
+          "$ref": "#/components/schemas/TokenUsage.Info"
+        },
+        "type": {
+          "enum": [
+            "compaction"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "id",
+        "time",
+        "status",
+        "reason",
+        "summary",
+        "recent"
+      ],
+      "type": "object"
+    },
+    "Session.Message.Compaction.Failed": {
+      "additionalProperties": false,
+      "properties": {
+        "cost": {
+          "$ref": "#/components/schemas/Money.USD"
+        },
+        "error": {
+          "$ref": "#/components/schemas/Session.StructuredError"
+        },
+        "id": {
+          "pattern": "^msg_",
+          "type": "string"
+        },
+        "metadata": {
+          "type": "object"
+        },
+        "reason": {
+          "enum": [
+            "auto",
+            "manual"
+          ],
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "failed"
+          ],
+          "type": "string"
+        },
+        "time": {
+          "additionalProperties": false,
+          "properties": {
+            "created": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "created"
+          ],
+          "type": "object"
+        },
+        "tokens": {
+          "$ref": "#/components/schemas/TokenUsage.Info"
+        },
+        "type": {
+          "enum": [
+            "compaction"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "id",
+        "time",
+        "status",
+        "reason",
+        "error"
+      ],
+      "type": "object"
+    },
+    "Session.Message.Compaction.Running": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "pattern": "^msg_",
+          "type": "string"
+        },
+        "metadata": {
+          "type": "object"
+        },
+        "reason": {
+          "enum": [
+            "auto",
+            "manual"
+          ],
+          "type": "string"
+        },
+        "recent": {
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "running"
+          ],
+          "type": "string"
+        },
+        "summary": {
+          "type": "string"
+        },
+        "time": {
+          "additionalProperties": false,
+          "properties": {
+            "created": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "created"
+          ],
+          "type": "object"
+        },
+        "type": {
+          "enum": [
+            "compaction"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "id",
+        "time",
+        "status",
+        "reason",
+        "summary",
+        "recent"
+      ],
+      "type": "object"
+    },
+    "Session.Message.Idle": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "pattern": "^msg_",
+          "type": "string"
+        },
+        "metadata": {
+          "type": "object"
+        },
+        "outcome": {
+          "enum": [
+            "succeeded",
+            "failed",
+            "interrupted"
+          ],
+          "type": "string"
+        },
+        "time": {
+          "additionalProperties": false,
+          "properties": {
+            "created": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "created"
+          ],
+          "type": "object"
+        },
+        "type": {
+          "enum": [
+            "idle"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "time",
+        "type",
+        "outcome"
+      ],
+      "type": "object"
+    },
+    "Session.Message.Info": {
+      "anyOf": [
+        {
+          "$ref": "#/components/schemas/Session.Message.AgentSelected"
+        },
+        {
+          "$ref": "#/components/schemas/Session.Message.ModelSelected"
+        },
+        {
+          "$ref": "#/components/schemas/Session.Message.LocationSwitched"
+        },
+        {
+          "$ref": "#/components/schemas/Session.Message.User"
+        },
+        {
+          "$ref": "#/components/schemas/Session.Message.Synthetic"
+        },
+        {
+          "$ref": "#/components/schemas/Session.Message.System"
+        },
+        {
+          "$ref": "#/components/schemas/Session.Message.Skill"
+        },
+        {
+          "$ref": "#/components/schemas/Session.Message.Shell"
+        },
+        {
+          "$ref": "#/components/schemas/Session.Message.Assistant"
+        },
+        {
+          "$ref": "#/components/schemas/Session.Message.Compaction"
+        },
+        {
+          "$ref": "#/components/schemas/Session.Message.Idle"
+        }
+      ]
+    },
+    "Session.Message.LocationSwitched": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "pattern": "^msg_",
+          "type": "string"
+        },
+        "location": {
+          "$ref": "#/components/schemas/Location.PublicRef"
+        },
+        "metadata": {
+          "type": "object"
+        },
+        "previous": {
+          "anyOf": [
+            {
+              "additionalProperties": false,
+              "properties": {
+                "location": {
+                  "$ref": "#/components/schemas/Location.PublicRef"
+                },
+                "projectID": {
+                  "type": "string"
+                },
+                "subpath": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "location"
+              ],
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "projectID": {
+          "type": "string"
+        },
+        "subpath": {
+          "type": "string"
+        },
+        "time": {
+          "additionalProperties": false,
+          "properties": {
+            "created": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "created"
+          ],
+          "type": "object"
+        },
+        "type": {
+          "enum": [
+            "location-switched"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "time",
+        "type",
+        "location"
+      ],
+      "type": "object"
+    },
+    "Session.Message.ModelSelected": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "pattern": "^msg_",
+          "type": "string"
+        },
+        "metadata": {
+          "type": "object"
+        },
+        "model": {
+          "$ref": "#/components/schemas/Model.Ref"
+        },
+        "previous": {
+          "$ref": "#/components/schemas/Model.Ref"
+        },
+        "time": {
+          "additionalProperties": false,
+          "properties": {
+            "created": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "created"
+          ],
+          "type": "object"
+        },
+        "type": {
+          "enum": [
+            "model-switched"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "time",
+        "type",
+        "model"
+      ],
+      "type": "object"
+    },
+    "Session.Message.ProviderState_5": {
+      "type": "object"
+    },
+    "Session.Message.Shell": {
+      "additionalProperties": false,
+      "properties": {
+        "command": {
+          "type": "string"
+        },
+        "exit": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "enum": [
+                "Infinity",
+                "-Infinity",
+                "NaN"
+              ],
+              "type": "string"
+            }
+          ]
+        },
+        "id": {
+          "pattern": "^msg_",
+          "type": "string"
+        },
+        "metadata": {
+          "type": "object"
+        },
+        "output": {
+          "additionalProperties": false,
+          "properties": {
+            "cursor": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "output": {
+              "type": "string"
+            },
+            "size": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "truncated": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "output",
+            "cursor",
+            "size",
+            "truncated"
+          ],
+          "type": "object"
+        },
+        "shellID": {
+          "pattern": "^sh_",
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "running",
+            "exited",
+            "timeout",
+            "killed"
+          ],
+          "type": "string"
+        },
+        "time": {
+          "additionalProperties": false,
+          "properties": {
+            "completed": {
+              "type": "number"
+            },
+            "created": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "created"
+          ],
+          "type": "object"
+        },
+        "type": {
+          "enum": [
+            "shell"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "time",
+        "type",
+        "shellID",
+        "command",
+        "status"
+      ],
+      "type": "object"
+    },
+    "Session.Message.Skill": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "pattern": "^msg_",
+          "type": "string"
+        },
+        "metadata": {
+          "type": "object"
+        },
+        "name": {
+          "type": "string"
+        },
+        "skill": {
+          "type": "string"
         },
         "text": {
           "type": "string"
@@ -2970,78 +2147,130 @@
         "time": {
           "additionalProperties": false,
           "properties": {
-            "end": {
-              "minimum": 0,
-              "type": "integer"
-            },
-            "start": {
-              "minimum": 0,
-              "type": "integer"
+            "created": {
+              "type": "number"
             }
           },
           "required": [
-            "start"
+            "created"
           ],
           "type": "object"
         },
         "type": {
           "enum": [
-            "text"
+            "skill"
           ],
           "type": "string"
         }
       },
       "required": [
+        "id",
+        "time",
+        "type",
+        "skill",
+        "name",
+        "text"
+      ],
+      "type": "object"
+    },
+    "Session.Message.Synthetic": {
+      "additionalProperties": false,
+      "properties": {
+        "description": {
+          "type": "string"
+        },
+        "id": {
+          "pattern": "^msg_",
+          "type": "string"
+        },
+        "metadata": {
+          "type": "object"
+        },
+        "text": {
+          "type": "string"
+        },
+        "time": {
+          "additionalProperties": false,
+          "properties": {
+            "created": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "created"
+          ],
+          "type": "object"
+        },
+        "type": {
+          "enum": [
+            "synthetic"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "time",
+        "text",
+        "type"
+      ],
+      "type": "object"
+    },
+    "Session.Message.System": {
+      "additionalProperties": false,
+      "properties": {
+        "description": {
+          "type": "string"
+        },
+        "id": {
+          "pattern": "^msg_",
+          "type": "string"
+        },
+        "metadata": {
+          "type": "object"
+        },
+        "text": {
+          "type": "string"
+        },
+        "time": {
+          "additionalProperties": false,
+          "properties": {
+            "created": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "created"
+          ],
+          "type": "object"
+        },
+        "type": {
+          "enum": [
+            "system"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "time",
         "type",
         "text"
       ],
       "type": "object"
     },
-    "ToolPart": {
-      "id": {
-        "pattern": "^prt",
-        "type": "string"
-      },
-      "messageID": {
-        "pattern": "^msg",
-        "type": "string"
-      },
-      "sessionID": {
-        "pattern": "^ses",
-        "type": "string"
-      },
-      "state": {
-        "$ref": "#/components/schemas/ToolState"
-      },
-      "tool": {
-        "type": "string"
-      }
-    },
-    "ToolState": {
-      "anyOf": [
-        {
-          "$ref": "#/components/schemas/ToolStatePending"
+    "Session.Message.ToolState.Completed": {
+      "content": {
+        "items": {
+          "$ref": "#/components/schemas/Tool.Content"
         },
-        {
-          "$ref": "#/components/schemas/ToolStateRunning"
-        },
-        {
-          "$ref": "#/components/schemas/ToolStateCompleted"
-        },
-        {
-          "$ref": "#/components/schemas/ToolStateError"
-        }
-      ]
-    },
-    "ToolStateCompleted": {
+        "type": "array"
+      },
       "input": {
         "type": "object"
       },
       "metadata": {
         "type": "object"
-      },
-      "output": {
-        "type": "string"
       },
       "status": {
         "enum": [
@@ -3050,9 +2279,9 @@
         "type": "string"
       }
     },
-    "ToolStateError": {
+    "Session.Message.ToolState.Error": {
       "error": {
-        "type": "string"
+        "$ref": "#/components/schemas/Session.StructuredError"
       },
       "input": {
         "type": "object"
@@ -3067,30 +2296,7 @@
         "type": "string"
       }
     },
-    "ToolStatePending": {
-      "additionalProperties": false,
-      "properties": {
-        "input": {
-          "type": "object"
-        },
-        "raw": {
-          "type": "string"
-        },
-        "status": {
-          "enum": [
-            "pending"
-          ],
-          "type": "string"
-        }
-      },
-      "required": [
-        "status",
-        "input",
-        "raw"
-      ],
-      "type": "object"
-    },
-    "ToolStateRunning": {
+    "Session.Message.ToolState.Running": {
       "additionalProperties": false,
       "properties": {
         "input": {
@@ -3104,155 +2310,295 @@
             "running"
           ],
           "type": "string"
-        },
-        "time": {
-          "additionalProperties": false,
-          "properties": {
-            "start": {
-              "minimum": 0,
-              "type": "integer"
-            }
-          },
-          "required": [
-            "start"
-          ],
-          "type": "object"
-        },
-        "title": {
-          "type": "string"
         }
       },
       "required": [
         "status",
         "input",
-        "time"
+        "metadata"
       ],
       "type": "object"
     },
-    "UnknownError": {
+    "Session.Message.ToolState.Streaming": {
       "additionalProperties": false,
       "properties": {
-        "data": {
+        "input": {
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "streaming"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "status",
+        "input"
+      ],
+      "type": "object"
+    },
+    "Session.Message.User": {
+      "id": {
+        "pattern": "^msg_",
+        "type": "string"
+      },
+      "text": {
+        "type": "string"
+      },
+      "type": {
+        "enum": [
+          "user"
+        ],
+        "type": "string"
+      }
+    },
+    "Session.Metadata": {
+      "type": "object"
+    },
+    "Session.ProviderContext": {
+      "additionalProperties": false,
+      "properties": {
+        "messages": {},
+        "provenance": {
+          "$ref": "#/components/schemas/Session.ProviderContext.Provenance"
+        },
+        "version": {
+          "enum": [
+            1
+          ],
+          "type": "number"
+        }
+      },
+      "required": [
+        "version",
+        "provenance",
+        "messages"
+      ],
+      "type": "object"
+    },
+    "Session.ProviderContext.Provenance": {
+      "additionalProperties": false,
+      "properties": {
+        "endpoint": {
+          "type": "string"
+        },
+        "modelID": {
+          "type": "string"
+        },
+        "protocol": {
+          "type": "string"
+        },
+        "provider": {
+          "type": "string"
+        },
+        "providerID": {
+          "type": "string"
+        },
+        "route": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "providerID",
+        "provider",
+        "modelID",
+        "route",
+        "protocol",
+        "endpoint"
+      ],
+      "type": "object"
+    },
+    "Session.StructuredError": {
+      "message": {
+        "type": "string"
+      },
+      "type": {
+        "type": "string"
+      }
+    },
+    "SessionInterruptResponse": {
+      "additionalProperties": false,
+      "properties": {
+        "interrupted": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "interrupted"
+      ],
+      "type": "object"
+    },
+    "SessionMessagesResponse": {
+      "additionalProperties": false,
+      "properties": {
+        "cursor": {
           "additionalProperties": false,
           "properties": {
-            "message": {
-              "type": "string"
+            "next": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
             },
-            "ref": {
-              "type": "string"
+            "previous": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
             }
           },
-          "required": [
-            "message"
-          ],
           "type": "object"
+        },
+        "data": {
+          "items": {
+            "$ref": "#/components/schemas/Session.Message.Info"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "data",
+        "cursor"
+      ],
+      "type": "object"
+    },
+    "SessionsResponse": {
+      "additionalProperties": false,
+      "properties": {
+        "cursor": {
+          "additionalProperties": false,
+          "properties": {
+            "next": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "previous": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "type": "object"
+        },
+        "data": {
+          "items": {
+            "$ref": "#/components/schemas/Session.Info"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "data",
+        "cursor"
+      ],
+      "type": "object"
+    },
+    "TokenUsage.Info": {
+      "cache": {
+        "additionalProperties": false,
+        "properties": {
+          "read": {
+            "type": "number"
+          },
+          "write": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "read",
+          "write"
+        ],
+        "type": "object"
+      },
+      "input": {
+        "type": "number"
+      },
+      "output": {
+        "type": "number"
+      },
+      "reasoning": {
+        "type": "number"
+      }
+    },
+    "Tool.Content": {
+      "anyOf": [
+        {
+          "$ref": "#/components/schemas/Tool.TextContent"
+        },
+        {
+          "$ref": "#/components/schemas/Tool.FileContent"
+        }
+      ]
+    },
+    "Tool.FileContent": {
+      "additionalProperties": false,
+      "properties": {
+        "mime": {
+          "type": "string"
         },
         "name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "type": {
           "enum": [
-            "UnknownError"
+            "file"
           ],
+          "type": "string"
+        },
+        "uri": {
           "type": "string"
         }
       },
       "required": [
-        "name",
-        "data"
+        "type",
+        "uri",
+        "mime"
       ],
       "type": "object"
     },
-    "UserMessage": {
+    "Tool.TextContent": {
       "additionalProperties": false,
       "properties": {
-        "agent": {
+        "text": {
           "type": "string"
         },
-        "format": {
-          "$ref": "#/components/schemas/OutputFormat"
-        },
-        "id": {
-          "pattern": "^msg",
-          "type": "string"
-        },
-        "model": {
-          "additionalProperties": false,
-          "properties": {
-            "modelID": {
-              "type": "string"
-            },
-            "providerID": {
-              "type": "string"
-            },
-            "variant": {
-              "type": "string"
-            }
-          },
-          "required": [
-            "providerID",
-            "modelID"
-          ],
-          "type": "object"
-        },
-        "role": {
+        "type": {
           "enum": [
-            "user"
+            "text"
           ],
           "type": "string"
-        },
-        "sessionID": {
-          "pattern": "^ses",
-          "type": "string"
-        },
-        "summary": {
-          "additionalProperties": false,
-          "properties": {
-            "body": {
-              "type": "string"
-            },
-            "diffs": {
-              "items": {
-                "$ref": "#/components/schemas/SnapshotFileDiff"
-              },
-              "type": "array"
-            },
-            "title": {
-              "type": "string"
-            }
-          },
-          "required": [
-            "diffs"
-          ],
-          "type": "object"
-        },
-        "system": {
-          "type": "string"
-        },
-        "time": {
-          "additionalProperties": false,
-          "properties": {
-            "created": {
-              "minimum": 0,
-              "type": "number"
-            }
-          },
-          "required": [
-            "created"
-          ],
-          "type": "object"
-        },
-        "tools": {
-          "additionalProperties": {
-            "type": "boolean"
-          },
-          "type": "object"
         }
       },
       "required": [
-        "id",
-        "sessionID",
-        "role",
-        "time",
-        "agent",
-        "model"
+        "type",
+        "text"
       ],
       "type": "object"
     }

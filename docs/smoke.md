@@ -52,5 +52,5 @@ git -C /tmp/gc-smoke/proj init
 See [OpenCode setup and verified smoke](opencode.md). In an isolated instance:
 choose a configured provider/model, verify an answer, read/edit a disposable file,
 answer a native permission, restart the backend, and verify context continuation.
-Confirm provider/model in the native export, including the `:free` suffix when
-using a free model. Use native project/agent permissions and a bounded output limit.
+Confirm provider/model in the session's stored messages (`/api/session/{id}/message`),
+including the `:free` suffix when using a free model. Use native project/agent permissions and a bounded output limit.

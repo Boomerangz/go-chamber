@@ -1,7 +1,8 @@
-Captured from the installed OpenCode 1.18.34 (2026-10-07).
+Recorded from the installed OpenCode 2.0.15 (2026-10-07), model OpenRouter
+`cohere/north-mini-code:free` (zero cost), in a disposable git project.
 
-- `schema-contract.json`: consumed request schemas and response/event fields from authenticated loopback `/doc`. Check with `scripts/opencode-schema-check`; review differences before `--record`.
-- `transcript-1.18.34.json`: native exported OpenRouter `google/gemini-2.5-flash` conversation: answer, read/edit, continuation after backend/server restart.
-- `transcript-free-1.18.34.json`: the same smoke using `cohere/north-mini-code:free`, including a real edit permission answered through go-chamber. Provider/model IDs are retained to verify actual routing. Costs are zero for this model.
+- `schema-contract.json`: consumed paths and schemas from authenticated loopback `/openapi.json`. Check with `scripts/opencode-schema-check`; review differences before `--record`.
+- `events-2.0.15.jsonl`: `/api/event` traffic of one session and its subagent: shell permission rejected, write permission approved, a question form answered, a subagent, an interrupted essay, an unavailable model, an interrupted `/review`. The event stream is not in the OpenAPI schema; this file is its reference.
+- `messages-2.0.15.json`: the same session's stored messages; `messages-edit-2.0.15.json`: a read/edit/shell session.
 
-Only the test conversation is exported; project paths are replaced with `/test/project`. No API credentials or provider config are recorded.
+Project paths are replaced with `/test/project`. System messages (tool catalogs) and instruction/inbox events are dropped. No API credentials or provider config are recorded.
