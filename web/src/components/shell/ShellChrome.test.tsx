@@ -201,3 +201,40 @@ describe('Notices', () => {
     expect(useNotices.getState().notices).toHaveLength(1)
   })
 })
+
+describe('a request inbox that failed to load', () => {
+  const failed = () => useSessionStore.setState({ requestsStatus: 'error', requestsError: 'database is locked' })
+
+  it('marks the Requests rail button, with the reason', () => {
+    failed()
+    render(<DockRail />)
+    const button = screen.getByRole('button', { name: /^Requests/ })
+    expect(button).toHaveAccessibleName("Requests: couldn't load")
+    expect(button).toHaveAttribute('title', expect.stringContaining('database is locked'))
+    expect(button.querySelector('.rail-count.failed')).toHaveTextContent('!')
+  })
+
+  it('marks the phone Requests tab', () => {
+    failed()
+    render(<PaneBar />)
+    const button = screen.getByRole('button', { name: /^Requests/ })
+    expect(button).toHaveAccessibleName("Requests: couldn't load")
+    expect(button).toHaveAttribute('title', expect.stringContaining('database is locked'))
+    expect(button.querySelector('.badge.failed')).toHaveTextContent('!')
+  })
+
+  it('marks the Agents tab while another mode is open', () => {
+    failed()
+    useLayoutStore.setState({ mode: 'terminal' })
+    render(<ModeSwitch />)
+    const agents = screen.getByRole('radio', { name: /Agents/ })
+    expect(agents).toHaveAttribute('title', expect.stringContaining("requests couldn't load"))
+    expect(agents.querySelector('.badge.failed')).toHaveTextContent('!')
+  })
+
+  it('shows no mark once the inbox loaded', () => {
+    useSessionStore.setState({ requestsStatus: 'ready' })
+    render(<DockRail />)
+    expect(screen.getByRole('button', { name: 'Requests' }).querySelector('.failed')).toBeNull()
+  })
+})

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { useNow } from '../../lib/now'
 import type { Health } from '../../lib/api'
-import { useWaitingCount } from '../../lib/waiting'
+import { useRequestsFailure, useWaitingCount } from '../../lib/waiting'
 import { ChevronsRight, FileDiff, Inbox, List, MessageSquareText, SquareTerminal } from 'lucide-react'
 import { icon } from '../icon'
 import { DOCK_MAX, DOCK_MIN, SIDEBAR_MAX, SIDEBAR_MIN, useLayoutStore, visibleDock, type DockTab, type Mode } from '../../stores/layout'
@@ -36,6 +36,8 @@ export function ModeSwitch() {
   // hides the rail and the sidebar.
   const pending = useWaitingCount()
   const waiting = mode !== 'agents' ? pending : 0
+  const failure = useRequestsFailure()
+  const unknown = mode !== 'agents' && failure !== null
   const group = useRef<HTMLDivElement>(null)
   return (
     <div
@@ -58,11 +60,16 @@ export function ModeSwitch() {
           role="radio"
           aria-checked={mode === m.id}
           tabIndex={mode === m.id ? 0 : -1}
-          title={`${m.label} (${i + 1})${m.id === 'agents' && waiting > 0 ? ` · ${waiting} waiting for you` : ''}`}
+          title={`${m.label} (${i + 1})${m.id === 'agents' && unknown ? ` · requests couldn't load: ${failure}` : m.id === 'agents' && waiting > 0 ? ` · ${waiting} waiting for you` : ''}`}
           onClick={() => setMode(m.id)}
         >
           {m.label}
-          {m.id === 'agents' && waiting > 0 && (
+          {m.id === 'agents' && unknown && (
+            <span className="badge failed" aria-hidden="true">
+              !
+            </span>
+          )}
+          {m.id === 'agents' && !unknown && waiting > 0 && (
             <span className="badge" aria-hidden="true">
               {waiting}
             </span>
@@ -88,6 +95,7 @@ export function DockRail() {
   const pending = useWaitingCount()
   const hasSession = useSessionStore((s) => Boolean(s.activeId))
   const running = useTerminalStore((s) => s.terminals.filter((t) => t.status === 'running').length)
+  const failure = useRequestsFailure()
   // Pressed is what is on screen, not what was last chosen.
   const dock = visibleDock({ dock: chosen, focus }, pending, hasSession)
   // A toolbar is one tab stop; the arrows move between its buttons.
@@ -115,15 +123,17 @@ export function DockRail() {
         rail.current?.querySelector<HTMLElement>(`[data-rail="${ids[at]}"]`)?.focus()
       }}
     >
-      {tabs.map((t) => (
+      {tabs.map((t) => {
+        const failed = t.id === 'requests' && failure !== null
+        return (
         <button
           key={t.id}
           type="button"
           data-rail={t.id}
           className={`rail-btn rail-${t.id}`}
           aria-pressed={dock === t.id}
-          aria-label={t.count > 0 ? `${t.label} ${t.count}` : t.label}
-          title={t.off || (t.key ? `${t.label} (${t.key})` : t.label)}
+          aria-label={failed ? `${t.label}: couldn't load` : t.count > 0 ? `${t.label} ${t.count}` : t.label}
+          title={failed ? `Couldn't load requests: ${failure}` : t.off || (t.key ? `${t.label} (${t.key})` : t.label)}
           disabled={Boolean(t.off)}
           tabIndex={stop === t.id ? 0 : -1}
           onFocus={() => setCurrent(t.id)}
@@ -135,13 +145,20 @@ export function DockRail() {
           }}
         >
           {t.icon}
-          {t.count > 0 && (
-            <span className="rail-count" aria-hidden="true">
-              {t.count}
+          {failed ? (
+            <span className="rail-count failed" aria-hidden="true">
+              !
             </span>
+          ) : (
+            t.count > 0 && (
+              <span className="rail-count" aria-hidden="true">
+                {t.count}
+              </span>
+            )
           )}
         </button>
-      ))}
+        )
+      })}
       {dock && !focus && (
         <button
           type="button"
@@ -331,15 +348,31 @@ export function PaneBar() {
   const pane = useSessionStore((s) => s.pane)
   const setPane = useSessionStore((s) => s.setPane)
   const pending = useWaitingCount()
+  const failure = useRequestsFailure()
   return (
     <nav className="panebar" aria-label="Views">
-      {panes.map((p) => (
-        <button key={p.id} aria-pressed={pane === p.id} onClick={() => setPane(p.id)}>
-          {p.icon}
-          {p.label}
-          {p.id === 'requests' && pending > 0 && <span className="badge">{pending}</span>}
-        </button>
-      ))}
+      {panes.map((p) => {
+        const failed = p.id === 'requests' && failure !== null
+        return (
+          <button
+            key={p.id}
+            aria-pressed={pane === p.id}
+            aria-label={failed ? `${p.label}: couldn't load` : undefined}
+            title={failed ? `Couldn't load requests: ${failure}` : undefined}
+            onClick={() => setPane(p.id)}
+          >
+            {p.icon}
+            {p.label}
+            {failed ? (
+              <span className="badge failed" aria-hidden="true">
+                !
+              </span>
+            ) : (
+              p.id === 'requests' && pending > 0 && <span className="badge">{pending}</span>
+            )}
+          </button>
+        )
+      })}
     </nav>
   )
 }

@@ -118,6 +118,8 @@ test('the requests inbox says it failed to load instead of looking empty', async
     failing ? route.fulfill({ status: 500, body: 'requests broke' }) : route.fallback(),
   )
   await page.goto(`/?token=${token}`)
+  // Before the tray is opened, the way to it already says it failed.
+  await expect(page.getByRole('button', { name: "Requests: couldn't load" }).filter({ visible: true })).toHaveCount(1)
   await openTray(page)
   const failed = page.locator('.load-failed', { hasText: "Couldn't load requests" })
   await expect(failed).toBeVisible()
@@ -127,6 +129,7 @@ test('the requests inbox says it failed to load instead of looking empty', async
   failing = false
   await failed.getByRole('button', { name: 'Retry' }).click()
   await expect(failed).toHaveCount(0)
+  await expect(page.getByRole('button', { name: "Requests: couldn't load" })).toHaveCount(0)
 })
 
 test('a tray answer on its way names itself', async ({ page }, info) => {
