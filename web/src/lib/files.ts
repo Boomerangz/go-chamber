@@ -151,5 +151,9 @@ export function fileUrl(sessionId: string, path: string, download = false): stri
 // SessionFiles carries the session whose folder file links resolve against.
 export const SessionFiles = createContext<string | undefined>(undefined)
 
+// SessionFolder is the session's working folder: paths inside it are written
+// from it in the transcript.
+export const SessionFolder = createContext<string | undefined>(undefined)
+
 // MarkLine is the line the file viewer scrolls to and marks.
 export const MarkLine = createContext<number | undefined>(undefined)

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { pathParts, shortPath } from './path'
+import { pathParts, relativePath, shortPath } from './path'
 
 describe('shortPath', () => {
   it('writes the home folder as ~', () => {
@@ -39,5 +39,21 @@ describe('pathParts', () => {
     expect(pathParts('/Users/me', '/Users/me')).toEqual({ head: '', tail: '~' })
     expect(pathParts('/', undefined)).toEqual({ head: '', tail: '/' })
     expect(pathParts('relative', undefined)).toEqual({ head: '', tail: 'relative' })
+  })
+})
+
+describe('relativePath', () => {
+  it('writes a path inside the session folder from that folder', () => {
+    expect(relativePath('/w/proj/src/a.go', '/w/proj')).toBe('src/a.go')
+    expect(relativePath('/w/proj/src/a.go', '/w/proj/')).toBe('src/a.go')
+    expect(relativePath('/w/proj', '/w/proj')).toBe('.')
+  })
+
+  it('keeps a path outside the folder, a sibling with the same prefix, or no folder', () => {
+    expect(relativePath('/w/project2/a.go', '/w/proj')).toBe('/w/project2/a.go')
+    expect(relativePath('/etc/hosts', '/w/proj')).toBe('/etc/hosts')
+    expect(relativePath('src/a.go', '/w/proj')).toBe('src/a.go')
+    expect(relativePath('/w/proj/a.go', undefined)).toBe('/w/proj/a.go')
+    expect(relativePath('/a.go', '/')).toBe('/a.go')
   })
 })

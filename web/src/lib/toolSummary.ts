@@ -26,6 +26,18 @@ export function toolSummary(item: Item): string | undefined {
   return undefined
 }
 
+const PATH_KEYS = new Set(['file_path', 'path', 'notebook_path'])
+
+// toolPath is the path toolSummary shows, when what it shows is a path
+// (Read's file, Glob's folder), so the line can write it as one.
+export function toolPath(item: Item): string | undefined {
+  const input = item.input
+  if (item.name === 'ExitPlanMode' || !input || typeof input !== 'object' || Array.isArray(input)) return undefined
+  const fields = input as Record<string, unknown>
+  const key = KEYS.find((k) => oneLine(fields[k]))
+  return key && PATH_KEYS.has(key) ? oneLine(fields[key]) : undefined
+}
+
 function oneLine(value: unknown): string | undefined {
   if (typeof value !== 'string') return undefined
   return value.replace(/\s+/g, ' ').trim() || undefined

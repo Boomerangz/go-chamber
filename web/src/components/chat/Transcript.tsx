@@ -1,4 +1,4 @@
-import { Fragment, memo, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
+import { Fragment, memo, useContext, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { motion } from 'motion/react'
 import { FilePen, ListTree, Terminal, Webhook, Workflow, Wrench } from 'lucide-react'
 import { icon } from '../icon'
@@ -8,14 +8,17 @@ import ShowAll from '../markdown/ShowAll'
 import { useClip } from '../markdown/useClip'
 import InlineDiff from './InlineDiff'
 import ReasoningView from './ReasoningView'
+import PathText from '../ui/PathText'
 import { imageUrl, type Item, type TurnResult } from '../../lib/api'
 import { diffStat, diffText, editDiff, formatStat, parseUnified, type DiffLine } from '../../lib/diff'
 import { TURN_FAILED } from '../../lib/events'
+import { SessionFolder } from '../../lib/files'
 import { groupSummary } from '../../lib/group'
 import { count, lineCount } from '../../lib/format'
 import { enter } from '../../lib/motion'
+import { relativePath } from '../../lib/path'
 import { usePending } from '../../lib/pending'
-import { toolInput, toolLabel, toolSummary } from '../../lib/toolSummary'
+import { toolInput, toolLabel, toolPath, toolSummary } from '../../lib/toolSummary'
 import { sameNode, type ItemNode } from '../../lib/tree'
 import './Transcript.css'
 
@@ -138,9 +141,15 @@ function ItemView({ node, onStopTask, onRetry, onEdit }: ItemViewProps) {
           <ItemIcon label="file change" item={item}>
             <FilePen {...icon(13)} />
           </ItemIcon>
-          <code className="line-cut" title={item.path || item.name}>
-            {item.path || item.name}
-          </code>
+          {item.path ? (
+            <code className="line-cut path-line" title={item.path}>
+              <FilePath path={item.path} />
+            </code>
+          ) : (
+            <code className="line-cut" title={item.name}>
+              {item.name}
+            </code>
+          )}
           {lines && lines.length > 0 ? (
             <DiffFold lines={lines} raw={item.diff} open={failed} />
           ) : (
@@ -157,6 +166,7 @@ function ItemView({ node, onStopTask, onRetry, onEdit }: ItemViewProps) {
       return <SubagentView node={node} onStopTask={onStopTask} />
     default: {
       const summary = toolSummary(item)
+      const path = toolPath(item)
       const edit = item.name && EDIT_TOOLS.has(item.name) ? editDiff(item.input) : null
       const diffed = !!edit && edit.length > 0
       const head = (
@@ -168,7 +178,7 @@ function ItemView({ node, onStopTask, onRetry, onEdit }: ItemViewProps) {
             <code title={item.name}>{toolLabel(item.name)}</code>
             {summary && (
               <span className="item-summary" title={summary}>
-                {summary}
+                {path ? <FilePath path={path} /> : summary}
               </span>
             )}
             <StopTag item={item} />
@@ -205,6 +215,13 @@ function ItemView({ node, onStopTask, onRetry, onEdit }: ItemViewProps) {
       )
     }
   }
+}
+
+// FilePath writes a path the agent worked on from the session folder, its
+// start giving way so the file name stays; the full path is on hover.
+function FilePath({ path }: { path: string }) {
+  const folder = useContext(SessionFolder)
+  return <PathText path={relativePath(path, folder)} title={path} />
 }
 
 // questionsOf reads the question texts an AskUserQuestion input carries.
@@ -363,7 +380,7 @@ function DecisionView({ item }: { item: Item }) {
 }
 
 // stepLine says in one line what a subagent's step was.
-function stepLine(item: Item): string {
+function stepLine(item: Item, folder: string | undefined): string {
   switch (item.kind) {
     case 'assistant_message':
     case 'plan':
@@ -373,7 +390,7 @@ function stepLine(item: Item): string {
     case 'command':
       return commandText(item)
     case 'file_change':
-      return `edit ${item.path || item.name || ''}`.trim()
+      return `edit ${item.path ? relativePath(item.path, folder) : item.name || ''}`.trim()
     default: {
       const summary = toolSummary(item)
       return summary ? `${toolLabel(item.name)} ${summary}` : toolLabel(item.name)
@@ -403,7 +420,8 @@ function SubagentView({ node, onStopTask }: { node: ItemNode; onStopTask: StopTa
       ))}
     </ol>
   )
-  const last = node.children.length > 0 ? stepLine(node.children[node.children.length - 1]!.item) : ''
+  const folder = useContext(SessionFolder)
+  const last = node.children.length > 0 ? stepLine(node.children[node.children.length - 1]!.item, folder) : ''
   return (
     <div className={`item subagent state-${item.status}`}>
       <div className="subagent-head">
