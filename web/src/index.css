@@ -223,7 +223,8 @@ kbd {
 
 /* ---------- app shell ---------- */
 .app {
-  display: grid; grid-template-rows: auto minmax(0, 1fr);
+  /* one column no wider than the window: nothing in it widens the page */
+  display: grid; grid-template-rows: auto minmax(0, 1fr); grid-template-columns: minmax(0, 1fr);
   height: 100vh; height: 100dvh;
 }
 .topbar {
@@ -244,7 +245,20 @@ kbd {
 .brand { display: flex; align-items: center; gap: 12px; }
 .show-sessions { display: inline-flex; align-items: center; gap: 4px; }
 @media (max-width: 720px) { .show-sessions { display: none; } }
-h1 { font-family: var(--font-mono); font-size: 14px; font-weight: 400; letter-spacing: 0.01em; }
+h1 { font-family: var(--font-mono); font-size: 14px; font-weight: 400; letter-spacing: 0.01em; white-space: nowrap; }
+/* tablets and small laptops: the bar's three parts fit side by side. The
+   modes stay centred between the masthead and the controls, Show sessions
+   is its icon and Focus and Sign out draw tighter */
+@media (min-width: 721px) and (max-width: 1100px) {
+  .topbar { grid-template-columns: auto minmax(0, 1fr) auto; gap: 0 12px; }
+  .topbar .mode-switch { justify-self: center; min-width: 0; }
+  .topbar .segmented.mode-switch button { padding: 2px 10px 0; }
+  .brand { gap: 8px; }
+  .show-sessions { width: 30px; height: 30px; padding: 0; justify-content: center; }
+  .show-sessions-label { display: none; }
+  .topbar-end { gap: 6px; }
+  .topbar .focus-toggle, .topbar .signout .btn { padding: 0 8px; }
+}
 
 .segmented.mode-switch { display: flex; gap: 0; align-self: stretch; border: 0; border-radius: 0; background: none; }
 .segmented.mode-switch button + button { border-left: 0; }
@@ -282,7 +296,9 @@ button.health { border: 0; background: none; padding: 0; }
   /* the chat keeps --chat-min: the sessions list and the dock give way to it */
   --chat-min: 360px; --rail-w: 44px;
   --sb: min(var(--sidebar-w, 300px), max(200px, 100% - var(--chat-min) - var(--rail-w)));
-  position: relative; display: grid; min-height: 0;
+  position: relative; display: grid; min-height: 0; min-width: 0;
+  /* a part too wide for its column is cut, never scrolls the page sideways */
+  overflow-x: clip;
   grid-template-columns: var(--sb) minmax(0, 1fr) auto;
 }
 /* --dock is each dock's default width; --dock-w a dragged one */

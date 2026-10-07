@@ -265,11 +265,12 @@ export function ShowSessions() {
     <button
       type="button"
       className="btn btn-ghost btn-xs show-sessions"
+      aria-label="Show sessions"
       title={`Show sessions (${formatCombo({ key: 'b', mod: true })})`}
       onClick={toggleSidebar}
     >
       <ChevronsRight {...icon(14)} />
-      Show sessions
+      <span className="show-sessions-label">Show sessions</span>
     </button>
   )
 }
