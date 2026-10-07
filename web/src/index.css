@@ -318,7 +318,8 @@ kbd {
 }
 
 .health {
-  display: inline-flex; align-items: center; gap: 7px;
+  /* one line: "reconnecting · 3s" broken in two reads as two things */
+  display: inline-flex; align-items: center; gap: 7px; white-space: nowrap; flex: none;
   font-family: var(--font-mono); font-size: 12px; color: var(--ink-3);
 }
 .health .dot { width: 7px; height: 7px; border: 1px solid currentColor; border-radius: 1px; }

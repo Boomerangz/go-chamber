@@ -43,6 +43,23 @@ describe('RequestTray', () => {
     expect(keys.every((k) => k === k?.toLowerCase())).toBe(true)
   })
 
+  it('says live updates are paused while they are, empty or not: what it lists may be stale', () => {
+    useSessionStore.setState({ requestsStatus: 'ready', connection: 'online' })
+    const { unmount } = render(<RequestTray />)
+    expect(screen.queryByText(/live updates paused/)).toBeNull()
+    act(() => useSessionStore.setState({ connection: 'offline' }))
+    expect(screen.getByText(/live updates paused/)).toBeInTheDocument()
+    expect(screen.getByText('No pending requests')).toBeInTheDocument()
+    unmount()
+    useSessionStore.setState({
+      sessions: [{ id: 's1', agent: 'claude', cwd: '/tmp/proj', status: 'running' }],
+      pendingRequests: [{ id: 'r1', sessionId: 's1', kind: 'question', state: 'pending', title: 'Pick one' }],
+    })
+    render(<RequestTray />)
+    expect(screen.getByText(/live updates paused/)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Reconnect now' })).toBeInTheDocument()
+  })
+
   it('names the session a request belongs to', () => {
     useSessionStore.setState({
       sessions: [{ id: 's1', agent: 'codex', cwd: '/tmp/proj', status: 'running' }],

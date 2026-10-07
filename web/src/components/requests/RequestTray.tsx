@@ -11,6 +11,7 @@ import { LoadFailed, Skeleton } from '../ui/Loading'
 import { notSent, shortcut } from './answer'
 import { requestGist } from './gist'
 import './RequestTray.css'
+import LiveStrip from '../chat/LiveStrip'
 import { failedTo } from '../../lib/failed'
 
 // The kind says what the request requires, as its block does ("Requires approval").
@@ -70,9 +71,12 @@ export default function RequestTray() {
         </div>
       )
     return (
-      <p className="tray-empty" ref={setEmpty} tabIndex={-1} onFocus={onFocus}>
-        No pending requests
-      </p>
+      <>
+        <LiveStrip />
+        <p className="tray-empty" ref={setEmpty} tabIndex={-1} onFocus={onFocus}>
+          No pending requests
+        </p>
+      </>
     )
   }
   return (
@@ -80,6 +84,8 @@ export default function RequestTray() {
       <h2 className="section-title">
         Waiting for you <span className="badge">{requests.length + owed.length}</span>
       </h2>
+      {/* while live updates are down, what is listed may be stale */}
+      <LiveStrip />
       {failed}
       <ul>
         <AnimatePresence initial={false}>
