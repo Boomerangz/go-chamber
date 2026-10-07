@@ -27,6 +27,7 @@
 .attention-overview h2 { margin: 0; }
 .attention-overview .btn, .attention-overview .attention-task { min-height: 44px; }
 @media (max-width: 720px) {
-  .overview-toggle { display: none; }
+  /* a phone has no floating windows, and its top bar no room to spare */
+  .overview-toggle, .pip-toggle { display: none; }
   .attention-overview { padding: 16px 16px calc(76px + env(safe-area-inset-bottom)); }
 }

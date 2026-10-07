@@ -27,7 +27,9 @@ test('floating panel approves a live request and can be reopened', async ({ page
   await child.screenshot({ path: info.outputPath('floating-panel.png') })
   await request.getByRole('button', { name: 'Allow', exact: true }).click()
   await expect(request).toHaveCount(0)
-  await expect(child.getByText('No pending requests')).toBeVisible()
+  // The inbox is every session's: other specs' requests may still wait
+  // there, so this session's own line says it no longer waits.
+  await expect(activity.locator('.attention-waiting')).toHaveCount(0)
   await expect(page.locator('.item.assistant', { hasText: /approved: run/ })).toBeVisible()
   await expect(activity.locator('.attention-outcome')).toHaveText('Done')
   await expect(activity.locator('.attention-result')).toContainText('approved: run')

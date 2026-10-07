@@ -61,7 +61,7 @@ export default function AttentionWindow() {
     }
   }
   return <>
-    <button type="button" className="btn btn-ghost btn-icon" aria-label="Open floating panel"
+    <button type="button" className="btn btn-ghost btn-icon pip-toggle" aria-label="Open floating panel"
       aria-pressed={!!child} aria-busy={opening || undefined} disabled={!api || opening}
       title={api ? 'Floating panel · keep agents visible above other apps' : 'Floating panel requires desktop Chrome or Edge (HTTPS or localhost)'}
       onClick={() => void open()}><PictureInPicture2 size={16} /></button>
