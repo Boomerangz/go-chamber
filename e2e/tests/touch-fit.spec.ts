@@ -36,4 +36,41 @@ test.describe('a phone held sideways', () => {
       await expect(page).toHaveURL(new RegExp(`/s/${id}`))
     })
   }
+
+  // edges lists the watched parts that reach into the notch or the home
+  // indicator's strip.
+  function edges(page: Page, inset: { left: number; right: number; bottom: number }) {
+    return page.evaluate((inset) => {
+      const out: string[] = []
+      const W = window.innerWidth
+      const H = window.innerHeight
+      const watch = ['.brand h1', '.topbar-end', '.sidebar .segmented', '.sidebar .folder-field', '.dock-rail', '.composer', '.term-sidebar .folder-field', '.term-main']
+      for (const s of watch) {
+        const e = document.querySelector(s)
+        if (!e) continue
+        const r = e.getBoundingClientRect()
+        if (r.width === 0) continue
+        if (r.left < inset.left - 0.5) out.push(`${s} left ${Math.round(r.left)}`)
+        if (r.right > W - inset.right + 0.5) out.push(`${s} right ${Math.round(r.right)}`)
+        if (r.bottom > H - inset.bottom + 0.5) out.push(`${s} bottom ${Math.round(r.bottom)}`)
+      }
+      return out
+    }, inset)
+  }
+
+  test('nothing sits under the notch or the home indicator', async ({ page }, info) => {
+    test.skip(info.project.name === 'mobile', 'the viewport is set here')
+    await page.setViewportSize({ width: 844, height: 390 })
+    const inset = { top: 0, left: 47, right: 47, bottom: 21 }
+    const cdp = await page.context().newCDPSession(page)
+    await cdp.send('Emulation.setSafeAreaInsetsOverride', { insets: inset })
+    const { id } = await sessionIn(page, 'gc-notch-')
+    await page.goto(`/?token=${token}`)
+    await page.goto(`/s/${id}`)
+    await expect(page.getByLabel('Message')).toBeVisible()
+    await expect.poll(() => edges(page, inset)).toEqual([])
+    await page.getByRole('radiogroup', { name: /mode/i }).getByRole('radio', { name: /^Terminal/ }).tap()
+    await expect(page.locator('.term-sidebar')).toBeVisible()
+    await expect.poll(() => edges(page, inset)).toEqual([])
+  })
 })
