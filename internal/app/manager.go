@@ -320,6 +320,7 @@ func (m *Manager) SendInput(ctx context.Context, id domain.SessionID, text strin
 		return err
 	}
 	turn := domain.TurnID(m.cfg.NewID())
+	message := domain.ItemID(m.cfg.NewID())
 	m.mu.Lock()
 	// A running turn keeps its runtime; the restart waits for the next turn.
 	if m.restart[id] && s.Status() != domain.StatusRunning {
@@ -335,7 +336,10 @@ func (m *Manager) SendInput(ctx context.Context, id domain.SessionID, text strin
 	err = s.TurnStarted()
 	if err == nil {
 		delete(m.stopping, id)
-		s.Touch(m.cfg.Now().UTC())
+		now := m.cfg.Now().UTC()
+		s.Touch(now)
+		// Sending is looking: the owner's own message is never news.
+		_ = s.MarkSeen(message, now)
 		if s.Title() == "" {
 			s.Rename(titleFromText(text))
 		}
@@ -358,7 +362,7 @@ func (m *Manager) SendInput(ctx context.Context, id domain.SessionID, text strin
 		m.cfg.Bus.Publish(domain.Event{SessionID: id, Type: domain.EventSessionState, Session: &failed})
 	}()
 	m.cfg.Bus.Publish(domain.Event{SessionID: id, Type: domain.EventTurnStarted, Session: &snap})
-	if err := m.recordUserItem(ctx, s, turn, text, images...); err != nil {
+	if err := m.recordUserItem(s, message, turn, text, images...); err != nil {
 		return err
 	}
 	if err := m.cfg.Repo.Save(ctx, snap); err != nil {
@@ -381,8 +385,8 @@ func (m *Manager) SendInput(ctx context.Context, id domain.SessionID, text strin
 	return nil
 }
 
-func (m *Manager) recordUserItem(ctx context.Context, s *domain.Session, turn domain.TurnID, text string, images ...Image) error {
-	item, err := domain.NewItem(domain.ItemID(m.cfg.NewID()), s.ID(), turn, "", domain.ItemUserMessage)
+func (m *Manager) recordUserItem(s *domain.Session, id domain.ItemID, turn domain.TurnID, text string, images ...Image) error {
+	item, err := domain.NewItem(id, s.ID(), turn, "", domain.ItemUserMessage)
 	if err != nil {
 		return err
 	}
@@ -410,10 +414,17 @@ func (m *Manager) Steer(ctx context.Context, id domain.SessionID, text string) e
 	if rt == nil || !running {
 		return m.SendMessage(ctx, id, text)
 	}
-	if err := m.recordUserItem(ctx, s, "", text); err != nil {
+	message := domain.ItemID(m.cfg.NewID())
+	if err := m.recordUserItem(s, message, "", text); err != nil {
 		return err
 	}
-	return rt.Steer(ctx, text)
+	if err := rt.Steer(ctx, text); err != nil {
+		return err
+	}
+	// The owner wrote, so they have seen the session; a failed save only
+	// costs the mark.
+	_, _ = m.MarkSeen(ctx, id, message)
+	return nil
 }
 
 // Quotas returns every cached quota snapshot.
@@ -791,6 +802,7 @@ func (m *Manager) consume(s *domain.Session, rt AgentRuntime) {
 			} else {
 				_ = s.TurnCompleted()
 			}
+			s.NoteTurnEnd(m.cfg.Now())
 		case domain.EventRequestOpened:
 			if m.pending[s.ID()] == nil {
 				m.pending[s.ID()] = map[domain.RequestID]*domain.Request{}
@@ -911,6 +923,9 @@ func (m *Manager) detach(s *domain.Session, rt AgentRuntime, open map[domain.Ite
 		reason = domain.ExitIdleTimeout
 	}
 	s.RuntimeExited(reason)
+	if cutOff {
+		s.NoteTurnEnd(m.cfg.Now())
+	}
 	if len(stale) > 0 {
 		s.InterruptedWithRequest(stale[0])
 	}
@@ -991,15 +1006,18 @@ func (m *Manager) RespondRequest(ctx context.Context, sessionID domain.SessionID
 	m.mu.Lock()
 	_ = req.Resolve(data)
 	m.mu.Unlock()
-	m.recordDecision(req, answer)
+	// Answering is looking, from whichever device it came.
+	decision := domain.ItemID(m.cfg.NewID())
+	_, _ = m.MarkSeen(ctx, sessionID, decision)
+	m.recordDecision(req, answer, decision)
 	m.cfg.Bus.Publish(domain.Event{SessionID: sessionID, Type: domain.EventRequestResolved, Request: req})
 	return nil
 }
 
 // recordDecision leaves the user's answer in the transcript as a one-line
 // record, so it outlives the request card.
-func (m *Manager) recordDecision(req *domain.Request, answer RequestAnswer) {
-	item, err := domain.NewItem(domain.ItemID(m.cfg.NewID()), req.SessionID, req.TurnID, "", domain.ItemDecision)
+func (m *Manager) recordDecision(req *domain.Request, answer RequestAnswer, id domain.ItemID) {
+	item, err := domain.NewItem(id, req.SessionID, req.TurnID, "", domain.ItemDecision)
 	if err != nil {
 		return
 	}

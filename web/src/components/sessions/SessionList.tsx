@@ -23,7 +23,7 @@ import { useJustFinished } from '../../lib/finished'
 import { owesAnswer, shownStatus } from '../../lib/status'
 import StatusMark from './StatusMark'
 import { useNow } from '../../lib/now'
-import { isUnseen, useVisits, type Visits } from '../../lib/visits'
+import { isUnseen } from '../../lib/visits'
 import { useSessionStore } from '../../stores/session'
 import { LoadFailed, LoadingLine, Skeleton } from '../ui/Loading'
 import SessionMenu from './SessionMenu'
@@ -63,7 +63,6 @@ export default function SessionList({ onCreateIn, agent = 'claude', creating = f
   const loadSessions = useSessionStore((s) => s.loadSessions)
   const searchingMessages = useSessionStore((s) => s.searching)
   const searchError = useSessionStore((s) => s.searchError)
-  const seen = useVisits()
   // Relative times ("4m ago") must not freeze.
   const now = useNow(60_000)
   const input = useRef<HTMLInputElement>(null)
@@ -169,7 +168,6 @@ export default function SessionList({ onCreateIn, agent = 'claude', creating = f
             agent={agent}
             creating={creating}
             creatingIn={creatingIn}
-            seen={seen}
             now={now}
           />
         ))}
@@ -207,7 +205,6 @@ function Group(props: {
   agent: AgentKind
   creating: boolean
   creatingIn: string | null
-  seen: Visits
   now: number
 }) {
   const { mode, activeId } = props
@@ -218,7 +215,7 @@ function Group(props: {
   }, [props.group, props.pendingBySession])
   const { shown, hidden } = visibleInGroup(group, mode, RECENT, activeId)
   const waiting = group.nodes.reduce((n, node) => n + pendingIn(node, props.pendingBySession), 0)
-  const unseen = group.nodes.reduce((n, node) => n + unseenIn(node, props.seen, activeId), 0)
+  const unseen = group.nodes.reduce((n, node) => n + unseenIn(node, activeId), 0)
   const open = mode !== 'collapsed'
   const buckets = shown.map((n) => bucketOf(n.session.activeAt ?? n.session.createdAt))
   const dividers = mode === 'all' && !props.searching && group.count > RECENT
@@ -292,9 +289,9 @@ function pendingIn(node: SessionNode, bySession: Map<string, number>): number {
   return (bySession.get(node.session.id) ?? 0) + node.children.reduce((n, c) => n + pendingIn(c, bySession), 0)
 }
 
-function unseenIn(node: SessionNode, seen: Visits, activeId: string | null): number {
-  const own = node.session.id !== activeId && isUnseen(node.session, seen) ? 1 : 0
-  return own + node.children.reduce((n, c) => n + unseenIn(c, seen, activeId), 0)
+function unseenIn(node: SessionNode, activeId: string | null): number {
+  const own = node.session.id !== activeId && isUnseen(node.session) ? 1 : 0
+  return own + node.children.reduce((n, c) => n + unseenIn(c, activeId), 0)
 }
 
 // useScrolledIntoView keeps the open session's row on screen when the open
@@ -366,7 +363,6 @@ function SessionRow(props: {
   place: number
   activeId: string | null
   pendingBySession: Map<string, number>
-  seen: Visits
   onSelect: (id: string) => void
   now: number
 }) {
@@ -380,7 +376,7 @@ function SessionRow(props: {
   const active = s.id === props.activeId
   const ref = useScrolledIntoView(active)
   const title = sessionTitle(s)
-  const unseen = !active && isUnseen(s, props.seen)
+  const unseen = !active && isUnseen(s)
   return (
     // A row slides only when its place in its list changes (a waiting one
     // moving up); when the page above shifts it (the phone's form unfolding),

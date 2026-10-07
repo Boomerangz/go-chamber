@@ -1,112 +1,93 @@
-import { beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest'
 import type { Session } from './api'
-import { endedTurns, isUnseen, markEnded, markVisited, resetVisits, unseenCount, useVisits } from './visits'
+
+vi.mock('./api', () => ({ markSeen: vi.fn() }))
+
+import * as api from './api'
+import { flushSeen, isUnseen, needsReport, reportSeen, resetSeenReports, unseenCount } from './visits'
 
 const s = (id: string, extra: Partial<Session> = {}): Session => ({ id, agent: 'claude', cwd: '/p', status: 'idle', ...extra })
 
 beforeEach(() => {
-  localStorage.clear()
-  resetVisits()
+  vi.clearAllMocks()
+  resetSeenReports()
+  ;(api.markSeen as Mock).mockResolvedValue(undefined)
 })
+afterEach(() => vi.useRealTimers())
 
-describe('visits', () => {
-  it('marks nothing for a session never opened here', () => {
-    expect(isUnseen(s('a', { activeAt: '2026-09-25T10:00:00Z' }), useVisits.getState())).toBe(false)
+describe('unseen', () => {
+  it('marks nothing for a session whose turn never ended', () => {
+    expect(isUnseen(s('a', { activeAt: '2026-09-25T10:00:00Z' }))).toBe(false)
   })
 
-  it('marks a session whose activity is later than the last visit', () => {
-    markVisited(s('a', { activeAt: '2026-09-25T10:00:00Z' }))
-    const seen = useVisits.getState()
-    expect(isUnseen(s('a', { activeAt: '2026-09-25T10:00:00Z' }), seen)).toBe(false)
-    expect(isUnseen(s('a', { activeAt: '2026-09-25T10:05:00Z' }), seen)).toBe(true)
+  it('marks a turn that ended after the owner last looked, on any device', () => {
+    expect(isUnseen(s('a', { endedAt: '2026-09-25T10:05:00Z' }))).toBe(true)
+    expect(isUnseen(s('a', { endedAt: '2026-09-25T10:05:00Z', seen: { at: '2026-09-25T10:00:00Z' } }))).toBe(true)
+    expect(isUnseen(s('a', { endedAt: '2026-09-25T10:05:00Z', seen: { at: '2026-09-25T10:05:00Z' } }))).toBe(false)
   })
 
   it('waits for a running turn to end before marking it', () => {
-    markVisited(s('a', { activeAt: '2026-09-25T10:00:00Z' }))
-    const seen = useVisits.getState()
-    expect(isUnseen(s('a', { status: 'running', activeAt: '2026-09-25T10:05:00Z' }), seen)).toBe(false)
+    expect(isUnseen(s('a', { status: 'running', endedAt: '2026-09-25T10:05:00Z' }))).toBe(false)
   })
 
-  it('survives a reload through storage', () => {
-    markVisited(s('a', { activeAt: '2026-09-25T10:00:00Z' }))
-    resetVisits()
-    expect(useVisits.getState().seen.a).toBe(Date.parse('2026-09-25T10:00:00Z'))
+  it('counts the unseen sessions except the open one', () => {
+    const ended = { endedAt: '2026-09-25T10:05:00Z' }
+    expect(unseenCount([s('a', ended), s('b', ended), s('c')], 'b')).toBe(1)
+  })
+})
+
+describe('reporting a look', () => {
+  it('asks only when the server does not already know', () => {
+    const at = { seen: { item: 'i3', at: '2026-09-25T10:05:00Z' }, endedAt: '2026-09-25T10:05:00Z' }
+    expect(needsReport(s('a', at), 'i3')).toBe(false)
+    expect(needsReport(s('a', at), undefined)).toBe(false)
+    expect(needsReport(s('a', at), 'i4')).toBe(true)
+    expect(needsReport(s('a', { ...at, endedAt: '2026-09-25T10:06:00Z' }), undefined)).toBe(true)
+    expect(needsReport(s('a'), undefined)).toBe(false)
+    expect(needsReport(s('a'), 'i1')).toBe(true)
   })
 
-  it('never moves a visit back in time', () => {
-    markVisited(s('a', { activeAt: '2026-09-25T10:05:00Z' }))
-    markVisited(s('a', { activeAt: '2026-09-25T10:00:00Z' }))
-    expect(useVisits.getState().seen.a).toBe(Date.parse('2026-09-25T10:05:00Z'))
+  it('tells the server once the owner has settled, the latest look winning', async () => {
+    vi.useFakeTimers()
+    reportSeen('a', 'i1')
+    reportSeen('a', 'i2')
+    reportSeen('b', undefined)
+    expect(api.markSeen).not.toHaveBeenCalled()
+    await vi.advanceTimersByTimeAsync(1000)
+    expect(api.markSeen).toHaveBeenCalledTimes(2)
+    expect(api.markSeen).toHaveBeenCalledWith('a', 'i2')
+    expect(api.markSeen).toHaveBeenCalledWith('b', undefined)
   })
 
-  it('counts unseen sessions, leaving out the open one', () => {
-    markVisited(s('a', { activeAt: '2026-09-25T10:00:00Z' }))
-    markVisited(s('b', { activeAt: '2026-09-25T10:00:00Z' }))
-    const later = { activeAt: '2026-09-25T11:00:00Z' }
-    expect(unseenCount([s('a', later), s('b', later)], useVisits.getState(), 'b')).toBe(1)
+  it('says it at once when the owner leaves', () => {
+    vi.useFakeTimers()
+    reportSeen('a', 'i1')
+    flushSeen('a')
+    expect(api.markSeen).toHaveBeenCalledWith('a', 'i1')
+    flushSeen('a')
+    expect(api.markSeen).toHaveBeenCalledTimes(1)
   })
 
-  it('reads only well-formed visits from storage', () => {
-    localStorage.setItem('go-chamber:visited:good', '5')
-    localStorage.setItem('go-chamber:visited:bad', 'nope')
-    localStorage.setItem('go-chamber:visited:zero', '0')
-    localStorage.setItem('other:visited:x', '7')
-    resetVisits()
-    expect(useVisits.getState().seen).toEqual({ good: 5 })
+  it('does not repeat a look the server has not echoed yet', async () => {
+    vi.useFakeTimers()
+    reportSeen('a', 'i1', '2026-09-25T10:05:00Z')
+    await vi.advanceTimersByTimeAsync(1000)
+    reportSeen('a', 'i1', '2026-09-25T10:05:00Z')
+    await vi.advanceTimersByTimeAsync(1000)
+    expect(api.markSeen).toHaveBeenCalledTimes(1)
+    // A turn that ended since is worth another word.
+    reportSeen('a', 'i1', '2026-09-25T10:06:00Z')
+    await vi.advanceTimersByTimeAsync(1000)
+    expect(api.markSeen).toHaveBeenCalledTimes(2)
   })
 
-  it('falls back to the creation time, ignoring Go zero times', () => {
-    markVisited(s('a', { activeAt: '0001-01-01T00:00:00Z', createdAt: '2026-09-25T09:00:00Z' }))
-    expect(useVisits.getState().seen.a).toBe(Date.parse('2026-09-25T09:00:00Z'))
-    expect(isUnseen(s('a', { createdAt: '2026-09-25T09:00:00Z' }), useVisits.getState())).toBe(false)
-    expect(isUnseen(s('a', { activeAt: 'garbage', createdAt: '2026-09-25T10:00:00Z' }), useVisits.getState())).toBe(true)
-  })
-
-  it('uses the clock for a session with no times yet', () => {
-    markVisited(s('a'))
-    expect(useVisits.getState().seen.a).toBeGreaterThan(Date.parse('2026-01-01T00:00:00Z'))
-  })
-
-  it('marks a turn that ended after the last look, until looked at again', () => {
-    const a = s('a', { activeAt: '2026-09-25T10:00:00Z' })
-    markVisited(a, 1000)
-    markEnded('a', 2000)
-    expect(isUnseen(a, useVisits.getState())).toBe(true)
-    markVisited(a, 1500)
-    expect(useVisits.getState().looked.a).toBe(2001)
-    expect(isUnseen(a, useVisits.getState())).toBe(false)
-    markVisited(a, 3000)
-    expect(useVisits.getState().looked.a).toBe(2001)
-    resetVisits()
-    expect(useVisits.getState()).toMatchObject({ ended: { a: 2000 }, looked: { a: 2001 } })
-  })
-
-  it('marks an ended turn even in a session never opened here', () => {
-    markEnded('b', 2000)
-    expect(isUnseen(s('b'), useVisits.getState())).toBe(true)
-    expect(isUnseen(s('b', { status: 'running' }), useVisits.getState())).toBe(false)
-  })
-
-  it('finds turns that ended between two lists', () => {
-    const before = [s('a', { status: 'running' }), s('b', { status: 'running' }), s('c')]
-    const after = [s('a', { status: 'idle' }), s('b', { status: 'running' }), s('c', { status: 'interrupted' }), s('d')]
-    expect(endedTurns(before, after)).toEqual(['a'])
-  })
-
-  it('keeps working when storage throws', () => {
-    const real = Object.getOwnPropertyDescriptor(globalThis, 'localStorage')!
-    Object.defineProperty(globalThis, 'localStorage', {
-      configurable: true,
-      get() {
-        throw new Error('blocked')
-      },
-    })
-    try {
-      resetVisits()
-      markVisited(s('a', { activeAt: '2026-09-25T10:00:00Z' }))
-      expect(useVisits.getState().seen.a).toBeGreaterThan(0)
-    } finally {
-      Object.defineProperty(globalThis, 'localStorage', real)
-    }
+  it('tries again later when the server could not be told', async () => {
+    vi.useFakeTimers()
+    ;(api.markSeen as Mock).mockRejectedValueOnce(new Error('offline'))
+    reportSeen('a', 'i1')
+    await vi.advanceTimersByTimeAsync(1000)
+    reportSeen('a', 'i1')
+    await vi.advanceTimersByTimeAsync(1000)
+    expect(api.markSeen).toHaveBeenCalledTimes(2)
   })
 })

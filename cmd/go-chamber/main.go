@@ -128,7 +128,9 @@ func run(ctx context.Context, args []string, out io.Writer) error {
 	}
 	notifySub := events.Subscribe()
 	defer notifySub.Close()
-	go app.NewNotifications(store.Sessions()).Watch(ctx, notifySub.Events(), push)
+	// Where the owner is, told by their open pages: no push for what they watch.
+	presence := app.NewPresence()
+	go app.NewNotifications(store.Sessions()).SkipWatched(presence).Watch(ctx, notifySub.Events(), push)
 
 	ln, err := net.Listen("tcp", *addr)
 	if err != nil {
@@ -158,8 +160,9 @@ func run(ctx context.Context, args []string, out io.Writer) error {
 				Folders:   fsys.Reader{},
 				Terminals: terminals,
 			}),
-			Push:  push,
-			Files: app.NewSessionFiles(store.Sessions(), fsys.Resolver{}),
+			Push:     push,
+			Presence: presence,
+			Files:    app.NewSessionFiles(store.Sessions(), fsys.Resolver{}),
 			History: app.NewHistory(app.HistoryConfig{
 				Repo: store.Sessions(),
 				Bus:  events,
@@ -224,5 +227,7 @@ func claudeProjects(home string) string {
 // The rename routes are found by type assertion; keep them reachable.
 var (
 	_ httpapi.SessionRenamer  = (*app.Manager)(nil)
+	_ httpapi.SessionWatcher  = (*app.Manager)(nil)
+	_ httpapi.PresenceTracker = (*app.Presence)(nil)
 	_ httpapi.TerminalRenamer = (*app.Terminals)(nil)
 )

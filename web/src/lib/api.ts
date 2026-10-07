@@ -45,6 +45,16 @@ export interface Session {
   // folderGone is set when the server last found the session's folder
   // missing (a removed worktree says so by itself).
   folderGone?: boolean
+  // seen is where the owner last looked, on any device: when, and the last
+  // item read then.
+  seen?: Seen
+  // endedAt is when a turn last ended.
+  endedAt?: string
+}
+
+export interface Seen {
+  item?: string
+  at?: string
 }
 
 export interface Worktree {
@@ -419,6 +429,12 @@ export function setApprovalReviewer(id: string, reviewer: ApprovalReviewer): Pro
 
 export function renameSession(id: string, title: string): Promise<Session> {
   return request<Session>(`/api/sessions/${encodeURIComponent(id)}/title`, json({ title }))
+}
+
+// markSeen tells the server the owner looks at a session, having read up
+// to item (none when they are not at the end).
+export function markSeen(id: string, item?: string): Promise<Session> {
+  return request<Session>(`/api/sessions/${encodeURIComponent(id)}/seen`, json(item ? { item } : {}))
 }
 
 // archiveSession puts a session away from the list; it keeps working.

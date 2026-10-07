@@ -405,7 +405,7 @@ function RemoveWorktree({ session, title, worktree, onDone }: { session: Session
           else setError(msg)
           return false
         }
-        notify({ kind: 'info', text: `Worktree removed · branch ${worktree.branch} kept` })
+        notify({ kind: 'info', text: `Worktree removed · branch ${worktree.branch} kept`, sessionId: session.id })
         onDone()
         return true
       },

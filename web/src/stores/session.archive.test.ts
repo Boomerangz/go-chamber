@@ -15,7 +15,7 @@ vi.mock('../lib/chime', () => ({ chimeOnEvent: vi.fn() }))
 
 import * as api from '../lib/api'
 import { resetStore, useSessionStore } from './session'
-import { resetNotices, useNotices } from './notices'
+import { notify, resetNotices, useNotices } from './notices'
 
 const store = () => useSessionStore.getState()
 
@@ -79,6 +79,24 @@ describe('delete', () => {
     expect(store().activeId).toBeNull()
     expect(store().pane).toBe('sessions')
     expect(location.pathname + location.search).toBe('/?x=1')
+  })
+
+  it('drops the notices about a deleted session and its subagents', async () => {
+    useSessionStore.setState({ sessions: [session('a'), session('sub', { parentId: 'a' }), session('b')] })
+    notify({ kind: 'info', text: 'Worktree removed · branch x kept', sessionId: 'a' })
+    notify({ kind: 'error', text: 'sub failed', sessionId: 'sub' })
+    notify({ kind: 'info', text: 'about b', sessionId: 'b' })
+    ;(api.deleteSession as Mock).mockResolvedValue(undefined)
+    await store().deleteSession('a')
+    expect(useNotices.getState().notices.map((n) => n.text)).toEqual(['about b'])
+  })
+
+  it('keeps the notices about a session the owner leaves for another', async () => {
+    useSessionStore.setState({ sessions: [session('a'), session('b')] })
+    await store().selectSession('a')
+    notify({ kind: 'info', text: 'Worktree removed · branch x kept', sessionId: 'a' })
+    await store().selectSession('b')
+    expect(useNotices.getState().notices.map((n) => n.text)).toEqual(['Worktree removed · branch x kept'])
   })
 
   it('keeps the open session when another one is deleted', async () => {

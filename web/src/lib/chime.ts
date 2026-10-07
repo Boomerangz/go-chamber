@@ -1,4 +1,5 @@
 import type { SessionEvent } from './api'
+import { chimesHere, watchingHere } from './presence'
 
 // Chimes are short synthesized tones, off unless the owner turns them on: a
 // rising pair when an agent needs a decision, one soft note when a turn ends.
@@ -58,7 +59,10 @@ function tone(ctx: AudioContext, freq: number, at: number) {
   osc.stop(at + 0.4)
 }
 
+// chimeOnEvent sounds on one page only: the one the owner was at last, on
+// whichever device; and on a focused page showing that very session, which
+// is where they look.
 export function chimeOnEvent(ev: SessionEvent): void {
   const chime = chimeFor(ev)
-  if (chime && soundOn()) play(chime)
+  if (chime && soundOn() && (chimesHere() || watchingHere(ev.sessionId))) play(chime)
 }

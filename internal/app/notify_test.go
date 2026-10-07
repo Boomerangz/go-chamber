@@ -79,3 +79,43 @@ func TestNotificationsWatchForwardsUntilClosed(t *testing.T) {
 		t.Fatalf("pushed %+v", p.got)
 	}
 }
+
+type watchedSet map[domain.SessionID]bool
+
+func (w watchedSet) Watching(id domain.SessionID) bool { return w[id] }
+
+func TestNoPushForWhatTheOwnerIsWatching(t *testing.T) {
+	repo := titleRepo{"s1": {ID: "s1", Agent: domain.AgentClaude, Title: "Fix"}, "s2": {ID: "s2", Agent: domain.AgentClaude, Title: "Other"}}
+	n := NewNotifications(repo).SkipWatched(watchedSet{"s1": true})
+	ctx := context.Background()
+	if got := n.For(ctx, domain.Event{SessionID: "s1", Type: domain.EventTurnEnded}); got != nil {
+		t.Fatalf("watched turn end pushed %+v", got)
+	}
+	if got := n.For(ctx, domain.Event{SessionID: "s1", Type: domain.EventRequestOpened, Request: &domain.Request{ID: "r1", Title: "Run"}}); got != nil {
+		t.Fatalf("watched request pushed %+v", got)
+	}
+	if got := n.For(ctx, domain.Event{SessionID: "s2", Type: domain.EventTurnEnded}); got == nil {
+		t.Fatal("another session's turn end still pushes")
+	}
+	// Nothing was shown for r1, so its answer has nothing to close.
+	if got := n.For(ctx, domain.Event{SessionID: "s1", Type: domain.EventRequestResolved, Request: &domain.Request{ID: "r1"}}); got != nil {
+		t.Fatalf("closed what was never shown: %+v", got)
+	}
+}
+
+func TestAnAnsweredRequestClosesItsNotificationEverywhere(t *testing.T) {
+	n := NewNotifications(titleRepo{"s1": {ID: "s1", Agent: domain.AgentClaude, Title: "Fix"}})
+	ctx := context.Background()
+	opened := domain.Event{SessionID: "s1", Type: domain.EventRequestOpened, Request: &domain.Request{ID: "r1", Title: "Run"}}
+	if n.For(ctx, opened) == nil {
+		t.Fatal("request not pushed")
+	}
+	resolved := domain.Event{SessionID: "s1", Type: domain.EventRequestResolved, Request: &domain.Request{ID: "r1"}}
+	want := Notification{Title: "Fix: answered", URL: "/s/s1", Tag: "request-r1", Close: true}
+	if got := n.For(ctx, resolved); got == nil || *got != want {
+		t.Fatalf("close = %+v, want %+v", got, want)
+	}
+	if got := n.For(ctx, resolved); got != nil {
+		t.Fatalf("closed twice: %+v", got)
+	}
+}
