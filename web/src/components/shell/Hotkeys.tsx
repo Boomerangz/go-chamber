@@ -5,6 +5,7 @@ import QuickSwitcher from './QuickSwitcher'
 import { replacingHistory } from './routeSync'
 import { useOverlay, type Overlay } from './overlay'
 import { formatCombo, isMac, isStrayFocus, isTypingTarget, matches, nextIndex, notePointer, type Combo } from '../../lib/hotkeys'
+import Keys from '../ui/Keys'
 import { terminalShortcuts } from '../../lib/terminal-keys'
 import { useLayoutStore, type Mode } from '../../stores/layout'
 import { useSessionStore } from '../../stores/session'
@@ -188,7 +189,7 @@ function ShortcutHelp({ shortcuts, onClose }: { shortcuts: Shortcut[]; onClose: 
                 .filter((s) => s.group === group)
                 .map((s) => (
                   <div key={s.keys + s.label}>
-                    <dt><kbd>{s.keys}</kbd></dt>
+                    <dt><Keys keys={s.keys} /></dt>
                     <dd>{s.label}</dd>
                   </div>
                 ))}

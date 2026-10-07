@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import { Plus, SquareTerminal } from 'lucide-react'
 import { icon } from '../icon'
 import { useNow } from '../../lib/now'
 import { relativeTime } from '../../lib/sessions'
 import { switcherEntries, type SwitcherEntry } from '../../lib/switcher'
+import Keys from '../ui/Keys'
 import { LoadingLine } from '../ui/Loading'
 import { numberedParts } from '../terminal/numbered'
 import { useLayoutStore } from '../../stores/layout'
@@ -91,38 +92,45 @@ export default function QuickSwitcher({ onClose }: { onClose: () => void }) {
       />
       <ul ref={list} id="switcher-list" className="switcher-list" role="listbox" aria-label="Sessions and terminals">
         {entries.map((entry, i) => (
-          <li
-            key={`${entry.kind}-${entry.id}`}
-            id={`switch-${entry.kind}-${entry.id}`}
-            role="option"
-            aria-selected={i === current}
-            className="switcher-row"
-            onMouseMove={() => i !== current && setAt(i)}
-            onClick={() => open(entry)}
-          >
-            {entry.kind === 'terminal' ? (
-              <SquareTerminal {...icon(14)} />
-            ) : entry.kind === 'new' ? (
-              <Plus {...icon(14)} />
-            ) : (
-              <span className={`switcher-mark status status-${entry.waiting > 0 ? 'waiting' : entry.status}`} aria-hidden="true" />
+          <Fragment key={`${entry.kind}-${entry.id}`}>
+            {/* archived sessions a query found come last, under their heading */}
+            {entry.archived && !entries[i - 1]?.archived && (
+              <li role="presentation" className="switcher-section section-title">
+                Archived
+              </li>
             )}
-            <span className="switcher-title" title={entry.title}>
-              <span className="switcher-title-text">
-                {entry.kind === 'terminal' ? <NumberedTitle text={entry.title} hits={entry.titleHits} /> : <Marked text={entry.title} hits={entry.titleHits} />}
-              </span>
-              {entry.current && <span className="switcher-current">current</span>}
-            </span>
-            <span className="switcher-detail" title={entry.kind === 'new' ? entry.cwd : undefined}>
-              {entry.kind === 'new' ? null : (
-                <span className="switcher-path">
-                  <Marked text={entry.detail} hits={entry.detailHits} />
-                </span>
+            <li
+              id={`switch-${entry.kind}-${entry.id}`}
+              role="option"
+              aria-selected={i === current}
+              className="switcher-row"
+              onMouseMove={() => i !== current && setAt(i)}
+              onClick={() => open(entry)}
+            >
+              {entry.kind === 'terminal' ? (
+                <SquareTerminal {...icon(14)} />
+              ) : entry.kind === 'new' ? (
+                <Plus {...icon(14)} />
+              ) : (
+                <span className={`switcher-mark status status-${entry.waiting > 0 ? 'waiting' : entry.status}`} aria-hidden="true" />
               )}
-              {entry.at && <span className="switcher-time">{relativeTime(entry.at, new Date(now))}</span>}
-            </span>
-            {entry.waiting > 0 ? <span className="badge">{entry.waiting}</span> : <span />}
-          </li>
+              <span className="switcher-title" title={entry.title}>
+                <span className="switcher-title-text">
+                  {entry.kind === 'terminal' ? <NumberedTitle text={entry.title} hits={entry.titleHits} /> : <Marked text={entry.title} hits={entry.titleHits} />}
+                </span>
+                {entry.current && <span className="switcher-current">current</span>}
+              </span>
+              <span className="switcher-detail" title={entry.kind === 'new' ? entry.cwd : undefined}>
+                {entry.kind === 'new' ? null : (
+                  <span className="switcher-path">
+                    <Marked text={entry.detail} hits={entry.detailHits} />
+                  </span>
+                )}
+                {entry.at && <span className="switcher-time">{relativeTime(entry.at, new Date(now))}</span>}
+              </span>
+              {entry.waiting > 0 ? <span className="badge">{entry.waiting}</span> : <span />}
+            </li>
+          </Fragment>
         ))}
         {loading && (
           <li className="switcher-empty">
@@ -134,9 +142,9 @@ export default function QuickSwitcher({ onClose }: { onClose: () => void }) {
         )}
       </ul>
       <footer className="switcher-foot">
-        <span><kbd>↑</kbd><kbd>↓</kbd> move</span>
-        <span><kbd>↵</kbd> open</span>
-        <span><kbd>Esc</kbd> close</span>
+        <Keys keys="↑ ↓" label="move" />
+        <Keys keys="↵" label="open" />
+        <Keys keys="Esc" label="close" />
       </footer>
     </dialog>
   )

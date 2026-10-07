@@ -232,10 +232,11 @@ test('the branch field previews its branch, refuses in place, and unticks once s
 
   await branch.fill(taken)
   await page.getByRole('button', { name: 'New session', exact: true }).click()
-  await expect(page.getByRole('alert').filter({ hasText: `Branch chamber/${taken} already exists` })).toBeVisible()
+  // The branch is checked out in the live worktree: the form says where.
+  await expect(page.getByRole('alert').filter({ hasText: `Branch chamber/${taken} is checked out in ` })).toBeVisible()
   await expect(branch).toHaveAttribute('aria-invalid', 'true')
   // Said in the form, not in a corner notice.
-  await expect(page.locator('.toast', { hasText: 'already exists' })).toHaveCount(0)
+  await expect(page.locator('.toast', { hasText: 'checked out' })).toHaveCount(0)
 
   await branch.fill(`fresh-${info.project.name}`)
   await page.getByRole('button', { name: 'New session', exact: true }).click()

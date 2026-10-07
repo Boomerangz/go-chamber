@@ -26,7 +26,7 @@ import { endedTurns, markEnded, markVisited, unseenCount, useVisits } from './li
 import { useWaitingCount } from './lib/waiting'
 import { settleRestoredDock, useLayoutStore, useLayoutVars, visibleDock } from './stores/layout'
 import { useSessionStore } from './stores/session'
-import { useTerminalStore } from './stores/terminals'
+import { followSessions, useTerminalStore } from './stores/terminals'
 
 export default function App() {
   const [health, retryHealth] = useHealth()
@@ -63,6 +63,7 @@ export default function App() {
   }, [health, loadSessions, loadRequests, loadQuotas, loadTerminals, connect])
 
   useEffect(() => monitorBrowser(), [])
+  useEffect(() => followSessions(), [])
 
   useRouteSync(health === 'online')
 
@@ -136,7 +137,7 @@ export default function App() {
       {health === 'online' && mode === 'agents' && (
         <>
           <div className="layout" data-pane={pane} data-dock={dock ?? 'closed'} data-focus={focus ? 'on' : undefined} data-sidebar={sidebar ? undefined : 'off'} style={layoutVars}>
-            <Sidebar sessions={sessions} onCreate={(agent, cwd, branch) => createSession(agent, cwd, branch, true)} />
+            <Sidebar sessions={sessions} onCreate={(agent, cwd, branch, existing) => (existing ? createSession(agent, cwd, branch, true, true) : createSession(agent, cwd, branch, true))} />
             <SidebarSplitter />
             {activeId ? <Chat key={activeId} /> : <EmptyChat />}
             <div className="dock">

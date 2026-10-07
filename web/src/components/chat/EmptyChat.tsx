@@ -4,6 +4,7 @@ import { folderNames, relativeTime, sessionTitle, startFolder } from '../../lib/
 import { useNow } from '../../lib/now'
 import { owesAnswer } from '../../lib/status'
 import { isMac, useMedia } from './useMedia'
+import Keys from '../ui/Keys'
 import { Skeleton } from '../ui/Loading'
 import './EmptyChat.css'
 
@@ -33,7 +34,7 @@ export default function EmptyChat() {
   const folder = startFolder(sessions)
   const shown = list.slice(0, MAX)
   const names = folderNames(shown.map(folder))
-  const mod = isMac() ? '⌘' : 'Ctrl'
+  const mod = isMac() ? '⌘' : 'Ctrl+'
   // the rest wait in the Requests inbox
   const showRequests = () => {
     if (narrow) useSessionStore.getState().setPane('requests')
@@ -81,13 +82,8 @@ export default function EmptyChat() {
         )}
         {!narrow && (
           <p className="empty-keys">
-            <span>
-              <kbd>{mod}</kbd>
-              <kbd>K</kbd> <span>quick switch</span>
-            </span>
-            <span>
-              <kbd>?</kbd> <span>shortcuts</span>
-            </span>
+            <Keys keys={`${mod}K`} label="quick switch" />
+            <Keys keys="?" label="shortcuts" />
           </p>
         )}
       </div>

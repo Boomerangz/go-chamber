@@ -62,7 +62,17 @@ export function branchError(text: string): string | null {
   m = /worktree folder already exists: (.+)$/.exec(text)
   if (m) return `Its worktree folder ${m[1]} already exists`
   if (/invalid branch name/.test(text)) return 'Use latin letters or digits'
+  m = /branch (\S+) is checked out at (.+)$/.exec(text)
+  if (m) return `Branch ${m[1]} is checked out in ${m[2]}`
+  m = /no such branch: (\S+)/.exec(text)
+  if (m) return `Branch ${m[1]} is no longer there`
   return null
+}
+
+// continuable tells a refused branch that is there and checked out nowhere:
+// the form offers to go on with it in a new worktree.
+export function continuable(text: string | null): boolean {
+  return text !== null && /branch already exists: /.test(text)
 }
 
 // folderError reads a server refusal of the folder a session was asked to

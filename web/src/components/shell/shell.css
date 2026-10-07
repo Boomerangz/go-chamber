@@ -30,11 +30,12 @@
 .switcher-current::before { content: '['; }
 .switcher-current::after { content: ']'; }
 .switcher-empty { padding: 12px 8px; color: var(--ink-3); font-size: 13px; }
+/* the archived sessions a query found, below the rest */
+.switcher-section { margin-top: 6px; padding: 8px 8px 4px; border-top: 1px solid var(--rule); }
 .switcher-foot, .shortcut-note {
   display: flex; gap: 16px; padding: 8px 14px; border-top: 1px solid var(--rule);
   font-family: var(--font-mono); font-size: 11.5px; color: var(--ink-3);
 }
-.switcher-foot kbd { margin-right: 2px; }
 .shortcut-help { width: min(860px, calc(100vw - 32px)); max-height: 86vh; }
 .shortcut-head { display: flex; align-items: center; justify-content: space-between; padding: 12px 10px 8px 16px; border-bottom: 1px solid var(--rule); }
 .shortcut-head h2 { font-size: 15px; font-weight: 600; }
@@ -46,12 +47,15 @@
 .shortcut-groups > section:first-child { grid-row: span 3; }
 .shortcut-groups h3 { padding: 6px 0 2px; }
 .shortcut-list { margin: 0; padding: 0 0 8px; display: grid; gap: 0; }
-.shortcut-list > div { display: grid; grid-template-columns: 7em 1fr; align-items: center; gap: 12px; padding: 3px 0; }
+.shortcut-list > div { display: grid; grid-template-columns: 12em 1fr; align-items: center; gap: 12px; padding: 3px 0; }
 .shortcut-list dd { margin: 0; color: var(--ink-2); font-size: 13px; }
 .shortcut-list kbd { min-width: 0; padding: 0 6px; }
+/* a long run of alternatives wraps inside its column, never into the words */
+.shortcut-list dt .keys { flex-wrap: wrap; row-gap: 2px; white-space: normal; }
 /* the list takes focus to scroll by keys: its ring sits inside the sheet */
 .shortcut-groups:focus-visible { outline-offset: -2px; }
 @media (max-width: 720px) {
   .switcher { margin-top: 8vh; }
   .switcher-row { min-height: 40px; }
+  .shortcut-list > div { grid-template-columns: 8em 1fr; }
 }

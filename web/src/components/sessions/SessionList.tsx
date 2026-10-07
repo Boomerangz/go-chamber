@@ -28,6 +28,7 @@ import { useSessionStore } from '../../stores/session'
 import { LoadFailed, LoadingLine, Skeleton } from '../ui/Loading'
 import SessionMenu from './SessionMenu'
 import { failedTo } from '../../lib/failed'
+import { stableOrder } from '../../lib/stable-order'
 
 // RECENT is how many sessions an expanded project shows before "older".
 const RECENT = 5
@@ -74,8 +75,11 @@ export default function SessionList({ onCreateIn, agent = 'claude', creating = f
     const timer = setTimeout(() => void searchMessages(query), 250)
     return () => clearTimeout(timer)
   }, [query, searchMessages])
+  // Groups keep their place while the page is open: a new folder comes in
+  // on top, the others stay where the owner last saw them.
   const groups = useMemo(() => {
-    if (!searching) return groupSessions(sessions)
+    const stable = (gs: ReturnType<typeof groupSessions>) => stableOrder.by('groups', gs, (g) => g.cwd)
+    if (!searching) return stable(groupSessions(sessions))
     // Keep parents of matching children so the tree stays intact.
     const ids = new Set<string>()
     for (const session of sessions) {
@@ -84,7 +88,7 @@ export default function SessionList({ onCreateIn, agent = 'claude', creating = f
       if (session.parentId) ids.add(session.parentId)
     }
     const withParents = sessions.filter((s) => ids.has(s.id))
-    return groupSessions(withParents)
+    return stable(groupSessions(withParents))
   }, [sessions, query, searching])
 
   // A folder that is gone takes no new session.

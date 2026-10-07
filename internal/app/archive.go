@@ -65,7 +65,10 @@ func restoreArchive(s *domain.Session, at time.Time) {
 
 // DeleteSession removes go-chamber's record of a session and of the
 // subagents it spawned. A running turn must be stopped first; an idle agent
-// process is closed. The agent's own transcript stays on disk.
+// process is closed. The agent's own transcript stays on disk, and so do
+// shells opened for the session: they are the owner's processes in a folder
+// that is still there (a dev server, say), so they become ordinary
+// terminals rather than being killed.
 func (m *Manager) DeleteSession(ctx context.Context, id domain.SessionID) error {
 	if m.cfg.Eraser == nil {
 		return ErrDeleteUnsupported
@@ -85,6 +88,15 @@ func (m *Manager) DeleteSession(ctx context.Context, id domain.SessionID) error 
 		m.forget(s)
 	}
 	m.mu.Unlock()
+	// Shells are let go of before the announcement, so a client refreshing
+	// its terminals on it finds them unbound.
+	if m.cfg.Terminals != nil {
+		ids := make([]domain.SessionID, len(doomed))
+		for i, s := range doomed {
+			ids[i] = s.ID()
+		}
+		m.cfg.Terminals.Unbind(ids...)
+	}
 	// Announce before erasing: the bus logs the announcement too, and
 	// erasing takes it along with the rest of the session's events.
 	for _, s := range doomed {

@@ -22,6 +22,7 @@ type stubWorktrees struct {
 	deleted   domain.SessionID
 	folder    bool
 	unmerged  *app.Unmerged
+	continued bool
 }
 
 func (s *stubWorktrees) Delete(_ context.Context, id domain.SessionID, removeFolder bool) error {

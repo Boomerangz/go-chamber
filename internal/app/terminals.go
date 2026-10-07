@@ -286,6 +286,40 @@ func (t *Terminals) Close(id domain.TerminalID) error {
 	return rt.pty.Close()
 }
 
+// CloseWithin kills and forgets the shells working in dir or below it and
+// says how many there were: a folder that goes leaves no shell in it.
+func (t *Terminals) CloseWithin(dir string) int {
+	t.mu.Lock()
+	var doomed []*runningTerminal
+	for id, rt := range t.terms {
+		if rt.snapshot().Within(dir) {
+			doomed = append(doomed, rt)
+			delete(t.terms, id)
+		}
+	}
+	t.mu.Unlock()
+	for _, rt := range doomed {
+		_ = rt.pty.Close()
+	}
+	return len(doomed)
+}
+
+// Unbind forgets that shells were opened for the given sessions; the
+// shells keep running as ordinary terminals in their folders.
+func (t *Terminals) Unbind(ids ...domain.SessionID) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	for _, rt := range t.terms {
+		rt.mu.Lock()
+		for _, id := range ids {
+			if rt.term.OpenedFor(id) {
+				rt.term.Unbind()
+			}
+		}
+		rt.mu.Unlock()
+	}
+}
+
 // CloseAll kills every shell and refuses new ones; used on shutdown.
 func (t *Terminals) CloseAll() {
 	t.mu.Lock()
