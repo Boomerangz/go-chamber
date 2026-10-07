@@ -107,10 +107,10 @@ func (s *server) fileDiff(w http.ResponseWriter, r *http.Request) {
 func (s *server) failWorktree(w http.ResponseWriter, err error) {
 	switch {
 	case errors.Is(err, app.ErrNotRepository), errors.Is(err, app.ErrInvalidPath), errors.Is(err, app.ErrInvalidBranch):
-		writeJSON(w, http.StatusBadRequest, errorBody{err.Error()})
+		writeJSON(w, http.StatusBadRequest, errorBody{Error: err.Error()})
 	case errors.Is(err, app.ErrWorktreeDirty), errors.Is(err, app.ErrNoWorktree),
 		errors.Is(err, app.ErrBranchExists), errors.Is(err, app.ErrWorktreeExists):
-		writeJSON(w, http.StatusConflict, errorBody{err.Error()})
+		writeJSON(w, http.StatusConflict, errorBody{Error: err.Error()})
 	default:
 		s.fail(w, err)
 	}

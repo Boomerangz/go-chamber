@@ -319,6 +319,14 @@ describe('ApiError', () => {
     expect((err as ApiError).message).toBe('session not found')
   })
 
+  it("carries the refusal's code, so two refusals with one status tell apart", async () => {
+    stubFetch(async () => json({ error: 'Folder /p no longer exists', code: 'folder_gone' }, 422))
+    const err = await getSession('x').catch((e: unknown) => e)
+    expect((err as ApiError).code).toBe('folder_gone')
+    stubFetch(async () => json({ error: 'session not found' }, 404))
+    expect(((await getSession('x').catch((e: unknown) => e)) as ApiError).code).toBeUndefined()
+  })
+
   it('keeps a body that is not a JSON error as it is', async () => {
     stubFetch(async () => new Response('<html><title>Bad gateway</title></html>', { status: 502, statusText: 'Bad Gateway' }))
     const err = await getSession('x').catch((e: unknown) => e)

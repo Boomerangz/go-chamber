@@ -206,6 +206,10 @@ func TestSendMessageInAMissingFolder(t *testing.T) {
 	if rec.Code != http.StatusUnprocessableEntity || !strings.Contains(rec.Body.String(), `"Folder /tmp/gone no longer exists"`) {
 		t.Fatalf("code = %d body=%s", rec.Code, rec.Body.String())
 	}
+	var body errorBody
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil || body.Code != "folder_gone" {
+		t.Fatalf("code field = %q (%v)", body.Code, err)
+	}
 }
 
 func TestCreateSessionBadBody(t *testing.T) {

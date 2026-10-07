@@ -51,7 +51,7 @@ func (s *server) archiveRoutes() {
 // deleteWithWorktree removes the session together with its worktree folder.
 func (s *server) deleteWithWorktree(w http.ResponseWriter, req *http.Request) {
 	if s.cfg.Worktrees == nil {
-		writeJSON(w, http.StatusNotImplemented, errorBody{"removing worktrees is not supported"})
+		writeJSON(w, http.StatusNotImplemented, errorBody{Error: "removing worktrees is not supported"})
 		return
 	}
 	if err := s.cfg.Worktrees.Delete(req.Context(), sessionID(req), true); err != nil {

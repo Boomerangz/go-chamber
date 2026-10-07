@@ -73,7 +73,7 @@ func TestCreatingASessionWithoutItsCLIIsRefusedInPlainWords(t *testing.T) {
 	}
 	var body errorBody
 	_ = json.Unmarshal(rec.Body.Bytes(), &body)
-	if body.Error != domain.CLIMissing(domain.AgentCodex).Error() {
+	if body.Error != domain.CLIMissing(domain.AgentCodex).Error() || body.Code != "cli_missing" {
 		t.Fatalf("body = %s", rec.Body.String())
 	}
 }

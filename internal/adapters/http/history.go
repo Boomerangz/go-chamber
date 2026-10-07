@@ -42,7 +42,7 @@ func (s *server) importHistory(w http.ResponseWriter, r *http.Request) {
 	}
 	snap, err := s.cfg.History.Import(r.Context(), body.Agent, body.NativeID)
 	if errors.Is(err, app.ErrHistoryNotFound) {
-		writeJSON(w, http.StatusNotFound, errorBody{err.Error()})
+		writeJSON(w, http.StatusNotFound, errorBody{Error: err.Error()})
 		return
 	}
 	if err != nil {

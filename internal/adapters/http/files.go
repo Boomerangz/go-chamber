@@ -34,10 +34,10 @@ func (s *server) sessionFile(w http.ResponseWriter, r *http.Request) {
 	real, err := s.cfg.Files.Resolve(r.Context(), sessionID(r), r.URL.Query().Get("path"))
 	switch {
 	case errors.Is(err, app.ErrFileOutsideSession):
-		writeJSON(w, http.StatusForbidden, errorBody{err.Error()})
+		writeJSON(w, http.StatusForbidden, errorBody{Error: err.Error()})
 		return
 	case errors.Is(err, app.ErrFileNotFound):
-		writeJSON(w, http.StatusNotFound, errorBody{err.Error()})
+		writeJSON(w, http.StatusNotFound, errorBody{Error: err.Error()})
 		return
 	case err != nil:
 		s.fail(w, err)

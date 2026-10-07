@@ -171,14 +171,14 @@ func (s *server) sendMessage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if body.Text == "" && len(body.Images) == 0 {
-		writeJSON(w, http.StatusBadRequest, errorBody{"text is required"})
+		writeJSON(w, http.StatusBadRequest, errorBody{Error: "text is required"})
 		return
 	}
 	send := func() error { return s.cfg.Sessions.SendMessage(r.Context(), sessionID(r), body.Text) }
 	if len(body.Images) > 0 && s.cfg.ImagesDir != "" {
 		images, err := s.resolveImages(r, body.Images)
 		if errors.Is(err, errUnknownImage) {
-			writeJSON(w, http.StatusBadRequest, errorBody{err.Error()})
+			writeJSON(w, http.StatusBadRequest, errorBody{Error: err.Error()})
 			return
 		}
 		if err != nil {
@@ -202,7 +202,7 @@ func (s *server) steer(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if body.Text == "" {
-		writeJSON(w, http.StatusBadRequest, errorBody{"text is required"})
+		writeJSON(w, http.StatusBadRequest, errorBody{Error: "text is required"})
 		return
 	}
 	if err := s.cfg.Sessions.Steer(r.Context(), sessionID(r), body.Text); err != nil {
@@ -280,7 +280,7 @@ func (s *server) sessionEvents(w http.ResponseWriter, r *http.Request) {
 	if raw := r.URL.Query().Get("since"); raw != "" {
 		n, err := strconv.ParseInt(raw, 10, 64)
 		if err != nil {
-			writeJSON(w, http.StatusBadRequest, errorBody{"since must be an integer"})
+			writeJSON(w, http.StatusBadRequest, errorBody{Error: "since must be an integer"})
 			return
 		}
 		since = domain.Seq(n)
@@ -331,7 +331,7 @@ func (s *server) respondRequest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if body.Behavior != "allow" && body.Behavior != "deny" {
-		writeJSON(w, http.StatusBadRequest, errorBody{"behavior must be allow or deny"})
+		writeJSON(w, http.StatusBadRequest, errorBody{Error: "behavior must be allow or deny"})
 		return
 	}
 	answer := app.RequestAnswer{
@@ -352,7 +352,7 @@ func (s *server) respondRequest(w http.ResponseWriter, r *http.Request) {
 func (s *server) getAccount(w http.ResponseWriter, r *http.Request) {
 	agent := domain.AgentKind(r.URL.Query().Get("agent"))
 	if !agent.Valid() {
-		writeJSON(w, http.StatusBadRequest, errorBody{"agent must be claude or codex"})
+		writeJSON(w, http.StatusBadRequest, errorBody{Error: "agent must be claude or codex"})
 		return
 	}
 	info, err := s.cfg.Sessions.Account(r.Context(), agent)
@@ -366,7 +366,7 @@ func (s *server) getAccount(w http.ResponseWriter, r *http.Request) {
 func (s *server) startLogin(w http.ResponseWriter, r *http.Request) {
 	agent := domain.AgentKind(r.PathValue("agent"))
 	if !agent.Valid() {
-		writeJSON(w, http.StatusBadRequest, errorBody{"agent must be claude or codex"})
+		writeJSON(w, http.StatusBadRequest, errorBody{Error: "agent must be claude or codex"})
 		return
 	}
 	challenge, err := s.cfg.Sessions.StartLogin(r.Context(), agent)
@@ -392,7 +392,7 @@ func (s *server) listQuotas(w http.ResponseWriter, r *http.Request) {
 func (s *server) refreshQuota(w http.ResponseWriter, r *http.Request) {
 	agent := domain.AgentKind(r.PathValue("agent"))
 	if !agent.Valid() {
-		writeJSON(w, http.StatusBadRequest, errorBody{"agent must be claude or codex"})
+		writeJSON(w, http.StatusBadRequest, errorBody{Error: "agent must be claude or codex"})
 		return
 	}
 	quota, err := s.cfg.Sessions.RefreshQuota(r.Context(), agent)
@@ -407,29 +407,31 @@ func (s *server) fail(w http.ResponseWriter, err error) {
 	switch {
 	case errors.Is(err, app.ErrSessionNotFound), errors.Is(err, app.ErrRequestNotFound),
 		errors.Is(err, app.ErrTerminalNotFound):
-		writeJSON(w, http.StatusNotFound, errorBody{err.Error()})
+		writeJSON(w, http.StatusNotFound, errorBody{Error: err.Error()})
 	case errors.Is(err, domain.ErrInvalidSession), errors.Is(err, domain.ErrInvalidTerminal),
 		errors.Is(err, domain.ErrInvalidReviewer), errors.Is(err, domain.ErrInvalidModel),
 		errors.Is(err, domain.ErrInvalidPermissionMode),
 		errors.Is(err, app.ErrInvalidTerminalSize), errors.Is(err, app.ErrTitleTooLong):
-		writeJSON(w, http.StatusBadRequest, errorBody{err.Error()})
+		writeJSON(w, http.StatusBadRequest, errorBody{Error: err.Error()})
 	case errors.Is(err, app.ErrFolderNotFound):
-		writeJSON(w, http.StatusNotFound, errorBody{err.Error()})
-	case errors.Is(err, domain.ErrFolderGone), errors.Is(err, domain.ErrCLIMissing):
-		writeJSON(w, http.StatusUnprocessableEntity, errorBody{err.Error()})
+		writeJSON(w, http.StatusNotFound, errorBody{Error: err.Error()})
+	case errors.Is(err, domain.ErrFolderGone):
+		writeJSON(w, http.StatusUnprocessableEntity, errorBody{Error: err.Error(), Code: "folder_gone"})
+	case errors.Is(err, domain.ErrCLIMissing):
+		writeJSON(w, http.StatusUnprocessableEntity, errorBody{Error: err.Error(), Code: "cli_missing"})
 	case errors.Is(err, app.ErrInvalidFolder):
-		writeJSON(w, http.StatusBadRequest, errorBody{err.Error()})
+		writeJSON(w, http.StatusBadRequest, errorBody{Error: err.Error()})
 	case errors.Is(err, app.ErrFolderForbidden):
-		writeJSON(w, http.StatusForbidden, errorBody{err.Error()})
+		writeJSON(w, http.StatusForbidden, errorBody{Error: err.Error()})
 	case errors.Is(err, domain.ErrTerminalExited), errors.Is(err, domain.ErrInvalidTransition),
 		errors.Is(err, domain.ErrSessionBusy), errors.Is(err, domain.ErrWorktreeRemoved):
-		writeJSON(w, http.StatusConflict, errorBody{err.Error()})
+		writeJSON(w, http.StatusConflict, errorBody{Error: err.Error()})
 	case errors.Is(err, app.ErrAccountsUnsupported), errors.Is(err, app.ErrQuotasUnsupported),
 		errors.Is(err, app.ErrModelsUnsupported), errors.Is(err, app.ErrImagesUnsupported),
 		errors.Is(err, app.ErrDeleteUnsupported):
-		writeJSON(w, http.StatusNotImplemented, errorBody{err.Error()})
+		writeJSON(w, http.StatusNotImplemented, errorBody{Error: err.Error()})
 	default:
-		writeJSON(w, http.StatusInternalServerError, errorBody{err.Error()})
+		writeJSON(w, http.StatusInternalServerError, errorBody{Error: err.Error()})
 	}
 }
 
@@ -439,7 +441,7 @@ func sessionID(r *http.Request) domain.SessionID {
 
 func decode(w http.ResponseWriter, r *http.Request, v any) bool {
 	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20)).Decode(v); err != nil {
-		writeJSON(w, http.StatusBadRequest, errorBody{"invalid JSON body"})
+		writeJSON(w, http.StatusBadRequest, errorBody{Error: "invalid JSON body"})
 		return false
 	}
 	return true
@@ -447,4 +449,6 @@ func decode(w http.ResponseWriter, r *http.Request, v any) bool {
 
 type errorBody struct {
 	Error string `json:"error"`
+	// Code tells apart refusals that share a status, for the UI to act on.
+	Code string `json:"code,omitempty"`
 }

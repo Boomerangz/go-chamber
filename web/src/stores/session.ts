@@ -434,9 +434,9 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       useNotices.getState().dismissKey('send')
       return true
     } catch (err) {
-      // The folder is gone (422): the chat says so in the composer's place.
+      // The folder is gone: the chat says so in the composer's place.
       const session = get().sessions.find((s) => s.id === id)
-      if ((err as { status?: unknown } | null)?.status === 422 && session) {
+      if ((err as { code?: unknown } | null)?.code === 'folder_gone' && session) {
         set({ sessions: replaceSession(get().sessions, { ...session, folderGone: true }) })
         return false
       }

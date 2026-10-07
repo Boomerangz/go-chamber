@@ -72,13 +72,13 @@ func (s *server) terminalRTC(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if offer.Type != webrtc.SDPTypeOffer || len(offer.SDP) > 128<<10 {
-		writeJSON(w, http.StatusBadRequest, errorBody{"invalid RTC offer"})
+		writeJSON(w, http.StatusBadRequest, errorBody{Error: "invalid RTC offer"})
 		return
 	}
 	select {
 	case s.rtcSlots <- struct{}{}:
 	default:
-		writeJSON(w, http.StatusTooManyRequests, errorBody{"too many RTC connections"})
+		writeJSON(w, http.StatusTooManyRequests, errorBody{Error: "too many RTC connections"})
 		return
 	}
 	parent := s.cfg.Lifecycle
@@ -97,7 +97,7 @@ func (s *server) terminalRTC(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		cancel()
 		<-s.rtcSlots
-		writeJSON(w, http.StatusInternalServerError, errorBody{"RTC configuration failed"})
+		writeJSON(w, http.StatusInternalServerError, errorBody{Error: "RTC configuration failed"})
 		return
 	}
 	opened := make(chan struct{})
@@ -176,17 +176,17 @@ func (s *server) terminalRTC(w http.ResponseWriter, r *http.Request) {
 		}
 	}()
 	if err := pc.SetRemoteDescription(offer); err != nil {
-		writeJSON(w, http.StatusBadRequest, errorBody{"invalid RTC offer"})
+		writeJSON(w, http.StatusBadRequest, errorBody{Error: "invalid RTC offer"})
 		return
 	}
 	answer, err := pc.CreateAnswer(nil)
 	if err != nil {
-		writeJSON(w, http.StatusBadRequest, errorBody{"RTC answer failed"})
+		writeJSON(w, http.StatusBadRequest, errorBody{Error: "RTC answer failed"})
 		return
 	}
 	gathered := webrtc.GatheringCompletePromise(pc)
 	if err := pc.SetLocalDescription(answer); err != nil {
-		writeJSON(w, http.StatusInternalServerError, errorBody{"RTC gathering failed"})
+		writeJSON(w, http.StatusInternalServerError, errorBody{Error: "RTC gathering failed"})
 		return
 	}
 	select {
@@ -194,7 +194,7 @@ func (s *server) terminalRTC(w http.ResponseWriter, r *http.Request) {
 	case <-r.Context().Done():
 		return
 	case <-ctx.Done():
-		writeJSON(w, http.StatusServiceUnavailable, errorBody{"RTC connection expired"})
+		writeJSON(w, http.StatusServiceUnavailable, errorBody{Error: "RTC connection expired"})
 		return
 	}
 	w.Header().Set("Cache-Control", "no-store")

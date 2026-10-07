@@ -210,11 +210,24 @@ const LONG_MS = 5 * 60_000
 // ApiError is a request the server answered with a failure status.
 export class ApiError extends Error {
   readonly status: number
+  // code tells apart refusals that share a status (folder_gone, cli_missing).
+  readonly code?: string
 
-  constructor(status: number, message: string) {
+  constructor(status: number, message: string, code?: string) {
     super(message)
     this.status = status
     this.name = 'ApiError'
+    if (code) this.code = code
+  }
+}
+
+// errorCode reads the refusal's code from a failed response's body.
+function errorCode(body: string): string | undefined {
+  try {
+    const code = (JSON.parse(body) as { code?: unknown } | null)?.code
+    return typeof code === 'string' && code ? code : undefined
+  } catch {
+    return undefined
   }
 }
 
@@ -275,7 +288,7 @@ async function request<T>(path: string, init?: RequestInit, timeoutMs = TIMEOUT_
   })
   if (status === 401) signedOut()
   if (status < 200 || status > 299) {
-    throw new ApiError(status, errorMessage(text, `${status} ${statusText}`))
+    throw new ApiError(status, errorMessage(text, `${status} ${statusText}`), errorCode(text))
   }
   return (text ? JSON.parse(text) : undefined) as T
 }

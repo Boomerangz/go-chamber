@@ -650,12 +650,17 @@ describe('session store', () => {
 
   it('marks the session when its folder turns out gone, instead of a notice', async () => {
     useSessionStore.setState({ activeId: 'a', sessions: [{ id: 'a', agent: 'claude', cwd: '/p', status: 'detached' }] })
-    ;(api.sendMessage as Mock).mockRejectedValueOnce(Object.assign(new Error('Folder /p no longer exists'), { status: 422 }))
+    ;(api.sendMessage as Mock).mockRejectedValueOnce(Object.assign(new Error('Folder /p no longer exists'), { status: 422, code: 'folder_gone' }))
     expect(await store().send('hello')).toBe(false)
     expect(store().sessions[0]!.folderGone).toBe(true)
     expect(useNotices.getState().notices).toHaveLength(0)
-    // Any other refusal is still said in a notice.
+    // Any other refusal is still said in a notice, a 422 for a missing CLI too.
     useSessionStore.setState({ sessions: [{ id: 'a', agent: 'claude', cwd: '/p', status: 'detached' }] })
+    ;(api.sendMessage as Mock).mockRejectedValueOnce(Object.assign(new Error('Claude Code CLI not found on PATH'), { status: 422, code: 'cli_missing' }))
+    expect(await store().send('hello')).toBe(false)
+    expect(store().sessions[0]!.folderGone).toBeUndefined()
+    expect(useNotices.getState().notices).toHaveLength(1)
+    useNotices.setState({ notices: [] })
     ;(api.sendMessage as Mock).mockRejectedValueOnce(Object.assign(new Error('boom'), { status: 500 }))
     expect(await store().send('hello')).toBe(false)
     expect(store().sessions[0]!.folderGone).toBeUndefined()

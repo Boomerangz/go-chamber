@@ -43,13 +43,13 @@ func (s *server) uploadImage(w http.ResponseWriter, r *http.Request) {
 	}
 	data, err := io.ReadAll(http.MaxBytesReader(w, r.Body, maxImageBytes))
 	if err != nil {
-		writeJSON(w, http.StatusRequestEntityTooLarge, errorBody{"image is larger than 10 MB"})
+		writeJSON(w, http.StatusRequestEntityTooLarge, errorBody{Error: "image is larger than 10 MB"})
 		return
 	}
 	mime := http.DetectContentType(data)
 	ext, ok := imageTypes[mime]
 	if !ok {
-		writeJSON(w, http.StatusUnsupportedMediaType, errorBody{"only png, jpeg, gif and webp images are accepted"})
+		writeJSON(w, http.StatusUnsupportedMediaType, errorBody{Error: "only png, jpeg, gif and webp images are accepted"})
 		return
 	}
 	dir := filepath.Join(s.cfg.ImagesDir, string(id))
