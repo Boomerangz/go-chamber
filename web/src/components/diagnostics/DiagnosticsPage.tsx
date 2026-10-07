@@ -42,7 +42,7 @@ export default function DiagnosticsPage() {
       await navigator.clipboard.writeText(report())
       notify({ kind: 'info', text: 'Copied the report', key: 'copy-report' })
     } catch (err) {
-      fail('Copy failed', err)
+      fail("Couldn't copy", err)
     }
   }
   const download = () => {
@@ -106,6 +106,12 @@ export default function DiagnosticsPage() {
             <div><dt>Event persistence · mean / max</dt><dd>{ms(server.events.persistMeanMs)} / {ms(server.events.persistMaxMs)}</dd></div>
             <div><dt>Hub lock wait · mean / max</dt><dd>{ms(server.events.lockWaitMeanMs)} / {ms(server.events.lockWaitMaxMs)}</dd></div>
             <div><dt>Persistence calls / errors</dt><dd>{server.events.persistCalls} / {server.events.persistErrors}</dd></div>
+            {(server.clis ?? []).map((c) => (
+              <div key={c.agent}>
+                <dt>{c.agent === 'claude' ? 'Claude Code CLI' : 'Codex CLI'}</dt>
+                <dd>{c.found ? c.path || 'found' : `not found on PATH${c.hint ? ` · ${c.hint}` : ''}`}</dd>
+              </div>
+            ))}
           </dl>
         ) : <p>Waiting for the server snapshot.</p>}
         <p className="diagnostics-note">Persistence measures event-log append calls. Server counters are cumulative; browser reset does not reset them.</p>

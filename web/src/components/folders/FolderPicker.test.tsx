@@ -149,7 +149,7 @@ describe('FolderPicker', () => {
     await screen.findByRole('button', { name: 'dev' })
     vi.mocked(api.listFolders).mockRejectedValueOnce(new Error('timed out'))
     await userEvent.click(screen.getByRole('button', { name: 'dev' }))
-    expect(await screen.findByText(/timed out/)).toBeInTheDocument()
+    expect(await screen.findByRole('alert')).toHaveTextContent(/timed out/)
     await userEvent.click(screen.getByRole('button', { name: 'Retry' }))
     expect(await screen.findByText('No subfolders')).toBeInTheDocument()
     expect(screen.queryByText(/timed out/)).toBeNull()

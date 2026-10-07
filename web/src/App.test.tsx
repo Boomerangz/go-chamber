@@ -53,6 +53,7 @@ function mockApi() {
   vi.mocked(api.listSessions).mockResolvedValue([])
   vi.mocked(api.listRequests).mockResolvedValue([])
   vi.mocked(api.getQuotas).mockResolvedValue([])
+  vi.mocked(api.getSession).mockRejectedValue(new Error('not found'))
   vi.mocked(api.getAccount).mockImplementation(async (agent) => ({ agent, loggedIn: true, authMode: 'cli' }))
 }
 

@@ -24,6 +24,9 @@ type AccountInfo struct {
 	AuthMode string           `json:"authMode,omitempty"`
 	Email    string           `json:"email,omitempty"`
 	Plan     string           `json:"plan,omitempty"`
+	// CLIMissing says the agent's CLI is not installed, so its login
+	// could not be asked.
+	CLIMissing bool `json:"cliMissing,omitempty"`
 }
 
 // LoginChallenge is a device-code login prompt shown to the user.

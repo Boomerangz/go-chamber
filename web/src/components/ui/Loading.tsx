@@ -9,15 +9,28 @@ export function LoadingLine({ children }: { children: string }) {
   )
 }
 
+// LoadFailed says what failed and why, with Retry right after the reason:
+// the last word and the button never part, so Retry never wraps alone.
 export function LoadFailed({ children, onRetry }: { children: string; onRetry?: () => void }) {
+  if (!onRetry) {
+    return (
+      <div className="load-failed" role="alert">
+        <span>{children}</span>
+      </div>
+    )
+  }
+  const cut = children.trimEnd().lastIndexOf(' ') + 1
   return (
     <div className="load-failed" role="alert">
-      <span>{children}</span>
-      {onRetry && (
-        <button type="button" className="btn btn-xs" onClick={onRetry}>
-          Retry
-        </button>
-      )}
+      <span>
+        {children.slice(0, cut)}
+        <span className="load-failed-tail">
+          {children.slice(cut).trimEnd()}
+          <button type="button" className="btn btn-xs" onClick={onRetry}>
+            Retry
+          </button>
+        </span>
+      </span>
     </div>
   )
 }

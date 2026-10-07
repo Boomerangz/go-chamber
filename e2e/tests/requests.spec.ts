@@ -119,7 +119,7 @@ test('the requests inbox says it failed to load instead of looking empty', async
   await expect(failed).toBeVisible()
   await expect(page.getByText('No pending requests')).toHaveCount(0)
   // shown in place: no notice repeats it
-  await expect(page.getByText('requests broke')).toHaveCount(0)
+  await expect(page.getByText('requests broke', { exact: true })).toHaveCount(0)
   failing = false
   await failed.getByRole('button', { name: 'Retry' }).click()
   await expect(failed).toHaveCount(0)

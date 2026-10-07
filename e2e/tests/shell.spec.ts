@@ -19,6 +19,14 @@ test('client-side routes fall back to the app after login', async ({ page }) => 
   await expect(page.getByRole('heading', { name: 'go-chamber' })).toBeVisible()
 })
 
+test('a link with a wrong token opens the sign-in page, which returns to the page', async ({ page }) => {
+  await page.goto('/sessions/anything?token=wrong')
+  await expect(page.getByRole('alert')).toHaveText('Wrong token')
+  await page.getByLabel('Access token').fill(token)
+  await page.getByRole('button', { name: 'Sign in' }).click()
+  await expect(page).toHaveURL(/\/sessions\/anything$/)
+})
+
 test('signs in with the login form, returns to the page, and signs out', async ({ page }) => {
   await page.goto('/sessions/anything')
   await page.getByLabel('Access token').fill('wrong')

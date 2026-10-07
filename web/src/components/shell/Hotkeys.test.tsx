@@ -65,6 +65,15 @@ describe('Hotkeys', () => {
     expect(screen.getByRole('region', { name: 'Terminal' })).toHaveTextContent('Terminal dock on or off')
   })
 
+  it('prints single keys in lowercase, so they do not read as Shift, and says when A·S·D apply', async () => {
+    render(<Hotkeys />)
+    await userEvent.keyboard('?')
+    const keys = [...screen.getByRole('dialog').querySelectorAll('kbd')].map((k) => k.textContent ?? '')
+    for (const k of ['n', 'j', 'k', 'f', 'd', 'r', 't', 'c', 'a · s · d']) expect(keys).toContain(k)
+    for (const k of ['N', 'J', 'K', 'F', 'D', 'R', 'T', 'C']) expect(keys).not.toContain(k)
+    expect(screen.getByRole('region', { name: 'Requests' })).toHaveTextContent('(request focused)')
+  })
+
   it('lets the keyboard scroll the shortcut list', async () => {
     render(<Hotkeys />)
     await userEvent.keyboard('?')

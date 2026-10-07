@@ -66,12 +66,12 @@ describe('QuotaWidget', () => {
   })
 
   it('leaves a failed load to the accounts line when the accounts failed too', () => {
-    useSessionStore.setState({ quotasStatus: 'error' })
+    useSessionStore.setState({ quotasStatus: 'error', quotasError: 'timed out' })
     useAccountChecks.setState({ failed: { claude: 'go-chamber is not reachable' } })
     const { container } = render(<QuotaWidget />)
     expect(container).toBeEmptyDOMElement()
     act(() => useAccountChecks.setState({ failed: {} }))
-    expect(screen.getByRole('alert')).toHaveTextContent("Couldn't load quotas")
+    expect(screen.getByRole('alert')).toHaveTextContent("Couldn't load quotas: timed out")
   })
 
   it('names refresh buttons in sentence case', async () => {

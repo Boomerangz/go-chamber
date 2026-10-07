@@ -245,7 +245,7 @@ describe('RequestCard pending and failure', () => {
 
   it('names the failure under the actions and lets the owner try again', async () => {
     const onRespond = vi.fn(async () => {
-      fail('Answer not sent', new Error('agent gone'))
+      fail("Couldn't send the answer", new Error('agent gone'))
       return false
     })
     render(<RequestCard request={permission} onRespond={onRespond} />)

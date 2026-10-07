@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import type { CLIStatus } from '../../lib/api'
 import { diagnostics, recordSample } from '../../lib/diagnostics'
 
 export interface ServerDiagnostics {
@@ -7,6 +8,7 @@ export interface ServerDiagnostics {
   heapBytes: number
   events: { published: number; persistCalls: number; persistErrors: number; persistMeanMs: number; persistMaxMs: number; lockWaitMeanMs: number; lockWaitMaxMs: number }
   terminals: { id: string; clients: number; queuedBytes: number; outputBytes: number; laggedClients: number }[]
+  clis?: CLIStatus[]
 }
 
 export function useDiagnostics(enabled: boolean) {

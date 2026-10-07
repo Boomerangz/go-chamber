@@ -26,6 +26,7 @@ import { isUnseen, useVisits, type Visits } from '../../lib/visits'
 import { useSessionStore } from '../../stores/session'
 import { LoadFailed, LoadingLine, Skeleton } from '../ui/Loading'
 import SessionMenu from './SessionMenu'
+import { failedTo } from '../../lib/failed'
 
 // RECENT is how many sessions an expanded project shows before "older".
 const RECENT = 5
@@ -56,6 +57,7 @@ export default function SessionList({ onCreateIn, agent = 'claude', creating = f
   const searchHits = useSessionStore((s) => s.searchHits)
   const searchMessages = useSessionStore((s) => s.searchMessages)
   const status = useSessionStore((s) => s.sessionsStatus)
+  const loadError = useSessionStore((s) => s.sessionsError)
   const loadSessions = useSessionStore((s) => s.loadSessions)
   const searchingMessages = useSessionStore((s) => s.searching)
   const searchError = useSessionStore((s) => s.searchError)
@@ -140,8 +142,9 @@ export default function SessionList({ onCreateIn, agent = 'claude', creating = f
       </div>
       <div className="groups">
         {status === 'loading' && sessions.length === 0 && <Skeleton rows={4} label="loading sessions" />}
-        {status === 'error' && sessions.length === 0 && (
-          <LoadFailed onRetry={() => void loadSessions()}>Couldn't load sessions</LoadFailed>
+        {/* the open session may be known on its own: the rest still failed */}
+        {status === 'error' && (
+          <LoadFailed onRetry={() => void loadSessions()}>{failedTo('load sessions', loadError)}</LoadFailed>
         )}
         {groups.map((g) => (
           <Group
@@ -163,7 +166,7 @@ export default function SessionList({ onCreateIn, agent = 'claude', creating = f
         ))}
         {searching && searchingMessages && <LoadingLine>searching messages…</LoadingLine>}
         {searching && !searchingMessages && searchError && (
-          <LoadFailed onRetry={() => void searchMessages(query)}>{`Couldn't search messages: ${searchError}`}</LoadFailed>
+          <LoadFailed onRetry={() => void searchMessages(query)}>{failedTo('search messages', searchError)}</LoadFailed>
         )}
         {searching && (
           <MessageHits

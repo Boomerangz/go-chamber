@@ -93,6 +93,26 @@ func TestLoginFormRejectsWrongToken(t *testing.T) {
 	}
 }
 
+// A wrong ?token= link gets the same sign-in page as a wrong typed token,
+// returning to the page it was for, without the bad token.
+func TestWrongTokenLinkShowsLoginPage(t *testing.T) {
+	rec := do(newTestServer(), httptest.NewRequest("GET", "/s/abc?token=bad&x=1", nil))
+	if rec.Code != http.StatusUnauthorized || len(rec.Result().Cookies()) != 0 {
+		t.Fatalf("code = %d cookies = %v", rec.Code, rec.Result().Cookies())
+	}
+	body := rec.Body.String()
+	if !strings.Contains(body, "Wrong token") || !strings.Contains(body, `value="/s/abc?x=1"`) {
+		t.Fatalf("body = %s", body)
+	}
+}
+
+func TestWrongTokenOnAPIStaysPlain401(t *testing.T) {
+	rec := do(newTestServer(), httptest.NewRequest("GET", "/api/sessions?token=bad", nil))
+	if rec.Code != http.StatusUnauthorized || strings.Contains(rec.Body.String(), "<form") {
+		t.Fatalf("code = %d body = %s", rec.Code, rec.Body.String())
+	}
+}
+
 func TestLoginFormRejectsCrossOrigin(t *testing.T) {
 	req := postForm("/login", url.Values{"token": {testToken}})
 	req.Header.Set("Origin", "http://evil.example")

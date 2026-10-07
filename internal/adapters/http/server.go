@@ -145,17 +145,22 @@ func sameOrigin(r *http.Request) bool {
 }
 
 func (a *auth) login(w http.ResponseWriter, r *http.Request, token string) {
-	if !a.valid(token) {
-		http.Error(w, "unauthorized", http.StatusUnauthorized)
-		return
-	}
-	setTokenCookie(w, r, token)
 	q := r.URL.Query()
 	q.Del("token")
 	target := r.URL.Path
 	if enc := q.Encode(); enc != "" {
 		target += "?" + enc
 	}
+	if !a.valid(token) {
+		if strings.HasPrefix(r.URL.Path, "/api/") || !safeMethod(r.Method) {
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+		// The same page as a wrong token typed into the form.
+		loginPage(w, localPath(target), true)
+		return
+	}
+	setTokenCookie(w, r, token)
 	http.Redirect(w, r, localPath(target), http.StatusFound)
 }
 

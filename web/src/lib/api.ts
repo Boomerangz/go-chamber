@@ -365,6 +365,21 @@ export interface AccountInfo {
   authMode?: string
   email?: string
   plan?: string
+  // cliMissing: the agent's CLI is not installed, so its login is unknown.
+  cliMissing?: boolean
+}
+
+// CLIStatus says whether the server found an agent's CLI on its PATH, and
+// how to install a missing one.
+export interface CLIStatus {
+  agent: AgentKind
+  found: boolean
+  path?: string
+  hint?: string
+}
+
+export function listAgents(): Promise<CLIStatus[]> {
+  return request<CLIStatus[]>('/api/agents')
 }
 
 export interface LoginChallenge {

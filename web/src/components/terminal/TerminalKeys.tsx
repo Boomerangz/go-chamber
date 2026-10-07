@@ -43,7 +43,7 @@ export default function TerminalKeys({ id }: { id: string }) {
       const text = await navigator.clipboard.readText()
       if (text) pasteInto(id, text)
     } catch (err) {
-      fail('Paste failed', err)
+      fail("Couldn't paste", err)
     }
   }
   const button = ({ key, label, content }: (typeof keys)[number]) => (

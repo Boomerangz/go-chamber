@@ -11,6 +11,7 @@ import { useSessionStore } from '../../stores/session'
 import { LoadFailed, LoadingLine } from '../ui/Loading'
 import { useAccountChecks } from '../account/checks'
 import './QuotaWidget.css'
+import { failedTo } from '../../lib/failed'
 
 const agentName: Record<string, string> = { claude: 'Claude', codex: 'Codex' }
 
@@ -18,6 +19,7 @@ const agentName: Record<string, string> = { claude: 'Claude', codex: 'Codex' }
 export default function QuotaWidget() {
   const quotas = useSessionStore((s) => s.quotas)
   const status = useSessionStore((s) => s.quotasStatus)
+  const loadError = useSessionStore((s) => s.quotasError)
   const loadQuotas = useSessionStore((s) => s.loadQuotas)
   const now = useNow(60_000)
   const [error, setError] = useState<string | null>(null)
@@ -28,7 +30,7 @@ export default function QuotaWidget() {
   // once the first numbers arrive.
   if (quotas.length === 0) {
     if (status === 'loading') return <LoadingLine>loading quotas…</LoadingLine>
-    if (status === 'error') return accountsDown ? null : <LoadFailed onRetry={() => void loadQuotas()}>Couldn't load quotas</LoadFailed>
+    if (status === 'error') return accountsDown ? null : <LoadFailed onRetry={() => void loadQuotas()}>{failedTo('load quotas', loadError)}</LoadFailed>
     return (
       <div className="quotas-none">
         <span>no quotas reported yet</span>

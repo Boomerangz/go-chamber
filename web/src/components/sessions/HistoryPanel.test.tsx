@@ -59,6 +59,17 @@ describe('HistoryPanel', () => {
     }
   })
 
+  it('says why the list failed, in the words of its label, with Retry beside it', async () => {
+    vi.mocked(api.listHistory).mockRejectedValueOnce(new Error('permission denied'))
+    render(<HistoryPanel />)
+    await userEvent.click(screen.getByText('History'))
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent("Couldn't load CLI sessions: permission denied")
+    expect(alert.querySelector('button')).toHaveTextContent('Retry')
+    await userEvent.click(screen.getByRole('button', { name: 'Retry' }))
+    expect(await screen.findByText('Fix the flaky test')).toBeInTheDocument()
+  })
+
   it('filters by title and folder', async () => {
     await open()
     await userEvent.type(screen.getByLabelText('Filter history'), 'site')
@@ -83,21 +94,21 @@ describe('HistoryPanel', () => {
     vi.mocked(api.listHistory).mockResolvedValue([])
     render(<HistoryPanel />)
     await userEvent.click(screen.getByText('History'))
-    expect(await screen.findByText(/No other conversations/)).toBeInTheDocument()
+    expect(await screen.findByText(/No other CLI sessions/)).toBeInTheDocument()
   })
 
   it('shows a failed load', async () => {
     vi.mocked(api.listHistory).mockRejectedValue(new Error('codex is not installed'))
     render(<HistoryPanel />)
     await userEvent.click(screen.getByText('History'))
-    expect(await screen.findByText(/codex is not installed/)).toBeInTheDocument()
+    expect(await screen.findByRole('alert')).toHaveTextContent(/codex is not installed/)
   })
 
   it('keeps a conversation that failed to open, with the reason under it', async () => {
     vi.mocked(api.importHistory).mockRejectedValue(new Error('thread is gone'))
     await open()
     await userEvent.click(screen.getByRole('button', { name: /Tidy the README/ }))
-    expect(await screen.findByText("Couldn't open the conversation: thread is gone")).toHaveClass('error')
+    expect(await screen.findByText("Couldn't open the CLI session: thread is gone")).toHaveClass('error')
     expect(screen.getByRole('button', { name: /Tidy the README/ })).toBeEnabled()
   })
 
@@ -133,7 +144,7 @@ describe('HistoryPanel', () => {
   it('says when the filter matches nothing', async () => {
     await open()
     await userEvent.type(screen.getByLabelText('Filter history'), 'zzz')
-    expect(screen.getByText('No matching conversations')).toBeInTheDocument()
+    expect(screen.getByText('No matching CLI sessions')).toBeInTheDocument()
   })
 
   it('says what History holds, and that opening one moves it into the sessions', async () => {

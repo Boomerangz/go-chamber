@@ -37,6 +37,7 @@ import { turnNumbers } from '../../lib/turns'
 import { loadDraft, saveDraft } from '../../stores/drafts'
 import { useSessionStore } from '../../stores/session'
 import { useNotices } from '../../stores/notices'
+import { failedTo } from '../../lib/failed'
 import './Chat.css'
 
 // An accepted message makes the chat behave as running until the turn shows
@@ -83,6 +84,7 @@ const sameMark = (a: TurnMark, b: TurnMark) => a.status === b.status && a.result
 export default function Chat() {
   const chat = useSessionStore((s) => s.chat)
   const history = useSessionStore((s) => s.history)
+  const historyReason = useSessionStore((s) => s.historyError?.reason)
   const session = useSessionStore((s) => s.sessions.find((x) => x.id === s.activeId))
   const sessionsStatus = useSessionStore((s) => s.sessionsStatus)
   const dropped = useLiveDropped()
@@ -492,7 +494,7 @@ export default function Chat() {
         ) : history === 'error' && (
           <div className="chat-loading">
             <LoadFailed onRetry={() => sessionId && void useSessionStore.getState().selectSession(sessionId)}>
-              Couldn't load the transcript
+              {failedTo('load the transcript', historyReason)}
             </LoadFailed>
           </div>
         )}

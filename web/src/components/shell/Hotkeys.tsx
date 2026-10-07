@@ -29,7 +29,7 @@ const local: { keys: string; label: string; group: Group }[] = [
   { keys: formatCombo({ key: 'Enter', shift: true }), label: 'New line in the message', group: 'Chat' },
   { keys: formatCombo({ key: '.', mod: true }), label: 'Stop the running turn', group: 'Chat' },
   { keys: 'Esc', label: 'In an empty composer: stop the turn, or leave it', group: 'Chat' },
-  { keys: 'A · S · D', label: 'Allow, allow for session, deny a request', group: 'Requests' },
+  { keys: 'a · s · d', label: 'Allow, allow for session, deny a request (request focused)', group: 'Requests' },
   { keys: '↑ ↓', label: 'Move through requests in the tray', group: 'Requests' },
   { keys: 'j · k', label: 'In Changes: next, previous file', group: 'Navigate' },
   ...terminalShortcuts(isMac).map((s) => ({ ...s, group: 'Terminal' as const })),

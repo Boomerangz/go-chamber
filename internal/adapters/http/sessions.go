@@ -415,7 +415,7 @@ func (s *server) fail(w http.ResponseWriter, err error) {
 		writeJSON(w, http.StatusBadRequest, errorBody{err.Error()})
 	case errors.Is(err, app.ErrFolderNotFound):
 		writeJSON(w, http.StatusNotFound, errorBody{err.Error()})
-	case errors.Is(err, domain.ErrFolderGone):
+	case errors.Is(err, domain.ErrFolderGone), errors.Is(err, domain.ErrCLIMissing):
 		writeJSON(w, http.StatusUnprocessableEntity, errorBody{err.Error()})
 	case errors.Is(err, app.ErrInvalidFolder):
 		writeJSON(w, http.StatusBadRequest, errorBody{err.Error()})

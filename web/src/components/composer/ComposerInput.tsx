@@ -1,6 +1,8 @@
 import { useEffect, useId, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type Ref } from 'react'
 import type { AgentKind } from '../../lib/api'
 import { applyCompletion, completeFiles, filterCommands, findToken, listCommands, type Token } from '../../lib/complete'
+import { failedTo } from '../../lib/failed'
+import { describeError } from '../../stores/notices'
 import './ComposerInput.css'
 
 interface Option {
@@ -48,7 +50,7 @@ export default function ComposerInput({ sessionId, agent, value, onChange, onSub
   useImperativeHandle(inputRef, () => ref.current!, [])
   const listId = useId()
   const [tracked, setToken] = useState<Token | null>(null)
-  const [result, setResult] = useState<{ key: string; options: Option[]; failed?: boolean }>({ key: '', options: [] })
+  const [result, setResult] = useState<{ key: string; options: Option[]; failed?: string }>({ key: '', options: [] })
   const [active, setActive] = useState(0)
   const caret = useRef<number | null>(null)
   // A cleared composer (after send) has nothing to complete.
@@ -58,7 +60,7 @@ export default function ComposerInput({ sessionId, agent, value, onChange, onSub
   // the next lookup runs, the last ones of the same kind stay, dimmed, so the
   // list doesn't blink with every key.
   const answered = !!token && result.key === key
-  const stale = !!token && !answered && !result.failed && result.key.startsWith(`${token.kind}:`) && result.options.length > 0
+  const stale = !!token && !answered && result.failed === undefined && result.key.startsWith(`${token.kind}:`) && result.options.length > 0
   const options = answered || stale ? result.options : []
   const open = options.length > 0
   // A lookup on its way, one that found nothing, or one that failed says so
@@ -67,8 +69,8 @@ export default function ComposerInput({ sessionId, agent, value, onChange, onSub
     ? null
     : !answered
       ? 'searching…'
-      : result.failed
-        ? `couldn't list ${token.kind === 'file' ? 'files' : 'commands'}`
+      : result.failed !== undefined
+        ? failedTo(`list ${token.kind === 'file' ? 'files' : 'commands'}`, result.failed)
         : 'no matches'
   const [walk, setWalk] = useState<Walk | null>(null)
   const sent = useMemo(() => (history ?? []).filter((t) => t), [history])
@@ -106,7 +108,7 @@ export default function ComposerInput({ sessionId, agent, value, onChange, onSub
             setResult({ key: `${kind}:${query}`, options: next })
             setActive(0)
           },
-          () => !cancelled && setResult({ key: `${kind}:${query}`, options: [], failed: true }),
+          (err: unknown) => !cancelled && setResult({ key: `${kind}:${query}`, options: [], failed: describeError(err) }),
         ),
       kind === 'file' ? 80 : 0,
     )

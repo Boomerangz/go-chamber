@@ -77,7 +77,7 @@ describe('describeError', () => {
 
 describe('quiet failures', () => {
   it('names the reason for the caller that shows it in place, without a notice', () => {
-    fail('Answer not sent', new Error('gone'), 'answer', { quiet: true })
+    fail("Couldn't send the answer", new Error('gone'), 'answer', { quiet: true })
     expect(useNotices.getState().notices).toEqual([])
     expect(lastError()).toBe('gone')
   })

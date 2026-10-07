@@ -45,6 +45,11 @@ export interface SessionStore {
   modelsStatus: Partial<Record<api.AgentKind, LoadStatus>>
   // sessionsStatus tells a list still loading (or failed) from an empty one.
   sessionsStatus: LoadStatus
+  // sessionsError, requestsError and quotasError say why a first load
+  // failed, while its status is 'error'.
+  sessionsError: string | null
+  requestsError: string | null
+  quotasError: string | null
   // history is the state of the open chat's transcript fetch.
   history: LoadStatus
   // historyError is set while history is 'error'.
@@ -169,6 +174,11 @@ let generation = 0
 let resyncTimer: ReturnType<typeof setTimeout> | null = null
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null
 let reconnectDelay = 1000
+let healthTimer: ReturnType<typeof setTimeout> | null = null
+// HEALTH_PROBE_MS is how often a dropped socket asks /api/health whether the
+// server is back: a cheap request, so a restart is noticed within a second or
+// two instead of after a backoff that may have grown to half a minute.
+const HEALTH_PROBE_MS = 1500
 // queued holds live events for the active chat not yet folded in: text
 // deltas are applied at most every DELTA_FLUSH_MS so fast streams don't
 // re-render the whole chat per token.
@@ -248,6 +258,9 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
   models: {},
   modelsStatus: {},
   sessionsStatus: 'loading',
+  sessionsError: null,
+  requestsError: null,
+  quotasError: null,
   history: 'ready',
   historyError: null,
   requestsStatus: 'loading',
@@ -336,14 +349,16 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       if (sessions) {
         const current = new Map(get().sessions.map((session) => [session.id, session]))
         for (const session of sessions) recordSessionChanges(current.get(session.id), session)
-        set({ sessions, sessionsStatus: 'ready' })
+        set({ sessions, sessionsStatus: 'ready', sessionsError: null })
         useNotices.getState().dismissKey('load-sessions')
       }
     } catch (err) {
       // Before the list ever loaded, the sidebar says so with a Retry; a
       // failed refresh of a shown list can only be told as a notice.
       const shown = get().sessionsStatus === 'ready'
-      if (!shown) set({ sessionsStatus: 'error' })
+      if (!shown) set({ sessionsStatus: 'error', sessionsError: describeError(err) })
+      const open = get().activeId
+      if (!shown && open) void fetchOpenSession(get, set, open)
       fail("Couldn't load sessions", err, 'load-sessions', { quiet: !shown })
     }
   },
@@ -352,13 +367,13 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     try {
       const pendingRequests = await requestLists.load(api.listRequests)
       if (pendingRequests) {
-        set({ pendingRequests, requestsStatus: 'ready' })
+        set({ pendingRequests, requestsStatus: 'ready', requestsError: null })
         useNotices.getState().dismissKey('load-requests')
       }
     } catch (err) {
       // As with sessions: the tray shows a first failure in place.
       const shown = get().requestsStatus === 'ready'
-      if (!shown) set({ requestsStatus: 'error' })
+      if (!shown) set({ requestsStatus: 'error', requestsError: describeError(err) })
       fail("Couldn't load requests", err, 'load-requests', { quiet: !shown })
     }
   },
@@ -366,11 +381,11 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
   async loadQuotas() {
     try {
       const quotas = await quotaLists.load(api.getQuotas)
-      if (quotas) set({ quotas, quotasStatus: 'ready' })
+      if (quotas) set({ quotas, quotasStatus: 'ready', quotasError: null })
     } catch (err) {
       // A first failure is said in place by the sidebar footer.
       const shown = get().quotasStatus === 'ready'
-      if (!shown) set({ quotasStatus: 'error' })
+      if (!shown) set({ quotasStatus: 'error', quotasError: describeError(err) })
       fail("Couldn't load quotas", err, 'load-quotas', { quiet: !shown })
     }
   },
@@ -405,6 +420,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     dropQueued()
     set({ activeId: id, chat: initialChat(), pane: 'chat', history: 'loading', historyError: null })
     connect(get, set)
+    if (get().sessionsStatus === 'error') void fetchOpenSession(get, set, id)
     await resync(get, set, id)
   },
 
@@ -424,7 +440,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
         set({ sessions: replaceSession(get().sessions, { ...session, folderGone: true }) })
         return false
       }
-      fail('Message not sent', err, 'send')
+      fail("Couldn't send the message", err, 'send')
       return false
     }
   },
@@ -437,7 +453,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       useNotices.getState().dismissKey('send')
       return true
     } catch (err) {
-      fail('Steer not sent', err, 'send')
+      fail("Couldn't steer the turn", err, 'send')
       return false
     }
   },
@@ -584,7 +600,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       return true
     } catch (err) {
       // The history panel says so under the conversation (reason: lastError).
-      fail("Couldn't open the conversation", err, undefined, { quiet: true })
+      fail("Couldn't open the CLI session", err, undefined, { quiet: true })
       return false
     }
   },
@@ -595,7 +611,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       return true
     } catch (err) {
       // The request's card or tray line says so in place (reason: lastError).
-      fail('Answer not sent', err, undefined, { quiet: true })
+      fail("Couldn't send the answer", err, undefined, { quiet: true })
       return false
     }
   },
@@ -710,6 +726,7 @@ function connect(
     clearTimeout(reconnectTimer)
     reconnectTimer = null
   }
+  stopHealthProbe()
   const scheme = typeof location !== 'undefined' && location.protocol === 'https:' ? 'wss' : 'ws'
   const host = typeof location !== 'undefined' ? location.host : 'localhost'
   const ws = new WebSocket(`${scheme}://${host}/api/ws`)
@@ -737,6 +754,7 @@ function connect(
       connect(get, set)
     }, reconnectDelay)
     reconnectDelay = Math.min(reconnectDelay * 2, 30_000)
+    probeHealth(get, set)
   }
   ws.onerror = () => set({ connection: 'offline' })
   ws.onmessage = (msg) => {
@@ -746,6 +764,45 @@ function connect(
       // ignore malformed frames
     }
   }
+}
+
+// fetchOpenSession asks for the open session alone when the session list
+// failed to load: the chat header needs its folder, model and mode either
+// way. A list that arrives first wins.
+async function fetchOpenSession(
+  get: () => SessionStore,
+  set: (partial: Partial<SessionStore>) => void,
+  id: string,
+): Promise<void> {
+  try {
+    const session = await api.getSession(id)
+    if (get().activeId !== id || get().sessions.some((s) => s.id === id)) return
+    set({ sessions: [...get().sessions, session] })
+  } catch {
+    // The transcript fetch says what is wrong with this session.
+  }
+}
+
+// probeHealth asks the server, every HEALTH_PROBE_MS while the socket is
+// down, whether it is back, and reconnects the moment it says so.
+function probeHealth(get: () => SessionStore, set: (partial: Partial<SessionStore>) => void): void {
+  stopHealthProbe()
+  healthTimer = setTimeout(() => {
+    healthTimer = null
+    void Promise.resolve()
+      .then(() => api.fetchHealth())
+      .catch(() => 'offline' as const)
+      .then((health) => {
+        if (socket) return
+        if (health === 'online') retryNow(get, set)
+        else if (!healthTimer) probeHealth(get, set)
+      })
+  }, HEALTH_PROBE_MS)
+}
+
+function stopHealthProbe(): void {
+  if (healthTimer) clearTimeout(healthTimer)
+  healthTimer = null
 }
 
 // retryNow skips the rest of the backoff: the owner asked, or the page
@@ -862,6 +919,7 @@ export function resetStore(): void {
   if (reconnectTimer) clearTimeout(reconnectTimer)
   reconnectTimer = null
   reconnectDelay = 1000
+  stopHealthProbe()
   if (resyncTimer) clearTimeout(resyncTimer)
   resyncTimer = null
   lastSeqs = {}
@@ -882,6 +940,9 @@ export function resetStore(): void {
     models: {},
     modelsStatus: {},
     sessionsStatus: 'loading',
+    sessionsError: null,
+    requestsError: null,
+    quotasError: null,
     history: 'ready',
     historyError: null,
     requestsStatus: 'loading',
