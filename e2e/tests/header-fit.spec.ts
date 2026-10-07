@@ -1,4 +1,8 @@
 import { expect, test, type Page } from '@playwright/test'
+import { execFileSync } from 'node:child_process'
+import { mkdtempSync, realpathSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import path from 'node:path'
 import { token } from '../playwright.config'
 import { openNewSession } from './pane'
 
@@ -108,3 +112,69 @@ for (const agent of ['Claude', 'Codex'] as const) {
     expect(await header.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true)
   })
 }
+
+// titleFirst lists where the usage line kept room the title or a worktree's
+// branch needed, or shows only a stub of itself.
+function titleFirst(page: Page) {
+  return page.locator('.chat-header').evaluate((el) => {
+    const out: string[] = []
+    const cut = (e: Element | null) => !!e && e.scrollWidth > e.clientWidth + 1
+    const usage = el.querySelector<HTMLElement>('.usage')
+    const shown = !!usage && usage.getBoundingClientRect().width >= 1
+    const title = el.querySelector('.chat-heading h2')
+    const branch = el.querySelector('.chat-path-line .session-branch')
+    const wide = Math.round(usage?.getBoundingClientRect().width ?? 0)
+    if (shown && cut(title)) out.push(`title cut beside usage ${wide}px`)
+    if (shown && cut(branch)) out.push(`branch cut beside usage ${wide}px`)
+    if (shown && cut(usage) && wide < 72) out.push(`usage stub ${wide}px`)
+    return out
+  })
+}
+
+function newRepo(): string {
+  const env = { ...process.env, GIT_AUTHOR_NAME: 't', GIT_AUTHOR_EMAIL: 't@t', GIT_COMMITTER_NAME: 't', GIT_COMMITTER_EMAIL: 't@t' }
+  const repo = path.join(realpathSync(mkdtempSync(path.join(tmpdir(), 'gc-fold-'))), 'repository-with-a-name')
+  execFileSync('git', ['init', '-q', '-b', 'main', repo], { env })
+  writeFileSync(path.join(repo, 'README.md'), 'hello\n')
+  execFileSync('git', ['add', '.'], { cwd: repo, env })
+  execFileSync('git', ['commit', '-q', '-m', 'init'], { cwd: repo, env })
+  return repo
+}
+
+// The title (and a worktree's branch under it) is cut only once the usage
+// line has given way; the usage line is cut, then hidden, never kept as a
+// stub of a few characters.
+test('the title outranks the usage line, docked or not', async ({ page, isMobile }, info) => {
+  test.skip(isMobile, 'a phone puts the usage line under the title')
+  test.setTimeout(90_000)
+  const repo = newRepo()
+  const open = async (title: string, branch: string) => {
+    await page.setViewportSize({ width: 1280, height: 900 })
+    const res = await page.request.post('/api/worktrees', {
+      headers: { Authorization: `Bearer ${token}` },
+      data: { agent: 'claude', cwd: repo, branch: `${branch}-${info.project.name}` },
+    })
+    const { id } = (await res.json()) as { id: string }
+    await page.goto(`/s/${id}?token=${token}`)
+    await page.getByLabel('Message').fill(title)
+    await page.getByRole('button', { name: 'Send' }).click()
+    await expect(page.locator('.item.assistant', { hasText: `echo: ${title}` })).toBeVisible()
+  }
+  const dock = page.getByRole('toolbar', { name: 'Dock' })
+  const check = async (cases: readonly (readonly [number, string])[], what: string) => {
+    for (const [width, name] of cases) {
+      await page.setViewportSize({ width, height: 900 })
+      const button = name === 'none' ? null : dock.getByRole('button', { name: new RegExp(`^${name}`) })
+      if (button && (await button.getAttribute('aria-pressed')) !== 'true') await button.click()
+      await settle(page)
+      await expect.poll(() => titleFirst(page), { message: `${what} ${width} ${name}` }).toEqual([])
+      await expectOneRow(page, `${what} ${width} ${name}`)
+      if (button) await button.click()
+    }
+  }
+  await open('please keep the title', 'feature-fold')
+  await check([[1280, 'none'], [1280, 'Changes'], [1024, 'Changes'], [1024, 'Terminal'], [900, 'none'], [768, 'none']], 'short')
+  // A long title takes the row before the usage line gets any of it.
+  await open(LONG, 'feature-long')
+  await check([[1440, 'none'], [1280, 'none'], [1280, 'Changes'], [1024, 'Changes']], 'long')
+})

@@ -166,7 +166,8 @@
 @media (hover: none) { .chat-header .chat-more:hover { border-color: transparent; } }
 
 /* a wide header is one row whose height never changes with the session, the
-   mode or a dock: the title is cut first, then the usage line. When the
+   mode or a dock: the usage line gives way first (cut, then hidden), then
+   the title and a worktree's branch under it. When the
    settings no longer fit beside them (a dock opened, a Codex session's
    approvals, an unguarded mode) they fold behind "⋯", as on a phone, and
    open as a row of their own under the title (see useHeaderFold). */
@@ -176,9 +177,11 @@
   .chat-header .chat-meta { flex: 0 1 auto; flex-wrap: nowrap; min-width: 0; }
   .chat-header .status, .chat-header .reviewer, .chat-header .mode-select { flex: none; white-space: nowrap; flex-wrap: nowrap; }
   .chat-header .usage { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  /* too little left for a readable part of it: none at all (useHeaderFold) */
+  .chat-header[data-usage='off'] .usage { max-width: 0; visibility: hidden; }
   /* folded, the title row stays one row in every state: the title holds
-     only what leaves the status, its tags and "⋯" room (useHeaderFold), and
-     the usage line is cut as it must. Only the opened settings wrap, to a
+     all of itself that leaves the status, its tags and "⋯" room
+     (useHeaderFold), and the usage line has what is left. Only the opened settings wrap, to a
      row of their own. */
   .chat-header[data-fold] .chat-heading { min-width: var(--title-fold-min, 0px); }
   /* opened, the row wraps: the usage line then counts for nothing when the
