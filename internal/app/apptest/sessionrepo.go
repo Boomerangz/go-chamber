@@ -19,7 +19,7 @@ func SessionRepoContract(t *testing.T, newRepo func(t *testing.T) app.SessionRep
 	full := domain.SessionSnapshot{
 		ID: "a", Agent: domain.AgentClaude, Cwd: "/p", NativeID: "n1", ParentID: "parent",
 		Status: domain.StatusInterrupted, Title: "title",
-		Interruption:     domain.Interruption{Reason: domain.ExitQuota, ResumeAfter: reset, WithRequest: true},
+		Interruption:     domain.Interruption{Reason: domain.ExitQuota, ResumeAfter: reset, WithRequest: true, Request: "make deploy"},
 		ApprovalReviewer: domain.ReviewerAuto,
 		CreatedAt:        reset.Add(-2 * time.Hour),
 		ActiveAt:         reset.Add(-time.Hour),
@@ -100,5 +100,5 @@ func equal(a, b domain.SessionSnapshot) bool {
 	aw, bw := a.Worktree, b.Worktree
 	a.Worktree, b.Worktree = nil, nil
 	sameWorktree := (aw == nil) == (bw == nil) && (aw == nil || *aw == *bw)
-	return a == b && sameWorktree && ai.Reason == bi.Reason && ai.ResumeAfter.Equal(bi.ResumeAfter) && ai.WithRequest == bi.WithRequest
+	return a == b && sameWorktree && ai.Reason == bi.Reason && ai.ResumeAfter.Equal(bi.ResumeAfter) && ai.WithRequest == bi.WithRequest && ai.Request == bi.Request
 }

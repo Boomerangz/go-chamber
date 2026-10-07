@@ -177,8 +177,8 @@ func (m *Manager) Restore(ctx context.Context) ([]domain.SessionSnapshot, error)
 		cur := s.Snapshot()
 		// Whatever the saved status, no process of the previous run can
 		// answer its requests any more.
-		if m.closeLeftoverRequests(cur.ID) > 0 {
-			s.InterruptedWithRequest()
+		if first := m.closeLeftoverRequests(cur.ID); first != nil {
+			s.InterruptedWithRequest(first)
 			cur = s.Snapshot()
 		}
 		if snap.Status == domain.StatusRunning {
@@ -202,11 +202,11 @@ func (m *Manager) Restore(ctx context.Context) ([]domain.SessionSnapshot, error)
 
 // closeLeftoverRequests marks requests the previous process never resolved
 // as stale, so replayed history doesn't show them as answerable.
-func (m *Manager) closeLeftoverRequests(id domain.SessionID) int {
+func (m *Manager) closeLeftoverRequests(id domain.SessionID) *domain.Request {
 	if m.cfg.History == nil {
-		return 0
+		return nil
 	}
-	closed := 0
+	var first *domain.Request
 	open := map[domain.RequestID]*domain.Request{}
 	var order []domain.RequestID
 	for _, ev := range m.cfg.History.Requests(id) {
@@ -224,10 +224,12 @@ func (m *Manager) closeLeftoverRequests(id domain.SessionID) int {
 			delete(open, rid)
 			req.MarkStale()
 			m.cfg.Bus.Publish(domain.Event{SessionID: id, Type: domain.EventRequestResolved, Request: req})
-			closed++
+			if first == nil {
+				first = req
+			}
 		}
 	}
-	return closed
+	return first
 }
 
 // stopLeftoverItems stops what the turn a previous process was running
@@ -846,7 +848,7 @@ func (m *Manager) detach(s *domain.Session, rt AgentRuntime, open map[domain.Ite
 	}
 	s.RuntimeExited(reason)
 	if len(stale) > 0 {
-		s.InterruptedWithRequest()
+		s.InterruptedWithRequest(stale[0])
 	}
 	delete(m.stopping, s.ID())
 	snap := s.Snapshot()

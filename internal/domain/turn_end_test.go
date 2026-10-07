@@ -46,14 +46,14 @@ func TestLeftByTurnSurvivesParentCycle(t *testing.T) {
 
 func TestInterruptedWithRequest(t *testing.T) {
 	s := newTestSession(t)
-	s.InterruptedWithRequest()
+	s.InterruptedWithRequest(&Request{Kind: RequestPermission})
 	if s.Interruption().WithRequest {
 		t.Fatal("marked a session that was not interrupted")
 	}
 	mustNoErr(t, s.RuntimeAttached("n"))
 	mustNoErr(t, s.TurnStarted())
 	mustNoErr(t, s.TurnInterrupted(ExitCrashed))
-	s.InterruptedWithRequest()
+	s.InterruptedWithRequest(&Request{Kind: RequestPermission})
 	if !s.Interruption().WithRequest || s.Interruption().Reason != ExitCrashed {
 		t.Fatal(s.Interruption())
 	}

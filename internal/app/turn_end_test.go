@@ -130,12 +130,14 @@ func TestOwnerStopMarksTheTurn(t *testing.T) {
 // owner still owes an answer to.
 func TestCrashWithOpenRequestIsMarked(t *testing.T) {
 	m, _, rt, id := runTurn(t, domain.AgentClaude)
-	rt.events <- requestEvent(id, "r1")
+	ev := requestEvent(id, "r1")
+	ev.Request.Title = "Run tests"
+	rt.events <- ev
 	eventually(t, "request pending", func() bool { return len(m.PendingRequests(context.Background())) == 1 })
 	_ = rt.Close()
 	eventually(t, "interrupted", func() bool { return currentStatus(m, id) == domain.StatusInterrupted })
 	snap, _ := m.GetSession(context.Background(), id)
-	if !snap.Interruption.WithRequest {
+	if !snap.Interruption.WithRequest || snap.Interruption.Request != "Run tests" {
 		t.Fatalf("interruption = %+v", snap.Interruption)
 	}
 }
@@ -150,6 +152,7 @@ func TestRestoreStopsLeftoverItems(t *testing.T) {
 	done := at(itemEvent("run", "done", domain.ItemCommand, domain.ItemStreaming))
 	doneEnd := at(itemEvent("run", "done", domain.ItemCommand, domain.ItemCompleted))
 	question := at(requestEvent("run", "q1"))
+	question.Request.Prompt = "Which branch?"
 	history := fakeHistory{"run": {tool, done, doneEnd, question}, "idle": {at(itemEvent("idle", "x", domain.ItemCommand, domain.ItemStreaming))}}
 	m := NewManager(ManagerConfig{Repo: repo, Runtimes: &fakeFactory{}, Bus: bus, History: history})
 	ctx := context.Background()
@@ -169,7 +172,7 @@ func TestRestoreStopsLeftoverItems(t *testing.T) {
 		}
 	}
 	stored, _ := repo.Get(ctx, "run")
-	if !stored.Interruption.WithRequest || stored.Interruption.Reason != domain.ExitServerRestart {
+	if !stored.Interruption.WithRequest || stored.Interruption.Reason != domain.ExitServerRestart || stored.Interruption.Request != "Which branch?" {
 		t.Fatalf("stored %+v", stored.Interruption)
 	}
 }
