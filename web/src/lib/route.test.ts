@@ -32,3 +32,13 @@ describe('route', () => {
     }
   })
 })
+
+it('routes the standalone overview without overriding other modes', () => {
+  expect(parseRoute('/overview')).toEqual({ kind: 'overview' })
+  expect(parseRoute('/overview/')).toEqual({ kind: 'overview' })
+  expect(parseRoute('/overview/x')).toEqual({ kind: 'none' })
+  expect(routePath('agents', 'a', null, 'overview')).toBe('/overview')
+  expect(routePath('agents', 'a', null, 'chat')).toBe('/s/a')
+  expect(routePath('terminal', 'a', null, 'overview')).toBe('/terminal')
+  expect(routePath('diagnostics', 'a', null, 'overview')).toBe('/diagnostics')
+})

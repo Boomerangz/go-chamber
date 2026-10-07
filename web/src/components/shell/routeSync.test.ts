@@ -141,3 +141,26 @@ describe('useRouteSync', () => {
     expect(history.length).toBe(before)
   })
 })
+
+it.each([false, true])('opens overview and restores it with Back (mobile=%s)', async (mobile) => {
+  phone(mobile)
+  history.replaceState(null, '', '/overview')
+  renderHook(() => useRouteSync(true))
+  expect(useSessionStore.getState().pane).toBe('overview')
+  select('a')
+  expect(location.pathname).toBe('/s/a')
+  await back()
+  expect(location.pathname).toBe('/overview')
+  expect(useSessionStore.getState().pane).toBe('overview')
+  await act(async () => {
+    history.forward()
+    await new Promise((r) => window.addEventListener('popstate', r, { once: true }))
+  })
+  expect(useSessionStore.getState().pane).toBe('chat')
+})
+it('leaves overview for an empty workspace', () => {
+  history.replaceState(null, '', '/overview')
+  renderHook(() => useRouteSync(true))
+  act(() => useSessionStore.getState().setPane('sessions'))
+  expect(location.pathname).toBe('/')
+})

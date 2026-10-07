@@ -36,20 +36,24 @@ export function useRouteSync(online: boolean): void {
     if (!online) return
     const apply = () => {
       const route = parseRoute(location.pathname)
-      if (route.kind === 'diagnostics') {
+      if (route.kind === 'overview') {
+        useLayoutStore.getState().setMode('agents')
+        useSessionStore.getState().setPane('overview')
+      } else if (route.kind === 'diagnostics') {
         useLayoutStore.getState().setMode('diagnostics')
       } else if (route.kind === 'terminals') {
         useLayoutStore.getState().setMode('terminal')
       } else if (route.kind === 'session') {
         useLayoutStore.getState().setMode('agents')
         if (useSessionStore.getState().activeId !== route.id) void useSessionStore.getState().selectSession(route.id)
+        else useSessionStore.getState().setPane('chat')
       } else if (route.kind === 'terminal') {
         useLayoutStore.getState().setMode('terminal')
         useTerminalStore.getState().select(route.id)
       }
     }
     const current = () =>
-      routePath(useLayoutStore.getState().mode, useSessionStore.getState().activeId, useTerminalStore.getState().activeId)
+      routePath(useLayoutStore.getState().mode, useSessionStore.getState().activeId, useTerminalStore.getState().activeId, useSessionStore.getState().pane)
     const pane = () => useSessionStore.getState().pane
     let navigating = false
     let lastPane = pane()
@@ -60,7 +64,7 @@ export function useRouteSync(online: boolean): void {
       const path = current()
       const now = pane()
       const entry: Entry = { pane: now }
-      if ((path !== '/' || ['diagnostics', 'terminals'].includes(parseRoute(location.pathname).kind)) && path !== location.pathname) {
+      if ((path !== '/' || ['diagnostics', 'terminals', 'overview'].includes(parseRoute(location.pathname).kind)) && path !== location.pathname) {
         // A shell attached in terminal mode takes the place of its empty step.
         const attaching = parseRoute(location.pathname).kind === 'terminals' && parseRoute(path).kind === 'terminal'
         if (replacing || attaching) history.replaceState(entry, '', path + location.search)
@@ -97,7 +101,10 @@ export function useRouteSync(online: boolean): void {
             useSessionStore.getState().setPane('sessions')
             const path = current()
             if (path !== location.pathname) history.replaceState({ pane: 'sessions' }, '', path + location.search)
-          } else if (useSessionStore.getState().activeId) useSessionStore.getState().closeSession()
+          } else {
+            useSessionStore.getState().setPane('sessions')
+            if (useSessionStore.getState().activeId) useSessionStore.getState().closeSession()
+          }
         } else {
           apply()
           if (narrow() && entry.pane && parseRoute(location.pathname).kind === 'session') useSessionStore.getState().setPane(entry.pane)

@@ -12,6 +12,7 @@ import { DockRail, DockSplitter, HealthStatus, ModeSwitch, PaneBar, ShowSessions
 import { useSidebarShown } from './components/shell/sidebarShown'
 import Notices from './components/shell/Notices'
 import Hotkeys from './components/shell/Hotkeys'
+import AttentionWindow, { AttentionPanel } from './components/shell/AttentionWindow'
 import { openShortcuts } from './components/shell/overlay'
 import { useRouteSync } from './components/shell/routeSync'
 import { LoadingLine } from './components/ui/Loading'
@@ -87,6 +88,11 @@ export default function App() {
               Focus
             </button>
           )}
+          {health === 'online' && <button className="btn btn-ghost overview-toggle" aria-pressed={mode === 'agents' && pane === 'overview'} onClick={() => {
+            useSessionStore.getState().setPane('overview')
+            useLayoutStore.getState().setMode('agents')
+          }}>Overview</button>}
+          {health === 'online' && <AttentionWindow />}
           {health === 'online' && <NotifyToggle />}
           {health === 'online' && <SoundToggle />}
           {health === 'online' && (
@@ -135,7 +141,7 @@ export default function App() {
       )}
       {health === 'online' && mode === 'agents' && (
         <>
-          <div className="layout" data-pane={pane} data-dock={dock ?? 'closed'} data-focus={focus ? 'on' : undefined} data-sidebar={sidebar ? undefined : 'off'} style={layoutVars}>
+          {pane === 'overview' ? <AttentionPanel standalone /> : <div className="layout" data-pane={pane} data-dock={dock ?? 'closed'} data-focus={focus ? 'on' : undefined} data-sidebar={sidebar ? undefined : 'off'} style={layoutVars}>
             <Sidebar sessions={sessions} onCreate={(agent, cwd, branch) => createSession(agent, cwd, branch)} />
             <SidebarSplitter />
             {activeId ? <Chat key={activeId} /> : <EmptyChat />}
@@ -156,7 +162,7 @@ export default function App() {
             </div>
             <div className="requests-pane">{pane === 'requests' && <RequestTray />}</div>
             <div className="changes-pane">{pane === 'changes' && <DiffPanel key={activeId} sessionId={activeId} />}</div>
-          </div>
+          </div>}
           <PaneBar />
         </>
       )}
