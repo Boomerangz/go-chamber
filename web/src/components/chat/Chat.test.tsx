@@ -2,6 +2,7 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import * as api from '../../lib/api'
+import { useCLIs } from '../../lib/clis'
 import { initialChat, type ChatState } from '../../lib/events'
 import { resetDrafts } from '../../stores/drafts'
 import { notify, useNotices } from '../../stores/notices'
@@ -182,6 +183,34 @@ describe('a folder that is gone', () => {
     setup({ sessions: [{ ...gone, worktree }] })
     expect(screen.getByRole('group', { name: 'Worktree removed' })).toBeInTheDocument()
     expect(screen.queryByRole('group', { name: 'Folder gone' })).toBeNull()
+  })
+})
+
+describe('a session whose CLI is missing', () => {
+  const codex: api.Session = { ...session, agent: 'codex', status: 'interrupted', interruption: { reason: 'crashed' } }
+  const realLoad = useCLIs.getState().load
+  afterEach(() => useCLIs.setState({ clis: [], load: realLoad }))
+
+  it('says so in the composer’s place with the install command to copy, and holds Continue', async () => {
+    useCLIs.setState({ clis: [{ agent: 'claude', found: true }, { agent: 'codex', found: false, hint: 'npm install -g @openai/codex' }] })
+    const load = vi.fn(async () => {})
+    useCLIs.setState({ load })
+    setup({ sessions: [codex], chat: initialChat('interrupted') })
+    expect(screen.queryByRole('combobox', { name: 'Message' })).toBeNull()
+    const note = screen.getByRole('group', { name: 'Codex CLI missing' })
+    expect(note).toHaveTextContent('Codex CLI missing')
+    expect(note.querySelector('code')).toHaveTextContent('npm install -g @openai/codex')
+    expect(screen.getByRole('button', { name: 'Copy install command' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Continue' })).toBeDisabled()
+    await userEvent.click(screen.getByRole('button', { name: 'Check again' }))
+    expect(load).toHaveBeenCalled()
+  })
+
+  it('leaves a session whose CLI is there alone', () => {
+    useCLIs.setState({ clis: [{ agent: 'claude', found: true }, { agent: 'codex', found: false }] })
+    setup()
+    expect(screen.getByRole('combobox', { name: 'Message' })).toBeInTheDocument()
+    expect(screen.queryByRole('group', { name: /CLI missing/ })).toBeNull()
   })
 })
 

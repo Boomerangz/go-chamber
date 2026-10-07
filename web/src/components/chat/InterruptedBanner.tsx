@@ -12,10 +12,13 @@ const interruptionText: Record<string, string> = {
 
 export default function InterruptedBanner({
   session,
+  blocked,
   onContinue,
   onAutoContinue,
 }: {
   session: Session
+  // blocked says why Continue can't run now (the agent's CLI is missing).
+  blocked?: string
   // Both resolve true once the server took the change.
   onContinue: () => Promise<boolean>
   onAutoContinue: (on: boolean) => Promise<boolean>
@@ -84,7 +87,7 @@ export default function InterruptedBanner({
             </label>
           )}
           {sent && <span className="composer-note">sent · waiting for agent</span>}
-          <button type="button" className="btn" aria-busy={busy} onClick={() => void run()}>
+          <button type="button" className="btn" aria-busy={busy} disabled={Boolean(blocked)} title={blocked} onClick={() => void run()}>
             {busy ? 'Continuing…' : 'Continue'}
           </button>
         </span>

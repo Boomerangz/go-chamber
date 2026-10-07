@@ -24,6 +24,7 @@ vi.mock('../lib/api', () => ({
   importHistory: vi.fn(),
   fetchHealth: vi.fn(),
   getSession: vi.fn(),
+  listAgents: vi.fn(),
 }))
 
 vi.mock('../lib/chime', () => ({ chimeOnEvent: vi.fn() }))
@@ -33,6 +34,7 @@ import { chimeOnEvent } from '../lib/chime'
 import { resetStore, useSessionStore } from './session'
 import { diagnostics, resetDiagnostics, beginAgentView, endAgentView, recordAgentCommit } from '../lib/diagnostics'
 import { lastError, resetNotices, useNotices } from './notices'
+import { resetCLIs, useCLIs } from '../lib/clis'
 
 const store = () => useSessionStore.getState()
 
@@ -656,13 +658,21 @@ describe('session store', () => {
     expect(await store().send('hello')).toBe(false)
     expect(store().sessions[0]!.folderGone).toBe(true)
     expect(useNotices.getState().notices).toHaveLength(0)
-    // Any other refusal is still said in a notice, a 422 for a missing CLI too.
+    // A missing CLI is said by a notice only while the CLI list doesn't know it.
     useSessionStore.setState({ sessions: [{ id: 'a', agent: 'claude', cwd: '/p', status: 'detached' }] })
     ;(api.sendMessage as Mock).mockRejectedValueOnce(Object.assign(new Error('Claude Code CLI not found on PATH'), { status: 422, code: 'cli_missing' }))
+    ;(api.listAgents as Mock).mockRejectedValueOnce(new Error('down'))
     expect(await store().send('hello')).toBe(false)
     expect(store().sessions[0]!.folderGone).toBeUndefined()
     expect(useNotices.getState().notices).toHaveLength(1)
     useNotices.setState({ notices: [] })
+    ;(api.sendMessage as Mock).mockRejectedValueOnce(Object.assign(new Error('Claude Code CLI not found on PATH'), { status: 422, code: 'cli_missing' }))
+    ;(api.listAgents as Mock).mockResolvedValueOnce([{ agent: 'claude', found: false }])
+    expect(await store().send('hello')).toBe(false)
+    expect(useCLIs.getState().clis).toEqual([{ agent: 'claude', found: false }])
+    expect(useNotices.getState().notices).toHaveLength(0)
+    resetCLIs()
+    // Any other refusal is still said in a notice.
     ;(api.sendMessage as Mock).mockRejectedValueOnce(Object.assign(new Error('boom'), { status: 500 }))
     expect(await store().send('hello')).toBe(false)
     expect(store().sessions[0]!.folderGone).toBeUndefined()
