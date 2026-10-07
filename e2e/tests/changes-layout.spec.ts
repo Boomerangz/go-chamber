@@ -186,3 +186,26 @@ test('the file viewer numbers lines, fills a phone and gives the focus back', as
   await expect(viewer).toBeHidden()
   await expect(view).toBeFocused()
 })
+
+// With a mouse the row's actions show on hover only: hidden, they keep no
+// room, so a long name has the whole line up to its counts.
+test.describe('a narrow Changes panel with a mouse', () => {
+  test.use({ viewport: { width: 900, height: 800 } })
+  test('a long name takes the room hidden actions would keep', async ({ page, isMobile }) => {
+    test.skip(isMobile, 'a touch screen always shows the actions')
+    const panel = await openChanges(page, repo())
+    const row = panel.locator('.diff-file-head').filter({ hasText: 'on_and_on' })
+    await expect(row).toBeVisible()
+    const [head, counts, path] = await Promise.all([row.boundingBox(), row.locator('.diff-counts').boundingBox(), row.locator('.diff-path').boundingBox()])
+    // the counts end at the row's end (past the toggle's padding), the path runs up to them
+    expect(head!.x + head!.width - (counts!.x + counts!.width)).toBeLessThanOrEqual(10)
+    expect(counts!.x - (path!.x + path!.width)).toBeLessThanOrEqual(10)
+    // hovered, the actions show over the row's end, and answer
+    await row.hover()
+    const copy = row.getByRole('button', { name: 'Copy path' })
+    await expect(copy).toBeVisible()
+    const c = (await copy.boundingBox())!
+    expect(c.x + c.width).toBeLessThanOrEqual(head!.x + head!.width + 0.5)
+    await copy.click()
+  })
+})
