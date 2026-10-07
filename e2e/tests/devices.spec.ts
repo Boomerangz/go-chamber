@@ -108,7 +108,7 @@ test('a finished turn chimes only where the owner was last', async ({ page, brow
   let turns = 0
   const finish = async () => {
     const was = (await snapshot(page.request, id)).endedAt ?? ''
-    const sent = await page.request.post(`/api/sessions/${id}/messages`, { headers, data: { text: `turn ${++turns}` } })
+    const sent = await page.request.post(`/api/sessions/${id}/messages`, { headers, data: { text: `chime check ${++turns}` } })
     expect(sent.ok()).toBe(true)
     await expect.poll(async () => (await snapshot(page.request, id)).endedAt ?? '').not.toBe(was)
   }
