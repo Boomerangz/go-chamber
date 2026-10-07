@@ -218,7 +218,7 @@ function PermissionCard({ request, agent, position, acting, error, answer }: Car
           onClick={() => void answer('allow', { behavior: 'allow' })}
         >
           {acting === 'allow' ? 'Allowing…' : 'Allow'}
-          {!allowing && <kbd aria-hidden="true">A</kbd>}
+          {!allowing && <kbd aria-hidden="true">a</kbd>}
         </button>
         {perSession && (
           <button
@@ -229,7 +229,7 @@ function PermissionCard({ request, agent, position, acting, error, answer }: Car
             onClick={() => void answer('session', { behavior: 'allow', allowForSession: true })}
           >
             {acting === 'session' ? 'Allowing…' : 'Allow for session'}
-            {!allowing && <kbd aria-hidden="true">S</kbd>}
+            {!allowing && <kbd aria-hidden="true">s</kbd>}
           </button>
         )}
         <button
@@ -240,7 +240,7 @@ function PermissionCard({ request, agent, position, acting, error, answer }: Car
           disabled={acting !== null}
           onClick={() => setDenying((v) => !v)}
         >
-          Deny <kbd aria-hidden="true">D</kbd>
+          Deny <kbd aria-hidden="true">d</kbd>
         </button>
       </div>
       {perSession && grants.length > 0 && (

@@ -325,7 +325,7 @@ function TrayActions(props: {
         onClick={(e) => props.onAnswer('allow', { behavior: 'allow' }, e.currentTarget)}
       >
         {acting === 'allow' ? 'Allowing…' : 'Allow'}
-        {!acting && <kbd aria-hidden="true">A</kbd>}
+        {!acting && <kbd aria-hidden="true">a</kbd>}
       </button>
       {props.perSession && (
         <button
@@ -335,7 +335,7 @@ function TrayActions(props: {
           onClick={(e) => props.onAnswer('session', { behavior: 'allow', allowForSession: true }, e.currentTarget)}
         >
           {acting === 'session' ? 'Allowing…' : 'Allow for session'}
-          {!acting && <kbd aria-hidden="true">S</kbd>}
+          {!acting && <kbd aria-hidden="true">s</kbd>}
         </button>
       )}
       <button
@@ -345,7 +345,7 @@ function TrayActions(props: {
         onClick={(e) => props.onAnswer('deny', { behavior: 'deny' }, e.currentTarget)}
       >
         {acting === 'deny' ? 'Denying…' : 'Deny'}
-        {!acting && <kbd aria-hidden="true">D</kbd>}
+        {!acting && <kbd aria-hidden="true">d</kbd>}
       </button>
     </div>
   )

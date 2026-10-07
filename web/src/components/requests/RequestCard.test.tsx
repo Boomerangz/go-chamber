@@ -60,6 +60,11 @@ describe('RequestCard permission', () => {
     expect(onRespond).toHaveBeenCalledWith('s1', 'r1', { behavior: 'allow', allowForSession: true })
   })
 
+  it('prints its keys lowercase, as the help sheet does: a capital reads as Shift', () => {
+    const { container } = setup(permission)
+    expect([...container.querySelectorAll('kbd')].map((k) => k.textContent)).toEqual(['a', 's', 'd'])
+  })
+
   it('hides allow-for-session without suggestions', () => {
     setup({ ...permission, payload: { toolName: 'Bash', input: {} } })
     expect(screen.queryByRole('button', { name: 'Allow for session' })).toBeNull()

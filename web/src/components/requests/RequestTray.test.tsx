@@ -32,6 +32,17 @@ describe('RequestTray', () => {
     expect(screen.getByText('No pending requests')).toBeInTheDocument()
   })
 
+  it("prints a permission's keys lowercase, as the help sheet does", () => {
+    useSessionStore.setState({
+      sessions: [{ id: 's1', agent: 'claude', cwd: '/tmp/proj', status: 'running' }],
+      pendingRequests: [{ id: 'r1', sessionId: 's1', kind: 'permission', state: 'pending', title: 'Run command', payload: { suggestions: [{ type: 'addRules' }] } }],
+    })
+    const { container } = render(<RequestTray />)
+    const keys = [...container.querySelectorAll('kbd')].map((k) => k.textContent)
+    expect(keys.length).toBeGreaterThan(0)
+    expect(keys.every((k) => k === k?.toLowerCase())).toBe(true)
+  })
+
   it('names the session a request belongs to', () => {
     useSessionStore.setState({
       sessions: [{ id: 's1', agent: 'codex', cwd: '/tmp/proj', status: 'running' }],
