@@ -514,16 +514,17 @@ button.health { border: 0; background: none; padding: 0; }
 .sidebar-signout { display: none; }
 .sidebar-signout .btn { width: 100%; }
 
-/* phones: the sidebar itself scrolls, footer and all, and its controls
-   get a finger-sized target */
-@media (max-width: 720px) {
+/* phones, and a short window (a phone held sideways, where the form and the
+   footer would squeeze the list to nothing): the sidebar itself scrolls,
+   footer and all */
+@media (max-width: 720px), (max-height: 500px) {
   .sidebar { overflow-y: auto; scroll-padding-top: 52px; }
   /* sticky offsets count from inside the sidebar's 14px top padding */
   .sidebar-body > .session-search { top: -14px; }
   .sidebar-body { flex: none; overflow: visible; }
   .sidebar-footer { flex: none; }
-  .sidebar-signout { display: block; }
 }
+@media (max-width: 720px) { .sidebar-signout { display: block; } }
 /* a finger's targets: on a phone by its width, and on any touch screen (a
    tablet keeps the wide layout but not a mouse's precision) */
 @media (max-width: 720px), (pointer: coarse) {
