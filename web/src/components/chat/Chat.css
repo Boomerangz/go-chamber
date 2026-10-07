@@ -85,6 +85,9 @@
 .working-tail.streaming { color: var(--ink-3); }
 .working-tail.stale::before { background: none; border-style: dashed; animation: none; }
 
+/* the transcript holds focus after a keyboard answer: no ring round it all */
+.chat > .scroll:focus { outline: none; }
+
 /* a request card takes focus after the one above it was answered */
 .request-slot:focus { outline: none; }
 .request-slot:focus-visible { outline: 2px solid var(--act-ring); outline-offset: 2px; }

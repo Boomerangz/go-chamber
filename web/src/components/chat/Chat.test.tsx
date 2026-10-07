@@ -610,6 +610,39 @@ describe('answering requests', () => {
     await waitFor(() => expect(box()).toHaveFocus())
   })
 
+  it('after a keyboard answer to the last one, focuses the transcript so the next keys stay shortcuts', async () => {
+    pointerFine()
+    const respond = vi.fn(async () => true)
+    setup({ chat: running([item('u1', 'user_message')], { requests: { r1: permission('r1') } }), respond })
+    screen.getByRole('button', { name: 'Allow' }).focus()
+    await userEvent.keyboard('{Enter}')
+    expect(respond).toHaveBeenCalledWith('s1', 'r1', expect.anything())
+    await waitFor(() => expect(document.activeElement).toHaveClass('scroll'))
+    expect(box()).not.toHaveFocus()
+  })
+
+  it('after a keyboard answer, moves on to the next card', async () => {
+    pointerFine()
+    const respond = vi.fn(async () => true)
+    setup({ chat: running([item('u1', 'user_message')], { requests: { r1: permission('r1'), r2: permission('r2') } }), respond })
+    screen.getAllByRole('button', { name: 'Allow' })[0]!.focus()
+    await userEvent.keyboard('{Enter}')
+    await waitFor(() => expect(document.activeElement).toHaveAttribute('data-request-id', 'r2'))
+  })
+
+  it('on a touch screen brings the next card into view without focusing it', async () => {
+    vi.stubGlobal('matchMedia', (q: string) => ({
+      matches: q.includes('pointer: coarse'), media: q, addEventListener: () => {}, removeEventListener: () => {},
+    }))
+    const respond = vi.fn(async () => true)
+    setup({ chat: running([item('u1', 'user_message')], { requests: { r1: permission('r1'), r2: permission('r2') } }), respond })
+    const next = document.querySelector<HTMLElement>('[data-request-id="r2"]')!
+    vi.mocked(next.scrollIntoView).mockClear()
+    await userEvent.click(screen.getAllByRole('button', { name: 'Allow' })[0]!)
+    await waitFor(() => expect(next.scrollIntoView).toHaveBeenCalled())
+    expect(document.activeElement).not.toBe(next)
+  })
+
   it('leaves focus where it is when the answer failed', async () => {
     pointerFine()
     const respond = vi.fn(async () => false)

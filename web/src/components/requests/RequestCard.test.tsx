@@ -389,6 +389,18 @@ describe('RequestCard arrival', () => {
     expect(onRespond).toHaveBeenCalledWith('s1', 'r1', { behavior: 'allow' })
   })
 
+  it('takes no focus on a touch screen: no ring, no keyboard to pop', () => {
+    vi.stubGlobal('matchMedia', (q: string) => ({
+      matches: q.includes('pointer: coarse'), media: q, addEventListener: () => {}, removeEventListener: () => {},
+    }))
+    try {
+      setup(permission)
+      expect(document.activeElement).toBe(document.body)
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  })
+
   it('leaves focus in a field that holds text', () => {
     const field = withField('half a sentence')
     setup(permission)

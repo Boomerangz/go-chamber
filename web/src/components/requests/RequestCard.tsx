@@ -3,6 +3,7 @@ import type { AgentKind, Question, RequestAnswerInput, SessionRequest } from '..
 import { editDiff } from '../../lib/diff'
 import { usePending } from '../../lib/pending'
 import InlineDiff from '../chat/InlineDiff'
+import { matches } from '../chat/useMedia'
 import Markdown from '../markdown/Markdown'
 import { notSent, shortcut } from './answer'
 import { describeSuggestions } from './suggestions'
@@ -90,10 +91,12 @@ const ARM_MS = 600
 
 // useFocusOnArrival brings keyboard focus to a card when it arrives, so its
 // key hints work: unless the owner is writing (a text field holds text) or
-// another card already has focus. It returns when shortcuts start to count.
+// another card already has focus. A touch screen has no keys to hint, and a
+// focused card would only show a ring. It returns when shortcuts start to count.
 function useFocusOnArrival(card: React.RefObject<HTMLElement | null>, target?: () => HTMLElement | null) {
   const armedAt = useRef(0)
   useEffect(() => {
+    if (matches('(pointer: coarse)')) return
     const active = document.activeElement
     const field = active instanceof HTMLInputElement || active instanceof HTMLTextAreaElement
     if (field && active.value.trim()) return

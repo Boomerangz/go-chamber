@@ -9,6 +9,7 @@ import WorktreeGone from './WorktreeGone'
 import ChatHeader from './ChatHeader'
 import LiveStrip from './LiveStrip'
 import RequestCard from '../requests/RequestCard'
+import { lastInput } from '../requests/modality'
 import { LoadFailed, Skeleton } from '../ui/Loading'
 import { icon } from '../icon'
 import { Row } from './Transcript'
@@ -396,11 +397,13 @@ export default function Chat() {
   const gone = session?.worktree?.removed ? session.worktree : undefined
 
   // An answer that went through moves focus on: to the next request waiting,
-  // or back to the composer, instead of dropping it on the page.
+  // or back to the composer, instead of dropping it on the page. One given
+  // from the keyboard stays off the composer, so the next keys stay shortcuts.
   const answer = useCallback(
     async (sid: string, requestId: string, reply: RequestAnswerInput) => {
+      const via = lastInput()
       const ok = await respond(sid, requestId, reply)
-      if (ok) focusAfterAnswer(scrollRef.current, requestId, input.current)
+      if (ok) focusAfterAnswer(scrollRef.current, requestId, via === 'keyboard' ? scrollRef.current : input.current)
       return ok
     },
     [respond, scrollRef],
@@ -435,7 +438,8 @@ export default function Chat() {
       <div className="sr-only chat-announce" role="status" aria-live="polite">
         <span key={announcement.n}>{announcement.text}</span>
       </div>
-      <div className="scroll" ref={scrollRef}>
+      {/* Focusable: a keyboard answer leaves focus here, where arrows scroll. */}
+      <div className="scroll" ref={scrollRef} tabIndex={-1}>
         {notFound ? null : history === 'loading' && chat.order.length === 0 ? (
           <div className="chat-loading">
             <Skeleton rows={4} label="Loading transcript" />
@@ -665,9 +669,11 @@ const resolve: TargetAndTransition = {
 }
 
 // focusAfterAnswer moves focus on from an answered request: to the next
-// request still waiting, else to the composer (with a mouse; on a phone that
-// would pop the keyboard). Focus the owner already moved elsewhere stays.
-function focusAfterAnswer(root: HTMLElement | null, answered: string, composer: HTMLTextAreaElement | null) {
+// request still waiting, else to `then` (the composer after a click, the
+// transcript after a key; with a mouse only: on a phone the composer would
+// pop the keyboard). A touch screen brings the next request into view
+// without focusing it. Focus the owner already moved elsewhere stays.
+function focusAfterAnswer(root: HTMLElement | null, answered: string, then: HTMLElement | null) {
   const active = document.activeElement
   const card = active instanceof Element ? active.closest('[data-request-id]') : null
   const lost = !active || active === document.body || card?.getAttribute('data-request-id') === answered
@@ -677,8 +683,9 @@ function focusAfterAnswer(root: HTMLElement | null, answered: string, composer: 
     const id = el.dataset.requestId
     return id && id !== answered && waiting[id]
   })
-  if (next) next.focus()
-  else if (matches('(pointer: fine)')) composer?.focus()
+  if (next && matches('(pointer: coarse)')) next.scrollIntoView?.({ block: 'nearest' })
+  else if (next) next.focus()
+  else if (matches('(pointer: fine)')) then?.focus()
 }
 
 // backToSessions leaves a session that doesn't exist for the sessions list.
