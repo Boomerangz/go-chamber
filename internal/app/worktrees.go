@@ -25,7 +25,25 @@ var (
 	ErrBranchExists = errors.New("branch already exists")
 	// ErrWorktreeExists means the worktree folder is already there.
 	ErrWorktreeExists = errors.New("worktree folder already exists")
+	// ErrBranchCheckedOut means the branch is checked out in another
+	// worktree, where git won't check it out twice; see BranchInUseError.
+	ErrBranchCheckedOut = errors.New("branch is checked out elsewhere")
+	// ErrNoBranch means the branch to continue on isn't there.
+	ErrNoBranch = errors.New("no such branch")
 )
+
+// BranchInUseError says where a branch that can't be checked out again is
+// checked out.
+type BranchInUseError struct {
+	Branch string
+	Path   string
+}
+
+func (e *BranchInUseError) Error() string {
+	return fmt.Sprintf("branch %s is checked out at %s", e.Branch, e.Path)
+}
+
+func (e *BranchInUseError) Is(target error) bool { return target == ErrBranchCheckedOut }
 
 // FileChange is one changed file; Status is git's letter (A, M, D, T) or
 // "?" for an untracked file. Added and Removed count changed lines (an
@@ -61,8 +79,13 @@ type Changes struct {
 type GitRepo interface {
 	// Toplevel returns the root of the repository containing dir.
 	Toplevel(ctx context.Context, dir string) (string, error)
-	// AddWorktree adds path on a new branch starting at the repository's HEAD.
+	// AddWorktree adds path on a new branch starting at the repository's
+	// HEAD. A branch that exists is refused: with ErrBranchExists, or with
+	// a BranchInUseError when it is checked out somewhere.
 	AddWorktree(ctx context.Context, repo, path, branch string) (domain.Worktree, error)
+	// ContinueWorktree adds path on an existing branch that no worktree has
+	// checked out; Base is where the branch left the repository's HEAD.
+	ContinueWorktree(ctx context.Context, repo, path, branch string) (domain.Worktree, error)
 	// RemoveWorktree removes the worktree; the branch is kept.
 	RemoveWorktree(ctx context.Context, wt domain.Worktree, force bool) error
 	// Changes lists files in dir that differ from base (a commit-ish).
@@ -115,9 +138,22 @@ func NewWorktrees(cfg WorktreesConfig) *Worktrees { return &Worktrees{cfg: cfg} 
 // BranchPrefix namespaces the branches go-chamber creates.
 const BranchPrefix = "chamber/"
 
-// Create adds a worktree of the repository containing dir on branch
+// Create adds a worktree of the repository containing dir on a new branch
 // chamber/<slug> and starts a session in it.
 func (w *Worktrees) Create(ctx context.Context, agent domain.AgentKind, dir, name string) (domain.SessionSnapshot, error) {
+	return w.start(ctx, agent, dir, name, w.cfg.Git.AddWorktree)
+}
+
+// Continue is Create on the branch chamber/<slug> that is already there,
+// such as the one a removed worktree kept: its work goes on in a new
+// worktree and a new session.
+func (w *Worktrees) Continue(ctx context.Context, agent domain.AgentKind, dir, name string) (domain.SessionSnapshot, error) {
+	return w.start(ctx, agent, dir, name, w.cfg.Git.ContinueWorktree)
+}
+
+func (w *Worktrees) start(ctx context.Context, agent domain.AgentKind, dir, name string,
+	add func(ctx context.Context, repo, path, branch string) (domain.Worktree, error),
+) (domain.SessionSnapshot, error) {
 	slug := slugify(name)
 	if slug == "" {
 		return domain.SessionSnapshot{}, fmt.Errorf("%w: use latin letters or digits", ErrInvalidBranch)
@@ -136,7 +172,7 @@ func (w *Worktrees) Create(ctx context.Context, agent domain.AgentKind, dir, nam
 		return domain.SessionSnapshot{}, err
 	}
 	path := filepath.Join(w.cfg.Root, filepath.Base(repo), slug)
-	wt, err := w.cfg.Git.AddWorktree(ctx, repo, path, BranchPrefix+slug)
+	wt, err := add(ctx, repo, path, BranchPrefix+slug)
 	if err != nil {
 		return domain.SessionSnapshot{}, err
 	}

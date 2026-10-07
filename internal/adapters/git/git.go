@@ -36,19 +36,83 @@ func (r Repo) AddWorktree(ctx context.Context, repo, path, branch string) (domai
 	if err != nil {
 		return domain.Worktree{}, fmt.Errorf("worktree needs a commit to branch from: %w", err)
 	}
-	if _, err := run(ctx, repo, "rev-parse", "--verify", "--quiet", "refs/heads/"+branch); err == nil {
+	if branchExists(ctx, repo, branch) {
+		if err := notCheckedOut(ctx, repo, branch); err != nil {
+			return domain.Worktree{}, err
+		}
 		return domain.Worktree{}, fmt.Errorf("%w: %s", app.ErrBranchExists, branch)
 	}
-	if _, err := os.Lstat(path); err == nil {
-		return domain.Worktree{}, fmt.Errorf("%w: %s", app.ErrWorktreeExists, path)
-	}
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+	if err := freeFolder(path); err != nil {
 		return domain.Worktree{}, err
 	}
 	if _, err := run(ctx, repo, "worktree", "add", "-b", branch, path, "HEAD"); err != nil {
 		return domain.Worktree{}, err
 	}
 	return domain.Worktree{Repo: repo, Path: path, Branch: branch, Base: strings.TrimSpace(base)}, nil
+}
+
+// ContinueWorktree checks out an existing branch in a new worktree. Its
+// base is where the branch left HEAD, so the diff is the branch's own work.
+func (Repo) ContinueWorktree(ctx context.Context, repo, path, branch string) (domain.Worktree, error) {
+	if !branchExists(ctx, repo, branch) {
+		return domain.Worktree{}, fmt.Errorf("%w: %s", app.ErrNoBranch, branch)
+	}
+	if err := notCheckedOut(ctx, repo, branch); err != nil {
+		return domain.Worktree{}, err
+	}
+	base, err := run(ctx, repo, "merge-base", "HEAD", "refs/heads/"+branch)
+	if err != nil {
+		return domain.Worktree{}, fmt.Errorf("branch %s shares no commit with HEAD: %w", branch, err)
+	}
+	if err := freeFolder(path); err != nil {
+		return domain.Worktree{}, err
+	}
+	if _, err := run(ctx, repo, "worktree", "add", path, branch); err != nil {
+		return domain.Worktree{}, err
+	}
+	return domain.Worktree{Repo: repo, Path: path, Branch: branch, Base: strings.TrimSpace(base)}, nil
+}
+
+func branchExists(ctx context.Context, repo, branch string) bool {
+	_, err := run(ctx, repo, "rev-parse", "--verify", "--quiet", "refs/heads/"+branch)
+	return err == nil
+}
+
+// notCheckedOut refuses a branch some worktree of repo (the repository's
+// own checkout included) has checked out, saying where.
+func notCheckedOut(ctx context.Context, repo, branch string) error {
+	out, err := run(ctx, repo, "worktree", "list", "--porcelain")
+	if err != nil {
+		return err
+	}
+	if at, ok := checkedOut(out)[branch]; ok {
+		return &app.BranchInUseError{Branch: branch, Path: at}
+	}
+	return nil
+}
+
+// checkedOut reads `git worktree list --porcelain` into the worktree path
+// of each checked-out branch.
+func checkedOut(out string) map[string]string {
+	branches := map[string]string{}
+	var path string
+	for line := range strings.SplitSeq(out, "\n") {
+		if p, ok := strings.CutPrefix(line, "worktree "); ok {
+			path = p
+		} else if b, ok := strings.CutPrefix(line, "branch refs/heads/"); ok {
+			branches[b] = path
+		}
+	}
+	return branches
+}
+
+// freeFolder makes way for a worktree at path: it must not be there, and
+// its parent is made.
+func freeFolder(path string) error {
+	if _, err := os.Lstat(path); err == nil {
+		return fmt.Errorf("%w: %s", app.ErrWorktreeExists, path)
+	}
+	return os.MkdirAll(filepath.Dir(path), 0o755)
 }
 
 func (Repo) RemoveWorktree(ctx context.Context, wt domain.Worktree, force bool) error {

@@ -1,10 +1,10 @@
 import { expect, test, type APIRequestContext } from '@playwright/test'
 import { execFileSync } from 'node:child_process'
-import { mkdtempSync, realpathSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, realpathSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { token } from '../playwright.config'
-import { showPane } from './pane'
+import { openNewSession, showPane } from './pane'
 
 // Shells and branches outlive a worktree folder no longer than they should:
 // removing the folder closes the terminals in it, deleting a session lets
@@ -96,4 +96,49 @@ test('removing a worktree closes its terminals on every open page; deleting a se
   expect(kept?.sessionId).toBeUndefined()
   await device.close()
   await page.request.delete(`/api/terminals/${inFolder.id}`, { headers })
+})
+
+test('a branch a removed worktree kept is continued on from the new-session form', async ({ page }, info) => {
+  const repo = newRepo()
+  const name = `kept-${info.project.name}`
+  const made = (await (await page.request.post('/api/worktrees', { headers, data: { agent: 'claude', cwd: repo, branch: name } })).json()) as Made
+  const wt = made.worktree!
+  writeFileSync(path.join(wt.path, 'work.txt'), 'done\n')
+  execFileSync('git', ['add', '.'], { cwd: wt.path, env })
+  execFileSync('git', ['commit', '-q', '-m', 'work'], { cwd: wt.path, env })
+  expect((await page.request.delete(`/api/sessions/${made.id}/worktree`, { headers })).status()).toBe(200)
+  // Another worktree holds a branch of its own.
+  const busy = (await (await page.request.post('/api/worktrees', { headers, data: { agent: 'claude', cwd: repo, branch: `busy-${info.project.name}` } })).json()) as Made
+
+  await page.goto(`/?token=${token}`)
+  await showPane(page, 'Sessions')
+  await openNewSession(page)
+  await page.getByLabel('Working directory').fill(repo)
+  await page.getByLabel('In a new worktree').check()
+  const field = page.getByLabel('Branch name')
+  const hint = page.locator('#new-session-branch-hint')
+  const go = page.getByRole('button', { name: 'Continue on the existing branch' })
+
+  // Checked out elsewhere: the form says where, and offers nothing to continue.
+  await field.fill(`busy-${info.project.name}`)
+  await page.getByRole('button', { name: 'New session' }).click()
+  await expect(hint).toHaveText(`Branch ${busy.worktree!.branch} is checked out in ${busy.worktree!.path}`)
+  await expect(go).toHaveCount(0)
+
+  // Kept by a removed worktree: it can be gone on with.
+  await field.fill(name)
+  await page.getByRole('button', { name: 'New session' }).click()
+  await expect(hint).toHaveText(`Branch ${wt.branch} already exists`)
+  await expect(go).toBeVisible()
+  await go.click()
+  await expect(page.getByLabel('Message')).toBeVisible()
+  const id = new URL(page.url()).pathname.split('/').pop()!
+  const session = (await (await page.request.get(`/api/sessions/${id}`, { headers })).json()) as Made
+  expect(session.id).not.toBe(made.id)
+  expect(session.worktree).toMatchObject({ path: wt.path, branch: wt.branch })
+  expect(existsSync(path.join(wt.path, 'work.txt'))).toBe(true)
+  // The branch's own commit is what it holds to merge.
+  await expect
+    .poll(async () => ((await (await page.request.get(`/api/sessions/${id}/changes`, { headers })).json()) as { commits: number }).commits)
+    .toBe(1)
 })

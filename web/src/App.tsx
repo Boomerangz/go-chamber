@@ -137,7 +137,7 @@ export default function App() {
       {health === 'online' && mode === 'agents' && (
         <>
           <div className="layout" data-pane={pane} data-dock={dock ?? 'closed'} data-focus={focus ? 'on' : undefined} data-sidebar={sidebar ? undefined : 'off'} style={layoutVars}>
-            <Sidebar sessions={sessions} onCreate={(agent, cwd, branch) => createSession(agent, cwd, branch, true)} />
+            <Sidebar sessions={sessions} onCreate={(agent, cwd, branch, existing) => (existing ? createSession(agent, cwd, branch, true, true) : createSession(agent, cwd, branch, true))} />
             <SidebarSplitter />
             {activeId ? <Chat key={activeId} /> : <EmptyChat />}
             <div className="dock">

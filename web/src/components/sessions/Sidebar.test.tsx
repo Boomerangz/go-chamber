@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { fail } from '../../stores/notices'
 import { resetStore, useSessionStore } from '../../stores/session'
 import type { Session } from '../../lib/api'
-import Sidebar from './Sidebar'
+import Sidebar, { type SidebarProps } from './Sidebar'
 import { resetCLIs } from '../../lib/clis'
 import * as api from '../../lib/api'
 
@@ -29,7 +29,7 @@ beforeEach(() => {
   Element.prototype.scrollIntoView = vi.fn()
 })
 
-function setup(onCreate = vi.fn(async () => true), sessions: Session[] = []) {
+function setup(onCreate: SidebarProps['onCreate'] = vi.fn(async () => true), sessions: Session[] = []) {
   useSessionStore.setState({ sessions })
   render(<Sidebar sessions={sessions} onCreate={onCreate} />)
   return onCreate
@@ -185,6 +185,38 @@ describe('Sidebar new session', () => {
     await userEvent.type(field, '2')
     expect(screen.queryByRole('alert')).toBeNull()
     expect(field).toHaveAccessibleDescription('→ chamber/fix-it2')
+  })
+
+  it('offers to continue on a branch that is already there', async () => {
+    const onCreate = vi.fn(async (_agent: string, _cwd: string, _branch?: string, existing?: boolean) => {
+      if (existing) return true
+      fail("Couldn't start the session", new Error('branch already exists: chamber/fix-it'), undefined, { quiet: true })
+      return false
+    })
+    setup(onCreate)
+    await userEvent.type(screen.getByLabelText('Working directory'), '/repo')
+    await userEvent.click(screen.getByLabelText('In a new worktree'))
+    const field = screen.getByLabelText('Branch name')
+    await userEvent.type(field, 'fix-it')
+    await userEvent.click(screen.getByRole('button', { name: 'New session' }))
+    const go = await screen.findByRole('button', { name: 'Continue on the existing branch' })
+    await userEvent.click(go)
+    expect(onCreate).toHaveBeenLastCalledWith('claude', '/repo', 'fix-it', true)
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Continue on the existing branch' })).toBeNull())
+    expect(screen.queryByLabelText('Branch name')).toBeNull()
+  })
+
+  it('says where a branch is checked out, with nothing to continue', async () => {
+    setup(vi.fn(async () => {
+      fail("Couldn't start the session", new Error('branch chamber/fix-it is checked out at /w/app/fix-it'), undefined, { quiet: true })
+      return false
+    }))
+    await userEvent.type(screen.getByLabelText('Working directory'), '/repo')
+    await userEvent.click(screen.getByLabelText('In a new worktree'))
+    await userEvent.type(screen.getByLabelText('Branch name'), 'fix-it')
+    await userEvent.click(screen.getByRole('button', { name: 'New session' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('Branch chamber/fix-it is checked out in /w/app/fix-it')
+    expect(screen.queryByRole('button', { name: 'Continue on the existing branch' })).toBeNull()
   })
 
   it('says under the folder that it does not exist, not in a corner notice', async () => {

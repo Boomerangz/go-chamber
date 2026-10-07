@@ -560,8 +560,10 @@ export interface Changes {
   branch?: string
 }
 
-export function createWorktreeSession(agent: AgentKind, cwd: string, branch: string, choice?: ModelChoice): Promise<Session> {
-  return request<Session>('/api/worktrees', json({ agent, cwd, branch, ...choice }), LONG_MS)
+// createWorktreeSession starts a session in a new worktree on a new branch,
+// or with existing on the branch that is already there.
+export function createWorktreeSession(agent: AgentKind, cwd: string, branch: string, choice?: ModelChoice, existing?: boolean): Promise<Session> {
+  return request<Session>('/api/worktrees', json({ agent, cwd, branch, ...choice, ...(existing ? { continue: true } : {}) }), LONG_MS)
 }
 
 export function getChanges(id: string): Promise<Changes> {
