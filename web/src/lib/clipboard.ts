@@ -1,8 +1,9 @@
 import { fail } from '../stores/notices'
 
 // copyText puts text on the clipboard. Over plain http (a phone on the LAN)
-// there is no Clipboard API, so it falls back to a hidden textarea.
-export async function copyText(text: string): Promise<boolean> {
+// there is no Clipboard API, so it falls back to a hidden textarea. what
+// names the thing in a failure: "Couldn't copy the reply".
+export async function copyText(text: string, what = 'text'): Promise<boolean> {
   try {
     if (navigator.clipboard?.writeText) {
       await navigator.clipboard.writeText(text)
@@ -11,7 +12,7 @@ export async function copyText(text: string): Promise<boolean> {
     if (!legacyCopy(text)) throw new Error('The browser did not allow copying')
     return true
   } catch (err) {
-    fail("Couldn't copy", err, 'copy')
+    fail(`Couldn't copy the ${what}`, err, 'copy')
     return false
   }
 }

@@ -6,6 +6,8 @@ import { useTerminalStore } from '../../stores/terminals'
 import { useDiagnostics } from './useDiagnostics'
 import { formatUptime, linkMark, metricLevel, terminalName } from './format'
 import { fail, notify } from '../../stores/notices'
+import { failedTo } from '../../lib/failed'
+import { LoadFailed } from '../ui/Loading'
 import './DiagnosticsPage.css'
 
 const metrics: { key: MetricKey; label: string; description: string }[] = [
@@ -23,7 +25,7 @@ const bytes = (value: number) => value >= 1048576 ? `${(value / 1048576).toFixed
 export default function DiagnosticsPage() {
   const [enabled, setEnabled] = useState(true)
   const [rtc, setRTC] = useState(rtcEnabled)
-  const { client, server, error, socketStatus } = useDiagnostics(enabled)
+  const { client, server, error, socketStatus, retry } = useDiagnostics(enabled)
   const connection = useSessionStore((s) => s.connection)
   const terminalNames = useTerminalStore((s) => s.terminals)
   const all = [...new Set([...client.terminals.map((t) => t.id), ...(server?.terminals.map((t) => t.id) ?? [])])]
@@ -42,7 +44,7 @@ export default function DiagnosticsPage() {
       await navigator.clipboard.writeText(report())
       notify({ kind: 'info', text: 'Copied the report', key: 'copy-report' })
     } catch (err) {
-      fail("Couldn't copy", err)
+      fail("Couldn't copy the report", err)
     }
   }
   const download = () => {
@@ -59,7 +61,7 @@ export default function DiagnosticsPage() {
       <header className="diagnostics-header">
         <div>
           <h2>Diagnostics</h2>
-          <p>Delivery, browser responsiveness and terminal backlog. Counters contain no prompts or shell contents.</p>
+          <p>Delivery, browser responsiveness and terminal backlog. Counters contain no prompts or terminal contents.</p>
         </div>
         <div className="diagnostics-actions">
           <button className="btn" onClick={() => setEnabled((value) => !value)}>{enabled ? 'Pause probes' : 'Resume probes'}</button>
@@ -74,11 +76,8 @@ export default function DiagnosticsPage() {
         <span>Browser events: <strong>{client.agent.events}</strong></span>
         <span>Long tasks: <strong>{client.browser.longTaskSupport ? client.browser.longTasks : 'unsupported'}</strong></span>
       </div>
-      {error && (
-        <p role="alert" className="diagnostics-error">
-          {error}.{server ? ' The last successful server snapshot is shown below.' : ''}
-        </p>
-      )}
+      {error && <LoadFailed onRetry={retry}>{failedTo('load the server diagnostics', error)}</LoadFailed>}
+      {error && server && <p className="diagnostics-note">The last successful server snapshot is shown below.</p>}
       <p className="diagnostics-note">Use the agent or terminal, then return here to inspect samples. Percentiles cover the latest 120 samples in this browser tab. CLI startup and model response time are not collected yet.</p>
       <div className="diagnostics-grid">
         {metrics.map(({ key, label, description }) => {

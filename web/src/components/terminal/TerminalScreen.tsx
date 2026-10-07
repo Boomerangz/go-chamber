@@ -100,7 +100,7 @@ export function FindBar({ id }: { id: string }) {
         className="field term-find-input"
         type="search"
         aria-label="Find in terminal"
-        placeholder="find in scrollback"
+        placeholder="Find in scrollback"
         value={term}
         autoFocus
         onChange={(e) => {
@@ -152,7 +152,7 @@ export function ConnectionLine({ id }: { id: string }) {
           type="button"
           className="btn btn-xs"
           aria-busy={reopening || undefined}
-          title="Start a new shell in the same folder, in place of this one"
+          title="Start a new terminal in the same folder, in place of this one"
           onClick={() => void reopen(id)}
         >
           {reopening ? 'Opening…' : 'Open again here'}

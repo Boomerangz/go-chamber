@@ -72,6 +72,15 @@
 .term-tab-title { display: inline-flex; max-width: 16ch; min-width: 0; white-space: nowrap; }
 /* the folder, quieter, when the title doesn't already say it */
 .term-tab-cwd { display: inline-block; max-width: 12ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11.5px; color: var(--ink-3); }
+/* the strip fits its tabs before it scrolls: a tab not selected gives up
+   its folder, then its title down to a few characters (an ellipsis says
+   so); the selected one stays whole. Past that the strip scrolls, and an
+   edge with tabs hidden past it fades (below). */
+.terminal-tabs li { flex: 0 1 auto; min-width: 96px; }
+.terminal-tabs li:has([aria-selected='true']), .terminal-tabs li:has(.term-tab-input), .terminal-tabs li:has(.term-confirm) { flex: none; }
+.terminal-tabs [role='tab'] { flex: 0 1 auto; min-width: 0; overflow: hidden; }
+.terminal-tabs .term-tab-title { flex: 0 1 auto; }
+.terminal-tabs .term-tab-cwd { flex: 0 100 auto; min-width: 0; }
 .terminal-tabs .term-tab-rename { width: 24px; height: 24px; color: var(--ink-3); }
 .terminal-tabs .term-tab-rename:hover { color: var(--ink); }
 
@@ -124,6 +133,7 @@
 
 @media (max-width: 720px), (pointer: coarse) {
   .terminal-tabs .close-terminal { width: 36px; height: 36px; }
+  .terminal-tabs li { min-width: 108px; }
   .term-row .close-terminal { width: 36px; height: 36px; }
   .term-find .btn-icon { width: 36px; height: 36px; }
   .term-new { height: auto; }

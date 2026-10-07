@@ -92,6 +92,7 @@ describe('Sidebar new session', () => {
     await userEvent.click(screen.getByRole('button', { name: 'New session' }))
     expect(onCreate).not.toHaveBeenCalled()
     expect(screen.getByLabelText('Branch name')).toHaveFocus()
+    expect(screen.getByLabelText('Branch name')).toHaveAttribute('placeholder', 'Branch name')
     expect(screen.getByLabelText('Branch name')).toHaveAttribute('aria-invalid', 'true')
     expect(screen.getByRole('alert')).toHaveTextContent('Name the branch')
     expect(screen.getByLabelText('Branch name')).toHaveAccessibleDescription('Name the branch')

@@ -17,7 +17,6 @@
 .diagnostics-page dd { margin: 0; font-family: var(--font-mono); }
 .diagnostics-server { margin-bottom: 12px; }
 .diagnostics-server-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
-.diagnostics-error { color: var(--bad); }
 .diagnostics-table-wrap { overflow-x: auto; }
 .diagnostics-page table { border-collapse: collapse; width: 100%; font-size: 12px; text-align: left; }
 .diagnostics-page th, .diagnostics-page td { padding: 10px 12px; border-bottom: 1px solid var(--rule); white-space: nowrap; }

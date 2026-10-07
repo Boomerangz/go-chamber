@@ -127,6 +127,15 @@ function titleFirst(page: Page) {
     if (shown && cut(title)) out.push(`title cut beside usage ${wide}px`)
     if (shown && cut(branch)) out.push(`branch cut beside usage ${wide}px`)
     if (shown && cut(usage) && wide < 72) out.push(`usage stub ${wide}px`)
+    // cut, the usage line drops whole parts: never "22 tokens ·…"
+    if (shown && cut(usage)) out.push(`usage cut mid-part: ${usage.textContent}`)
+    // a cut branch has the whole free line, not a share of it
+    const heading = el.querySelector('.chat-heading')!.getBoundingClientRect()
+    const copy = el.querySelector('.chat-path-copy')?.getBoundingClientRect().width ?? 0
+    if (branch && cut(branch)) {
+      const spare = Math.round(heading.right - branch.getBoundingClientRect().right - copy)
+      if (spare > 12) out.push(`branch cut with ${spare}px to spare`)
+    }
     // hidden, the usage line had no room: the title and its pencil fill the heading
     const pencil = el.querySelector('.chat-heading .rename-btn')?.getBoundingClientRect().width ?? 0
     const spare = el.querySelector('.chat-heading')!.getBoundingClientRect().width - (title?.scrollWidth ?? 0) - pencil
@@ -181,6 +190,10 @@ test('the title outranks the usage line, docked or not', async ({ page, isMobile
   // A long title takes the row before the usage line gets any of it.
   await open(LONG, 'feature-long')
   await check([[1440, 'none'], [1280, 'none'], [1280, 'Changes'], [1024, 'Changes']], 'long')
+  // A long branch under a short title takes the line's free width, and the
+  // usage line beside it shows whole parts or none.
+  await open('please show the branch', 'fix-the-very-long-branch-name-for-header-fold-test')
+  await check([[1280, 'Terminal'], [1280, 'none'], [1100, 'none'], [1024, 'Changes']], 'long branch')
 })
 
 // A short title leaves the usage line its room, for either agent.

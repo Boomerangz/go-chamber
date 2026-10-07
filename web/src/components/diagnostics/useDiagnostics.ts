@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react'
-import type { CLIStatus } from '../../lib/api'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { errorMessage, type CLIStatus } from '../../lib/api'
 import { diagnostics, recordSample } from '../../lib/diagnostics'
+import { describeError } from '../../stores/notices'
 
 export interface ServerDiagnostics {
   uptimeSeconds: number
@@ -16,6 +17,8 @@ export function useDiagnostics(enabled: boolean) {
   const [server, setServer] = useState<ServerDiagnostics | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [socketStatus, setSocketStatus] = useState('connecting')
+  // probe asks the server again now; it is the running effect's own probe.
+  const probe = useRef<(() => void) | null>(null)
 
   useEffect(() => {
     const timer = setInterval(() => setClient(diagnostics()), 1000)
@@ -42,7 +45,10 @@ export function useDiagnostics(enabled: boolean) {
       const deadline = setTimeout(() => controller.abort(), 5000)
       try {
         const response = await fetch('/api/diagnostics', { cache: 'no-store', credentials: 'same-origin', signal: controller.signal })
-        if (!response.ok) throw new Error(`Diagnostics request failed (${response.status})`)
+        if (!response.ok) {
+          const body = await response.text().catch(() => '')
+          throw new Error(errorMessage(body, `${response.status} ${response.statusText}`.trim()))
+        }
         const body = await response.json() as ServerDiagnostics
         if (!disposed) {
           recordSample('http', performance.now() - start)
@@ -50,7 +56,7 @@ export function useDiagnostics(enabled: boolean) {
           setError(null)
         }
       } catch (err) {
-        if (!disposed) setError(err instanceof Error ? err.message : String(err))
+        if (!disposed) setError(describeError(err))
       } finally {
         clearTimeout(deadline)
         busy = false
@@ -86,16 +92,19 @@ export function useDiagnostics(enabled: boolean) {
         if (!disposed) { setSocketStatus('reconnecting'); retry = setTimeout(connect, 1000) }
       }
     }
+    probe.current = () => void probeHTTP()
     void probeHTTP()
     connect()
     const timer = setInterval(() => { void probeHTTP(); probeSocket() }, 2000)
     return () => {
       disposed = true
+      probe.current = null
       currentRequest?.abort()
       clearInterval(timer)
       clearTimeout(retry)
       socket?.close()
     }
   }, [enabled])
-  return { client, server, error, socketStatus }
+  const retry = useCallback(() => probe.current?.(), [])
+  return { client, server, error, socketStatus, retry }
 }

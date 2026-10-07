@@ -66,10 +66,16 @@ function SessionUsage() {
   const tokens = total ? (usage.totalTokens ?? 0) : (result?.inputTokens ?? 0) + (result?.outputTokens ?? 0)
   const cost = total ? usage.costUsd : result?.costUsd
   if (!tokens && !cost) return null
-  const parts = [tokens ? `${tokens.toLocaleString()} tokens` : '', cost ? `$${cost.toFixed(4)}` : '', total ? '' : 'last turn']
+  const parts = [tokens ? `${tokens.toLocaleString()} tokens` : '', cost ? `$${cost.toFixed(4)}` : '', total ? '' : 'last turn'].filter(Boolean)
+  // Each part carries the " · " before it, so a narrow header drops whole
+  // parts from the end (useHeaderFold) and never shows "22 tokens ·…".
   return (
-    <span className="usage" aria-label={total ? 'Session usage' : 'Last turn usage'}>
-      {parts.filter(Boolean).join(' · ')}
+    <span className="usage" aria-label={total ? 'Session usage' : 'Last turn usage'} title={parts.join(' · ')}>
+      {parts.map((part, i) => (
+        <span key={i} className="usage-part">
+          {i > 0 ? ` · ${part}` : part}
+        </span>
+      ))}
     </span>
   )
 }
@@ -82,9 +88,9 @@ function ChatPath({ cwd, worktree }: { cwd: string; worktree?: Worktree }) {
   const copy = async () => {
     try {
       await navigator.clipboard.writeText(cwd)
-      notify({ kind: 'info', text: 'Path copied', key: 'copy-path' })
+      notify({ kind: 'info', text: 'Copied the folder path', key: 'copy-path' })
     } catch {
-      notify({ kind: 'error', title: "Couldn't copy the path", text: 'the browser refused clipboard access', key: 'copy-path' })
+      notify({ kind: 'error', title: "Couldn't copy the folder path", text: 'the browser refused clipboard access', key: 'copy-path' })
     }
   }
   return (

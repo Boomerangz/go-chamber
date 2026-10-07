@@ -25,7 +25,7 @@ describe('UnmergedNote', () => {
     expect(note).toHaveTextContent('Branch chamber/fix has 2 commits not in main')
     expect(note).toHaveTextContent('git -C /src/app merge chamber/fix')
     await userEvent.click(screen.getByRole('button', { name: 'Copy merge command' }))
-    expect(copyText).toHaveBeenCalledWith('git -C /src/app merge chamber/fix')
+    expect(copyText).toHaveBeenCalledWith('git -C /src/app merge chamber/fix', 'merge command')
   })
 
   it('says one commit', async () => {

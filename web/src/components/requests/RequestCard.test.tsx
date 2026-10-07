@@ -265,7 +265,7 @@ describe('RequestCard pending and failure', () => {
     })
     render(<RequestCard request={permission} onRespond={onRespond} />)
     await userEvent.click(screen.getByRole('button', { name: 'Allow' }))
-    expect(await screen.findByText('Not sent: agent gone')).toBeInTheDocument()
+    expect(await screen.findByText("Couldn't send the answer: agent gone")).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Allow' })).toBeEnabled()
     expect(screen.getByRole('button', { name: 'Deny' })).toBeEnabled()
     await userEvent.click(screen.getByRole('button', { name: 'Allow' }))
@@ -279,7 +279,7 @@ describe('RequestCard pending and failure', () => {
     render(<RequestCard request={question} onRespond={onRespond} />)
     await userEvent.click(screen.getByRole('radio', { name: /Alpha/ }))
     await userEvent.click(screen.getByRole('button', { name: 'Submit' }))
-    expect(await screen.findByText('Not sent: boom')).toBeInTheDocument()
+    expect(await screen.findByText("Couldn't send the answer: boom")).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Submit' })).toBeEnabled()
   })
 

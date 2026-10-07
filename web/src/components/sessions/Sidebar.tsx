@@ -288,7 +288,7 @@ export default function Sidebar(props: SidebarProps) {
               aria-label="Branch name"
               aria-invalid={(missing === 'branch' || refused !== null) || undefined}
               aria-describedby="new-session-branch-hint"
-              placeholder="branch name"
+              placeholder="Branch name"
               value={branch}
               onChange={(e) => {
                 setBranch(e.target.value)

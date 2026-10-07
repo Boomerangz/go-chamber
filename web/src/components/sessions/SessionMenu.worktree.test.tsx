@@ -75,7 +75,7 @@ describe('SessionMenu for a worktree session', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Remove' }))
     expect(removeWorktree).toHaveBeenCalledWith('s1', false)
     await waitFor(() => expect(screen.queryByRole('group')).toBeNull())
-    expect(useNotices.getState().notices.at(-1)?.text).toBe('Worktree removed, branch chamber/fix kept')
+    expect(useNotices.getState().notices.at(-1)?.text).toBe('Worktree removed · branch chamber/fix kept')
   })
 
   it('asks again before losing uncommitted changes', async () => {

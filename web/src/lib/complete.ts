@@ -1,4 +1,4 @@
-import type { AgentKind } from './api'
+import { errorMessage, requestRaw, type AgentKind } from './api'
 
 export interface Command {
   name: string
@@ -54,9 +54,14 @@ export function filterCommands(commands: Command[], query: string): Command[] {
   return [...prefix, ...inside].slice(0, 50)
 }
 
+// getJSON gives the server's own reason when it refuses, as every other
+// request does.
 async function getJSON<T>(path: string): Promise<T> {
-  const res = await fetch(path, { credentials: 'same-origin' })
-  if (!res.ok) throw new Error(`${res.status} ${res.statusText}`)
+  const res = await requestRaw(path)
+  if (!res.ok) {
+    const body = await res.text().catch(() => '')
+    throw new Error(errorMessage(body, `${res.status} ${res.statusText}`.trim()))
+  }
   return (await res.json()) as T
 }
 

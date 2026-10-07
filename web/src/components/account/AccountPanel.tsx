@@ -2,6 +2,7 @@ import { Check, Copy } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { getAccount, startLogin, type AccountInfo, type AgentKind, type LoginChallenge } from '../../lib/api'
 import { usePending } from '../../lib/pending'
+import { failedTo } from '../../lib/failed'
 import { describeError, fail } from '../../stores/notices'
 import { useSessionStore } from '../../stores/session'
 import { icon } from '../icon'
@@ -33,7 +34,11 @@ export function Accounts() {
   const loadQuotas = useSessionStore((s) => s.loadQuotas)
   const down = agents.filter((a) => failed[a] !== undefined)
   let line: string | null = null
-  if (down.length === agents.length) line = quotasDown ? "Couldn't reach the accounts or quotas" : "Couldn't reach the accounts"
+  if (down.length === agents.length) {
+    const reasons = new Set(down.map((a) => failed[a]))
+    const reason = reasons.size === 1 ? failed[down[0]!] : down.map((a) => `${agentName[a]}: ${failed[a]}`).join('; ')
+    line = failedTo(quotasDown ? 'reach the accounts or quotas' : 'reach the accounts', reason)
+  }
   else if (down.length === 1) line = `Couldn't check the ${agentName[down[0]!]} account: ${failed[down[0]!]}${quotasDown ? ' (and the quotas)' : ''}`
   return (
     <div className="accounts">
@@ -110,7 +115,7 @@ export default function AccountPanel({ agent, quietFailure = false }: { agent: A
           setError(null)
           if (a.loggedIn) setLogin(null)
         })
-        .catch((e) => setError(describeError(e)))
+        .catch((e) => setError(failedTo(`check the ${agentName[agent]} sign-in`, describeError(e))))
     }, POLL_MS)
     const expire = setTimeout(() => {
       setLogin(null)
@@ -134,7 +139,7 @@ export default function AccountPanel({ agent, quietFailure = false }: { agent: A
     try {
       setLogin(await startLogin(agent))
     } catch (e) {
-      setError(describeError(e))
+      setError(failedTo(`start the ${agentName[agent]} sign-in`, describeError(e)))
     }
   }, [agent])
   const [signIn, requesting] = usePending(request)
