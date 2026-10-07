@@ -417,3 +417,18 @@ describe('worktree sessions', () => {
     expect(tag).toHaveAttribute('title', 'Worktree removed · branch chamber/fix-readme kept')
   })
 })
+
+describe('a gone folder', () => {
+  it('offers no new session in its group and marks its rows gone', () => {
+    useSessionStore.setState({ sessions: [
+      { ...session('a', 'Lost work'), cwd: '/work/doomed', folderGone: true, status: 'detached' },
+      { ...session('b', 'Fine work'), cwd: '/work/fine', status: 'detached' },
+    ] })
+    render(<SessionList onCreateIn={() => {}} />)
+    expect(screen.queryByRole('button', { name: 'New Claude session in /work/doomed' })).toBeNull()
+    expect(screen.getByRole('button', { name: 'New Claude session in /work/fine' })).toBeInTheDocument()
+    const lost = screen.getByRole('button', { name: /^Lost work/ })
+    expect(lost.querySelector('.session-gone')).toHaveAttribute('title', 'Folder /work/doomed no longer exists')
+    expect(screen.getByRole('button', { name: /^Fine work/ }).querySelector('.session-gone')).toBeNull()
+  })
+})

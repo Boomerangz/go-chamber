@@ -74,6 +74,8 @@ function SessionDiffPanel({ sessionId }: { sessionId: string | null }) {
   const toggleWrap = useLayoutStore((s) => s.toggleWrap)
   const [changes, setChanges] = useState<api.Changes | null>(null)
   const [listError, setListError] = useState<string | null>(null)
+  // goneHere is the server saying the session's folder is not there.
+  const [goneHere, setGoneHere] = useState(false)
   // settled names the last reload that finished; a different key means a
   // reload is on its way.
   const [settled, setSettled] = useState<string | null>(null)
@@ -146,6 +148,7 @@ function SessionDiffPanel({ sessionId }: { sessionId: string | null }) {
         if (!alive) return
         setChanges(c)
         setListError(null)
+        setGoneHere(false)
         setSettled(key)
         setUpdatedAt(new Date())
         const before = signatures.current
@@ -162,7 +165,9 @@ function SessionDiffPanel({ sessionId }: { sessionId: string | null }) {
       },
       (err: unknown) => {
         if (!alive) return
-        setListError(describeError(err))
+        const gone = err instanceof api.ApiError && err.code === 'folder_gone'
+        setGoneHere(gone)
+        setListError(gone ? null : describeError(err))
         setSettled(key)
       },
     )
@@ -230,6 +235,9 @@ function SessionDiffPanel({ sessionId }: { sessionId: string | null }) {
   const total = totals(files)
   const counted = files.every((f) => f.added !== undefined || f.binary)
   const root = changes?.root
+  // A folder that is gone has nothing to list and nothing to retry; one
+  // that came back lists again.
+  const folderGone = !session?.worktree?.removed && (goneHere || (Boolean(session?.folderGone) && !changes))
 
   if (!sessionId) return <p className="tray-empty">Open a session to see its changes</p>
   return (
@@ -257,26 +265,35 @@ function SessionDiffPanel({ sessionId }: { sessionId: string | null }) {
               {allOpen ? <ChevronsDownUp {...icon(14)} /> : <ChevronsUpDown {...icon(14)} />}
             </button>
           )}
-          <button
-            type="button"
-            className="btn btn-ghost btn-icon"
-            aria-label="Refresh changes"
-            title={refreshing || !changes ? 'Refreshing…' : 'Refresh'}
-            aria-busy={(loading && (refreshing || !changes)) || undefined}
-            onClick={refresh}
-          >
-            <RefreshCw {...icon(14)} />
-          </button>
+          {!folderGone && (
+            <button
+              type="button"
+              className="btn btn-ghost btn-icon"
+              aria-label="Refresh changes"
+              title={refreshing || !changes ? 'Refreshing…' : 'Refresh'}
+              aria-busy={(loading && (refreshing || !changes)) || undefined}
+              onClick={refresh}
+            >
+              <RefreshCw {...icon(14)} />
+            </button>
+          )}
         </span>
       </header>
       {session?.worktree && !session.worktree.removed && (
         <WorktreeBar session={session} worktree={session.worktree} changed={files.length} commits={changes?.commits ?? 0} />
       )}
       {session?.worktree?.removed && <RemovedWorktree worktree={session.worktree} />}
-      {listError && (
+      {folderGone && session && (
+        <div className="worktree-bar" role="status" aria-label="Folder gone">
+          <p>
+            <span className="worktree-gone-kw">Folder gone</span> · <PathText path={session.cwd} /> no longer exists
+          </p>
+        </div>
+      )}
+      {listError && !folderGone && (
         <LoadFailed onRetry={refresh}>{`Couldn't load changes: ${listError}`}</LoadFailed>
       )}
-      {!changes && loading && !listError && <LoadingLine>loading changes…</LoadingLine>}
+      {!changes && loading && !listError && !folderGone && <LoadingLine>loading changes…</LoadingLine>}
       {changes && !changes.repository && !changes.removed && !session?.worktree?.removed && (
         <p className="tray-empty">This folder is not a git repository.</p>
       )}

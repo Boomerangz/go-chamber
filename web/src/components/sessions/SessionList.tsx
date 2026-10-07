@@ -6,6 +6,7 @@ import type { AgentKind, SearchHit, Session } from '../../lib/api'
 import {
   bucketOf,
   archivedSessions,
+  goneFolders,
   groupSessions,
   matchesQuery,
   matchingTree,
@@ -86,6 +87,9 @@ export default function SessionList({ onCreateIn, agent = 'claude', creating = f
     return groupSessions(withParents)
   }, [sessions, query, searching])
 
+  // A folder that is gone takes no new session.
+  const gone = useMemo(() => goneFolders(sessions), [sessions])
+
   // A session already listed for its title isn't listed again under messages.
   const shownIds = useMemo(
     () => new Set(searching ? sessions.filter((s) => matchesQuery(s, query)).map((s) => s.id) : []),
@@ -157,6 +161,7 @@ export default function SessionList({ onCreateIn, agent = 'claude', creating = f
             onMode={(mode) => setGroupMode(g.cwd, mode)}
             onSelect={(id) => void selectSession(id)}
             onCreateIn={onCreateIn}
+            gone={gone.has(g.cwd)}
             agent={agent}
             creating={creating}
             creatingIn={creatingIn}
@@ -193,6 +198,8 @@ function Group(props: {
   onMode: (mode: GroupMode) => void
   onSelect: (id: string) => void
   onCreateIn: (cwd: string) => void
+  // gone is set when the group's folder no longer exists.
+  gone: boolean
   agent: AgentKind
   creating: boolean
   creatingIn: string | null
@@ -238,16 +245,18 @@ function Group(props: {
             </span>
           )}
         </button>
-        <button
-          className="btn btn-ghost btn-icon group-new"
-          aria-label={`New ${agentName[props.agent]} session in ${group.cwd}`}
-          title={`New ${agentName[props.agent]} session in ${group.cwd}`}
-          disabled={props.creating}
-          aria-busy={(props.creating && props.creatingIn === group.cwd) || undefined}
-          onClick={() => props.onCreateIn(group.cwd)}
-        >
-          <Plus {...icon(16)} />
-        </button>
+        {!props.gone && (
+          <button
+            className="btn btn-ghost btn-icon group-new"
+            aria-label={`New ${agentName[props.agent]} session in ${group.cwd}`}
+            title={`New ${agentName[props.agent]} session in ${group.cwd}`}
+            disabled={props.creating}
+            aria-busy={(props.creating && props.creatingIn === group.cwd) || undefined}
+            onClick={() => props.onCreateIn(group.cwd)}
+          >
+            <Plus {...icon(16)} />
+          </button>
+        )}
       </header>
       {shown.length > 0 && (
         <ul className="sessions">
@@ -410,6 +419,11 @@ function SessionRow(props: {
                 title={s.worktree.removed ? `Worktree removed · branch ${s.worktree.branch} kept` : `In a worktree on ${s.worktree.branch} · ${s.worktree.path}`}
               >
                 {s.worktree.branch.replace(/^chamber\//, '')}
+              </span>
+            )}
+            {s.folderGone && (
+              <span className="session-gone" title={`Folder ${s.cwd} no longer exists`}>
+                gone
               </span>
             )}
             {s.forkOf && (

@@ -178,6 +178,9 @@ func (w *Worktrees) Changes(ctx context.Context, id domain.SessionID) (Changes, 
 	if wt := snap.Worktree; wt != nil && wt.Removed {
 		return Changes{Base: base, Files: []FileChange{}, Removed: true, Branch: wt.Branch}, nil
 	}
+	if err := w.checkFolder(snap.Cwd); err != nil {
+		return Changes{}, err
+	}
 	files, err := w.cfg.Git.Changes(ctx, snap.Cwd, base)
 	if errors.Is(err, ErrNotRepository) {
 		return Changes{Files: []FileChange{}}, nil
@@ -260,7 +263,25 @@ func (w *Worktrees) FileDiff(ctx context.Context, id domain.SessionID, path stri
 	if snap.Worktree != nil && snap.Worktree.Removed {
 		return "", domain.ErrWorktreeRemoved
 	}
+	if err := w.checkFolder(snap.Cwd); err != nil {
+		return "", err
+	}
 	return w.cfg.Git.FileDiff(ctx, snap.Cwd, base, clean)
+}
+
+// checkFolder refuses to look at changes of a session folder that went away.
+func (w *Worktrees) checkFolder(dir string) error {
+	if w.cfg.Folders == nil {
+		return nil
+	}
+	ok, err := w.cfg.Folders.FolderExists(dir)
+	switch {
+	case err != nil:
+		return err
+	case !ok:
+		return domain.FolderGone(dir)
+	}
+	return nil
 }
 
 func (w *Worktrees) base(ctx context.Context, id domain.SessionID) (domain.SessionSnapshot, string, error) {

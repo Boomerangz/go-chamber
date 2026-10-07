@@ -205,6 +205,19 @@ describe('Sidebar new session', () => {
     expect(field).not.toHaveAttribute('aria-invalid')
   })
 
+  it('keeps a long missing folder on one line, cut at its start, not broken mid-word', async () => {
+    const long = '/Users/someone/Develop/a/very/long/path/that/goes/on/and/on/doomed'
+    setup(vi.fn(async () => {
+      fail("Couldn't start the session", new Error(`Folder ${long} no longer exists`), undefined, { quiet: true })
+      return false
+    }))
+    await userEvent.type(screen.getByLabelText('Working directory'), long)
+    await userEvent.click(screen.getByRole('button', { name: 'New session' }))
+    const hint = await screen.findByRole('alert')
+    expect(hint).toHaveTextContent(`Folder ${long} no longer exists`)
+    expect(hint.querySelector('.path-text')).toHaveAttribute('title', long)
+  })
+
   it('says a worktree’s missing folder under the folder, not the branch', async () => {
     setup(vi.fn(async () => {
       fail("Couldn't start the session", new Error("Folder /nope doesn't exist"), undefined, { quiet: true })
@@ -289,6 +302,13 @@ describe('Sidebar folder', () => {
     useSessionStore.setState({ activeId: 'w' })
     setup(undefined, [{ ...session, id: 'w', cwd: '/data/worktrees/app/fix', worktree: { repo: '/src/app', path: '/data/worktrees/app/fix', branch: 'chamber/fix', base: 'main' } }])
     expect(screen.getByLabelText('Working directory')).toHaveValue('/src/app')
+  })
+
+  it('does not offer a gone session’s folder, nor a gone folder last used', () => {
+    localStorage.setItem('gc.lastFolder', '/work/doomed')
+    useSessionStore.setState({ activeId: 'g' })
+    setup(undefined, [{ ...session, id: 'g', cwd: '/work/doomed', folderGone: true }])
+    expect(screen.getByLabelText('Working directory')).toHaveValue('')
   })
 
   it('otherwise starts in the folder last used', async () => {

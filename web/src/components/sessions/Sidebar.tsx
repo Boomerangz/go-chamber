@@ -14,7 +14,8 @@ import { cliMissingText, missingCLIs, useCLIs } from '../../lib/clis'
 import { recentFolders } from '../../lib/folders'
 import { usePending } from '../../lib/pending'
 import { useIsRepo } from '../../lib/useIsRepo'
-import { recentProjects, startFolder } from '../../lib/sessions'
+import { goneFolders, recentProjects, startFolder } from '../../lib/sessions'
+import PathText from '../ui/PathText'
 import { lastError } from '../../stores/notices'
 import { useSessionStore } from '../../stores/session'
 import './Sidebar.css'
@@ -72,12 +73,15 @@ export default function Sidebar(props: SidebarProps) {
   // session's folder, or the one last started in.
   const [typed, setTyped] = useState<string | null>(null)
   // A worktree session offers its repository: a worktree of a worktree isn't wanted.
+  // A folder that is gone is offered from neither.
   const activeCwd = useSessionStore((s) => {
     const active = s.sessions.find((x) => x.id === s.activeId)
-    return active && startFolder(s.sessions)(active)
+    const dir = active && startFolder(s.sessions)(active)
+    return dir && !goneFolders(s.sessions).has(dir) ? dir : undefined
   })
   const [remembered, setRemembered] = useState(lastFolder)
-  const cwd = typed ?? activeCwd ?? remembered
+  const rememberedGone = useSessionStore((s) => remembered !== '' && goneFolders(s.sessions).has(remembered))
+  const cwd = typed ?? activeCwd ?? (rememberedGone ? '' : remembered)
   const setCwd = setTyped
   // creatingIn is the folder whose group "+" is starting a session.
   const [creatingIn, setCreatingIn] = useState<string | null>(null)
@@ -230,7 +234,7 @@ export default function Sidebar(props: SidebarProps) {
         />
         {(missing === 'cwd' || noFolder) && (
           <p className="field-hint" id="new-session-folder-hint" role="alert">
-            {missing === 'cwd' ? 'Choose a folder first' : noFolder}
+            {missing === 'cwd' ? 'Choose a folder first' : <FolderHint text={noFolder!} />}
           </p>
         )}
         {chips.length > 0 && (
@@ -324,5 +328,17 @@ function BranchHint({ id, missing, refused, preview }: { id: string; missing: bo
     <p className="branch-preview" id={id}>
       {`→ ${preview.branch}${preview.note ? ` · ${preview.note}` : ''}`}
     </p>
+  )
+}
+
+// FolderHint says a refused folder with its path on one line, cut at its
+// start when long, rather than broken anywhere across lines.
+function FolderHint({ text }: { text: string }) {
+  const m = /^Folder (.+) (doesn't exist|no longer exists)$/.exec(text)
+  if (!m) return <>{text}</>
+  return (
+    <>
+      Folder <PathText path={m[1]!} /> {m[2]}
+    </>
   )
 }
