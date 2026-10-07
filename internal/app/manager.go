@@ -126,6 +126,9 @@ type Manager struct {
 	resume map[domain.SessionID]*time.Timer
 	// stopping marks sessions whose owner asked to stop the running turn.
 	stopping map[domain.SessionID]bool
+	// answering holds a session's runtime events while an answer goes out and
+	// its decision is recorded, so what the agent says back comes after it.
+	answering map[domain.SessionID]*sync.Mutex
 }
 
 func NewManager(cfg ManagerConfig) *Manager {
@@ -136,14 +139,15 @@ func NewManager(cfg ManagerConfig) *Manager {
 		cfg.Now = time.Now
 	}
 	return &Manager{
-		cfg:      cfg,
-		sessions: map[domain.SessionID]*domain.Session{},
-		runtimes: map[domain.SessionID]AgentRuntime{},
-		pending:  map[domain.SessionID]map[domain.RequestID]*domain.Request{},
-		restart:  map[domain.SessionID]bool{},
-		idle:     map[domain.SessionID]*idleTimer{},
-		resume:   map[domain.SessionID]*time.Timer{},
-		stopping: map[domain.SessionID]bool{},
+		cfg:       cfg,
+		sessions:  map[domain.SessionID]*domain.Session{},
+		runtimes:  map[domain.SessionID]AgentRuntime{},
+		pending:   map[domain.SessionID]map[domain.RequestID]*domain.Request{},
+		restart:   map[domain.SessionID]bool{},
+		idle:      map[domain.SessionID]*idleTimer{},
+		resume:    map[domain.SessionID]*time.Timer{},
+		stopping:  map[domain.SessionID]bool{},
+		answering: map[domain.SessionID]*sync.Mutex{},
 	}
 }
 
@@ -750,10 +754,12 @@ func (m *Manager) spawnSubagent(parent *domain.Session, sp *domain.SubagentSpawn
 func (m *Manager) consume(s *domain.Session, rt AgentRuntime) {
 	// open tracks unfinished items, failed if the process dies under them.
 	open := map[domain.ItemID]domain.Item{}
+	hold := m.answerLock(s.ID())
 	for ev := range rt.Events() {
 		if err := ev.Valid(); err != nil {
 			continue
 		}
+		hold.Lock()
 		ev.SessionID = s.ID()
 		quotaEvent := ev.Type == domain.EventQuota
 		if quotaEvent {
@@ -768,6 +774,7 @@ func (m *Manager) consume(s *domain.Session, rt AgentRuntime) {
 			if quotaEvent {
 				m.quotaEventsMu.Unlock()
 			}
+			hold.Unlock()
 			continue
 		}
 		quotaStop := false
@@ -833,8 +840,22 @@ func (m *Manager) consume(s *domain.Session, rt AgentRuntime) {
 		case domain.EventSubagentSpawned:
 			m.spawnSubagent(s, ev.Subagent)
 		}
+		hold.Unlock()
 	}
 	m.detach(s, rt, open)
+}
+
+// answerLock is the session's hold on its runtime events while an answer
+// goes out (see answering).
+func (m *Manager) answerLock(id domain.SessionID) *sync.Mutex {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	l := m.answering[id]
+	if l == nil {
+		l = &sync.Mutex{}
+		m.answering[id] = l
+	}
+	return l
 }
 
 // markStopped notes on the result of a turn the owner asked to stop that it
@@ -983,6 +1004,12 @@ func (m *Manager) RespondRequest(ctx context.Context, sessionID domain.SessionID
 	if req == nil || rt == nil {
 		return fmt.Errorf("%w: %s", ErrRequestNotFound, requestID)
 	}
+	// The agent may reply the moment it hears the answer: its events wait
+	// until the decision is in the transcript, so the reply comes after it,
+	// as news to the owner who answered.
+	hold := m.answerLock(sessionID)
+	hold.Lock()
+	defer hold.Unlock()
 	if err := rt.Respond(ctx, requestID, answer); err != nil {
 		m.mu.Lock()
 		current := m.runtimes[sessionID] == rt
