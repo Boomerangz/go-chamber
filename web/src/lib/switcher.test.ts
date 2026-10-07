@@ -130,6 +130,20 @@ describe('switcherEntries new sessions in worktrees', () => {
     expect(fresh[0]!.title).toBe('New Claude session in repo')
   })
 
+  it('offers no new session in a folder that is gone', () => {
+    const sessions = [
+      s('a', { cwd: '/w/gone', folderGone: true, activeAt: '2026-01-03T00:00:00Z' }),
+      s('b', { cwd: '/w/gone', activeAt: '2026-01-02T00:00:00Z' }),
+      s('c', { cwd: '/w/here', activeAt: '2026-01-01T00:00:00Z' }),
+    ]
+    const typed = switcherEntries(sessions, [], new Map(), 'new claude').filter((e) => e.kind === 'new')
+    expect(typed.map((e) => e.cwd)).toEqual(['/w/here'])
+    // At rest, an open session whose folder is gone offers nothing new.
+    expect(switcherEntries(sessions, [], new Map(), '', { activeId: 'a' }).filter((e) => e.kind === 'new')).toEqual([])
+    // Its session is still there to open.
+    expect(switcherEntries(sessions, [], new Map(), '').some((e) => e.id === 'a')).toBe(true)
+  })
+
   it('never offers a removed worktree folder and lists each folder once', () => {
     const sessions = [
       s('a', { cwd: '/w/repo-wt', worktree: wt(true), activeAt: '2026-01-03T00:00:00Z' }),

@@ -1,5 +1,5 @@
 import type { Folder, Session } from './api'
-import { startFolder } from './sessions'
+import { goneFolders, startFolder } from './sessions'
 
 export interface Crumb {
   label: string
@@ -58,11 +58,12 @@ export function liveWorktrees(sessions: Session[]): LiveWorktree[] {
 export function recentFolders(sessions: Session[], limit: number): string[] {
   const out: string[] = []
   const folder = startFolder(sessions)
+  const gone = goneFolders(sessions)
   for (let i = sessions.length - 1; i >= 0 && out.length < limit; i--) {
     const s = sessions[i]
     // A worktree is offered as its repository: a worktree of a worktree isn't wanted.
     const cwd = folder(s)
-    if (!s.parentId && !out.includes(cwd)) out.push(cwd)
+    if (!s.parentId && !gone.has(cwd) && !out.includes(cwd)) out.push(cwd)
   }
   return out
 }

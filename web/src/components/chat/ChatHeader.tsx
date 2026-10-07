@@ -204,7 +204,8 @@ export default function ChatHeader({ session, status, unsettled, loading, notFou
             </span>
             <PermissionModeSelect session={session} />
             <ApprovalReviewerSelect session={session} />
-            {session.nativeId && (
+            {/* A fork starts in the session's folder: none once it's gone. */}
+            {session.nativeId && !session.folderGone && (
               <button type="button" className="btn btn-ghost chat-fork" aria-busy={forking} onClick={onFork}>
                 {forking ? 'Forking…' : 'Fork'}
               </button>

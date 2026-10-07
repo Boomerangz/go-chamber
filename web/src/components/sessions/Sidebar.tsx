@@ -9,7 +9,7 @@ import ArchivedSessions from './ArchivedSessions'
 import { SignOut } from '../shell/Shell'
 import HistoryPanel from './HistoryPanel'
 import SessionList from './SessionList'
-import { branchError, branchPreview } from '../../lib/branch'
+import { branchError, branchPreview, folderError } from '../../lib/branch'
 import { recentFolders } from '../../lib/folders'
 import { usePending } from '../../lib/pending'
 import { useIsRepo } from '../../lib/useIsRepo'
@@ -99,6 +99,8 @@ export default function Sidebar(props: SidebarProps) {
   }, [query])
   // missing names the field a submit found empty, until it is filled.
   const [missing, setMissing] = useState<'cwd' | 'branch' | null>(null)
+  // noFolder is the server saying the folder isn't there, until it is edited.
+  const [noFolder, setNoFolder] = useState<string | null>(null)
   // composing unfolds the form on phones, where it otherwise folds to one
   // line so the sessions own the screen. Wider screens always show it.
   const [composing, setComposing] = useState(false)
@@ -118,12 +120,23 @@ export default function Sidebar(props: SidebarProps) {
         setBranch('')
         setInWorktree(false)
       }
-      // The form says why a worktree was refused, under its branch.
-      if (!ok && branch) {
-        setRefused(branchError(lastError() ?? "Couldn't start the session"))
+      // The form says a refused folder under the folder field and a refused
+      // branch under its branch; anything else was a notice.
+      const why = ok ? null : lastError()
+      const folder = why && folderError(why)
+      const name = why && branch ? branchError(why) : null
+      if (folder) {
+        setNoFolder(folder)
+        setComposing(true)
+        folderInput.current?.focus()
+      } else if (name) {
+        setRefused(name)
         branchInput.current?.focus()
       }
-      if (ok) setComposing(false)
+      if (ok) {
+        setNoFolder(null)
+        setComposing(false)
+      }
       return ok
     },
     [onCreate],
@@ -194,16 +207,17 @@ export default function Sidebar(props: SidebarProps) {
           value={cwd}
           onChange={(v) => {
             setCwd(v)
+            setNoFolder(null)
             if (missing === 'cwd' && v.trim()) setMissing(null)
           }}
           recent={recentFolders(props.sessions, 6)}
-          invalid={missing === 'cwd'}
-          describedBy={missing === 'cwd' ? 'new-session-folder-hint' : undefined}
+          invalid={missing === 'cwd' || noFolder !== null}
+          describedBy={missing === 'cwd' || noFolder ? 'new-session-folder-hint' : undefined}
           inputRef={folderInput}
         />
-        {missing === 'cwd' && (
+        {(missing === 'cwd' || noFolder) && (
           <p className="field-hint" id="new-session-folder-hint" role="alert">
-            Choose a folder first
+            {missing === 'cwd' ? 'Choose a folder first' : noFolder}
           </p>
         )}
         {chips.length > 0 && (

@@ -140,6 +140,9 @@ type SessionSnapshot struct {
 	Worktree *Worktree `json:"worktree,omitempty"`
 	// ArchivedAt is set while the session is hidden from the list.
 	ArchivedAt time.Time `json:"archivedAt,omitzero"`
+	// FolderGone is observed when the session is listed, not kept: its
+	// folder was not there (a removed worktree says so by itself).
+	FolderGone bool `json:"folderGone,omitempty"`
 }
 
 func NewSession(id SessionID, agent AgentKind, cwd string) (*Session, error) {

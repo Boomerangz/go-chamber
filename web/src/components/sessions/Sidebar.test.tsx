@@ -160,6 +160,56 @@ describe('Sidebar new session', () => {
     expect(field).toHaveAccessibleDescription('→ chamber/fix-it2')
   })
 
+  it('says under the folder that it does not exist, not in a corner notice', async () => {
+    const onCreate = vi.fn(async () => {
+      fail("Couldn't start the session", new Error("Folder /nope doesn't exist"), undefined, { quiet: true })
+      return false
+    })
+    setup(onCreate)
+    const field = screen.getByLabelText('Working directory')
+    await userEvent.type(field, '/nope')
+    await userEvent.click(screen.getByRole('button', { name: 'New session' }))
+    expect(onCreate).toHaveBeenCalledWith('claude', '/nope', undefined)
+    expect(await screen.findByRole('alert')).toHaveTextContent("Folder /nope doesn't exist")
+    expect(field).toHaveAttribute('aria-invalid', 'true')
+    expect(field).toHaveAccessibleDescription("Folder /nope doesn't exist")
+    expect(field).toHaveFocus()
+    await userEvent.type(field, '2')
+    expect(screen.queryByRole('alert')).toBeNull()
+    expect(field).not.toHaveAttribute('aria-invalid')
+  })
+
+  it('says a worktree’s missing folder under the folder, not the branch', async () => {
+    setup(vi.fn(async () => {
+      fail("Couldn't start the session", new Error("Folder /nope doesn't exist"), undefined, { quiet: true })
+      return false
+    }))
+    const folder = screen.getByLabelText('Working directory')
+    await userEvent.type(folder, '/nope')
+    await userEvent.click(screen.getByLabelText('In a new worktree'))
+    const field = screen.getByLabelText('Branch name')
+    await userEvent.type(field, 'fix-it')
+    await userEvent.click(screen.getByRole('button', { name: 'New session' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent("Folder /nope doesn't exist")
+    expect(folder).toHaveAttribute('aria-invalid', 'true')
+    expect(field).not.toHaveAttribute('aria-invalid')
+  })
+
+  it('says nothing under the branch for a failure that isn’t about it', async () => {
+    setup(vi.fn(async () => {
+      fail("Couldn't start the session", new Error('database is locked'))
+      return false
+    }))
+    await userEvent.type(screen.getByLabelText('Working directory'), '/repo')
+    await userEvent.click(screen.getByLabelText('In a new worktree'))
+    const field = screen.getByLabelText('Branch name')
+    await userEvent.type(field, 'fix-it')
+    await userEvent.click(screen.getByRole('button', { name: 'New session' }))
+    await waitFor(() => expect(screen.getByRole('button', { name: 'New session' })).not.toHaveAttribute('aria-busy'))
+    expect(field).not.toHaveAttribute('aria-invalid')
+    expect(field).toHaveAccessibleDescription('→ chamber/fix-it')
+  })
+
   it('keeps the branch when the start failed', async () => {
     setup(vi.fn(async () => false))
     await userEvent.type(screen.getByLabelText('Working directory'), '/repo')

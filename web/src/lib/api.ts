@@ -42,6 +42,9 @@ export interface Session {
   worktree?: Worktree
   // archivedAt is set while the session is put away from the list.
   archivedAt?: string
+  // folderGone is set when the server last found the session's folder
+  // missing (a removed worktree says so by itself).
+  folderGone?: boolean
 }
 
 export interface Worktree {

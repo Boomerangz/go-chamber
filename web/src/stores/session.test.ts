@@ -7,6 +7,7 @@ vi.mock('../lib/api', () => ({
   getQuotas: vi.fn(),
   refreshQuota: vi.fn(),
   createSession: vi.fn(),
+  createWorktreeSession: vi.fn(),
   fetchEvents: vi.fn(),
   sendMessage: vi.fn(),
   steer: vi.fn(),
@@ -393,6 +394,45 @@ describe('session store', () => {
     expect(store().activeId).toBe('new')
   })
 
+  it('leaves a missing folder to a form that says it in place', async () => {
+    const missing = () => Object.assign(new Error("Folder /nope doesn't exist"), { status: 422 })
+    ;(api.createSession as Mock).mockRejectedValueOnce(missing())
+    expect(await store().createSession('claude', '/nope', undefined, true)).toBe(false)
+    expect(useNotices.getState().notices).toHaveLength(0)
+    expect(lastError()).toBe("Folder /nope doesn't exist")
+    // Elsewhere (the switcher) it is a notice.
+    ;(api.createSession as Mock).mockRejectedValueOnce(missing())
+    expect(await store().createSession('claude', '/nope')).toBe(false)
+    expect(useNotices.getState().notices).toHaveLength(1)
+    // The form says only a folder's refusal itself.
+    resetNotices()
+    ;(api.createSession as Mock).mockRejectedValueOnce(new Error('boom'))
+    await store().createSession('claude', '/x', undefined, true)
+    expect(useNotices.getState().notices).toHaveLength(1)
+  })
+
+  it('leaves only a branch or folder refusal of a worktree to the form', async () => {
+    const worktree = api.createWorktreeSession as Mock
+    worktree.mockRejectedValueOnce(new Error('branch already exists: chamber/x'))
+    await store().createSession('claude', '/r', 'x', true)
+    expect(useNotices.getState().notices).toHaveLength(0)
+    worktree.mockRejectedValueOnce(Object.assign(new Error("Folder /nope doesn't exist"), { status: 422 }))
+    await store().createSession('claude', '/nope', 'x', true)
+    expect(useNotices.getState().notices).toHaveLength(0)
+    worktree.mockRejectedValueOnce(new Error('database is locked'))
+    await store().createSession('claude', '/r', 'x', true)
+    expect(useNotices.getState().notices.map((n) => n.text)).toEqual(['database is locked'])
+  })
+
+  it('takes back an earlier start error once a start goes through', async () => {
+    ;(api.createSession as Mock).mockRejectedValueOnce(new Error('database is locked'))
+    await store().createSession('claude', '/r')
+    expect(useNotices.getState().notices).toHaveLength(1)
+    ;(api.createSession as Mock).mockResolvedValueOnce({ id: 'n', agent: 'claude', cwd: '/r', status: 'detached' })
+    expect(await store().createSession('claude', '/r')).toBe(true)
+    expect(useNotices.getState().notices).toHaveLength(0)
+  })
+
   it('remembers group modes across reloads', () => {
     expect(store().groupModes).toEqual({})
     store().setGroupMode('/p', 'all')
@@ -603,6 +643,29 @@ describe('session store', () => {
     useSessionStore.setState({ activeId: 'a' })
     await store().send('hello')
     expect(api.sendMessage).toHaveBeenCalledWith('a', 'hello')
+  })
+
+  it('marks the session when its folder turns out gone, instead of a notice', async () => {
+    useSessionStore.setState({ activeId: 'a', sessions: [{ id: 'a', agent: 'claude', cwd: '/p', status: 'detached' }] })
+    ;(api.sendMessage as Mock).mockRejectedValueOnce(Object.assign(new Error('Folder /p no longer exists'), { status: 422 }))
+    expect(await store().send('hello')).toBe(false)
+    expect(store().sessions[0]!.folderGone).toBe(true)
+    expect(useNotices.getState().notices).toHaveLength(0)
+    // Any other refusal is still said in a notice.
+    useSessionStore.setState({ sessions: [{ id: 'a', agent: 'claude', cwd: '/p', status: 'detached' }] })
+    ;(api.sendMessage as Mock).mockRejectedValueOnce(Object.assign(new Error('boom'), { status: 500 }))
+    expect(await store().send('hello')).toBe(false)
+    expect(store().sessions[0]!.folderGone).toBeUndefined()
+    expect(useNotices.getState().notices).toHaveLength(1)
+  })
+
+  it('keeps a gone folder through a state update that cannot know of it', () => {
+    useSessionStore.setState({ sessions: [{ id: 'a', agent: 'claude', cwd: '/p', status: 'detached', folderGone: true }] })
+    store().applyIncoming(event({ sessionId: 'a', type: 'session.state', item: undefined, session: { id: 'a', agent: 'claude', cwd: '/p', status: 'detached', archivedAt: '2026-10-07T00:00:00Z' } }))
+    expect(store().sessions[0]).toMatchObject({ folderGone: true, archivedAt: '2026-10-07T00:00:00Z' })
+    // A turn that runs proves the folder is back.
+    store().applyIncoming(event({ sessionId: 'a', type: 'session.state', item: undefined, session: { id: 'a', agent: 'claude', cwd: '/p', status: 'running' } }))
+    expect(store().sessions[0]!.folderGone).toBeUndefined()
   })
 
   it('does nothing on send without an active session or blank text', async () => {

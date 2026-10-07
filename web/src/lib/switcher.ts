@@ -1,6 +1,6 @@
 import type { AgentKind, Session } from './api'
 import { basename } from './format'
-import { folderNames, sessionTitle, shelvedIds, startFolder } from './sessions'
+import { folderNames, goneFolders, sessionTitle, shelvedIds, startFolder } from './sessions'
 import type { Terminal } from './terminal'
 
 export interface SwitcherEntry {
@@ -141,8 +141,10 @@ export function switcherEntries(
   // for — a worktree's repository, never the worktree (it may be gone).
   const byRecent = [...sessions].filter((s) => !s.parentId && !shelved.has(s.id)).sort((a, b) => (b.activeAt ?? b.createdAt ?? '').localeCompare(a.activeAt ?? a.createdAt ?? ''))
   const start = startFolder(sessions)
+  // Never in a folder the server found gone.
+  const gone = goneFolders(sessions)
   const open = sessions.find((s) => s.id === activeId) ?? byRecent[0]
-  const folders = words.length ? [...new Set(byRecent.map(start))] : open ? [start(open)] : []
+  const folders = (words.length ? [...new Set(byRecent.map(start))] : open ? [start(open)] : []).filter((cwd) => !gone.has(cwd))
   const newNames = folderNames(folders)
   for (const cwd of folders) {
     const label = names.get(cwd) ?? newNames.get(cwd) ?? basename(cwd)

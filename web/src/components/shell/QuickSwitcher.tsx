@@ -108,7 +108,9 @@ export default function QuickSwitcher({ onClose }: { onClose: () => void }) {
               <span className={`switcher-mark status status-${entry.waiting > 0 ? 'waiting' : entry.status}`} aria-hidden="true" />
             )}
             <span className="switcher-title" title={entry.title}>
-              {entry.kind === 'terminal' ? <NumberedTitle text={entry.title} hits={entry.titleHits} /> : <Marked text={entry.title} hits={entry.titleHits} />}
+              <span className="switcher-title-text">
+                {entry.kind === 'terminal' ? <NumberedTitle text={entry.title} hits={entry.titleHits} /> : <Marked text={entry.title} hits={entry.titleHits} />}
+              </span>
               {entry.current && <span className="switcher-current">current</span>}
             </span>
             <span className="switcher-detail" title={entry.kind === 'new' ? entry.cwd : undefined}>

@@ -211,7 +211,7 @@ test('a session in a missing folder is refused with the folder named', async ({ 
   const gone = path.join(realpathSync(mkdtempSync(path.join(tmpdir(), 'gc-e2e-'))), 'gone')
   const res = await page.request.post('/api/sessions', { headers, data: { agent: 'claude', cwd: gone } })
   expect(res.status()).toBe(422)
-  expect(((await res.json()) as { error: string }).error).toBe(`Folder ${gone} no longer exists`)
+  expect(((await res.json()) as { error: string }).error).toBe(`Folder ${gone} doesn't exist`)
 })
 
 test('the branch field previews its branch, refuses in place, and unticks once started', async ({ page }, info) => {

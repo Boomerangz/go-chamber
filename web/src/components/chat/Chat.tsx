@@ -5,6 +5,7 @@ import ComposerInput from '../composer/ComposerInput'
 import Attachments from '../composer/Attachments'
 import { useAttachments } from '../composer/useAttachments'
 import InterruptedBanner from './InterruptedBanner'
+import FolderGone from './FolderGone'
 import WorktreeGone from './WorktreeGone'
 import ChatHeader from './ChatHeader'
 import LiveStrip from './LiveStrip'
@@ -398,6 +399,8 @@ export default function Chat() {
   const [fork, forking] = usePending(() => forkSession(sessionId!), { holdOnSuccess: true })
   // A session whose worktree folder is gone takes no more turns.
   const gone = session?.worktree?.removed ? session.worktree : undefined
+  // Nor does one whose folder isn't there any more.
+  const folderGone = !gone && Boolean(session?.folderGone)
 
   // An answer that went through moves focus on: to the next request waiting,
   // or back to the composer, instead of dropping it on the page. One given
@@ -493,7 +496,7 @@ export default function Chat() {
             </LoadFailed>
           </div>
         )}
-        {!notFound && !gone && history === 'ready' && chat.order.length === 0 && pendingSends.length === 0 && status !== 'interrupted' && !busy && (
+        {!notFound && !gone && !folderGone && history === 'ready' && chat.order.length === 0 && pendingSends.length === 0 && status !== 'interrupted' && !busy && (
           <div className="chat-hint">
             <p className="chat-hint-where">
               Send a message to start. The agent runs in <HintWhere session={session} />.
@@ -535,7 +538,7 @@ export default function Chat() {
           </div>
         )}
       </div>
-      {status === 'interrupted' && session && !gone && (
+      {status === 'interrupted' && session && !gone && !folderGone && (
         <InterruptedBanner
           session={session}
           onContinue={continueSession}
@@ -545,7 +548,8 @@ export default function Chat() {
       <LiveStrip note={stopSent ? 'stop sent · waiting for the agent' : undefined} />
       {!notFound && session && !gone && <UnmergedNote session={session} />}
       {!notFound && session && gone && <WorktreeGone session={session} worktree={gone} />}
-      {!notFound && !gone && (
+      {!notFound && session && folderGone && <FolderGone session={session} />}
+      {!notFound && !gone && !folderGone && (
       <form
         className={['composer', attachments.dragging && 'dragging', multiline && 'multiline'].filter(Boolean).join(' ')}
         {...attachments.dropProps}

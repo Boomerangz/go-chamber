@@ -75,15 +75,27 @@ export function startFolder(sessions: Session[]): (s: Session) => string {
   return (s) => s.worktree?.repo ?? removed.get(s.cwd) ?? s.cwd
 }
 
+// goneFolders are the start folders the server found missing when it last
+// listed the sessions. A worktree's own folder going says nothing of its
+// repository, which is where it would start.
+export function goneFolders(sessions: Session[]): Set<string> {
+  const start = startFolder(sessions)
+  const out = new Set<string>()
+  for (const s of sessions) if (s.folderGone && start(s) === s.cwd) out.add(s.cwd)
+  return out
+}
+
 // recentProjects are the folders sessions were last started in, newest
 // first: archived sessions count (their project is still recent), and a
-// worktree counts as its repository.
+// worktree counts as its repository. A folder that is gone is left out.
 export function recentProjects(sessions: Session[], limit: number): { cwd: string; name: string }[] {
   const latest = new Map<string, number>()
   const folder = startFolder(sessions)
+  const gone = goneFolders(sessions)
   for (const s of sessions) {
     if (s.parentId) continue
     const cwd = folder(s)
+    if (gone.has(cwd)) continue
     latest.set(cwd, Math.max(latest.get(cwd) ?? 0, activity(s)))
   }
   const cwds = [...latest].sort((a, b) => b[1] - a[1]).slice(0, limit).map(([cwd]) => cwd)
