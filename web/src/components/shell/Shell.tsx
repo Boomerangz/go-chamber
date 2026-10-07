@@ -168,7 +168,12 @@ export function DockRail() {
           title="Collapse"
           tabIndex={stop === 'collapse' ? 0 : -1}
           onFocus={() => setCurrent('collapse')}
-          onClick={() => toggleDock(dock)}
+          onClick={() => {
+            toggleDock(dock)
+            // This button goes with the dock: the tab that opened it keeps the focus.
+            setCurrent(dock)
+            rail.current?.querySelector<HTMLElement>(`[data-rail="${dock}"]`)?.focus()
+          }}
         >
           <ChevronsRight {...icon(16)} />
         </button>
@@ -271,6 +276,13 @@ export function DockSplitter({ dock }: { dock: DockTab }) {
   )
 }
 
+// focusSessions moves the focus into the sessions list: to the open
+// session's row, else to the search.
+function focusSessions() {
+  const row = document.querySelector<HTMLElement>('button.session[aria-current="true"]')
+  ;(row ?? document.querySelector<HTMLElement>('input[aria-label="Search sessions"]'))?.focus()
+}
+
 // ShowSessions brings back a sessions list hidden with ⌘B, named in the top
 // bar so the way back is plain to see.
 export function ShowSessions() {
@@ -284,7 +296,11 @@ export function ShowSessions() {
       className="btn btn-ghost btn-xs show-sessions"
       aria-label="Show sessions"
       title={`Show sessions (${formatCombo({ key: 'b', mod: true })})`}
-      onClick={toggleSidebar}
+      onClick={() => {
+        toggleSidebar()
+        // This button goes as the list comes back: the focus goes into the list.
+        requestAnimationFrame(focusSessions)
+      }}
     >
       <ChevronsRight {...icon(14)} />
       <span className="show-sessions-label">Show sessions</span>

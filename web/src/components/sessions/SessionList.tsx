@@ -382,6 +382,7 @@ function SessionRow(props: {
         ref={ref}
         className={active ? 'session active' : 'session'}
         aria-current={active ? 'true' : undefined}
+        data-session={s.id}
         onClick={() => props.onSelect(s.id)}
       >
         <span className={`avatar avatar-sm avatar-${s.agent}`} aria-hidden="true">

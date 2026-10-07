@@ -78,6 +78,31 @@ describe('ShowSessions', () => {
       vi.unstubAllGlobals()
     }
   })
+
+  it('hands the focus to the open session row, else the search, as it goes', async () => {
+    useLayoutStore.setState({ mode: 'agents', sidebar: false, focus: false })
+    const { rerender } = render(
+      <>
+        <input aria-label="Search sessions" />
+        <button type="button" className="session" aria-current="true">
+          open one
+        </button>
+        <ShowSessions />
+      </>,
+    )
+    await userEvent.click(screen.getByRole('button', { name: 'Show sessions' }))
+    await waitFor(() => expect(screen.getByRole('button', { name: 'open one' })).toHaveFocus())
+
+    act(() => useLayoutStore.setState({ sidebar: false }))
+    rerender(
+      <>
+        <input aria-label="Search sessions" />
+        <ShowSessions />
+      </>,
+    )
+    await userEvent.click(screen.getByRole('button', { name: 'Show sessions' }))
+    await waitFor(() => expect(screen.getByLabelText('Search sessions')).toHaveFocus())
+  })
 })
 
 describe('DockRail', () => {
@@ -119,6 +144,17 @@ describe('DockRail', () => {
     act(() => useLayoutStore.setState({ dock: null }))
     fireEvent.click(screen.getByRole('button', { name: 'Terminal' }), { detail: 0 })
     await waitFor(() => expect(screen.getByRole('button', { name: 'inside' })).toHaveFocus())
+  })
+
+  it('collapsing the dock hands the focus back to the tab that was open', async () => {
+    useLayoutStore.setState({ dock: 'terminal' })
+    render(<DockRail />)
+    await userEvent.click(screen.getByRole('button', { name: 'Collapse dock' }))
+    expect(useLayoutStore.getState().dock).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Collapse dock' })).toBeNull()
+    const terminal = screen.getByRole('button', { name: 'Terminal' })
+    expect(terminal).toHaveFocus()
+    expect(terminal).toHaveAttribute('tabindex', '0')
   })
 })
 

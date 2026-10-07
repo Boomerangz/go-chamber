@@ -296,6 +296,33 @@ describe('SessionMenu', () => {
     expect(actions.unarchiveSession).toHaveBeenCalledWith('s1')
   })
 
+  it('Undo hands the focus to the restored row, or the composer of the open session', async () => {
+    const { rerender } = render(<Row />)
+    await userEvent.click(trigger())
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Archive' }))
+    await waitFor(() => expect(useNotices.getState().notices).toHaveLength(1))
+    rerender(
+      <>
+        <Row />
+        <button type="button" className="session" data-session="s1">
+          restored
+        </button>
+        <textarea aria-label="Message" />
+      </>,
+    )
+    useNotices.getState().notices[0]!.action!.run()
+    await waitFor(() => expect(screen.getByRole('button', { name: 'restored' })).toHaveFocus())
+
+    useSessionStore.setState({ activeId: 's1' })
+    useNotices.setState({ notices: [] })
+    screen.getByRole('button', { name: 'restored' }).blur()
+    await userEvent.click(trigger())
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Archive' }))
+    await waitFor(() => expect(useNotices.getState().notices).toHaveLength(1))
+    useNotices.getState().notices[0]!.action!.run()
+    await waitFor(() => expect(screen.getByLabelText('Message')).toHaveFocus())
+  })
+
   it('stops a running turn from the menu, archived or not', async () => {
     ;(api.interrupt as Mock).mockResolvedValue(undefined)
     render(<Row session={{ ...base, status: 'running', archivedAt: '2026-10-06T09:00:00Z' }} />)

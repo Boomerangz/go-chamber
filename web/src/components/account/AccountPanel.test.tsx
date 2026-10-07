@@ -85,7 +85,12 @@ describe('AccountPanel', () => {
     await startSignIn()
     await userEvent.click(screen.getByRole('button', { name: 'Cancel' }))
     expect(screen.queryByText('ABCD')).toBeNull()
-    expect(screen.getByRole('button', { name: 'Sign in to Codex' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Sign in to Codex' })).toHaveFocus()
+  })
+
+  it('hands the focus to Copy code when the code replaces the Sign in button', async () => {
+    await startSignIn()
+    expect(screen.getByRole('button', { name: 'Copy code' })).toHaveFocus()
   })
 
   it('stops waiting when the code expires and offers a new one', async () => {
