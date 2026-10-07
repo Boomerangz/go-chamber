@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import * as api from '../../lib/api'
 import { useCLIs } from '../../lib/clis'
+import { noteBrowse } from '../../lib/browse'
 import { initialChat, type ChatState } from '../../lib/events'
 import { resetDrafts } from '../../stores/drafts'
 import { notify, useNotices } from '../../stores/notices'
@@ -523,6 +524,17 @@ describe('stopping', () => {
     expect(fns.interrupt).toHaveBeenCalledTimes(1)
   })
 
+  it('leaves the composer with a second Escape while the stop is on its way', async () => {
+    setup({ chat: running([item('u1', 'user_message')]) })
+    box().focus()
+    await userEvent.keyboard('{Escape}')
+    expect(screen.getByRole('button', { name: 'Stopping…' })).toBeInTheDocument()
+    expect(box()).toHaveFocus()
+    await userEvent.keyboard('{Escape}')
+    expect(box()).not.toHaveFocus()
+    expect(fns.interrupt).toHaveBeenCalledTimes(1)
+  })
+
   it('leaves an empty idle composer with Escape, so single-key shortcuts work', async () => {
     setup({})
     box().focus()
@@ -679,6 +691,23 @@ function pointerFine() {
     removeEventListener: () => {},
   }))
 }
+
+describe('opening', () => {
+  afterEach(() => vi.unstubAllGlobals())
+
+  it('takes the focus to the composer on a desktop', () => {
+    pointerFine()
+    setup()
+    expect(box()).toHaveFocus()
+  })
+
+  it('leaves the focus alone when j/k stepping opened it, so the next j steps on', () => {
+    pointerFine()
+    noteBrowse('s1')
+    setup()
+    expect(box()).not.toHaveFocus()
+  })
+})
 
 describe('answering requests', () => {
   afterEach(() => vi.unstubAllGlobals())

@@ -13,6 +13,7 @@ import { openShortcuts } from './overlay'
 import { resetStore, useSessionStore } from '../../stores/session'
 import { useLayoutStore } from '../../stores/layout'
 import { isMac } from '../../lib/hotkeys'
+import { browsedTo } from '../../lib/browse'
 
 const session = (id: string, title: string): Session =>
   ({ id, agent: 'claude', cwd: `/w/${id}`, status: 'idle', title, createdAt: '2026-01-01T00:00:00Z' }) as Session
@@ -145,6 +146,8 @@ describe('Hotkeys', () => {
     await userEvent.keyboard('r')
     expect(useLayoutStore.getState().mode).toBe('agents')
     expect(useSessionStore.getState().activeId).toBe('b')
+    // The chat leaves the focus to the request card, so a digit answers it at once.
+    expect(browsedTo('b')).toBe(true)
   })
 
   it('opens and closes the changes dock with d', async () => {
@@ -192,6 +195,116 @@ describe('Hotkeys', () => {
     useLayoutStore.setState({ focus: true })
     await userEvent.keyboard('n')
     expect(useLayoutStore.getState().focus).toBe(false)
+  })
+
+  it('steps with j as browsing: the chat it opens leaves the focus to the steps', async () => {
+    const selected: string[] = []
+    render(
+      <>
+        <aside className="sidebar">
+          <button type="button" className="session" data-session="a" aria-current="true" onClick={() => selected.push('a')}>alpha</button>
+          <button type="button" className="session" data-session="b" onClick={() => selected.push('b')}>beta</button>
+        </aside>
+        <Hotkeys />
+      </>,
+    )
+    await userEvent.keyboard('j')
+    expect(selected).toEqual(['b'])
+    expect(browsedTo('b')).toBe(true)
+  })
+
+  it('carries a focused session row along with the step', async () => {
+    render(
+      <>
+        <aside className="sidebar">
+          <button type="button" className="session" data-session="a" aria-current="true">alpha</button>
+          <button type="button" className="session" data-session="b">beta</button>
+        </aside>
+        <Hotkeys />
+      </>,
+    )
+    screen.getByRole('button', { name: 'alpha' }).focus()
+    await userEvent.keyboard('j')
+    expect(screen.getByRole('button', { name: 'beta' })).toHaveFocus()
+  })
+
+  it('lets the terminal hand on ⌘K on a Mac, while Ctrl+K stays the shell’s elsewhere', async () => {
+    render(
+      <>
+        <div className="xterm"><textarea aria-label="Terminal input" /></div>
+        <Hotkeys />
+      </>,
+    )
+    screen.getByLabelText('Terminal input').focus()
+    await userEvent.keyboard(isMac ? '{Meta>}k{/Meta}' : '{Control>}k{/Control}')
+    expect(screen.queryByRole('combobox', { name: 'Go to' }) !== null).toBe(isMac)
+    // Single keys never leave a terminal.
+    screen.getByLabelText('Terminal input').focus()
+    await userEvent.keyboard('?')
+    expect(screen.queryByRole('dialog', { name: 'Keyboard shortcuts' })).toBeNull()
+  })
+
+  it('lists the way out of a terminal under Terminal', async () => {
+    render(<Hotkeys />)
+    await userEvent.keyboard('?')
+    expect(screen.getByRole('region', { name: 'Terminal' })).toHaveTextContent('In a terminal: back to the composer')
+  })
+
+  it('opens and leaves the Overview with o, and leaves it with Escape', async () => {
+    useSessionStore.setState({ activeId: 'a', pane: 'chat' })
+    useLayoutStore.setState({ mode: 'terminal' })
+    render(<Hotkeys />)
+    await userEvent.keyboard('o')
+    expect(useSessionStore.getState().pane).toBe('overview')
+    expect(useLayoutStore.getState().mode).toBe('agents')
+    await userEvent.keyboard('o')
+    expect(useSessionStore.getState().pane).toBe('chat')
+    await userEvent.keyboard('o')
+    await userEvent.keyboard('{Escape}')
+    expect(useSessionStore.getState().pane).toBe('chat')
+    await userEvent.keyboard('?')
+    expect(screen.getByRole('region', { name: 'Navigate' })).toHaveTextContent('Overview on or off')
+    expect(screen.getByRole('region', { name: 'Navigate' })).toHaveTextContent('In the Overview: back to the workspace')
+  })
+
+  it('leaves Escape alone outside the Overview and in a field within it', async () => {
+    useSessionStore.setState({ activeId: 'a', pane: 'overview' })
+    render(
+      <>
+        <section className="attention-overview"><input aria-label="field" /></section>
+        <Hotkeys />
+      </>,
+    )
+    screen.getByLabelText('field').focus()
+    await userEvent.keyboard('{Escape}')
+    expect(useSessionStore.getState().pane).toBe('overview')
+    act(() => useSessionStore.setState({ pane: 'chat' }))
+    screen.getByLabelText('field').blur()
+    await userEvent.keyboard('{Escape}')
+    expect(useSessionStore.getState().pane).toBe('chat')
+  })
+
+  it('takes the focus into the dock a key opened: the first file in Changes, the shell in Terminal', async () => {
+    function FakeDock() {
+      const dock = useLayoutStore((s) => s.dock)
+      if (dock === 'changes') return <div className="dock"><section className="diff-panel"><button type="button" className="diff-file-toggle">a.go</button><button type="button" className="diff-file-toggle">b.go</button></section></div>
+      if (dock === 'terminal') return <div className="dock"><section className="terminals"><button type="button">New terminal</button><div className="xterm"><textarea aria-label="Terminal input" /></div></section></div>
+      return null
+    }
+    useSessionStore.setState({ activeId: 'a' })
+    render(
+      <>
+        <FakeDock />
+        <Hotkeys />
+      </>,
+    )
+    await userEvent.keyboard('d')
+    await waitFor(() => expect(screen.getByRole('button', { name: 'a.go' })).toHaveFocus())
+    // Closing it again by key is d from the file list.
+    await userEvent.keyboard('d')
+    expect(useLayoutStore.getState().dock).toBeNull()
+    await userEvent.keyboard('t')
+    await waitFor(() => expect(screen.getByLabelText('Terminal input')).toHaveFocus())
   })
 
   it('keeps Focus when c targets the composer', async () => {

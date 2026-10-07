@@ -26,6 +26,7 @@ import { SENT_HOLD_MS, untilBack, useLiveDropped } from './useLiveDropped'
 import { beginAgentView, endAgentView, recordAgentCommit } from '../../lib/diagnostics'
 import { SessionFiles, SessionFolder } from '../../lib/files'
 import type { RequestAnswerInput, Session, SessionStatus, TurnResult } from '../../lib/api'
+import { browsedTo } from '../../lib/browse'
 import { forgetCommands } from '../../lib/complete'
 import { basename, displayStatus } from '../../lib/format'
 import { enter } from '../../lib/motion'
@@ -236,6 +237,8 @@ export default function Chat() {
 
   const input = useRef<HTMLTextAreaElement>(null)
   useEffect(() => {
+    // Stepping through the list with j/k only looks: the next j must step on.
+    if (browsedTo(useSessionStore.getState().activeId ?? '')) return
     // A request card that took focus on arrival keeps it, so its keys answer.
     if (matches('(pointer: fine)') && !document.activeElement?.closest('.request')) input.current?.focus()
   }, [])
@@ -381,13 +384,14 @@ export default function Chat() {
     return ok
   })
   const stopping = stopPending || stopHeld !== null
-  const stopRef = useRef<() => void>(() => {})
+  const stopRef = useRef<(escape?: boolean) => void>(() => {})
   useEffect(() => {
-    stopRef.current = () => {
+    stopRef.current = (escape = false) => {
       if (busy && !stopping) void stop()
-      // Nothing to stop: Escape leaves the composer, so single-key
-      // shortcuts (j/k, ?, r) answer again.
-      else if (!busy) (document.activeElement as HTMLElement | null)?.blur()
+      // Nothing (more) to stop: Escape leaves the composer, so single-key
+      // shortcuts (j/k, ?, r) answer again. A stop already on its way
+      // counts as nothing more to stop.
+      else if (!busy || escape) (document.activeElement as HTMLElement | null)?.blur()
     }
   })
   // ⌘. / Ctrl+. stops the turn from anywhere but a terminal.
@@ -586,7 +590,7 @@ export default function Chat() {
           onChange={setText}
           onSubmit={() => submit()}
           onEscape={() => {
-            if (!text) stopRef.current()
+            if (!text) stopRef.current(true)
           }}
           history={sent}
           enterSends={!touch}

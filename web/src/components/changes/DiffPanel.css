@@ -12,7 +12,10 @@
 /* what the panel says when there is nothing to list starts where its label does */
 .dock-body .diff-panel > .tray-empty { padding: 2px 0; }
 .diff-total { font-family: var(--font-mono); font-size: 12px; color: var(--ink-2); white-space: nowrap; }
-.diff-updated { flex: 1; font-family: var(--font-mono); font-size: 12px; color: var(--ink-3); white-space: nowrap; }
+/* the time gives way before the buttons drop to a second line: it never
+   asks for room (no basis), and a narrow panel leaves it out altogether */
+.diff-updated { flex: 1 1 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; font-family: var(--font-mono); font-size: 12px; color: var(--ink-3); white-space: nowrap; }
+@container (max-width: 400px) { .diff-updated { display: none; } }
 .diff-actions { margin-left: auto; display: inline-flex; align-items: center; gap: 2px; }
 .diff-actions .btn[aria-pressed='true'] { border-color: var(--ink); color: var(--ink); }
 .diff-error { margin: 4px 6px; color: var(--bad); font-size: 13px; white-space: pre-wrap; overflow-wrap: anywhere; }
