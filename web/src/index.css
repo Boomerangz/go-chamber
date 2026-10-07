@@ -1119,7 +1119,8 @@ button.health { border: 0; background: none; padding: 0; }
 .file-viewer[open] { display: flex; flex-direction: column; }
 .file-viewer::backdrop { background: color-mix(in srgb, var(--paper) 55%, transparent); }
 .file-viewer-bar { flex: none; display: flex; align-items: center; gap: 4px 8px; padding: 6px 8px 6px 12px; border-bottom: 1px solid var(--rule); background: var(--paper); }
-.file-viewer-path { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--font-mono); font-size: 13px; }
+.file-viewer-path { flex: 1; min-width: 0; display: flex; overflow: hidden; white-space: nowrap; font-family: var(--font-mono); font-size: 13px; }
+.file-viewer-line { flex: none; }
 .file-viewer-tools { flex: none; display: inline-flex; align-items: center; gap: 2px; }
 .file-viewer-tools .btn[aria-pressed='true'] { border-color: var(--ink); color: var(--ink); }
 a.btn { text-decoration: none; }
@@ -1158,7 +1159,7 @@ pre.md-code { tab-size: 4; }
     padding: env(safe-area-inset-top) 0 env(safe-area-inset-bottom);
   }
   .file-viewer-bar { flex-wrap: wrap; padding: 6px var(--gutter); }
-  .file-viewer-path { flex-basis: 100%; white-space: normal; overflow-wrap: anywhere; }
+  .file-viewer-path { flex-basis: 100%; }
   .file-viewer-tools { margin-left: auto; }
   .file-viewer-tools .btn-icon { width: 36px; height: 36px; }
   .file-viewer-body { padding: 10px var(--gutter); }

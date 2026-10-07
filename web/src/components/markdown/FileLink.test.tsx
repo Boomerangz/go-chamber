@@ -182,6 +182,44 @@ describe('file links', () => {
     expect(screen.getByRole('link', { name: 'Download' })).toBeInTheDocument()
   })
 
+  it('names the file in its title, whatever the length of the folders above', () => {
+    inSession('[shot](/home/me/work/very/deep/folder/shot.png)')
+    fireEvent.click(screen.getByRole('link', { name: 'shot' }))
+    const title = document.querySelector('.file-viewer-path')!
+    expect(title.querySelector('.path-tail')).toHaveTextContent('shot.png')
+    expect(title).toHaveAttribute('title', '/home/me/work/very/deep/folder/shot.png')
+  })
+
+  it('on a phone, is a Back step: Back closes the viewer, and closing it takes the step back', async () => {
+    const media = window.matchMedia
+    window.matchMedia = vi.fn().mockImplementation((q: string) => ({ matches: q.includes('720'), media: q })) as never
+    try {
+      history.replaceState({ pane: 'chat' }, '', '/s/s1')
+      const before = history.length
+      inSession('[shot](/work/shot.png)')
+      fireEvent.click(screen.getByRole('link', { name: 'shot' }))
+      expect(history.length).toBe(before + 1)
+      await act(async () => {
+        const popped = new Promise((r) => window.addEventListener('popstate', r, { once: true }))
+        history.back()
+        await popped
+      })
+      expect(document.querySelector('.file-viewer')).toBeNull()
+      expect(history.state).toEqual({ pane: 'chat' })
+
+      fireEvent.click(screen.getByRole('link', { name: 'shot' }))
+      expect(history.state).toMatchObject({ viewer: true })
+      await act(async () => {
+        const popped = new Promise((r) => window.addEventListener('popstate', r, { once: true }))
+        fireEvent.click(screen.getByRole('button', { name: 'Close' }))
+        await popped
+      })
+      expect(history.state).toEqual({ pane: 'chat' })
+    } finally {
+      window.matchMedia = media
+    }
+  })
+
   it('gives the focus back to what opened it', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => new Response('hello')))
     inSession('[notes](notes.txt)')
