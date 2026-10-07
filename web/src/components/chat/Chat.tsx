@@ -6,6 +6,7 @@ import Attachments from '../composer/Attachments'
 import { useAttachments } from '../composer/useAttachments'
 import InterruptedBanner from './InterruptedBanner'
 import FolderGone from './FolderGone'
+import CLIMissing from './CLIMissing'
 import WorktreeGone from './WorktreeGone'
 import ChatHeader from './ChatHeader'
 import LiveStrip from './LiveStrip'
@@ -30,6 +31,7 @@ import { useJustFinished } from '../../lib/finished'
 import { useNow } from '../../lib/now'
 import { owesAnswer, shownStatus } from '../../lib/status'
 import { usePending } from '../../lib/pending'
+import { useCLIs } from '../../lib/clis'
 import { useUnseen } from '../../lib/seen'
 import { isBlank, itemTree, withoutAnsweredQuestions } from '../../lib/tree'
 import { groupTools, lastItemId } from '../../lib/group'
@@ -403,6 +405,9 @@ export default function Chat() {
   const gone = session?.worktree?.removed ? session.worktree : undefined
   // Nor does one whose folder isn't there any more.
   const folderGone = !gone && Boolean(session?.folderGone)
+  // Nor one whose agent CLI the server can't find (GET /api/agents).
+  const noCLI = useCLIs((s) => s.clis.find((c) => c.agent === session?.agent && !c.found))
+  const cliMissing = !gone && !folderGone ? noCLI : undefined
 
   // An answer that went through moves focus on: to the next request waiting,
   // or back to the composer, instead of dropping it on the page. One given
@@ -543,6 +548,7 @@ export default function Chat() {
       {status === 'interrupted' && session && !gone && !folderGone && (
         <InterruptedBanner
           session={session}
+          blocked={cliMissing ? 'The agent’s CLI is not installed' : undefined}
           onContinue={continueSession}
           onAutoContinue={(on) => setAutoContinue(session.id, on)}
         />
@@ -551,7 +557,8 @@ export default function Chat() {
       {!notFound && session && !gone && <UnmergedNote session={session} />}
       {!notFound && session && gone && <WorktreeGone session={session} worktree={gone} />}
       {!notFound && session && folderGone && <FolderGone session={session} />}
-      {!notFound && !gone && !folderGone && (
+      {!notFound && session && cliMissing && <CLIMissing cli={cliMissing} />}
+      {!notFound && !gone && !folderGone && !cliMissing && (
       <form
         className={['composer', attachments.dragging && 'dragging', multiline && 'multiline'].filter(Boolean).join(' ')}
         {...attachments.dropProps}

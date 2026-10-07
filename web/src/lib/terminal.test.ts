@@ -26,6 +26,13 @@ describe('terminal REST', () => {
     expect(fn).toHaveBeenCalledWith('/api/terminals', { credentials: 'same-origin' })
   })
 
+  it('names the server run the list comes from', async () => {
+    stubFetch(async () => new Response('[]', { headers: { 'X-Go-Chamber-Run': 'r1' } }))
+    expect((await listTerminals()).run).toBe('r1')
+    stubFetch(async () => new Response('[]'))
+    expect((await listTerminals()).run).toBeUndefined()
+  })
+
   it('opens a terminal with options', async () => {
     const fn = stubFetch(async () => new Response(JSON.stringify({ id: 't1' }), { status: 201 }))
     expect(await openTerminal({ cwd: '/srv', cols: 80, rows: 24 })).toEqual({ id: 't1' })

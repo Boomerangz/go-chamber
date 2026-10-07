@@ -11,7 +11,7 @@ import EditableTitle from '../title/EditableTitle'
 import { LoadFailed, LoadingLine } from '../ui/Loading'
 import PathText from '../ui/PathText'
 import CloseTerminalButton from './CloseTerminalButton'
-import NewTerminalForm from './NewTerminalForm'
+import NewTerminalForm, { EndedNote } from './NewTerminalForm'
 import TerminalScreen from './TerminalScreen'
 import { markOf } from './marks'
 import TermTitle from './TermTitle'
@@ -183,6 +183,7 @@ export default function TerminalWorkspace({ sessions }: { sessions: Session[] })
           Terminals {terminals.length > 0 && <span className="count">{terminals.length}</span>}
         </h2>
         {(loaded || terminals.length > 0) && failed}
+        <EndedNote />
         {list}
         {foldNew && (
           <>

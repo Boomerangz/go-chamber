@@ -55,6 +55,36 @@ describe('terminal store', () => {
     expect(store().terminals).toEqual([])
   })
 
+  it('counts the shells a server restart ended, until a shell is opened', async () => {
+    const list = (run: string, ...terms: Terminal[]) => Object.assign(terms, { run })
+    ;(api.listTerminals as Mock).mockResolvedValueOnce(list('r1', term({ id: 'a' }), term({ id: 'b' })))
+    await store().load()
+    ;(api.openTerminal as Mock).mockResolvedValueOnce(term({ id: 'c' }))
+    await store().open({})
+    ;(api.closeTerminal as Mock).mockResolvedValueOnce(undefined)
+    await store().close('b')
+    expect(store().ended).toBe(0)
+    // The same run: a shell gone from the list was closed elsewhere, not ended by a restart.
+    ;(api.listTerminals as Mock).mockResolvedValueOnce(list('r1', term({ id: 'a' })))
+    await store().load()
+    expect(store().ended).toBe(0)
+    // A new run without the shells known: they ended with the old one, also across a reload.
+    resetTerminals()
+    ;(api.listTerminals as Mock).mockResolvedValueOnce(list('r2'))
+    await store().load()
+    expect(store().ended).toBe(1)
+    ;(api.listTerminals as Mock).mockResolvedValueOnce(list('r2'))
+    await store().load()
+    expect(store().ended).toBe(1)
+    ;(api.openTerminal as Mock).mockResolvedValueOnce(term({ id: 'd' }))
+    await store().open({})
+    expect(store().ended).toBe(0)
+    // A list that doesn't name its run says nothing.
+    ;(api.listTerminals as Mock).mockResolvedValueOnce([])
+    await store().load()
+    expect(store().ended).toBe(0)
+  })
+
   it('does not duplicate an opened terminal already received in the terminal list', async () => {
     let release: (v: Terminal) => void = () => {}
     ;(api.openTerminal as Mock).mockReturnValueOnce(new Promise((r) => (release = r)))

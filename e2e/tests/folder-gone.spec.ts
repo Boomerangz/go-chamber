@@ -45,6 +45,50 @@ test('a session whose folder is gone says so in the composer’s place and can b
   await expect(gone).toBeVisible()
 })
 
+test('a gone folder offers no new work: no "+", no form prefill, no shell, no changes to retry', async ({ page, isMobile }, info) => {
+  const cwd = newFolder(`doomed-${info.project.name}`)
+  const made = (await (await page.request.post('/api/sessions', { headers, data: { agent: 'claude', cwd } })).json()) as { id: string; title?: string }
+  await page.request.post(`/api/sessions/${made.id}/title`, { headers, data: { title: `doomed work ${info.project.name}` } })
+  rmSync(cwd, { recursive: true, force: true })
+
+  // The server refuses a shell and a change listing there by name and code.
+  for (const res of [
+    await page.request.post('/api/terminals', { headers, data: { sessionId: made.id } }),
+    await page.request.get(`/api/sessions/${made.id}/changes`, { headers }),
+  ]) {
+    expect(res.status()).toBe(422)
+    expect(await res.json()).toEqual({ error: `Folder ${cwd} no longer exists`, code: 'folder_gone' })
+  }
+
+  await page.goto(`/s/${made.id}?token=${token}`)
+  await expect(page.getByRole('group', { name: 'Folder gone' })).toBeVisible()
+
+  // Changes says it plainly, with nothing to retry.
+  const bar = page.getByRole('navigation', { name: 'Views' })
+  if (await bar.isVisible()) await bar.getByRole('button', { name: /^Changes/ }).click()
+  else await page.getByRole('toolbar', { name: 'Dock' }).getByRole('button', { name: 'Changes' }).click()
+  const changes = page.getByRole('region', { name: 'Changes' })
+  await expect(changes.getByRole('status', { name: 'Folder gone' })).toContainText('no longer exists')
+  await expect(changes.getByRole('button', { name: /Retry|Refresh/ })).toHaveCount(0)
+  await expect(changes.getByText(/rev-parse|chdir|no such file/)).toHaveCount(0)
+
+  // The docked terminal offers no shell there.
+  if (!isMobile) {
+    await page.getByRole('toolbar', { name: 'Dock' }).getByRole('button', { name: /^Terminal/ }).click()
+    const shells = page.getByRole('region', { name: 'Terminals' })
+    await expect(shells.getByRole('status', { name: 'Folder gone' })).toContainText('no longer exists')
+    await expect(shells.getByRole('button', { name: /Open terminal in/ })).toHaveCount(0)
+  }
+
+  // The list: its group has no "+", its row says gone; the form doesn't take the folder.
+  await showPane(page, 'Sessions')
+  const row = page.locator('button.session', { hasText: `doomed work ${info.project.name}` })
+  await expect(row.locator('.session-gone')).toBeVisible()
+  await expect(page.locator('.group', { has: row }).locator('.group-new')).toHaveCount(0)
+  await openNewSession(page)
+  await expect(page.getByLabel('Working directory')).not.toHaveValue(cwd)
+})
+
 test('a new session in a folder that was never there is refused under the folder field', async ({ page }, info) => {
   const never = path.join(realpathSync(mkdtempSync(path.join(tmpdir(), 'gc-e2e-'))), `never-${info.project.name}`)
   await page.goto(`/?token=${token}`)

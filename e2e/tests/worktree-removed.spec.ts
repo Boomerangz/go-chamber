@@ -244,3 +244,27 @@ test('the branch field previews its branch, refuses in place, and unticks once s
   await openNewSession(page)
   await expect(page.getByRole('checkbox', { name: /In a new worktree/ })).not.toBeChecked()
 })
+
+// A fork of a live worktree session works in the same worktree: it is listed
+// under the repository with the branch, its folder is offered nowhere, and
+// it goes with the worktree when the parent's folder is removed.
+test('a fork of a live worktree session shares the worktree', async ({ page }, info) => {
+  const repo = newRepo()
+  const title = `shared tree ${info.project.name}`
+  const { id, worktree } = await worktreeSession(page.request, repo, `shared-${info.project.name}`, title)
+  const forked = (await (await page.request.post(`/api/sessions/${id}/fork`, { headers })).json()) as { id: string; title: string; worktree?: { path: string } }
+  expect(forked.worktree?.path).toBe(worktree.path)
+
+  await page.goto(`/s/${forked.id}?token=${token}`)
+  await showPane(page, 'Sessions')
+  const row = page.locator('button.session', { hasText: forked.title })
+  await expect(row.locator('.session-branch')).toHaveText(worktree.branch.replace('chamber/', ''))
+  await expect(page.locator('.group', { has: row }).locator('.group-toggle')).toHaveAttribute('title', repo)
+  await expect(page.locator('.group-toggle', { hasText: path.basename(worktree.path) })).toHaveCount(0)
+  await openNewSession(page)
+  await expect(page.getByRole('group', { name: 'Recent folders' }).locator(`button[title="${worktree.path}"]`)).toHaveCount(0)
+
+  expect((await page.request.delete(`/api/sessions/${id}/worktree?force=1`, { headers })).status()).toBe(200)
+  const after = (await (await page.request.get(`/api/sessions/${forked.id}`, { headers })).json()) as { worktree?: { removed?: boolean } }
+  expect(after.worktree?.removed).toBe(true)
+})

@@ -540,6 +540,38 @@ describe('TerminalPanel', () => {
     expect(api.openTerminal).toHaveBeenCalledWith({ sessionId: 's2' })
   })
 
+  it('says a gone session folder takes no terminal, and offers none there', async () => {
+    useSessionStore.setState({ sessions: [{ id: 'g', agent: 'claude', cwd: '/w/doomed', status: 'detached', folderGone: true }] })
+    useTerminalStore.setState({ loaded: true, terminals: [term({ id: 'a', title: 'proj', cwd: '/w/proj' })] })
+    render(<TerminalPanel sessionId="g" />)
+    const gone = screen.getByRole('status', { name: 'Folder gone' })
+    expect(gone).toHaveTextContent('Folder gone · /w/doomed no longer exists')
+    expect(screen.queryByRole('button', { name: /Open terminal in/ })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'New terminal in session folder' })).toBeNull()
+    // Elsewhere is still one click away.
+    await userEvent.click(screen.getByRole('button', { name: 'More terminals' }))
+    expect(screen.getByRole('button', { name: 'Home folder' })).toBeInTheDocument()
+  })
+
+  it('says how many terminals a restart ended, in the dock and in terminal mode', () => {
+    useTerminalStore.setState({ loaded: true, terminals: [], ended: 1 })
+    const { unmount } = render(<TerminalPanel sessionId={null} />)
+    expect(screen.getByRole('status', { name: 'Terminals ended' })).toHaveTextContent('1 terminal ended when go-chamber restarted')
+    unmount()
+    useTerminalStore.setState({ ended: 3 })
+    render(<TerminalWorkspace sessions={[]} />)
+    expect(screen.getByRole('status', { name: 'Terminals ended' })).toHaveTextContent('3 terminals ended when go-chamber restarted')
+  })
+
+  it('says a removed worktree takes no terminal either', () => {
+    const worktree = { repo: '/src/app', path: '/wt/app/fix', branch: 'chamber/fix', base: 'abc', removed: true }
+    useSessionStore.setState({ sessions: [{ id: 'w', agent: 'claude', cwd: '/wt/app/fix', status: 'detached', worktree }] })
+    useTerminalStore.setState({ loaded: true, terminals: [] })
+    render(<TerminalPanel sessionId="w" />)
+    expect(screen.getByRole('status', { name: 'Worktree removed' })).toHaveTextContent('Worktree removed · no terminal opens in it')
+    expect(screen.queryByText(/No terminals yet/)).toBeNull()
+  })
+
   it('attaches another folder’s shell when it is picked', async () => {
     useSessionStore.setState({ sessions: [{ id: 's2', agent: 'claude', cwd: '/w/new', status: 'idle' }] })
     useTerminalStore.setState({ loaded: true, activeId: 'a', terminals: [term({ id: 'a', title: 'proj', cwd: '/w/proj' })] })

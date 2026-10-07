@@ -63,6 +63,8 @@ type TerminalsConfig struct {
 	Sessions SessionLookup
 	// Home is the directory of terminals opened without a cwd.
 	Home string
+	// Folders optionally checks the shell's folder exists.
+	Folders FolderProbe
 	// Shell is the program to run; /bin/sh when empty.
 	Shell string
 	// ScrollbackBytes bounds replayed output per terminal; 1 MiB when zero.
@@ -108,6 +110,24 @@ func NewTerminals(cfg TerminalsConfig) *Terminals {
 	return &Terminals{cfg: cfg, terms: map[domain.TerminalID]*runningTerminal{}}
 }
 
+// checkFolder refuses a shell in a folder that is not there; a session's
+// folder is one that went away.
+func (t *Terminals) checkFolder(cwd string, session bool) error {
+	if t.cfg.Folders == nil {
+		return nil
+	}
+	ok, err := t.cfg.Folders.FolderExists(cwd)
+	switch {
+	case err != nil:
+		return err
+	case ok:
+		return nil
+	case session:
+		return domain.FolderGone(cwd)
+	}
+	return domain.NoFolder(cwd)
+}
+
 func (t *Terminals) Open(ctx context.Context, req OpenTerminal) (domain.Terminal, error) {
 	t.mu.Lock()
 	closed := t.closed
@@ -125,6 +145,9 @@ func (t *Terminals) Open(ctx context.Context, req OpenTerminal) (domain.Terminal
 	}
 	if cwd == "" {
 		cwd = t.cfg.Home
+	}
+	if err := t.checkFolder(cwd, req.SessionID != ""); err != nil {
+		return domain.Terminal{}, err
 	}
 	id := domain.TerminalID(t.cfg.NewID())
 	term, err := domain.NewTerminal(id, cwd, t.cfg.Shell, req.SessionID, t.cfg.Now())

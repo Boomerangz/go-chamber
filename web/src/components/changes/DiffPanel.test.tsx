@@ -7,7 +7,8 @@ import * as api from '../../lib/api'
 import { resetStore, useSessionStore } from '../../stores/session'
 import { useNotices } from '../../stores/notices'
 
-vi.mock('../../lib/api', () => ({
+vi.mock('../../lib/api', async (orig) => ({
+  ApiError: (await orig<typeof import('../../lib/api')>()).ApiError,
   getChanges: vi.fn(),
   getFileDiff: vi.fn(),
   removeWorktree: vi.fn(),
@@ -107,6 +108,27 @@ describe('DiffPanel', () => {
     expect(screen.queryByText(/not a git repository/)).toBeNull()
     expect(screen.queryByText('No changes')).toBeNull()
     expect(screen.queryByRole('button', { name: /Remove/ })).toBeNull()
+  })
+
+  it('says plainly that a session’s folder is gone, with nothing to retry', async () => {
+    vi.mocked(api.getChanges).mockRejectedValue(new api.ApiError(422, 'Folder /work/doomed no longer exists', 'folder_gone'))
+    useSessionStore.setState({ sessions: [{ id: 's1', agent: 'claude', cwd: '/work/doomed', status: 'detached', folderGone: true }] })
+    render(<DiffPanel sessionId="s1" />)
+    const gone = await screen.findByRole('status', { name: 'Folder gone' })
+    expect(gone).toHaveTextContent('Folder gone · /work/doomed no longer exists')
+    expect(gone.querySelector('.path-text')).toHaveAttribute('title', '/work/doomed')
+    await waitFor(() => expect(api.getChanges).toHaveBeenCalled())
+    expect(screen.queryByRole('button', { name: /Retry/ })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Refresh changes' })).toBeNull()
+    expect(screen.queryByText(/Couldn't load changes/)).toBeNull()
+  })
+
+  it('says the folder is gone when the server finds it so', async () => {
+    vi.mocked(api.getChanges).mockRejectedValue(new api.ApiError(422, 'Folder /work/doomed no longer exists', 'folder_gone'))
+    useSessionStore.setState({ sessions: [{ id: 's1', agent: 'claude', cwd: '/work/doomed', status: 'idle' }] })
+    render(<DiffPanel sessionId="s1" />)
+    expect(await screen.findByRole('status', { name: 'Folder gone' })).toHaveTextContent('/work/doomed no longer exists')
+    expect(screen.queryByText(/Couldn't load changes/)).toBeNull()
   })
 
   it('keeps the worktree when the owner changes their mind', async () => {

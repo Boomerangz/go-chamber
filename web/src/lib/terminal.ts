@@ -29,8 +29,20 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return (text ? JSON.parse(text) : undefined) as T
 }
 
-export function listTerminals(): Promise<Terminal[]> {
-  return request<Terminal[]>('/api/terminals')
+// TerminalList is the server's shells; run names the server run they belong
+// to (shells don't outlive it), when the server says.
+export type TerminalList = Terminal[] & { run?: string }
+
+export async function listTerminals(): Promise<TerminalList> {
+  const res = await fetch('/api/terminals', { credentials: 'same-origin' })
+  const text = await res.text().catch(() => '')
+  if (!res.ok) {
+    throw new Error(errorMessage(text, `${res.status} ${res.statusText}`))
+  }
+  const list = JSON.parse(text) as TerminalList
+  const run = res.headers.get('X-Go-Chamber-Run')
+  if (run) Object.defineProperty(list, 'run', { value: run })
+  return list
 }
 
 export function openTerminal(opts: OpenTerminalOptions): Promise<Terminal> {

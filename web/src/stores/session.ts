@@ -8,6 +8,7 @@ import { chimeOnEvent } from '../lib/chime'
 import { describeError, fail, useNotices } from './notices'
 import { parseRoute } from '../lib/route'
 import { branchError, folderError } from '../lib/branch'
+import { useCLIs } from '../lib/clis'
 
 const START_FAILED = "Couldn't start the session"
 
@@ -445,6 +446,12 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       if ((err as { code?: unknown } | null)?.code === 'folder_gone' && session) {
         set({ sessions: replaceSession(get().sessions, { ...session, folderGone: true }) })
         return false
+      }
+      // The CLI is missing: once the CLI list knows it, the chat says so in
+      // the composer's place.
+      if ((err as { code?: unknown } | null)?.code === 'cli_missing' && session) {
+        await useCLIs.getState().load()
+        if (useCLIs.getState().clis.some((c) => c.agent === session.agent && !c.found)) return false
       }
       fail("Couldn't send the message", err, 'send')
       return false

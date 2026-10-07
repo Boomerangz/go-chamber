@@ -115,6 +115,7 @@ func run(ctx context.Context, args []string, out io.Writer) error {
 		PTYs:     pty.Factory{},
 		Sessions: store.Sessions(),
 		Home:     home,
+		Folders:  fsys.Reader{},
 		Shell:    os.Getenv("SHELL"),
 	})
 	// Closing shells also ends their WebSockets, which Shutdown doesn't track.

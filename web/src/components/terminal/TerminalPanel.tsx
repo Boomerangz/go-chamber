@@ -8,8 +8,9 @@ import { useSessionStore } from '../../stores/session'
 import { openKey, useTerminalStore } from '../../stores/terminals'
 import FolderField from '../folders/FolderField'
 import { LoadFailed, LoadingLine } from '../ui/Loading'
+import PathText from '../ui/PathText'
 import CloseTerminalButton from './CloseTerminalButton'
-import { OpenError } from './NewTerminalForm'
+import { EndedNote, OpenError } from './NewTerminalForm'
 import TerminalScreen from './TerminalScreen'
 import { markOf, sortForSession } from './marks'
 import { stepOf, stepTerminal, useTerminalSteps } from './steps'
@@ -34,6 +35,11 @@ export default function TerminalPanel({ sessionId }: { sessionId: string | null 
   // session opened (or restored with the page) stays in its tab until it
   // is picked here; one opened or picked here attaches.
   const cwd = useSessionStore((s) => s.sessions.find((x) => x.id === sessionId)?.cwd)
+  // No shell opens in a session folder that is gone: "+" opens one at home.
+  const gone = useSessionStore((s) => {
+    const x = s.sessions.find((y) => y.id === sessionId)
+    return x?.worktree?.removed ? 'worktree' : x?.folderGone ? 'folder' : null
+  })
   const belongs = (t: Terminal) => !sessionId || t.sessionId === sessionId || (cwd !== undefined && t.cwd === cwd)
   const [scope, setScope] = useState<{ session: string | null; loaded: boolean; carried: string | null }>({ session: sessionId, loaded, carried: activeId })
   // Adjusted during render: a new session, or the list arriving with a restored shell.
@@ -93,9 +99,10 @@ export default function TerminalPanel({ sessionId }: { sessionId: string | null 
             ))}
           </ul>
         )}
-        <NewTerminalButton sessionId={sessionId} terminals={sorted} onPick={pick} />
+        <NewTerminalButton sessionId={gone ? null : sessionId} terminals={sorted} onPick={pick} />
       </div>
       <OpenError />
+      <EndedNote />
       {loadError && (
         <LoadFailed onRetry={() => void load()}>
           {loaded || terminals.length > 0 ? `Couldn't refresh terminals: ${loadError}` : `Couldn't load terminals: ${loadError}`}
@@ -103,7 +110,17 @@ export default function TerminalPanel({ sessionId }: { sessionId: string | null 
       )}
       {!loaded && terminals.length === 0 && !loadError && <LoadingLine>loading terminals…</LoadingLine>}
       {/* Nothing attaches unasked (each viewer answers the shell's queries), but the first is one click away. */}
-      {loaded && !attached && (
+      {loaded && !attached && gone === 'folder' && cwd && (
+        <p className="terminal-hint" role="status" aria-label="Folder gone">
+          <span className="worktree-gone-kw">Folder gone</span> · <PathText path={cwd} /> no longer exists
+        </p>
+      )}
+      {loaded && !attached && gone === 'worktree' && (
+        <p className="terminal-hint" role="status" aria-label="Worktree removed">
+          <span className="worktree-gone-kw">Worktree removed</span> · no terminal opens in it
+        </p>
+      )}
+      {loaded && !attached && (!gone || own[0]) && (
         <p className="terminal-hint">
           {own[0] ? (
             <>

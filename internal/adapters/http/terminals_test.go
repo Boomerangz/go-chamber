@@ -171,6 +171,31 @@ func TestTerminalsListEmptyIsArray(t *testing.T) {
 	}
 }
 
+// The list names the server run it comes from: a client that knew shells
+// of an earlier run can tell they ended with it, not that someone closed them.
+func TestTerminalsListNamesTheServerRun(t *testing.T) {
+	e := newTermEnv(t)
+	run := func() string {
+		req, _ := http.NewRequest("GET", e.ts.URL+"/api/terminals", nil)
+		req.Header.Set("Authorization", "Bearer "+testToken)
+		res, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		_ = res.Body.Close()
+		return res.Header.Get("X-Go-Chamber-Run")
+	}
+	first := run()
+	if first == "" || run() != first {
+		t.Fatalf("run = %q, then %q", first, run())
+	}
+	other := newTermEnv(t)
+	e = other
+	if run() == first {
+		t.Fatal("two server runs share an id")
+	}
+}
+
 func TestTerminalsCreateErrors(t *testing.T) {
 	e := newTermEnv(t)
 	cases := []struct {

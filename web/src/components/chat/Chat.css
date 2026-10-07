@@ -199,3 +199,7 @@
     display: flex; order: 2; flex-basis: 100%; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 10px 14px;
   }
 }
+
+/* the install command of a missing CLI: mono, on one line, copied whole */
+.cli-install { display: flex; align-items: center; gap: 4px; flex: 1 1 100%; min-width: 0; max-width: 100%; }
+.cli-install code { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--font-mono); font-size: 12px; color: var(--ink); }
