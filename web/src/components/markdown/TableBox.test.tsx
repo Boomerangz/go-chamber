@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { fireEvent, render } from '@testing-library/react'
-import TableBox, { fadeOf } from './TableBox'
+import TableBox from './TableBox'
+import { fadeOf } from '../../lib/fade'
 import Markdown from './Markdown'
 
 describe('fadeOf', () => {
