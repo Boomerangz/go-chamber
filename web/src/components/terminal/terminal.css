@@ -122,7 +122,7 @@
 .term-new-folder { display: flex; gap: 6px; align-items: center; min-width: 0; }
 .term-new-folder .folder-field { flex: 1; min-width: 0; }
 
-@media (max-width: 720px) {
+@media (max-width: 720px), (pointer: coarse) {
   .terminal-tabs .close-terminal { width: 36px; height: 36px; }
   .term-row .close-terminal { width: 36px; height: 36px; }
   .term-find .btn-icon { width: 36px; height: 36px; }

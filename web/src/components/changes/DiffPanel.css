@@ -133,10 +133,12 @@
   .layout[data-dock='changes'] { --dock: max(300px, 40%); }
 }
 
+@media (max-width: 720px), (pointer: coarse) {
+  .diff-file-actions .btn-icon, .diff-action-gap { width: 36px; height: 36px; }
+}
 @media (max-width: 720px) {
   .layout[data-pane='changes'] > .changes-pane { display: flex; flex-direction: column; min-height: 0; }
   .changes-pane .diff-panel { --pad-y: 14px; --pad-x: var(--gutter); }
-  .diff-file-actions .btn-icon, .diff-action-gap { width: 36px; height: 36px; }
   .diff-status { width: 11.5ch; gap: 4px; }
   .changes-pane .tray-empty { display: block; padding: 32px var(--gutter); color: var(--ink-3); }
 }

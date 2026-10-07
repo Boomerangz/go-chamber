@@ -516,9 +516,13 @@ button.health { border: 0; background: none; padding: 0; }
   .sidebar-body > .session-search { top: -14px; }
   .sidebar-body { flex: none; overflow: visible; }
   .sidebar-footer { flex: none; }
+  .sidebar-signout { display: block; }
+}
+/* a finger's targets: on a phone by its width, and on any touch screen (a
+   tablet keeps the wide layout but not a mouse's precision) */
+@media (max-width: 720px), (pointer: coarse) {
   /* the row menu is always shown here: keep the row's text clear of it */
   .session { padding-right: 44px; }
-  .sidebar-signout { display: block; }
   .group-new { width: 40px; height: 40px; }
   .group-more { min-height: 40px; }
   .group-toggle { height: 40px; }
@@ -1108,18 +1112,6 @@ button.health { border: 0; background: none; padding: 0; }
   .chat-header > .avatar { display: none; }
   .composer { width: calc(100% - 2 * var(--gutter)); margin-bottom: 10px; }
   .field, .composer textarea, .session-search input { font-size: 16px; }
-  .btn { height: 36px; }
-  /* every control a finger can find: icon buttons, the small selects and
-     switches, fold summaries and text links, grown by padding not by ink */
-  .btn-icon { width: 36px; height: 36px; }
-  .segmented button, .model-button, .field-sm, .effort-options button { height: 36px; }
-  .chip { height: 36px; }
-  .folder-item .pick { height: 36px; }
-  .item-output > summary, .item.hook > summary, .item.reasoning summary, .item.tool-group > summary,
-  .quotas-details summary, .request-raw > summary { padding-block: 9px; }
-  .act-link { min-height: 36px; align-items: center; }
-  /* a component's own smaller size (copy path, copy reply) yields here */
-  .chat-path-line .chat-path-copy, .items .row .msg-copy { width: 36px; height: 36px; }
   .terminal-view { min-height: 0; }
 
   .panebar {
@@ -1145,6 +1137,23 @@ button.health { border: 0; background: none; padding: 0; }
   .app:has(.sidebar :is(input:not([type='checkbox'], [type='radio']), textarea):focus) .layout { padding-bottom: env(safe-area-inset-bottom); }
   /* without a transcript on screen: just above the pane bar */
   .notices { bottom: calc(64px + env(safe-area-inset-bottom)); right: 14px; left: 14px; width: auto; }
+}
+
+/* every control a finger can find, on a phone and on any touch screen:
+   icon buttons, the small selects and switches, fold summaries and text
+   links, grown by padding not by ink */
+@media (max-width: 720px), (pointer: coarse) {
+  .btn { height: 36px; }
+  .btn-icon, .topbar-end .btn-icon { width: 36px; height: 36px; }
+  .segmented button, .model-button, .field-sm, .effort-options button { height: 36px; }
+  .chip { height: 36px; }
+  .folder-item .pick { height: 36px; }
+  .item-output > summary, .item.hook > summary, .item.reasoning summary, .item.tool-group > summary,
+  .quotas-details summary, .request-raw > summary { padding-block: 9px; }
+  .act-link { min-height: 36px; align-items: center; }
+  /* a component's own smaller size (copy path, copy reply) yields here */
+  .chat-path-line .chat-path-copy, .items .row .msg-copy { width: 36px; height: 36px; }
+  .rail-btn { width: 36px; height: 36px; }
 }
 
 /* the narrowest phones: the three modes and the toggles fit on one row,

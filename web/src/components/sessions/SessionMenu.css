@@ -49,8 +49,10 @@
 .session-menu-check { display: flex; gap: 8px; align-items: flex-start; font-size: 13px; color: var(--ink-2); line-height: 1.45; cursor: pointer; overflow-wrap: anywhere; }
 .session-menu-check input { flex: none; margin-top: 3px; }
 
-@media (max-width: 720px) {
+@media (max-width: 720px), (pointer: coarse) {
   .session-menu-trigger { top: 4px; width: 36px; height: 36px; }
   .session-menu [role='menuitem'] { min-height: 40px; }
+}
+@media (max-width: 720px) {
   .session-menu-input { width: 100%; }
 }

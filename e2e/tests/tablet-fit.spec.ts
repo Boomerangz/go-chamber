@@ -75,6 +75,62 @@ test('the chat keeps its room beside a dock on a small laptop', async ({ page, i
   await expect(page.locator('.layout > .sidebar')).toBeVisible()
 })
 
+// targets measures the controls a finger reaches for, smallest side first.
+function targets(page: Page) {
+  return page.evaluate(() => {
+    const list = ['.session-menu-trigger', '.chat-header .rename-btn', '.chat-path-copy', '.rail-btn', '.folder-field .browse', '.composer .btn', '.topbar-end .btn-icon', '.new-session .btn-primary']
+    const out: Record<string, number> = {}
+    for (const s of list) {
+      const e = document.querySelector(s)
+      if (!e) continue
+      const r = e.getBoundingClientRect()
+      out[s] = Math.round(Math.min(r.width, r.height))
+    }
+    return out
+  })
+}
+
+// A touch tablet keeps the wide layout but a finger's targets: every control
+// at least 36px on its short side, and still nothing past the window.
+test.describe('on a touch tablet', () => {
+  test.use({ hasTouch: true })
+  test('controls are finger-sized at tablet widths', async ({ page, isMobile }) => {
+    test.skip(isMobile, 'a phone has these sizes by its width')
+    await page.setViewportSize({ width: 1280, height: 900 })
+    await newSession(page)
+    for (const width of [768, 900, 1024]) {
+      await page.setViewportSize({ width, height: 1000 })
+      // the sessions list is shown (no dock open)
+      await expect(page.locator('.layout > .sidebar')).toBeVisible()
+      const sizes = await targets(page)
+      expect(Object.keys(sizes).length, `${width}`).toBeGreaterThanOrEqual(7)
+      for (const [what, side] of Object.entries(sizes)) expect(side, `${width} ${what}`).toBeGreaterThanOrEqual(36)
+      // the bigger rename pencil still leaves the title whole before the usage line shows
+      await expect
+        .poll(() => page.locator('.chat-header').evaluate((el) => {
+          const h2 = el.querySelector('.chat-heading h2')!
+          const usage = el.querySelector('.usage')
+          return !(usage && usage.getBoundingClientRect().width >= 1 && h2.scrollWidth > h2.clientWidth + 1)
+        }), { message: `${width} title` })
+        .toBe(true)
+      for (const name of ['Requests', 'Changes', 'Terminal']) {
+        await openDock(page, name)
+        await expect.poll(() => offscreen(page), { message: `${width} ${name}` }).toEqual([])
+      }
+      await page.getByRole('toolbar', { name: 'Dock' }).getByRole('button', { name: /^Terminal/ }).click()
+    }
+  })
+})
+
+test('a mouse keeps the compact controls at tablet widths', async ({ page, isMobile }) => {
+  test.skip(isMobile, 'a phone has finger-sized controls')
+  await page.setViewportSize({ width: 900, height: 1000 })
+  await newSession(page)
+  const sizes = await targets(page)
+  expect(sizes['.rail-btn']).toBeLessThan(36)
+  expect(sizes['.folder-field .browse']).toBeLessThan(36)
+})
+
 test('Show sessions in the top bar is a named icon beside a dock', async ({ page, isMobile }) => {
   test.skip(isMobile, 'a phone shows one pane at a time')
   await page.setViewportSize({ width: 768, height: 1024 })

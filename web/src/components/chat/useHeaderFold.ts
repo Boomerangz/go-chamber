@@ -81,7 +81,11 @@ export function useHeaderFold(header: RefObject<HTMLElement | null>): boolean {
       const heading = el.querySelector<HTMLElement>('.chat-heading h2')
       // The title, or a worktree's branch under it, whichever needs more.
       const branch = el.querySelector<HTMLElement>('.chat-path-line .session-branch')
-      const own = Math.max(heading ? Math.ceil(heading.scrollWidth) : 0, branch ? Math.ceil(Math.max(branch.scrollWidth + BRANCH_EXTRA, branch.scrollWidth / BRANCH_SHARE)) : 0)
+      // The title's whole text, and beside it the rename pencil (a finger's
+      // 36px on a touch screen) with its gap.
+      const box = heading?.closest<HTMLElement>('.editable-title')
+      const beside = heading && box ? Math.max(0, box.getBoundingClientRect().width - heading.getBoundingClientRect().width) : 0
+      const own = Math.max(heading ? Math.ceil(heading.scrollWidth + beside) : 0, branch ? Math.ceil(Math.max(branch.scrollWidth + BRANCH_EXTRA, branch.scrollWidth / BRANCH_SHARE)) : 0)
       // The settings fold only for a title cut below this; a longer title is
       // cut instead.
       const titleMin = heading ? Math.min(own, TITLE_MAX) : TITLE_FALLBACK
