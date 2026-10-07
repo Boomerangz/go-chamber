@@ -6,7 +6,7 @@
   position: absolute; top: 9px; right: 4px; width: 24px; height: 24px;
   background: var(--paper-2); color: var(--ink-3); opacity: 0; transition: opacity var(--dur-fast);
 }
-.session-menu-trigger:hover { background: var(--paper-2); }
+@media (hover: hover) { .session-menu-trigger:hover { background: var(--paper-2); } }
 .session:hover + .session-menu-trigger,
 .session:focus-visible + .session-menu-trigger,
 .session-menu-trigger:hover,
@@ -29,14 +29,14 @@
   font-family: var(--font-mono); font-size: 12.5px; color: var(--ink); line-height: 1.4; cursor: pointer;
   transition: background var(--dur-fast);
 }
-.session-menu [role='menuitem']:hover,
 .session-menu [role='menuitem']:focus-visible { background: var(--paper-2); }
+@media (hover: hover) { .session-menu [role='menuitem']:hover { background: var(--paper-2); } }
 .session-menu [role='menuitem']:focus { outline: none; }
 .session-menu [role='menuitem']:focus-visible { border-color: var(--rule-strong); }
 .session-menu [role='menuitem'].session-menu-danger { color: var(--bad); }
-.session-menu [role='menuitem'].session-menu-danger:hover { background: var(--bad-wash); }
+@media (hover: hover) { .session-menu [role='menuitem'].session-menu-danger:hover { background: var(--bad-wash); } }
 .session-menu [role='menuitem'][aria-disabled='true'] { color: var(--ink-3); cursor: default; }
-.session-menu [role='menuitem'][aria-disabled='true']:hover { background: var(--paper-2); }
+@media (hover: hover) { .session-menu [role='menuitem'][aria-disabled='true']:hover { background: var(--paper-2); } }
 .session-menu-hint { margin-left: auto; font-size: 11.5px; color: var(--ink-3); }
 .session-menu-input { width: 240px; max-width: 100%; }
 .session-menu-confirm { display: grid; gap: 8px; padding: 6px 6px 4px; max-width: 260px; }

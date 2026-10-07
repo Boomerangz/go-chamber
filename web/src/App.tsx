@@ -16,6 +16,8 @@ import AttentionWindow, { AttentionPanel } from './components/shell/AttentionWin
 import { openShortcuts } from './components/shell/overlay'
 import { toggleOverview } from './lib/overview'
 import { useRouteSync } from './components/shell/routeSync'
+import { Activity, Focus } from 'lucide-react'
+import { icon } from './components/icon'
 import { LoadingLine } from './components/ui/Loading'
 import TerminalPanel from './components/terminal/TerminalPanel'
 import TerminalWorkspace from './components/terminal/TerminalWorkspace'
@@ -89,11 +91,12 @@ export default function App() {
               title={focus ? 'Show sessions and dock (f)' : 'Only the chat, until an agent needs you (f)'}
               onClick={toggleFocus}
             >
-              Focus
+              <Focus {...icon(16)} className="icon bar-icon" />
+              <span className="bar-label">Focus</span>
             </button>
           )}
           {health === 'online' && <button type="button" className="btn btn-ghost overview-toggle" aria-pressed={mode === 'agents' && pane === 'overview'}
-            title={mode === 'agents' && pane === 'overview' ? 'Back to the workspace' : 'Every session at a glance'} onClick={toggleOverview}>Overview</button>}
+            title={mode === 'agents' && pane === 'overview' ? 'Back to the workspace' : 'Every session at a glance'} onClick={toggleOverview}><Activity {...icon(16)} className="icon bar-icon" /><span className="bar-label">Overview</span></button>}
           {health === 'online' && <AttentionWindow />}
           {health === 'online' && <NotifyToggle />}
           {health === 'online' && <SoundToggle />}

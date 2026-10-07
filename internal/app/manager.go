@@ -1115,10 +1115,15 @@ func (m *Manager) PendingRequests(context.Context) []domain.Request {
 
 const titleLimit = 60
 
-// titleFromText names a session after its first message: whitespace
-// collapsed, cut to titleLimit characters with an ellipsis.
+// titleFromText names a session after its first message as it reads:
+// markdown syntax dropped (the rule search snippets use), whitespace
+// collapsed, cut to titleLimit characters with an ellipsis. A message of
+// nothing but syntax keeps its words as typed.
 func titleFromText(text string) string {
-	title := strings.Join(strings.Fields(text), " ")
+	title := domain.PlainText(text)
+	if title == "" {
+		title = strings.Join(strings.Fields(text), " ")
+	}
 	if r := []rune(title); len(r) > titleLimit {
 		title = strings.TrimRight(string(r[:titleLimit-1]), " ") + "…"
 	}

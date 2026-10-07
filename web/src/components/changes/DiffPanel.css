@@ -28,7 +28,7 @@
   border: 1px solid transparent; border-radius: var(--r); background: transparent; color: var(--ink);
   font: inherit; text-align: left; cursor: pointer;
 }
-.diff-file-toggle:hover { background: var(--paper-2); }
+@media (hover: hover) { .diff-file-toggle:hover { background: var(--paper-2); } }
 /* an open file's whole header, actions included, is framed as wide as its diff */
 .diff-file-head:has(> .diff-file-toggle[aria-expanded='true']) { border-radius: var(--r); box-shadow: inset 0 0 0 1px var(--rule-strong); }
 .diff-file-toggle .busy-mark { align-self: center; color: var(--ink-3); }

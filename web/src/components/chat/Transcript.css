@@ -22,7 +22,7 @@
   cursor: pointer; list-style: none;
 }
 .tool-line > summary::-webkit-details-marker { display: none; }
-.tool-line > summary:hover code { text-decoration: underline; text-decoration-color: var(--rule-strong); text-underline-offset: 4px; }
+@media (hover: hover) { .tool-line > summary:hover code { text-decoration: underline; text-decoration-color: var(--rule-strong); text-underline-offset: 4px; } }
 .tool-line[open] > summary { margin-bottom: 4px; }
 
 /* an exit code is a tag on the line, bracketed like a hook outcome */
@@ -37,7 +37,7 @@
 /* folded output: label, then its last line while closed */
 .item-output { grid-column: 1 / -1; margin-top: 4px; }
 .item-output > summary { cursor: pointer; color: var(--ink-3); font-family: var(--font-mono); font-size: 12px; user-select: none; }
-.item-output > summary:hover { color: var(--ink); }
+@media (hover: hover) { .item-output > summary:hover { color: var(--ink); } }
 .item-output[open] > summary { margin-bottom: 4px; }
 .item-output > summary { display: flex; align-items: baseline; gap: 10px; min-width: 0; list-style: none; }
 .item-output > summary::-webkit-details-marker { display: none; }
@@ -108,7 +108,7 @@
 .item.tool-group > summary::-webkit-details-marker { display: none; }
 .item.tool-group > summary::before { content: '+'; flex: none; width: 1ch; color: var(--ink-3); }
 .item.tool-group[open] > summary::before { content: '−'; }
-.item.tool-group > summary:hover { color: var(--ink); }
+@media (hover: hover) { .item.tool-group > summary:hover { color: var(--ink); } }
 .tool-group-label { flex: 1 1 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tool-group-items {
   list-style: none; margin: 8px 0 0 6px; padding: 0 0 0 14px; border-left: 1px solid var(--rule);
@@ -178,7 +178,7 @@
   font-family: var(--font-mono); font-size: 12px; color: var(--act);
   text-decoration: underline; text-underline-offset: 3px;
 }
-.act-link:hover { color: var(--ink); }
+@media (hover: hover) { .act-link:hover { color: var(--ink); } }
 /* inside a subagent there is no margin: the icon sits under the answer */
 .subagent-items .msg-copy { position: static; display: flex; margin: 2px 0 0 auto; }
 
