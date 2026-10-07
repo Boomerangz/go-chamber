@@ -44,6 +44,16 @@ function setup(request: SessionRequest) {
   return { onRespond, container }
 }
 
+describe('RequestCard headings', () => {
+  it('names every card with a heading, for jumping between them', () => {
+    const { container } = setup(permission)
+    expect(screen.getByRole('heading', { level: 3, name: 'Requires approval Run command' })).toBeInTheDocument()
+    container.remove()
+    setup(question)
+    expect(screen.getByRole('heading', { level: 3, name: 'Requires answer Question' })).toBeInTheDocument()
+  })
+})
+
 describe('RequestCard permission', () => {
   it('renders the prompt and responds to allow', async () => {
     const { onRespond } = setup(permission)

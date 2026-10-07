@@ -107,6 +107,21 @@ describe('App', () => {
     expect(layout()).not.toHaveAttribute('data-focus')
   })
 
+  it('marks its landmarks: the top bar, the sessions list, and the chat as main', async () => {
+    mockApi()
+    render(<App />)
+    await screen.findByRole('status', { name: 'online' })
+    const banner = screen.getByRole('banner')
+    expect(within(banner).getByRole('heading', { name: 'go-chamber' })).toBeInTheDocument()
+    const main = screen.getByRole('main', { name: 'Chat' })
+    expect(main).not.toContainElement(banner)
+    expect(within(main).getByRole('heading', { name: 'Start a session' })).toBeInTheDocument()
+    const sessions = screen.getByRole('complementary', { name: 'Sessions' })
+    expect(main).not.toContainElement(sessions)
+    expect(within(sessions).getByRole('heading', { level: 2, name: 'Sessions' })).toBeInTheDocument()
+    expect(screen.getAllByRole('main')).toHaveLength(1)
+  })
+
   it('shows connection state from health check', async () => {
     mockApi()
     render(<App />)

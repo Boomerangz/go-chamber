@@ -55,7 +55,7 @@ export default function DiagnosticsPage() {
   }
 
   return (
-    <section className="diagnostics-page" aria-label="Diagnostics">
+    <main className="diagnostics-page" aria-label="Diagnostics">
       <header className="diagnostics-header">
         <div>
           <h2>Diagnostics</h2>
@@ -153,7 +153,7 @@ export default function DiagnosticsPage() {
         {idle.length > 0 && <p className="diagnostics-idle">{`Not attached, nothing measured: ${idle.join(', ')}`}</p>}
         <p className="diagnostics-note">Browser pending bytes await xterm processing. Server queued bytes await delivery, summed across attached clients.</p>
       </section>
-    </section>
+    </main>
   )
 }
 
