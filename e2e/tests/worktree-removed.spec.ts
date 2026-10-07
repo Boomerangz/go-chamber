@@ -147,6 +147,45 @@ test('a fork of a removed worktree names the commits its branch still holds', as
   await expect(note).toHaveCount(0)
 })
 
+// Removed from the Changes pane, the quiet "Worktree removed" confirmation
+// is still up when the fork opens; the unmerged note arrives after the stack
+// was placed, and the stack moves clear of it, at 1024 as at 1440.
+for (const width of [1024, 1440]) {
+  test(`the removal notice stays clear of the fork's unmerged note at ${width}`, async ({ page, isMobile }, info) => {
+    test.skip(isMobile, 'a phone shows Changes and the chat one at a time')
+    const repo = newRepo()
+    const name = `notice-${width}-${info.project.name}`
+    const { id, worktree } = await worktreeSession(page.request, repo, name, `notice over note ${width} ${info.project.name}`)
+    writeFileSync(path.join(worktree.path, 'work.txt'), 'done\n')
+    execFileSync('git', ['add', '.'], { cwd: worktree.path, env })
+    execFileSync('git', ['commit', '-q', '-m', 'work'], { cwd: worktree.path, env })
+    await page.setViewportSize({ width, height: 768 })
+    // The note comes in well after the fork has opened and the stack is placed.
+    await page.route('**/unmerged', async (route) => {
+      await new Promise((r) => setTimeout(r, 1000))
+      await route.continue()
+    })
+    await page.goto(`/s/${id}?token=${token}`)
+    const panel = await openChanges(page)
+    await panel.getByRole('button', { name: 'Remove worktree' }).click()
+    await panel.getByRole('group', { name: 'Remove worktree?' }).getByRole('button', { name: /^Remove/ }).click()
+    const notice = page.locator('.toast', { hasText: 'Worktree removed, branch kept' })
+    await expect(notice).toBeVisible()
+    await page.getByRole('button', { name: 'Fork into app' }).click()
+    const note = page.getByRole('status', { name: 'Unmerged branch' })
+    await expect(note).toBeVisible()
+    await expect(notice).toBeVisible()
+    // Placement follows on the next frame.
+    await expect
+      .poll(async () => {
+        const a = (await notice.boundingBox())!
+        const b = (await note.boundingBox())!
+        return a.y + a.height <= b.y || b.y + b.height <= a.y || a.x + a.width <= b.x || b.x + b.width <= a.x
+      })
+      .toBe(true)
+  })
+}
+
 // The removed-worktree session's header (repo, removed branch, archived-
 // style tags) stays one row at 1440 beside the Changes dock: "⋯" included.
 test('a removed worktree session keeps a one-row header beside Changes', async ({ page, isMobile }, info) => {

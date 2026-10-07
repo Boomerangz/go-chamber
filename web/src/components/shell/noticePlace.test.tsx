@@ -1,5 +1,5 @@
 import { act, render, screen } from '@testing-library/react'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { notify, resetNotices } from '../../stores/notices'
 import { resetStore } from '../../stores/session'
 import Notices from './Notices'
@@ -83,5 +83,54 @@ describe('noticePlace', () => {
     act(() => screen.getByRole('button', { name: 'Undo' }).click())
     expect(undone).toBe(1)
     expect(screen.queryByText('Archived x')).toBeNull()
+  })
+
+  // Fork from a removed worktree: the chat column is put back (or its
+  // transcript replaced) after the stack was placed, and the unmerged note
+  // then shrinks the new transcript. The stack follows both.
+  it('follows a chat column mounted after it was placed, and that column growing smaller', async () => {
+    Object.defineProperty(window, 'innerHeight', { value: 900, configurable: true })
+    const observed = new Set<Element>()
+    const callbacks: (() => void)[] = []
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        constructor(cb: () => void) {
+          callbacks.push(cb)
+        }
+        observe(el: Element) {
+          observed.add(el)
+        }
+        unobserve(el: Element) {
+          observed.delete(el)
+        }
+        disconnect() {
+          observed.clear()
+        }
+      },
+    )
+    try {
+      const root = workspace('<div class="layout"></div>')
+      render(<Notices />)
+      act(() => void notify({ kind: 'info', text: 'Worktree removed, branch kept' }))
+      const stack = screen.getByRole('status').parentElement!
+      const layout = root.querySelector('.layout')!
+      layout.innerHTML = '<section class="chat"><div class="scroll"><ol class="items"></ol></div></section>'
+      const scroll = layout.querySelector('.scroll')!
+      box(scroll, { top: 120, left: 300, width: 1096, height: 600 })
+      box(layout.querySelector('.items')!, { top: 120, left: 518, width: 660, height: 400 })
+      await act(() => new Promise((r) => setTimeout(r, 50)))
+      expect(stack).toHaveStyle({ bottom: '192px' })
+      expect(observed.has(scroll)).toBe(true)
+      // The note above the composer takes 60px off the transcript.
+      box(scroll, { top: 120, left: 300, width: 1096, height: 540 })
+      await act(async () => {
+        callbacks.forEach((cb) => cb())
+        await new Promise((r) => setTimeout(r, 50))
+      })
+      expect(stack).toHaveStyle({ bottom: '252px' })
+    } finally {
+      vi.unstubAllGlobals()
+    }
   })
 })
