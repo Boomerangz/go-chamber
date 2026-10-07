@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type KeyboardEvent } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { enter } from '../../lib/motion'
 import { basename } from '../../lib/format'
@@ -46,23 +46,63 @@ export default function RequestTray() {
     )
   }
 
+  // Focus in the tray stays in the tray, never drops to the page: with no
+  // line left to move on to after a keyboard answer it rests on the tray,
+  // and when what held it leaves (its line answered here or elsewhere, the
+  // list giving way to the empty tray) it moves to the tray, or to what the
+  // tray says once empty. Not to a line: a stray key would answer it.
+  const region = useRef<HTMLElement | null>(null)
+  const empty = useRef<HTMLElement | null>(null)
+  const held = useRef<Element | null>(null)
+  const setEmpty = (el: HTMLElement | null) => void (empty.current = el)
+  const settle = () => (region.current ?? empty.current)?.focus()
+  const onFocus = (e: { target: Element }) => void (held.current = e.target)
+  const recover = useRef(() => {})
+  recover.current = () => {
+    const was = held.current
+    const active = document.activeElement
+    if (!was || was.isConnected || (active && active !== document.body)) return
+    held.current = null
+    settle()
+  }
+  // A list that gives way to another root, or a line that leaves once its
+  // exit has played (no render of the tray marks that).
+  useLayoutEffect(() => recover.current())
+  const none = requests.length === 0 && owed.length === 0
+  useEffect(() => {
+    const el = region.current
+    if (!el || typeof MutationObserver !== 'function') return
+    const watch = new MutationObserver(() => recover.current())
+    watch.observe(el, { childList: true, subtree: true })
+    return () => watch.disconnect()
+  }, [none])
+
   // This is what needs the owner: until it loaded, an empty inbox would be
   // a false all-clear.
   const failed = status === 'error' && (
     <LoadFailed onRetry={() => void loadRequests()}>Couldn't load requests</LoadFailed>
   )
-  if (requests.length === 0 && owed.length === 0) {
+  if (none) {
     if (status === 'loading')
       return (
-        <div className="tray-empty">
+        <div className="tray-empty" ref={setEmpty} tabIndex={-1} onFocus={onFocus}>
           <Skeleton rows={2} label="loading requests" />
         </div>
       )
-    if (failed) return <div className="tray-empty">{failed}</div>
-    return <p className="tray-empty">No pending requests</p>
+    if (failed)
+      return (
+        <div className="tray-empty" ref={setEmpty} tabIndex={-1} onFocus={onFocus}>
+          {failed}
+        </div>
+      )
+    return (
+      <p className="tray-empty" ref={setEmpty} tabIndex={-1} onFocus={onFocus}>
+        No pending requests
+      </p>
+    )
   }
   return (
-    <aside className="request-tray panel" aria-label="Pending requests">
+    <aside className="request-tray panel" aria-label="Pending requests" ref={region} tabIndex={-1} onFocus={onFocus}>
       <h2 className="section-title">
         Waiting for you <span className="badge">{requests.length + owed.length}</span>
       </h2>
@@ -75,6 +115,7 @@ export default function RequestTray() {
               request={r}
               session={sessions.find((s) => s.id === r.sessionId)}
               waiting={waiting}
+              settle={settle}
             />
           ))}
           {owed.map((s) => (
@@ -94,10 +135,13 @@ function TrayLine({
   request: r,
   session,
   waiting,
+  settle,
 }: {
   request: SessionRequest
   session: Session | undefined
   waiting: (el: HTMLElement) => boolean
+  // settle takes focus when no line is left to move on to.
+  settle: () => void
 }) {
   const selectSession = useSessionStore((s) => s.selectSession)
   const respond = useSessionStore((s) => s.respond)
@@ -125,14 +169,16 @@ function TrayLine({
 
   // answer sends the line's answer. Focus stays on the line until the
   // outcome is known; once it went through, the keyboard moves on to the
-  // next line still waiting.
+  // next line still waiting, or with none left stays in the tray.
   const answer = async (action: Action, a: RequestAnswerInput, row: HTMLElement | null) => {
     const line = row?.closest('li') ?? null
     const rows = [...(row?.closest('ul')?.querySelectorAll<HTMLElement>('.tray-row') ?? [])]
     if ((await run(action, a)) !== true) return
     const focused = document.activeElement
     if (!row || !(focused === null || focused === document.body || line?.contains(focused))) return
-    nextRow(rows, rows.indexOf(row), waiting)?.focus()
+    const next = nextRow(rows, rows.indexOf(row), waiting)
+    if (next) next.focus()
+    else settle()
   }
 
   const key = keyOf(r)

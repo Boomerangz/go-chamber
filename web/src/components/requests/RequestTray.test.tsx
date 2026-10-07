@@ -149,6 +149,73 @@ describe('RequestTray', () => {
     expect(respond).toHaveBeenCalledTimes(3)
   })
 
+  it('keeps focus in the tray once the last line is answered from the keyboard', async () => {
+    const respond = vi.fn().mockResolvedValue(undefined)
+    useSessionStore.setState({
+      respond,
+      pendingRequests: [{ id: 'r1', sessionId: 's1', kind: 'permission', state: 'pending', title: 'Only' }],
+    })
+    render(<RequestTray />)
+    screen.getByRole('button', { name: /Only/ }).focus()
+    await userEvent.keyboard('a')
+    expect(respond).toHaveBeenCalledWith('s1', 'r1', { behavior: 'allow' })
+    // No line left to move to: the tray itself holds focus, not the page.
+    await vi.waitFor(() => expect(screen.getByRole('complementary', { name: 'Pending requests' })).toHaveFocus())
+    // The request leaves the queue: the empty tray takes focus over.
+    act(() => useSessionStore.setState({ pendingRequests: [], requestsStatus: 'ready' }))
+    expect(screen.getByText('No pending requests')).toHaveFocus()
+    expect(document.activeElement).not.toBe(document.body)
+  })
+
+  it('keeps focus in the empty tray when the request left before its answer came back', async () => {
+    let release: (ok: boolean) => void = () => {}
+    const respond = vi.fn(() => new Promise<boolean>((r) => (release = r)))
+    useSessionStore.setState({
+      respond,
+      requestsStatus: 'ready',
+      pendingRequests: [{ id: 'r1', sessionId: 's1', kind: 'permission', state: 'pending', title: 'Only' }],
+    })
+    render(<RequestTray />)
+    screen.getByRole('button', { name: /Only/ }).focus()
+    await userEvent.keyboard('a')
+    // The live event drops the request first: the tray empties under focus.
+    act(() => useSessionStore.setState({ pendingRequests: [] }))
+    await act(async () => release(true))
+    await vi.waitFor(() => expect(screen.getByText('No pending requests')).toHaveFocus())
+  })
+
+  it('keeps focus in the tray when the focused line is answered elsewhere', async () => {
+    const first = { id: 'r1', sessionId: 's1', kind: 'permission' as const, state: 'pending' as const, title: 'First' }
+    useSessionStore.setState({
+      requestsStatus: 'ready',
+      pendingRequests: [first, { id: 'r2', sessionId: 's1', kind: 'permission', state: 'pending', title: 'Second' }],
+    })
+    render(<RequestTray />)
+    screen.getByRole('button', { name: /Second/ }).focus()
+    act(() => useSessionStore.setState({ pendingRequests: [first] }))
+    // Not onto a line, where a stray key would answer it.
+    await vi.waitFor(() => expect(screen.getByRole('complementary', { name: 'Pending requests' })).toHaveFocus())
+  })
+
+  it('leaves focus alone when the owner moved it while the last answer was on its way', async () => {
+    let release: (ok: boolean) => void = () => {}
+    const respond = vi.fn(() => new Promise<boolean>((r) => (release = r)))
+    useSessionStore.setState({
+      respond,
+      pendingRequests: [{ id: 'r1', sessionId: 's1', kind: 'permission', state: 'pending', title: 'Only' }],
+    })
+    const outside = document.createElement('input')
+    document.body.append(outside)
+    render(<RequestTray />)
+    screen.getByRole('button', { name: /Only/ }).focus()
+    await userEvent.keyboard('a')
+    outside.focus()
+    await act(async () => release(true))
+    act(() => useSessionStore.setState({ pendingRequests: [], requestsStatus: 'ready' }))
+    expect(outside).toHaveFocus()
+    outside.remove()
+  })
+
   it('holds a line while its answer is on its way and keeps focus there', async () => {
     let release: (ok: boolean) => void = () => {}
     const respond = vi.fn(() => new Promise<boolean>((r) => (release = r)))
