@@ -1340,30 +1340,35 @@ describe('transcript downloads', () => {
     ;(api.fetchEvents as Mock).mockClear()
 
     const back = store().selectSession('a')
-    expect(store().history).toBe('ready')
     expect(store().chat.order).toEqual(['one'])
+    // Not ready until caught up: what came meanwhile is still news.
+    expect(store().history).toBe('loading')
     await back
+    expect(store().history).toBe('ready')
     expect(api.fetchEvents).toHaveBeenCalledTimes(1)
     expect(api.fetchEvents).toHaveBeenCalledWith('a', 1, expect.anything())
     expect(store().chat.order).toEqual(['one', 'two'])
   })
 
   it('keeps the last five chats in memory', async () => {
-    fakeServer()
-    for (const id of ['s1', 's2', 's3', 's4', 's5', 's6', 's7']) await store().selectSession(id)
+    const server = fakeServer()
+    const ids = ['s1', 's2', 's3', 's4', 's5', 's6', 's7']
+    for (const id of ids) server.publish({ sessionId: id, item: item({ id: `${id}-1`, sessionId: id }) })
+    for (const id of ids) await store().selectSession(id)
     // The chat being left counts too: s3 to s7 stay.
     void store().selectSession('s3')
-    expect(store().history).toBe('ready')
+    expect(store().chat.order).toEqual(['s3-1'])
     void store().selectSession('s2')
-    expect(store().history).toBe('loading')
+    expect(store().chat.order).toEqual([])
   })
 
   it('forgets the chat of a removed session', async () => {
-    fakeServer()
+    const server = fakeServer()
+    server.publish({ item: item({ id: 'one' }) })
     await store().selectSession('a')
     await store().selectSession('b')
-    store().applyIncoming({ seq: 1, sessionId: 'a', type: 'session.removed' })
+    store().applyIncoming({ seq: 2, sessionId: 'a', type: 'session.removed' })
     void store().selectSession('a')
-    expect(store().history).toBe('loading')
+    expect(store().chat.order).toEqual([])
   })
 })

@@ -432,8 +432,9 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     keepChat(get)
     buffered = null
     dropQueued()
-    const cached = chats.get(id)
-    set({ activeId: id, chat: cached ?? initialChat(), pane: 'chat', history: cached ? 'ready' : 'loading', historyError: null })
+    // A remembered chat shows at once; history stays 'loading' until it has
+    // caught up, so what arrived meanwhile still counts as news.
+    set({ activeId: id, chat: chats.get(id) ?? initialChat(), pane: 'chat', history: 'loading', historyError: null })
     connect(get, set)
     if (get().sessionsStatus === 'error') void fetchOpenSession(get, set, id)
     await resync(get, set, id)
