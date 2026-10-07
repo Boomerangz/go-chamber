@@ -122,7 +122,7 @@ test('a session opened by its link is in view in the list, also on a phone', asy
   if (await bar.isVisible()) expect((await box(row)).y + (await box(row)).height).toBeLessThanOrEqual((await box(bar)).y + 1)
 })
 
-test("the open session's row stays put when a folder below it gets busy and moves to the top", async ({ page }) => {
+test("the open session's row stays put when a session below it gets busy and moves up", async ({ page }) => {
   const dir = fs.realpathSync(fs.mkdtempSync(`${os.tmpdir()}/gc-stay-`))
   const headers = { Authorization: `Bearer ${token}` }
   const create = async (cwd: string) => {
@@ -130,9 +130,11 @@ test("the open session's row stays put when a folder below it gets busy and move
     const r = await page.request.post('/api/sessions', { headers, data: { agent: 'claude', cwd } })
     return ((await r.json()) as { id: string }).id
   }
-  // the busy folder is the oldest, at the bottom, below the open session
-  const busy = await create(`${dir}/aa-busy`)
-  const target = await create(`${dir}/bb-target`)
+  // in the open session's folder, the busy one is the oldest: below it
+  const busy = await create(`${dir}/target`)
+  const target = await create(`${dir}/target`)
+  for (let i = 0; i < 2; i++) await create(`${dir}/target`)
+  // and a long list of other folders above, so the list scrolls to it
   for (let i = 0; i < 16; i++) await create(`${dir}/other-${i}`)
   await page.goto(`/?token=${token}`)
   await page.goto(`/s/${target}`)
@@ -141,12 +143,11 @@ test("the open session's row stays put when a folder below it gets busy and move
   await expect(row).toBeInViewport({ ratio: 0.9 })
   const before = (await box(row)).y
   await page.request.post(`/api/sessions/${busy}/messages`, { headers, data: { text: 'busy now' } })
-  // its group moves from below the open row to the top of the list...
-  // (named "aa-busy", or with its parent while another run's is listed too)
-  const busyGroup = page.getByRole('region', { name: /aa-busy$/ }).filter({ hasText: `${dir}/aa-busy` })
-  await expect.poll(async () => (await box(busyGroup)).y < (await box(row)).y).toBe(true)
-  // ...and the open row is still where it was on screen, not pushed down out
-  // of sight (a scroll lands on whole pixels, rows don't)
+  // sessions in a group follow activity: the busy one moves above the open row...
+  const busyRow = page.locator(`.sidebar button.session[data-session="${busy}"]`)
+  await expect.poll(async () => (await box(busyRow)).y < (await box(row)).y).toBe(true)
+  // ...and the open row is still where it was on screen, not pushed down
+  // (a scroll lands on whole pixels, rows don't)
   expect(Math.abs((await box(row)).y - before)).toBeLessThan(2)
 })
 
