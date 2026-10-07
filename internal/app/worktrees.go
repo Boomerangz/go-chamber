@@ -94,6 +94,14 @@ type WorktreesConfig struct {
 	Root string
 	// Folders optionally checks the asked-for folder exists.
 	Folders FolderProbe
+	// Terminals optionally closes the shells in a removed worktree folder.
+	Terminals ShellCloser
+}
+
+// ShellCloser closes the shells working in a folder that goes.
+type ShellCloser interface {
+	// CloseWithin closes the shells in dir or below it; it says how many.
+	CloseWithin(dir string) int
 }
 
 // Worktrees creates sessions in their own git worktree and reports what a
@@ -144,10 +152,19 @@ func (w *Worktrees) Create(ctx context.Context, agent domain.AgentKind, dir, nam
 }
 
 // Remove deletes the session's worktree folder; its branch stays for
-// merging and the session remembers both.
+// merging and the session remembers both. Shells left in the folder close:
+// they would work in a folder that is not there. They go before the
+// removal is announced, so a client refreshing its terminals on that
+// announcement doesn't find them.
 func (w *Worktrees) Remove(ctx context.Context, id domain.SessionID, force bool) (domain.SessionSnapshot, error) {
 	return w.cfg.Sessions.RemoveWorktree(ctx, id, func(wt domain.Worktree) error {
-		return w.cfg.Git.RemoveWorktree(ctx, wt, force)
+		if err := w.cfg.Git.RemoveWorktree(ctx, wt, force); err != nil {
+			return err
+		}
+		if w.cfg.Terminals != nil {
+			w.cfg.Terminals.CloseWithin(wt.Path)
+		}
+		return nil
 	})
 }
 

@@ -6,6 +6,8 @@ import { usePending } from '../../lib/pending'
 import { sessionTitle } from '../../lib/sessions'
 import { describeError, fail, notify } from '../../stores/notices'
 import { useSessionStore } from '../../stores/session'
+import { useShellsWithin } from '../../stores/terminals'
+import { closingNote } from '../../lib/shells'
 import { icon } from '../icon'
 import { matches } from '../chat/useMedia'
 import './SessionMenu.css'
@@ -367,6 +369,7 @@ function MenuSheet(props: {
               Also remove the worktree folder (branch {worktree.branch} kept)
             </label>
           )}
+          {worktree && withFolder && <ClosingNote dir={worktree.path} />}
           <div className="session-menu-actions">
             <button type="button" className="btn btn-danger btn-xs" aria-busy={deleting || undefined} onClick={() => void remove()}>
               {deleting ? 'Deleting…' : 'Delete'}
@@ -414,6 +417,7 @@ function RemoveWorktree({ session, title, worktree, onDone }: { session: Session
       <p>
         Remove the worktree folder {worktree.path}? Branch {worktree.branch} is kept.
       </p>
+      <ClosingNote dir={worktree.path} />
       {dirty && <p className="session-menu-warn">It has uncommitted changes: they will be lost.</p>}
       {error && (
         <p className="session-menu-error" role="alert">
@@ -430,6 +434,12 @@ function RemoveWorktree({ session, title, worktree, onDone }: { session: Session
       </div>
     </div>
   )
+}
+
+// ClosingNote says how many shells close with a worktree folder.
+function ClosingNote({ dir }: { dir: string }) {
+  const note = closingNote(useShellsWithin(dir))
+  return note ? <p className="session-menu-warn">{note}</p> : null
 }
 
 // RenameField edits the name in the menu: Enter saves, Escape keeps it.

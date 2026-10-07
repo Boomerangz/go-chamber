@@ -1,6 +1,8 @@
 import { create } from 'zustand'
 import { LiveList } from '../lib/live-list'
 import { describeError, fail } from './notices'
+import { useSessionStore } from './session'
+import { shellsMayHaveGone, shellsWithin } from '../lib/shells'
 import {
   closeTerminal,
   renameTerminal,
@@ -375,4 +377,18 @@ export const useTerminalStore = create<TerminalStoreState>((set, get) => {
 export function resetTerminals() {
   terminalLists.reset()
   useTerminalStore.setState({ ...initial, fontSize: storedFont() })
+}
+
+// useShellsWithin counts the listed shells working in dir or below it.
+export function useShellsWithin(dir: string | undefined): number {
+  return useTerminalStore((s) => shellsWithin(s.terminals, dir))
+}
+
+// followSessions refreshes the shell list when a session goes or loses its
+// worktree folder: the server then let go of its shells, or closed those in
+// the folder. It returns the unsubscribe.
+export function followSessions(): () => void {
+  return useSessionStore.subscribe((s, prev) => {
+    if (shellsMayHaveGone(prev.sessions, s.sessions)) void useTerminalStore.getState().load()
+  })
 }

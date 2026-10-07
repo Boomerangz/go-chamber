@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"strings"
 	"time"
 )
 
@@ -62,6 +63,23 @@ func UniqueTitle(base string, taken []string) string {
 	}
 	return title
 }
+
+// Within reports whether the shell's folder is dir or one inside it: a
+// worktree folder that goes takes those shells with it.
+func (t Terminal) Within(dir string) bool {
+	if !filepath.IsAbs(dir) {
+		return false
+	}
+	rel, err := filepath.Rel(filepath.Clean(dir), filepath.Clean(t.Cwd))
+	return err == nil && rel != ".." && !strings.HasPrefix(rel, "../")
+}
+
+// OpenedFor reports whether the terminal was opened for session id.
+func (t Terminal) OpenedFor(id SessionID) bool { return id != "" && t.SessionID == id }
+
+// Unbind forgets the session the terminal was opened for: the shell stays,
+// an ordinary terminal in its folder.
+func (t *Terminal) Unbind() { t.SessionID = "" }
 
 // Exit records the shell's exit code; a terminal exits only once.
 func (t *Terminal) Exit(code int) error {
