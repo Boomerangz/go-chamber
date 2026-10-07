@@ -78,6 +78,35 @@ test.describe('a phone held sideways', () => {
 
 const gitEnv = { ...process.env, GIT_AUTHOR_NAME: 't', GIT_AUTHOR_EMAIL: 't@t', GIT_COMMITTER_NAME: 't', GIT_COMMITTER_EMAIL: 't@t' }
 const LONG = 'SomeVeryLongFileName_1.tsx'
+const LONG_REPO = 'a-really-long-project-folder-name-for-a-phone'
+
+function longRepo() {
+  const dir = path.join(realpathSync(mkdtempSync(path.join(tmpdir(), 'gc-wt-'))), LONG_REPO)
+  execFileSync('git', ['init', '-q', '-b', 'main', dir], { env: gitEnv })
+  writeFileSync(path.join(dir, 'README.md'), 'hello\n')
+  execFileSync('git', ['add', '.'], { cwd: dir, env: gitEnv })
+  execFileSync('git', ['commit', '-q', '-m', 'init'], { cwd: dir, env: gitEnv })
+  return dir
+}
+
+test.describe('a phone', () => {
+  test.use({ hasTouch: true, isMobile: true, viewport: { width: 390, height: 844 } })
+  test('a worktree chip under Projects keeps its branch; the repository name gives way', async ({ page }, info) => {
+    const branch = `phone-${info.project.name}-${Date.now() % 100000}`
+    await page.request.post('/api/worktrees', { headers, data: { agent: 'claude', cwd: longRepo(), branch } })
+    await page.goto(`/terminal?token=${token}`)
+    const chip = page.getByRole('button', { name: `Open terminal in ${LONG_REPO} ⎇ ${branch}` })
+    await expect(chip).toBeVisible()
+    const fit = await chip.evaluate((el) => {
+      const b = el.querySelector('.chip-branch')!
+      const repo = el.querySelector('.chip-label')!
+      const c = el.getBoundingClientRect()
+      return { whole: b.scrollWidth <= b.clientWidth, inside: b.getBoundingClientRect().right <= c.right + 0.5, repoCut: repo.scrollWidth > repo.clientWidth, repoShown: repo.getBoundingClientRect().width }
+    })
+    expect(fit).toEqual({ whole: true, inside: true, repoCut: true, repoShown: expect.any(Number) })
+    expect(fit.repoShown).toBeGreaterThanOrEqual(20)
+  })
+})
 
 // changedRepo is a repository with a changed file deep in folders, under a
 // long name, beside a short one.

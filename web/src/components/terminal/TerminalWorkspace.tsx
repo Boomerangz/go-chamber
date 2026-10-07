@@ -65,9 +65,9 @@ export default function TerminalWorkspace({ sessions }: { sessions: Session[] })
       onClick={() => void open({ cwd: w.path })}
     >
       <SquareTerminal {...icon(14)} />
-      <span className="chip-label">
-        {basename(w.repo)} <span className="chip-branch">⎇ {w.branch}</span>
-      </span>
+      {/* each part is cut on its own: the repository gives way, the branch stays */}
+      <span className="chip-label">{basename(w.repo)}</span>
+      <span className="chip-branch">⎇ {w.branch}</span>
     </button>
   )
 

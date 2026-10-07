@@ -932,8 +932,11 @@ button.health { border: 0; background: none; padding: 0; }
 .term-projects { display: grid; gap: 8px; }
 .term-chips { display: flex; flex-wrap: wrap; gap: 6px; min-width: 0; }
 .term-chips .chip .icon { color: var(--ink-3); }
-/* a worktree chip: its repository, then the branch as context */
-.term-chips .chip-branch { color: var(--ink-3); }
+/* a worktree chip: its repository, then the branch, which tells it from the
+   repository's own chip. The repository gives way first; a branch longer
+   than most of the chip is cut too, each part with its own ellipsis */
+.term-chips .chip-label:has(+ .chip-branch) { flex: 0 1 auto; min-width: 4ch; }
+.term-chips .chip-branch { flex: none; max-width: 70%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink-3); }
 .term-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 1px; }
 .term-row { display: flex; align-items: center; border: 1px solid transparent; border-radius: var(--r); transition: background var(--dur-fast); }
 .term-row:hover { background: var(--paper-2); }
