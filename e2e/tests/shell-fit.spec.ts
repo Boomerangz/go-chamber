@@ -32,10 +32,18 @@ test('a project chip shows its icon beside a shortened name, inside the list', a
   await startSession(page, cwd)
   await page.getByRole('radio', { name: /^Terminal/ }).click()
   const sidebar = page.locator('.term-sidebar')
-  const chip = sidebar.getByRole('button', { name: `Open terminal in ${longName}` })
+  // this test's own chip: its run on the other viewport names one the same
+  const chip = sidebar.getByRole('button', { name: `Open terminal in ${longName}` }).and(sidebar.locator(`[title="${cwd}"]`))
   const label = chip.locator('.chip-label')
   await expect(label).toBeVisible()
-  const [c, l, i, s] = await Promise.all([box(chip), box(label), box(chip.locator('svg')), box(sidebar)])
+  // measured in one go: other specs' sessions add chips to this list, and
+  // a chip moved between two separate measurements reads as misaligned
+  const [c, l, i, s] = await chip.evaluate((el) =>
+    [el, el.querySelector('.chip-label')!, el.querySelector('svg')!, el.closest('.term-sidebar')!].map((e) => {
+      const r = e.getBoundingClientRect()
+      return { x: r.x, y: r.y, width: r.width, height: r.height }
+    }),
+  )
   // the name is on the icon's line, not under it
   expect(Math.abs(l.y + l.height / 2 - (i.y + i.height / 2))).toBeLessThan(3)
   expect(l.width).toBeGreaterThan(40)
@@ -134,7 +142,8 @@ test("the open session's row stays put when a folder below it gets busy and move
   const before = (await box(row)).y
   await page.request.post(`/api/sessions/${busy}/messages`, { headers, data: { text: 'busy now' } })
   // its group moves from below the open row to the top of the list...
-  const busyGroup = page.getByRole('region', { name: `Project ${dir.split('/').pop()}/aa-busy` })
+  // (named "aa-busy", or with its parent while another run's is listed too)
+  const busyGroup = page.getByRole('region', { name: /aa-busy$/ }).filter({ hasText: `${dir}/aa-busy` })
   await expect.poll(async () => (await box(busyGroup)).y < (await box(row)).y).toBe(true)
   // ...and the open row is still where it was on screen, not pushed down out
   // of sight (a scroll lands on whole pixels, rows don't)
