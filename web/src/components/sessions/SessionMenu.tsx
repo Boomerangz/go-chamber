@@ -7,6 +7,7 @@ import { sessionTitle } from '../../lib/sessions'
 import { describeError, fail, notify } from '../../stores/notices'
 import { useSessionStore } from '../../stores/session'
 import { icon } from '../icon'
+import { matches } from '../chat/useMedia'
 import './SessionMenu.css'
 
 // Where the menu opens: under its button, or at the pointer for a right click.
@@ -22,6 +23,8 @@ type Step = 'menu' | 'rename' | 'delete' | 'worktree'
 // the sheet keeps this far from the window's edges (a phone's gutter there)
 const edge = () => (window.innerWidth <= 720 ? 14 : 8)
 
+const touch = () => matches('(pointer: coarse)')
+
 // neighbourOf finds where focus goes once a row leaves the list (archived,
 // unarchived or deleted): the next row, else the previous one. Rows nested
 // in the leaving one leave with it.
@@ -33,16 +36,21 @@ function neighbourOf(trigger: React.RefObject<HTMLElement | null>): () => void {
   const others = (list: HTMLElement[]) => list.filter((r) => !item?.contains(r))
   const next = at < 0 ? [] : [...others(rows.slice(at + 1)), ...others(rows.slice(0, at)).reverse()]
   return () => {
-    const target = next.find((r) => r.isConnected) ?? document.querySelector<HTMLElement>('input[aria-label="Search sessions"]')
+    // With no row left, the search field takes it, but not on a touch
+    // screen: focusing a field there brings the keyboard up.
+    const search = touch() ? null : document.querySelector<HTMLElement>('input[aria-label="Search sessions"]')
+    const target = next.find((r) => r.isConnected) ?? search
     target?.focus()
   }
 }
 
 // focusRestored puts the focus where a session brought back by Undo is
 // used: the composer when it is the open one (and on screen: a phone may
-// show the list instead), else its row in the list.
+// show the list instead), else its row in the list. A touch screen gets
+// the row: a focused composer there brings the keyboard up.
 function focusRestored(id: string) {
-  const composer = useSessionStore.getState().activeId === id ? document.querySelector<HTMLElement>('textarea[aria-label="Message"]') : null
+  const open = useSessionStore.getState().activeId === id && !touch()
+  const composer = open ? document.querySelector<HTMLElement>('textarea[aria-label="Message"]') : null
   const target =
     composer && (composer.checkVisibility?.() ?? true)
       ? composer

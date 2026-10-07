@@ -1,6 +1,6 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { beforeEach, describe, expect, it, vi, type Mock } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest'
 import { resetStore, useSessionStore } from '../../stores/session'
 import type { Session } from '../../lib/api'
 import { useNotices } from '../../stores/notices'
@@ -93,6 +93,58 @@ describe('SessionMenu focus after the row leaves', () => {
     await userEvent.click(screen.getByRole('menuitem', { name: 'Delete…' }))
     await userEvent.click(screen.getByRole('button', { name: 'Delete' }))
     await waitFor(() => expect(screen.getByRole('button', { name: 'Second' })).toHaveFocus())
+  })
+})
+
+describe('SessionMenu focus on a touch screen', () => {
+  const touch = () =>
+    vi.stubGlobal('matchMedia', (q: string) => ({
+      matches: q.includes('pointer: coarse'), media: q, addEventListener: () => {}, removeEventListener: () => {},
+    }))
+  afterEach(() => vi.unstubAllGlobals())
+
+  it('does not put the focus in the search field when no row is left: the keyboard would come up', async () => {
+    touch()
+    const view = render(
+      <>
+        <input aria-label="Search sessions" />
+        <List />
+      </>,
+    )
+    actions.archiveSession.mockImplementation(async () => {
+      view.rerender(
+        <>
+          <input aria-label="Search sessions" />
+          <List gone={['s1', 's2', 's3']} />
+        </>,
+      )
+      return true
+    })
+    await userEvent.click(trigger('Second'))
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Archive' }))
+    await waitFor(() => expect(actions.archiveSession).toHaveBeenCalled())
+    await act(async () => {})
+    expect(screen.getByLabelText('Search sessions')).not.toHaveFocus()
+  })
+
+  it("Undo hands the focus to the restored row, not the open session's composer", async () => {
+    touch()
+    useSessionStore.setState({ activeId: 's1' })
+    const { rerender } = render(<Row />)
+    await userEvent.click(trigger())
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Archive' }))
+    await waitFor(() => expect(useNotices.getState().notices).toHaveLength(1))
+    rerender(
+      <>
+        <Row />
+        <button type="button" className="session" data-session="s1">
+          restored
+        </button>
+        <textarea aria-label="Message" />
+      </>,
+    )
+    useNotices.getState().notices[0]!.action!.run()
+    await waitFor(() => expect(screen.getByRole('button', { name: 'restored' })).toHaveFocus())
   })
 })
 
