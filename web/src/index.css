@@ -533,6 +533,13 @@ button.health { border: 0; background: none; padding: 0; }
   .sidebar-body { flex: none; overflow: visible; }
   .sidebar-footer { flex: none; }
 }
+/* History open: the sidebar scrolls as a whole too, so the form and the
+   footer give their room before the sessions do (HistoryPanel keeps the
+   sessions in view when it reveals itself) */
+.sidebar:has(.history:not(.archived)[open]) { overflow-y: auto; scroll-padding-top: 52px; }
+.sidebar:has(.history:not(.archived)[open]) .sidebar-body > .session-search { top: -14px; }
+.sidebar:has(.history:not(.archived)[open]) .sidebar-body { flex: none; overflow: visible; }
+.sidebar:has(.history:not(.archived)[open]) .sidebar-footer { flex: none; }
 @media (max-width: 720px) { .sidebar-signout { display: block; } }
 /* a finger's targets: on a phone by its width, and on any touch screen (a
    tablet keeps the wide layout but not a mouse's precision) */
