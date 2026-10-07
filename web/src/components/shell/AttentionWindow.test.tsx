@@ -228,6 +228,22 @@ it('counts what waits as the inbox does, cut-off questions included', () => {
   expect(screen.getByText('0 running · 1 waiting')).toBeInTheDocument()
 })
 
+it('counts a running session that waits on the owner as waiting, not also running', () => {
+  useSessionStore.setState({
+    sessions: [
+      { id: 'a', agent: 'claude', cwd: '/tmp/a', status: 'running' },
+      { id: 'b', agent: 'claude', cwd: '/tmp/b', status: 'running' },
+      { id: 'c', agent: 'claude', cwd: '/tmp/c', status: 'running' },
+    ],
+    pendingRequests: [
+      { id: 'r1', sessionId: 'a', kind: 'permission', state: 'pending', title: 'Run tests' },
+      { id: 'r2', sessionId: 'b', kind: 'question', state: 'pending', title: 'Which one?' },
+    ],
+  })
+  render(<AttentionPanel standalone />)
+  expect(screen.getByText('1 running · 2 waiting')).toBeInTheDocument()
+})
+
 it('says why activity failed to load, with a Retry', async () => {
   vi.mocked(api.fetchEvents).mockRejectedValueOnce(new Error('offline')).mockResolvedValue([])
   useSessionStore.setState({ sessions: [{ id: 's', agent: 'claude', cwd: '/p', status: 'running', title: 'Busy' }] })

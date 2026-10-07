@@ -156,7 +156,9 @@ export function AttentionPanel({ standalone = false }: { standalone?: boolean })
     void useAttention.getState().refresh(useSessionStore.getState().sessions, { catchUp })
   }, [connection, refreshKey])
   const top = sessions.filter((s) => !s.parentId)
-  const running = top.filter((s) => s.status === 'running')
+  // A turn held up by a question or permission counts as waiting, not
+  // also as running: each session is counted once.
+  const running = top.filter((s) => s.status === 'running' && !requests.some((r) => r.sessionId === s.id))
   // A result is news until the owner looks at the session on any device.
   const isResult = (s: Session) => s.status !== 'running' && isUnseen(s) && !entries[s.id]?.dismissed
   const visible = top.filter((s) => s.status === 'running' || isResult(s))
