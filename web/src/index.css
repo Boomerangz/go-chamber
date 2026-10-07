@@ -656,7 +656,7 @@ button.health { border: 0; background: none; padding: 0; }
 /* cells keep their words whole (".item" breaks anywhere, which cut "1290"
    into "129/0"); the table scrolls in its own box instead */
 .md th, .md td { padding: 4px 10px; border: 1px solid var(--rule); text-align: left; overflow-wrap: normal; word-break: normal; }
-.md td code, .md th code { white-space: nowrap; }
+.md th, .md td code, .md th code { white-space: nowrap; }
 /* images fit the column; remote ones are links, failed ones a line of words */
 .md img { display: block; max-width: 100%; height: auto; margin: 4px 0; }
 .md-image-link, .md-image-missing { font-family: var(--font-mono); font-size: 12px; }
