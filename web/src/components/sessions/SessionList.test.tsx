@@ -81,12 +81,23 @@ describe('loading the list', () => {
 
   it('offers a retry when loading failed', async () => {
     const loadSessions = vi.fn(async () => {})
-    useSessionStore.setState({ sessionsStatus: 'error', loadSessions })
+    useSessionStore.setState({ sessionsStatus: 'error', sessionsError: 'database is locked', loadSessions })
     render(<SessionList onCreateIn={() => {}} />)
-    expect(screen.getByText("Couldn't load sessions")).toBeInTheDocument()
+    expect(screen.getByRole('alert')).toHaveTextContent("Couldn't load sessions: database is locked")
     expect(screen.queryByText('No sessions yet')).toBeNull()
     await userEvent.click(screen.getByRole('button', { name: 'Retry' }))
     expect(loadSessions).toHaveBeenCalled()
+  })
+
+  it('still says the list failed while only the open session is known', () => {
+    useSessionStore.setState({
+      sessionsStatus: 'error',
+      sessionsError: 'database is locked',
+      activeId: 'a',
+      sessions: [{ id: 'a', agent: 'claude', cwd: '/src/app', status: 'idle' }],
+    })
+    render(<SessionList onCreateIn={() => {}} />)
+    expect(screen.getByRole('alert')).toHaveTextContent("Couldn't load sessions: database is locked")
   })
 
   it('says when only archived sessions match, instead of nothing or "no match"', () => {
@@ -361,7 +372,7 @@ describe('search failures and busy buttons', () => {
     const searchMessages = vi.fn(async () => {})
     useSessionStore.setState({ query: 'zzz', searchError: 'boom', searchMessages })
     render(<SessionList onCreateIn={() => {}} />)
-    expect(screen.getByText("Couldn't search messages: boom")).toBeInTheDocument()
+    expect(screen.getByRole('alert')).toHaveTextContent("Couldn't search messages: boom")
     expect(screen.queryByText('No matching sessions')).toBeNull()
     searchMessages.mockClear()
     await userEvent.click(screen.getByRole('button', { name: 'Retry' }))

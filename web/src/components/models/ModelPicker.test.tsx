@@ -132,7 +132,7 @@ describe('ModelPicker', () => {
     vi.mocked(api.listModels).mockRejectedValueOnce(new Error('codex stopped')).mockRejectedValueOnce(new Error('codex stopped'))
     render(<ModelPicker session={session()} />)
     await userEvent.click(screen.getByRole('button', { name: /Model:/ }))
-    expect(await screen.findByText("Couldn't load models")).toBeInTheDocument()
+    expect(await screen.findByRole('alert')).toHaveTextContent("Couldn't load models")
     expect(screen.queryByText("this agent doesn't list models")).toBeNull()
     let finish: (m: api.ModelInfo[]) => void = () => {}
     vi.mocked(api.listModels).mockImplementationOnce(() => new Promise((r) => (finish = r)))

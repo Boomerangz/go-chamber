@@ -11,6 +11,7 @@ import { LoadFailed, Skeleton } from '../ui/Loading'
 import { notSent, shortcut } from './answer'
 import { requestGist } from './gist'
 import './RequestTray.css'
+import { failedTo } from '../../lib/failed'
 
 // The kind says what the request requires, as its block does ("Requires approval").
 const kindLabel: Record<string, string> = { permission: 'Approval', question: 'Answer', elicitation: 'Input' }
@@ -25,6 +26,7 @@ type Action = 'allow' | 'session' | 'deny'
 export default function RequestTray() {
   const requests = useSessionStore((s) => s.pendingRequests)
   const status = useSessionStore((s) => s.requestsStatus)
+  const loadError = useSessionStore((s) => s.requestsError)
   const loadRequests = useSessionStore((s) => s.loadRequests)
   const sessions = useSessionStore((s) => s.sessions)
   // Turns cut off (a restart, a crash) while they waited for the owner: the
@@ -49,7 +51,7 @@ export default function RequestTray() {
   // This is what needs the owner: until it loaded, an empty inbox would be
   // a false all-clear.
   const failed = status === 'error' && (
-    <LoadFailed onRetry={() => void loadRequests()}>Couldn't load requests</LoadFailed>
+    <LoadFailed onRetry={() => void loadRequests()}>{failedTo('load requests', loadError)}</LoadFailed>
   )
   if (requests.length === 0 && owed.length === 0) {
     if (status === 'loading')

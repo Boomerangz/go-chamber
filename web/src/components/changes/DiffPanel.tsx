@@ -48,7 +48,7 @@ const copy = async (text: string, what: string, key: string) => {
     await navigator.clipboard.writeText(text)
     notify({ kind: 'info', text: `Copied the ${what}`, key })
   } catch (err) {
-    fail('Copy failed', err)
+    fail("Couldn't copy", err)
   }
 }
 

@@ -42,7 +42,7 @@ export default function DiagnosticsPage() {
       await navigator.clipboard.writeText(report())
       notify({ kind: 'info', text: 'Copied the report', key: 'copy-report' })
     } catch (err) {
-      fail('Copy failed', err)
+      fail("Couldn't copy", err)
     }
   }
   const download = () => {

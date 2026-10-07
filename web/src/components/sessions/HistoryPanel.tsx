@@ -3,6 +3,7 @@ import { useRef, useState } from 'react'
 import './HistoryPanel.css'
 import type { ExternalSession } from '../../lib/api'
 import { listHistory } from '../../lib/api'
+import { failedTo } from '../../lib/failed'
 import { relativeTime } from '../../lib/sessions'
 import { describeError, lastError } from '../../stores/notices'
 import { useSessionStore } from '../../stores/session'
@@ -69,15 +70,15 @@ export default function HistoryPanel() {
       </summary>
       {error && (
         <div className="history-note">
-          <LoadFailed onRetry={load}>{`Couldn't load conversations: ${error}`}</LoadFailed>
+          <LoadFailed onRetry={load}>{failedTo('load CLI sessions', error)}</LoadFailed>
         </div>
       )}
       {list === null && loading && (
         <div className="history-note">
-          <LoadingLine>loading conversations…</LoadingLine>
+          <LoadingLine>loading CLI sessions…</LoadingLine>
         </div>
       )}
-      {list !== null && list.length === 0 && !error && <p className="history-note">No other conversations to open.</p>}
+      {list !== null && list.length === 0 && !error && <p className="history-note">No other CLI sessions to open.</p>}
       {list !== null && loading && (
         <div className="history-note">
           <LoadingLine>refreshing…</LoadingLine>
@@ -93,7 +94,7 @@ export default function HistoryPanel() {
             value={filter}
             onChange={(e) => setFilter(e.target.value)}
           />
-          {shown.length === 0 && <p className="history-note">No matching conversations</p>}
+          {shown.length === 0 && <p className="history-note">No matching CLI sessions</p>}
           {shown.length > 0 && <p className="history-note">Opening one moves it to your sessions, where it resumes.</p>}
           <ul className="sessions history-list" aria-busy={loading || undefined}>
             {shown.map((s) => {
@@ -121,7 +122,7 @@ export default function HistoryPanel() {
                       </span>
                     </span>
                   </button>
-                  {failed === key && <p className="error history-error">{`Couldn't open the conversation${reason ? `: ${reason}` : ''}`}</p>}
+                  {failed === key && <p className="error history-error">{failedTo('open the CLI session', reason)}</p>}
                 </li>
               )
             })}

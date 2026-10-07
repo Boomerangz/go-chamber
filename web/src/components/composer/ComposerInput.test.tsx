@@ -154,7 +154,7 @@ describe('ComposerInput', () => {
     vi.mocked(complete.completeFiles).mockRejectedValue(new Error('boom'))
     render(<Harness />)
     await userEvent.type(box(), '@x')
-    expect(await screen.findByText("couldn't list files")).toBeInTheDocument()
+    expect(await screen.findByText("Couldn't list files: boom")).toBeInTheDocument()
     expect(screen.queryByRole('listbox')).toBeNull()
   })
 
@@ -162,7 +162,7 @@ describe('ComposerInput', () => {
     vi.mocked(complete.listCommands).mockRejectedValue(new Error('boom'))
     render(<Harness />)
     await userEvent.type(box(), '/co')
-    expect(await screen.findByText("couldn't list commands")).toBeInTheDocument()
+    expect(await screen.findByText("Couldn't list commands: boom")).toBeInTheDocument()
   })
 
   it('keeps the last suggestions, dimmed, while the next lookup runs', async () => {

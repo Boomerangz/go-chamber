@@ -179,7 +179,7 @@ describe('RequestTray', () => {
 
   it('names a failed answer on its line and lets the owner retry', async () => {
     const respond = vi.fn(async () => {
-      fail('Answer not sent', new Error('agent gone'))
+      fail("Couldn't send the answer", new Error('agent gone'))
       return false
     })
     useSessionStore.setState({
@@ -229,10 +229,10 @@ describe('RequestTray', () => {
     const { rerender } = render(<RequestTray />)
     expect(screen.queryByText('No pending requests')).toBeNull()
     expect(screen.getByRole('status', { name: 'loading requests' })).toBeInTheDocument()
-    useSessionStore.setState({ requestsStatus: 'error' })
+    useSessionStore.setState({ requestsStatus: 'error', requestsError: 'go-chamber is not reachable' })
     rerender(<RequestTray />)
     expect(screen.queryByText('No pending requests')).toBeNull()
-    expect(screen.getByRole('alert')).toHaveTextContent("Couldn't load requests")
+    expect(screen.getByRole('alert')).toHaveTextContent("Couldn't load requests: go-chamber is not reachable")
     await userEvent.click(screen.getByRole('button', { name: 'Retry' }))
     expect(loadRequests).toHaveBeenCalledTimes(1)
   })

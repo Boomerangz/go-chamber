@@ -22,6 +22,7 @@ vi.mock('../lib/api', () => ({
   setAutoContinue: vi.fn(),
   importHistory: vi.fn(),
   fetchHealth: vi.fn(),
+  getSession: vi.fn(),
 }))
 
 vi.mock('../lib/chime', () => ({ chimeOnEvent: vi.fn() }))
@@ -49,6 +50,7 @@ beforeEach(() => {
   resetStore()
   resetNotices()
   ;(api.fetchEvents as Mock).mockResolvedValue([])
+  ;(api.getSession as Mock).mockRejectedValue(new Error('not found'))
 })
 
 describe('session store', () => {
@@ -619,6 +621,9 @@ describe('session store', () => {
     expect(api.steer).toHaveBeenCalledWith('a', 'more')
     await store().steer('  ')
     expect(api.steer).toHaveBeenCalledTimes(1)
+    ;(api.steer as Mock).mockRejectedValueOnce(new Error('turn ended'))
+    await store().steer('more')
+    expect(useNotices.getState().notices).toMatchObject([{ title: "Couldn't steer the turn", text: 'turn ended' }])
   })
 
   it('renames a session and keeps the server copy', async () => {
@@ -657,6 +662,7 @@ describe('session store', () => {
     ;(api.sendMessage as Mock).mockRejectedValue(new Error('send failed'))
     await store().send('x')
     expect(lastError()).toBe('send failed')
+    expect(useNotices.getState().notices).toMatchObject([{ title: "Couldn't send the message" }])
     ;(api.interrupt as Mock).mockRejectedValue(new Error('stop failed'))
     await store().interrupt()
     expect(lastError()).toBe('stop failed')
@@ -723,6 +729,7 @@ describe('request handling', () => {
     ;(api.getQuotas as Mock).mockRejectedValueOnce(new Error('down'))
     await store().loadQuotas()
     expect(store().quotasStatus).toBe('error')
+    expect(store().quotasError).toBe('down')
     // the sidebar says so in place: no notice on top
     expect(useNotices.getState().notices).toEqual([])
     ;(api.getQuotas as Mock).mockResolvedValueOnce([])
@@ -1092,6 +1099,7 @@ describe('failures shown in place', () => {
     ;(api.listSessions as Mock).mockRejectedValueOnce(new Error('down'))
     await store().loadSessions()
     expect(store().sessionsStatus).toBe('error')
+    expect(store().sessionsError).toBe('down')
     expect(toasts()).toEqual([])
     expect(lastError()).toBe('down')
     ;(api.listSessions as Mock).mockResolvedValueOnce([{ id: 'a' }])
@@ -1106,10 +1114,12 @@ describe('failures shown in place', () => {
     ;(api.listRequests as Mock).mockRejectedValueOnce(new Error('nope'))
     await store().loadRequests()
     expect(store().requestsStatus).toBe('error')
+    expect(store().requestsError).toBe('nope')
     expect(toasts()).toEqual([])
     ;(api.listRequests as Mock).mockResolvedValueOnce([])
     await store().loadRequests()
     expect(store().requestsStatus).toBe('ready')
+    expect(store().requestsError).toBeNull()
     expect(lastError()).toBeNull()
     ;(api.listRequests as Mock).mockRejectedValueOnce(new Error('blip'))
     await store().loadRequests()
@@ -1160,6 +1170,35 @@ describe('failures shown in place', () => {
     expect(await store().respond('a', 'r1', { behavior: 'allow' })).toBe(false)
     expect(toasts()).toEqual([])
     expect(lastError()).toBe('gone')
+  })
+
+  it('fetches the open session on its own when the session list did not load', async () => {
+    const open: Session = { id: 'a', agent: 'codex', cwd: '/src/app', status: 'idle', model: 'gpt-5' }
+    ;(api.listSessions as Mock).mockRejectedValueOnce(new Error('database is locked'))
+    ;(api.getSession as Mock).mockResolvedValueOnce(open)
+    await store().loadSessions()
+    await store().selectSession('a')
+    await settle()
+    expect(api.getSession).toHaveBeenCalledWith('a')
+    expect(store().sessions).toEqual([open])
+  })
+
+  it('fetches the open session when the list fails after it opened', async () => {
+    const open: Session = { id: 'a', agent: 'claude', cwd: '/src/app', status: 'idle' }
+    ;(api.getSession as Mock).mockResolvedValueOnce(open)
+    await store().selectSession('a')
+    expect(api.getSession).not.toHaveBeenCalled()
+    ;(api.listSessions as Mock).mockRejectedValueOnce(new Error('database is locked'))
+    await store().loadSessions()
+    await settle()
+    expect(store().sessions).toEqual([open])
+  })
+
+  it('does not fetch the open session while the list loads or once it loaded', async () => {
+    await store().selectSession('a')
+    useSessionStore.setState({ sessions: [{ id: 'a', agent: 'claude', cwd: '/p', status: 'idle' }], sessionsStatus: 'ready' })
+    await store().selectSession('b')
+    expect(api.getSession).not.toHaveBeenCalled()
   })
 
   it('leaves a failed history import to the history panel', async () => {

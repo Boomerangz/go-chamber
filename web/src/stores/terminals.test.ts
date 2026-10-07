@@ -214,6 +214,7 @@ describe('terminal store', () => {
     ;(api.renameTerminal as Mock).mockRejectedValue(new Error('denied'))
     await store().rename('t1', 'x')
     expect(lastError()).toBe('denied')
+    expect(useNotices.getState().notices).toMatchObject([{ title: "Couldn't rename the terminal" }])
   })
 
   it('opens a terminal and selects it', async () => {
@@ -254,6 +255,7 @@ describe('terminal store', () => {
     ;(api.closeTerminal as Mock).mockRejectedValue(new Error('nope'))
     expect(await store().close('t1')).toBe(false)
     expect(lastError()).toBe('nope')
+    expect(useNotices.getState().notices).toMatchObject([{ title: "Couldn't close the terminal" }])
     expect(store().terminals).toHaveLength(1)
     expect(store().closing).toEqual({})
   })

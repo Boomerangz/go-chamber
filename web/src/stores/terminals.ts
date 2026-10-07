@@ -257,7 +257,7 @@ export const useTerminalStore = create<TerminalStoreState>((set, get) => {
         return true
       } catch (err) {
         set((s) => ({ closing: done(s) }))
-        fail('Close terminal failed', err)
+        fail("Couldn't close the terminal", err)
         return false
       }
     },
@@ -272,7 +272,7 @@ export const useTerminalStore = create<TerminalStoreState>((set, get) => {
         return setTitle(id, renamed.title) !== null
       } catch (err) {
         if (before !== undefined && shown !== null && get().terminals.find((t) => t.id === id)?.title === shown) setTitle(id, before)
-        fail('Rename failed', err)
+        fail("Couldn't rename the terminal", err)
         return false
       }
     },

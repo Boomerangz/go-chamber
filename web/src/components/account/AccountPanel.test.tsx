@@ -126,7 +126,7 @@ describe('AccountPanel', () => {
   it('says the check failed, with a retry, instead of offering to sign in', async () => {
     vi.mocked(api.getAccount).mockRejectedValueOnce(new Error('codex stopped'))
     render(<AccountPanel agent="codex" />)
-    expect(await screen.findByText("Couldn't check the Codex account: codex stopped")).toBeInTheDocument()
+    expect(await screen.findByRole('alert')).toHaveTextContent("Couldn't check the Codex account: codex stopped")
     expect(screen.queryByRole('button', { name: 'Sign in to Codex' })).toBeNull()
     vi.mocked(api.getAccount).mockResolvedValueOnce({ ...out, loggedIn: true, email: 'dev@example.com' })
     await userEvent.click(screen.getByRole('button', { name: 'Retry' }))

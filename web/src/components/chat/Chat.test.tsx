@@ -85,8 +85,8 @@ describe('transcript loading', () => {
   })
 
   it('offers to retry a transcript that did not load', async () => {
-    setup({ history: 'error', chat: initialChat() })
-    expect(screen.getByRole('alert')).toHaveTextContent("Couldn't load the transcript")
+    setup({ history: 'error', historyError: { kind: 'failed', reason: 'database is locked' }, chat: initialChat() })
+    expect(screen.getByRole('alert')).toHaveTextContent("Couldn't load the transcript: database is locked")
     expect(screen.queryByText(/Send a message to start/)).toBeNull()
     await userEvent.click(screen.getByRole('button', { name: 'Retry' }))
     expect(fns.selectSession).toHaveBeenCalledWith('s1')
@@ -738,7 +738,7 @@ describe('live connection', () => {
 
   it('clears a "not sent" notice once go-chamber is back', () => {
     setup({ chat: running([item('u1', 'user_message')]), connection: 'offline', nextRetryAt: Date.now() + 4000 })
-    act(() => void notify({ kind: 'error', title: 'Steer not sent', text: 'go-chamber is not reachable', key: 'send' }))
+    act(() => void notify({ kind: 'error', title: "Couldn't steer the turn", text: 'go-chamber is not reachable', key: 'send' }))
     expect(useNotices.getState().notices).toHaveLength(1)
     act(() => useSessionStore.setState({ connection: 'online', nextRetryAt: null }))
     expect(useNotices.getState().notices).toHaveLength(0)
