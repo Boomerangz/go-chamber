@@ -34,6 +34,22 @@ describe('ArchivedSessions', () => {
     expect(screen.getByRole('button', { name: /^quiet/ })).not.toHaveTextContent('waiting for you')
   })
 
+  it('gives every row its state mark and a meta line, a subagent child included', async () => {
+    useSessionStore.setState({
+      sessions: [
+        s('quiet', { archivedAt: '2026-10-02T09:00:00Z' }),
+        s('gone', { status: 'detached', nativeId: 'n1', archivedAt: '2026-10-02T09:00:00Z' }),
+        s('kid', { parentId: 'gone', title: 'helper', createdAt: undefined }),
+      ],
+    })
+    render(<ArchivedSessions />)
+    await userEvent.click(document.querySelector('summary')!)
+    expect(screen.getByRole('button', { name: /^quiet/ }).querySelector('.session-status-idle')).not.toBeNull()
+    expect(screen.getByRole('button', { name: /^gone/ }).querySelector('.session-status-detached')).not.toBeNull()
+    const kid = screen.getByRole('button', { name: /^helper/ })
+    expect(kid.querySelector('.session-meta .session-status')).not.toBeNull()
+  })
+
   it('is not there while nothing is archived', () => {
     useSessionStore.setState({ sessions: [s('a')] })
     const { container } = render(<ArchivedSessions />)

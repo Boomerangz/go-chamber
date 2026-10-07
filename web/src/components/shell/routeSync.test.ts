@@ -81,6 +81,36 @@ describe('useRouteSync', () => {
     expect(useSessionStore.getState().pane).toBe('chat')
   })
 
+  it('on a phone, Back from Changes or Requests returns to the chat', async () => {
+    phone(true)
+    renderHook(() => useRouteSync(true))
+    select('a')
+    const before = history.length
+    act(() => useSessionStore.setState({ pane: 'changes' }))
+    expect(history.length).toBe(before + 1)
+    // Moving between the other panes is no new step.
+    act(() => useSessionStore.setState({ pane: 'requests' }))
+    expect(history.length).toBe(before + 1)
+    await back()
+    expect(useSessionStore.getState().pane).toBe('chat')
+    expect(location.pathname).toBe('/s/a')
+  })
+
+  it('on a phone, the Chat tab after Changes takes the step back instead of adding one', async () => {
+    phone(true)
+    renderHook(() => useRouteSync(true))
+    select('a')
+    const chatState = history.state as unknown
+    act(() => useSessionStore.setState({ pane: 'changes' }))
+    await act(async () => {
+      const popped = new Promise((r) => window.addEventListener('popstate', r, { once: true }))
+      useSessionStore.setState({ pane: 'chat' })
+      await popped
+    })
+    expect(useSessionStore.getState().pane).toBe('chat')
+    expect(history.state).toEqual(chatState)
+  })
+
   it('Back from the first session opened at / closes it on desktop', async () => {
     phone(false)
     renderHook(() => useRouteSync(true))

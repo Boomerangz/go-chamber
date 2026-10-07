@@ -161,6 +161,20 @@ describe('ModeSwitch', () => {
     fireEvent.keyDown(document.activeElement!, { key: 'Home' })
     expect(useLayoutStore.getState().mode).toBe('agents')
   })
+
+  it('carries the amber waiting count on the Agents tab while another mode is open', () => {
+    useLayoutStore.setState({ mode: 'terminal' })
+    useSessionStore.setState({
+      pendingRequests: [{ id: 'r1', sessionId: 's1', kind: 'permission' }, { id: 'r2', sessionId: 's1', kind: 'question' }] as never,
+    })
+    const { rerender } = render(<ModeSwitch />)
+    const agents = screen.getByRole('radio', { name: 'Agents' })
+    expect(agents.querySelector('.badge')).toHaveTextContent('2')
+    expect(agents).toHaveAttribute('title', expect.stringContaining('2 waiting for you'))
+    act(() => useLayoutStore.setState({ mode: 'agents' }))
+    rerender(<ModeSwitch />)
+    expect(screen.getByRole('radio', { name: 'Agents' }).querySelector('.badge')).toBeNull()
+  })
 })
 
 describe('Notices', () => {
