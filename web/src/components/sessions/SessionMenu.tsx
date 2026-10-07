@@ -213,11 +213,17 @@ function MenuSheet(props: {
     // The sheet follows its row while the row stays on screen: a live list
     // update above shifts the row (and scroll anchoring fires a scroll) without
     // the owner doing anything. Once the row scrolls out of view it closes.
+    // A phone keyboard opening for the rename field shrinks the viewport
+    // (only its height) and can push the row out of view: while the owner
+    // types in the sheet it stays; turning the phone still closes it.
+    const typing = () => sheet.current?.contains(document.activeElement) && document.activeElement?.tagName === 'INPUT'
     let last = trigger.current?.getBoundingClientRect().top ?? 0
+    let lastWidth = window.innerWidth
     const onScroll = () => {
       const row = trigger.current?.getBoundingClientRect()
       if (!row) return
       if (row.bottom < 0 || row.top > window.innerHeight) {
+        if (typing()) return
         onClose()
         return
       }
@@ -225,7 +231,17 @@ function MenuSheet(props: {
       last = row.top
       if (dy !== 0) setPos((p) => (p ? { left: p.left, top: p.top + dy } : p))
     }
-    const onResize = () => onClose()
+    const onResize = () => {
+      const widthChanged = window.innerWidth !== lastWidth
+      lastWidth = window.innerWidth
+      if (widthChanged || !typing()) {
+        onClose()
+        return
+      }
+      // Keep the field above the keyboard.
+      const h = sheet.current?.getBoundingClientRect().height ?? 0
+      setPos((p) => (p ? { left: p.left, top: Math.max(edge(), Math.min(p.top, window.innerHeight - h - edge())) } : p))
+    }
     document.addEventListener('pointerdown', onDown)
     window.addEventListener('scroll', onScroll, true)
     window.addEventListener('resize', onResize)

@@ -178,6 +178,31 @@ describe('SessionMenu', () => {
     expect(screen.queryByRole('menu')).toBeNull()
   })
 
+  it('keeps the rename field open when a phone keyboard shrinks the viewport, and closes on a width change', async () => {
+    const height = window.innerHeight
+    const width = window.innerWidth
+    try {
+      render(<Row />)
+      trigger().getBoundingClientRect = () => ({ top: 600, bottom: 628, right: 300 }) as DOMRect
+      await userEvent.click(trigger())
+      await userEvent.click(screen.getByRole('menuitem', { name: 'Rename' }))
+      const field = screen.getByRole('textbox')
+      expect(document.activeElement).toBe(field)
+      // The keyboard opens: the viewport loses height, and the row falls below it.
+      Object.defineProperty(window, 'innerHeight', { value: 400, configurable: true })
+      fireEvent(window, new Event('resize'))
+      fireEvent.scroll(window)
+      expect(screen.getByRole('textbox')).toBe(field)
+      // Turning the phone (a width change) still closes it.
+      Object.defineProperty(window, 'innerWidth', { value: width + 200, configurable: true })
+      fireEvent(window, new Event('resize'))
+      expect(screen.queryByRole('textbox')).toBeNull()
+    } finally {
+      Object.defineProperty(window, 'innerHeight', { value: height, configurable: true })
+      Object.defineProperty(window, 'innerWidth', { value: width, configurable: true })
+    }
+  })
+
   it('archives, or unarchives an archived session', async () => {
     const { unmount } = render(<Row />)
     await userEvent.click(trigger())
