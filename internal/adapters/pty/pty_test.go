@@ -43,9 +43,13 @@ func startReader(p app.PTY) *reader {
 	return r
 }
 
+// outputWait is generous: a shell that starts in milliseconds alone has
+// taken over 5s while e2e suites and mutation runs shared the machine.
+const outputWait = 15 * time.Second
+
 func (r *reader) waitFor(t *testing.T, want string) {
 	t.Helper()
-	deadline := time.After(5 * time.Second)
+	deadline := time.After(outputWait)
 	for !strings.Contains(r.buf.String(), want) {
 		select {
 		case c, ok := <-r.chunks:
@@ -61,7 +65,7 @@ func (r *reader) waitFor(t *testing.T, want string) {
 
 func (r *reader) waitForMatch(t *testing.T, re *regexp.Regexp) []string {
 	t.Helper()
-	deadline := time.After(5 * time.Second)
+	deadline := time.After(outputWait)
 	for {
 		if m := re.FindStringSubmatch(r.buf.String()); m != nil {
 			return m
