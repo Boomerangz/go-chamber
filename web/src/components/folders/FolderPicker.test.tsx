@@ -312,6 +312,22 @@ describe('FolderField', () => {
   })
 })
 
+describe('FolderPicker on a touch screen', () => {
+  it('leaves the filter alone, so no keyboard covers the list', async () => {
+    const media = window.matchMedia
+    window.matchMedia = vi.fn((q: string) => ({ matches: q.includes('coarse') })) as never
+    try {
+      setup()
+      await userEvent.click(await screen.findByRole('button', { name: 'dev' }))
+      await screen.findByText('No subfolders')
+      expect(screen.getByLabelText('Filter folders')).not.toHaveFocus()
+      expect(screen.getByRole('dialog').contains(document.activeElement)).toBe(true)
+    } finally {
+      window.matchMedia = media
+    }
+  })
+})
+
 describe('FolderPicker inside a form', () => {
   it('never submits the surrounding form', async () => {
     const { default: FolderField } = await import('./FolderField')

@@ -125,3 +125,59 @@ test('a waiting worktree row keeps "waiting for you" on one line; the branch yie
   expect(await branch.evaluate((e) => e.scrollWidth > e.clientWidth)).toBe(true)
   expect(t.x + t.width).toBeLessThanOrEqual(r.x + r.width)
 })
+
+test('at 900 and 1024px, waiting rows (archived too) and the footer stay inside the sidebar', async ({ page }) => {
+  test.skip(page.viewportSize()!.width <= 720, 'the narrow sidebar is a desktop width')
+  const dir = realpathSync(mkdtempSync(path.join(tmpdir(), 'gc-narrow-')))
+  const headers = { Authorization: `Bearer ${token}` }
+  const past = new Date(Date.now() - 15 * 86_400_000).toISOString()
+  await page.route('**/api/quotas', (route) =>
+    route.fulfill({
+      json: [
+        { agent: 'claude', windows: [{ name: 'five_hour', usedPct: 30, resetsAt: past }] },
+        { agent: 'codex', windows: [{ name: 'primary', usedPct: 25, status: '300m', resetsAt: past }] },
+      ],
+    }),
+  )
+  await page.goto(`/?token=${token}`)
+  const ask = async () => {
+    const { id } = (await (await page.request.post('/api/sessions', { headers, data: { agent: 'claude', cwd: dir } })).json()) as { id: string }
+    await page.goto(`/s/${id}`)
+    await page.getByLabel('Message').fill('ask me something')
+    await page.getByRole('button', { name: 'Send' }).click()
+    await expect(page.locator('legend', { hasText: 'Which option should we use?' })).toBeVisible()
+    return id
+  }
+  await ask()
+  const away = await ask()
+  await page.request.post(`/api/sessions/${away}/archive`, { headers })
+  for (const width of [900, 1024]) {
+    await page.setViewportSize({ width, height: 800 })
+    const archived = page.locator('details.archived')
+    if ((await archived.getAttribute('open')) === null) await archived.locator('summary').click()
+    await expect(page.locator('.archived-list .session-status-waiting').first()).toBeVisible()
+    const spills = await page.evaluate(() => {
+      const out: string[] = []
+      const sidebar = document.querySelector('.sidebar')!.getBoundingClientRect()
+      for (const row of document.querySelectorAll<HTMLElement>('.sidebar .session')) {
+        const r = row.getBoundingClientRect()
+        for (const el of row.querySelectorAll<HTMLElement>('.session-meta > *')) {
+          const b = el.getBoundingClientRect()
+          if (b.width > 0 && b.right > r.right - 6) out.push(`row ${row.textContent}: ${el.className} ends at ${b.right} > ${r.right}`)
+        }
+      }
+      const footer = document.querySelector<HTMLElement>('.sidebar-footer')!
+      if (footer.scrollWidth > footer.clientWidth) out.push(`footer scrolls ${footer.scrollWidth} > ${footer.clientWidth}`)
+      for (const el of footer.querySelectorAll<HTMLElement>('*')) {
+        const b = el.getBoundingClientRect()
+        if (b.width > 0 && b.right > sidebar.right + 0.5) out.push(`footer ${el.className || el.tagName} ends at ${b.right} > ${sidebar.right}`)
+      }
+      return out
+    })
+    expect(spills, `at ${width}px`).toEqual([])
+    // A waiting row still says so, and its count shows.
+    const row = page.locator('.groups .session').filter({ has: page.locator('.session-status-waiting') }).first()
+    await expect(row.locator('.status-word')).toBeVisible()
+    await expect(row.locator('.badge')).toBeVisible()
+  }
+})

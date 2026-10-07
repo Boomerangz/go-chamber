@@ -1,6 +1,6 @@
 import type { AgentKind, Session } from './api'
 import { basename } from './format'
-import { folderNames, sessionTitle, shelvedIds } from './sessions'
+import { folderNames, sessionTitle, shelvedIds, startFolder } from './sessions'
 import type { Terminal } from './terminal'
 
 export interface SwitcherEntry {
@@ -137,13 +137,17 @@ export function switcherEntries(
   for (const t of terminals) {
     add({ kind: 'terminal', id: t.id, title: t.title || basename(t.cwd), detail: name(t.cwd), waiting: 0, status: t.status }, '', t.cwd)
   }
-  // New sessions: in the open session's folder at rest, in any folder asked for.
+  // New sessions: in the open session's folder at rest, in any folder asked
+  // for — a worktree's repository, never the worktree (it may be gone).
   const byRecent = [...sessions].filter((s) => !s.parentId && !shelved.has(s.id)).sort((a, b) => (b.activeAt ?? b.createdAt ?? '').localeCompare(a.activeAt ?? a.createdAt ?? ''))
-  const openCwd = sessions.find((s) => s.id === activeId)?.cwd ?? byRecent[0]?.cwd
-  const folders = words.length ? [...new Set(byRecent.map((s) => s.cwd))] : openCwd ? [openCwd] : []
+  const start = startFolder(sessions)
+  const open = sessions.find((s) => s.id === activeId) ?? byRecent[0]
+  const folders = words.length ? [...new Set(byRecent.map(start))] : open ? [start(open)] : []
+  const newNames = folderNames(folders)
   for (const cwd of folders) {
+    const label = names.get(cwd) ?? newNames.get(cwd) ?? basename(cwd)
     for (const agent of ['claude', 'codex'] as const) {
-      add({ kind: 'new', id: `${agent}:${cwd}`, title: `New ${agentName[agent]} session in ${name(cwd)}`, detail: cwd, waiting: 0, status: 'new', agent, cwd }, '')
+      add({ kind: 'new', id: `${agent}:${cwd}`, title: `New ${agentName[agent]} session in ${label}`, detail: cwd, waiting: 0, status: 'new', agent, cwd }, '')
     }
   }
   return found

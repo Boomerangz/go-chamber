@@ -6,6 +6,7 @@ import { listFolders, type FolderListing } from '../../lib/api'
 import { crumbs, filterFolders, isPathInput } from '../../lib/folders'
 import { basename } from '../../lib/format'
 import { describeError } from '../../stores/notices'
+import { touchScreen } from '../../lib/pointer'
 import { LoadFailed, LoadingLine } from '../ui/Loading'
 import './FolderPicker.css'
 
@@ -59,6 +60,14 @@ export default function FolderPicker({ start = '', recent = [], onPick, onClose 
   // missing names a start folder that wasn't there, so home is shown.
   const [missing, setMissing] = useState<string | null>(null)
   const filter = useRef<HTMLInputElement>(null)
+  // On a touch screen the filter waits to be tapped: focused unasked it
+  // opens the keyboard, which leaves the list a row or two.
+  const [touch] = useState(touchScreen)
+  const sheet = useRef<HTMLDivElement>(null)
+  const focusStart = () => (touch ? sheet.current?.focus({ preventScroll: true }) : filter.current?.focus())
+  useEffect(() => {
+    if (touch) sheet.current?.focus({ preventScroll: true })
+  }, [touch])
   const list = useRef<HTMLUListElement>(null)
   // generation makes the last navigation win: a slow listing of a folder
   // left behind must not replace the one asked for after it.
@@ -86,7 +95,7 @@ export default function FolderPicker({ start = '', recent = [], onPick, onClose 
         if (mine !== generation.current) return
         setLoading(false)
         setTarget(null)
-        filter.current?.focus()
+        focusStart()
       })
   }
 
@@ -157,7 +166,7 @@ export default function FolderPicker({ start = '', recent = [], onPick, onClose 
 
   return createPortal(
     <div className="picker-backdrop" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="picker panel" role="dialog" aria-modal="true" aria-label="Choose a folder" onKeyDown={trapTab}>
+      <div ref={sheet} tabIndex={-1} className="picker panel" role="dialog" aria-modal="true" aria-label="Choose a folder" onKeyDown={trapTab}>
         <header className="picker-header">
           <h2>Choose a folder</h2>
           <button type="button" className="btn btn-ghost btn-icon" aria-label="Close folder picker" onClick={onClose}>
@@ -202,7 +211,7 @@ export default function FolderPicker({ start = '', recent = [], onPick, onClose 
             aria-label="Filter folders"
             placeholder="Filter, or type a path and press Enter"
             value={query}
-            autoFocus
+            autoFocus={!touch}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === 'Backspace' && query === '' && listing?.parent) {

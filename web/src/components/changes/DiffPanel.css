@@ -112,7 +112,9 @@
 .worktree-bar > .btn { align-self: flex-start; }
 .merge-row { display: flex; align-items: center; gap: 4px; min-width: 0; }
 .merge-hint { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; user-select: all; color: var(--ink-2); }
-.worktree-confirm { display: grid; gap: 6px; font-family: var(--font-mono); font-size: 12px; color: var(--ink-2); }
+.worktree-confirm { display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; min-width: 0; font-family: var(--font-mono); font-size: 12px; color: var(--ink-2); }
+/* the folder on a line of its own: its start gives way, its name stays */
+.worktree-confirm > .worktree-path { display: flex; color: var(--ink); }
 .worktree-confirm p { overflow-wrap: anywhere; }
 .worktree-actions { display: flex; gap: 6px; }
 .worktree-dirty { color: var(--ink); }

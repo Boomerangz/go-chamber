@@ -19,7 +19,8 @@ import {
 import type { SessionNode } from '../../lib/tree'
 import { settle } from '../../lib/motion'
 import { useJustFinished } from '../../lib/finished'
-import { owesAnswer, shownStatus, statusWord } from '../../lib/status'
+import { owesAnswer, shownStatus } from '../../lib/status'
+import StatusMark from './StatusMark'
 import { useNow } from '../../lib/now'
 import { isUnseen, useVisits, type Visits } from '../../lib/visits'
 import { useSessionStore } from '../../stores/session'
@@ -388,15 +389,7 @@ function SessionRow(props: {
             {title}
           </span>
           <span className="session-meta">
-            {shown === 'detached' ? (
-              // Most sessions rest detached; the dashed mark alone says so.
-              <span className="session-status session-status-detached" role="img" aria-label="detached" title="detached · resumes when you write" />
-            ) : shown === 'idle' ? (
-              // Idle is a resting state too: the hollow mark alone.
-              <span className="session-status session-status-idle" role="img" aria-label="idle" title="idle · waiting for your next message" />
-            ) : (
-              <span className={`session-status session-status-${shown}`}>{statusWord(shown)}</span>
-            )}
+            <StatusMark shown={shown} />
             {waiting > 0 && (
               <span className="badge" title="Requests waiting for you">
                 {waiting}

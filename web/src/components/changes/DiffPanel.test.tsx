@@ -86,8 +86,9 @@ describe('DiffPanel', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Remove worktree' }))
     expect(api.removeWorktree).not.toHaveBeenCalled()
     const ask = screen.getByRole('group', { name: 'Remove worktree?' })
-    expect(ask).toHaveTextContent(/^Remove the worktree folder .*fix\?/)
-    expect(ask.querySelector('.path-text')).toHaveAttribute('title', '/wt/app/fix')
+    expect(ask.querySelector('p')).toHaveTextContent(/^Remove the worktree folder\?$/)
+    // The path takes a line of its own, not a run inside the question.
+    expect(ask.querySelector(':scope > .path-text')).toHaveAttribute('title', '/wt/app/fix')
     expect(ask).toHaveTextContent('Branch chamber/fix is kept, with its 2 commits.')
     expect(ask).not.toHaveTextContent(/lost/)
     await userEvent.click(screen.getByRole('button', { name: 'Remove' }))
@@ -335,6 +336,13 @@ describe('DiffPanel reading', () => {
     expect(row).toHaveTextContent('+3−1')
     expect(screen.getByLabelText('3 files, 4 added, 8 removed lines')).toHaveTextContent('3 files +4 −8')
     expect(api.getFileDiff).not.toHaveBeenCalled()
+  })
+
+  it('names each file row once, in words: path, status and counts', async () => {
+    vi.mocked(api.getChanges).mockResolvedValue(two)
+    render(<DiffPanel sessionId="s1" />)
+    expect(await screen.findByRole('button', { name: 'src/a.go, modified, 3 added, 1 removed' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'b.txt, untracked, 1 added, 0 removed' })).toBeInTheDocument()
   })
 
   it('says a binary file is binary instead of counting it', async () => {

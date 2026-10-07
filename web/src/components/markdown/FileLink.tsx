@@ -4,6 +4,7 @@ import CodeView from './CodeView'
 import CopyButton from './CopyButton'
 import { icon } from '../icon'
 import { LoadingLine } from '../ui/Loading'
+import PathText from '../ui/PathText'
 import { fetchFile, fileKind, fileLine, filePath, fileUrl, langOf, PREVIEW_LIMIT, SessionFiles, type FetchedFile } from '../../lib/files'
 import { useLayoutStore } from '../../stores/layout'
 
@@ -48,6 +49,34 @@ export function MdLink({ href, children }: { href?: string; children?: ReactNode
 
 type Loaded = FetchedFile | { error: string }
 
+// useBackStep makes an open viewer a Back step on phones, where it covers
+// the whole screen: Back closes it, and closing it takes the step back.
+function useBackStep(onClose: () => void) {
+  const close = useRef(onClose)
+  useEffect(() => {
+    close.current = onClose
+  })
+  useEffect(() => {
+    if (typeof window.matchMedia !== 'function' || !window.matchMedia('(max-width: 720px)').matches) return
+    // A remount right after an unmount (React's strict mode) keeps the step.
+    if (leaving !== undefined) clearTimeout(leaving)
+    else history.pushState({ ...(history.state as object | null), viewer: true }, '', location.href)
+    leaving = undefined
+    const onPop = () => close.current()
+    window.addEventListener('popstate', onPop)
+    return () => {
+      window.removeEventListener('popstate', onPop)
+      if (!(history.state as { viewer?: boolean } | null)?.viewer) return
+      leaving = setTimeout(() => {
+        leaving = undefined
+        history.back()
+      })
+    }
+  }, [])
+}
+
+let leaving: ReturnType<typeof setTimeout> | undefined
+
 const kib = (bytes: number) => (bytes >= 1048576 ? `${(bytes / 1048576).toFixed(1)} MB` : `${Math.round(bytes / 1024)} KB`)
 
 // FileViewer shows one file of the session folder in a dialog: images as
@@ -80,6 +109,7 @@ export function FileViewer({
       if (opener && opener !== document.body && opener.isConnected) opener.focus({ preventScroll: true })
     }
   }, [opener])
+  useBackStep(onClose)
   useEffect(() => {
     if (kind === 'image') return
     let live = true
@@ -107,7 +137,7 @@ export function FileViewer({
     >
       <header className="file-viewer-bar">
         <span className="file-viewer-path" title={label}>
-          {label}
+          <PathText path={label} />
           {line ? <span className="file-viewer-line">:{line}</span> : null}
         </span>
         <span className="file-viewer-tools">

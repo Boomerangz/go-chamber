@@ -428,17 +428,21 @@ button.health { border: 0; background: none; padding: 0; }
 .session:hover { background: var(--paper-2); }
 .session.active { background: var(--paper-2); border-color: var(--rule-strong); }
 .session.active .session-title { color: var(--ink); }
-.session-text { display: grid; min-width: 0; gap: 1px; }
+.session-text { display: grid; min-width: 0; gap: 1px; container-type: inline-size; }
 .session-title { font-weight: 500; font-size: 13px; color: var(--ink-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .session-meta { display: flex; align-items: center; gap: 8px; font-family: var(--font-mono); font-size: 11.5px; color: var(--ink-3); min-width: 0; }
 .session-status { display: inline-flex; align-items: center; gap: 5px; text-transform: lowercase; flex: none; white-space: nowrap; }
-.session-status::before { content: ''; width: 7px; height: 7px; border: 1px solid currentColor; border-radius: 1px; }
+.session-status::before { content: ''; flex: none; width: 7px; height: 7px; border: 1px solid currentColor; border-radius: 1px; }
+/* "waiting for you" is what may give way in a full row: it keeps "waiting"
+   on a narrow row, and ends in an ellipsis before the row spills */
+.session-meta > .session-status-waiting { flex: 0 10 auto; min-width: 0; }
+.session-status-waiting .status-word { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .session-status-running { color: var(--ink); }
 .session-status-running::before { background: currentColor; }
 .session-fork { flex: none; border: 1px dashed currentColor; padding: 0 4px; line-height: 1.3; text-transform: lowercase; }
 /* a worktree session names its branch, after a branch glyph; it is context,
    so it is what yields when the row is short of room */
-.session-branch { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--font-mono); font-size: 11.5px; color: var(--ink-3); }
+.session-branch { flex: 0 100 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--font-mono); font-size: 11.5px; color: var(--ink-3); }
 .session-branch::before { content: '⎇ '; }
 /* the worktree folder is gone; the branch stays */
 .session-branch[data-removed]::before { content: '⎇ removed · '; }
@@ -454,7 +458,16 @@ button.health { border: 0; background: none; padding: 0; }
   flex: none; font-family: var(--font-mono); font-size: 11.5px; letter-spacing: 0.06em; text-transform: uppercase;
   color: var(--ink); border-bottom: 1px dashed var(--ink); line-height: 1.2;
 }
-.session-time { flex: none; white-space: nowrap; margin-left: auto; }
+.session-time { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-left: auto; }
+@container (max-width: 240px) {
+  .status-more { display: none; }
+  /* an archived row that waits says "archived" by its fold alone */
+  .session-meta:has(.badge) .time-more { display: none; }
+}
+/* touch screens show the row's "⋯" at all times: the row keeps its edge clear */
+@media (hover: none) {
+  .session { padding-right: 32px; }
+}
 .session-meta .badge { flex: none; min-width: 16px; height: 16px; }
 .message-hits { display: grid; gap: 4px; padding-top: 10px; border-top: 1px solid var(--rule); }
 .message-hits .section-title { padding: 2px 0; }
@@ -465,7 +478,7 @@ button.health { border: 0; background: none; padding: 0; }
 }
 .snippet mark { background: var(--paper-3); color: var(--ink); box-shadow: inset 0 -1px 0 var(--ink); }
 
-.sidebar-footer { display: grid; gap: 10px; margin: 0; padding: 10px 14px 12px; border-top: 1px solid var(--rule); }
+.sidebar-footer { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; margin: 0; padding: 10px 14px 12px; border-top: 1px solid var(--rule); }
 /* Sign out lives in the topbar on wide screens; phones hide it there. */
 .sidebar-signout { display: none; }
 .sidebar-signout .btn { width: 100%; }
@@ -490,7 +503,7 @@ button.health { border: 0; background: none; padding: 0; }
   .crumb button { min-height: 40px; }
 }
 
-.account { display: grid; gap: 8px; font-size: 12.5px; }
+.account { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; font-size: 12.5px; }
 .account .signed-in { color: var(--ink-2); }
 .account .sign-in { width: 100%; }
 .account .device-code { padding: 8px 10px; border: 1px dashed var(--rule-strong); color: var(--ink-2); }
@@ -504,7 +517,9 @@ button.health { border: 0; background: none; padding: 0; }
 .quotas-details summary .chevron { margin-left: auto; transform: rotate(180deg); }
 .quotas-details[open] summary .chevron { transform: none; }
 .quotas-details[open] summary { margin-bottom: 10px; }
-.quota-mini { display: inline-flex; align-items: center; gap: 7px; }
+.quota-mini { display: inline-flex; align-items: center; gap: 7px; min-width: 0; max-width: 100%; white-space: nowrap; }
+.quota-mini > * { flex: none; }
+.quota-mini > .quota-when { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .quota-mini .bar { display: block; width: 44px; }
 .quota-mini .fill { display: block; }
 .quota-mini .pct, .window .pct { color: var(--ink); }
@@ -854,6 +869,9 @@ button.health { border: 0; background: none; padding: 0; }
 .terminal-tabs .close-terminal { display: grid; place-items: center; width: 24px; padding: 0; color: var(--ink-3); }
 .terminal-tabs .close-terminal:hover { color: var(--bad); }
 .terminal-hint { color: var(--ink-3); font-size: 13px; padding: 16px 0; }
+/* in the dock's column a failure is one line under the tabs, not a stretch of it */
+.terminals > .term-error { flex: none; }
+.terminals > .term-error + .terminal-hint { padding-top: 0; }
 .terminal-view {
   flex: 1; min-width: 0; min-height: 260px; padding: 8px 10px;
   border: 1px solid var(--rule); background: var(--paper); overflow: hidden;
@@ -870,6 +888,8 @@ button.health { border: 0; background: none; padding: 0; }
 .term-projects { display: grid; gap: 8px; }
 .term-chips { display: flex; flex-wrap: wrap; gap: 6px; min-width: 0; }
 .term-chips .chip .icon { color: var(--ink-3); }
+/* a worktree chip: its repository, then the branch as context */
+.term-chips .chip-branch { color: var(--ink-3); }
 .term-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 1px; }
 .term-row { display: flex; align-items: center; border: 1px solid transparent; border-radius: var(--r); transition: background var(--dur-fast); }
 .term-row:hover { background: var(--paper-2); }
@@ -1088,6 +1108,13 @@ button.health { border: 0; background: none; padding: 0; }
   .panebar button[aria-pressed='true'] { color: var(--ink); border-top-color: var(--ink); }
   /* anchored by its left edge past the icon, so a wider count grows away from it */
   .panebar .badge { position: absolute; top: 6px; left: calc(50% + 6px); }
+  /* while the owner types (the chat marks it on the root; a sidebar field
+     says it by its focus), the keyboard has the bottom: the pane bar steps
+     aside so the transcript keeps its room */
+  html[data-typing='chat'] .panebar,
+  .app:has(.sidebar :is(input:not([type='checkbox'], [type='radio']), textarea):focus) .panebar { display: none; }
+  html[data-typing='chat'] .layout,
+  .app:has(.sidebar :is(input:not([type='checkbox'], [type='radio']), textarea):focus) .layout { padding-bottom: env(safe-area-inset-bottom); }
   /* without a transcript on screen: just above the pane bar */
   .notices { bottom: calc(64px + env(safe-area-inset-bottom)); right: 14px; left: 14px; width: auto; }
 }
@@ -1095,9 +1122,14 @@ button.health { border: 0; background: none; padding: 0; }
 /* the narrowest phones: the three modes and the toggles fit on one row,
    none under another, none scrolled away */
 @media (max-width: 360px) {
-  .topbar { gap: 0 4px; padding-left: 0; padding-right: 6px; }
+  /* the first tab's word still starts on the 14px gutter, as on wider phones */
+  .topbar { gap: 0 4px; padding-left: 10px; padding-right: 6px; }
   .topbar-end { gap: 0; }
   .segmented.mode-switch button { gap: 4px; padding: 0 4px; font-size: 12.5px; }
+}
+/* below that, every pixel goes to the modes */
+@media (max-width: 340px) {
+  .topbar { padding-left: 0; }
 }
 
 /* nothing moves or breathes; an animation only snaps to its end, so a
@@ -1119,7 +1151,8 @@ button.health { border: 0; background: none; padding: 0; }
 .file-viewer[open] { display: flex; flex-direction: column; }
 .file-viewer::backdrop { background: color-mix(in srgb, var(--paper) 55%, transparent); }
 .file-viewer-bar { flex: none; display: flex; align-items: center; gap: 4px 8px; padding: 6px 8px 6px 12px; border-bottom: 1px solid var(--rule); background: var(--paper); }
-.file-viewer-path { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--font-mono); font-size: 13px; }
+.file-viewer-path { flex: 1; min-width: 0; display: flex; overflow: hidden; white-space: nowrap; font-family: var(--font-mono); font-size: 13px; }
+.file-viewer-line { flex: none; }
 .file-viewer-tools { flex: none; display: inline-flex; align-items: center; gap: 2px; }
 .file-viewer-tools .btn[aria-pressed='true'] { border-color: var(--ink); color: var(--ink); }
 a.btn { text-decoration: none; }
@@ -1158,7 +1191,7 @@ pre.md-code { tab-size: 4; }
     padding: env(safe-area-inset-top) 0 env(safe-area-inset-bottom);
   }
   .file-viewer-bar { flex-wrap: wrap; padding: 6px var(--gutter); }
-  .file-viewer-path { flex-basis: 100%; white-space: normal; overflow-wrap: anywhere; }
+  .file-viewer-path { flex-basis: 100%; }
   .file-viewer-tools { margin-left: auto; }
   .file-viewer-tools .btn-icon { width: 36px; height: 36px; }
   .file-viewer-body { padding: 10px var(--gutter); }

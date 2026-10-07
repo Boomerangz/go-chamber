@@ -119,3 +119,24 @@ describe('switcher matching', () => {
     expect(fresh.map((e) => e.cwd)).toEqual(['/w/new', '/w/old'])
   })
 })
+
+describe('switcherEntries new sessions in worktrees', () => {
+  const wt = (removed = false) => ({ path: '/w/repo-wt', repo: '/w/repo', branch: 'chamber/x', base: 'main', removed })
+
+  it('starts a new session in the repository of an open worktree session, not in the worktree', () => {
+    const sessions = [s('a', { cwd: '/w/repo-wt', worktree: wt() })]
+    const fresh = switcherEntries(sessions, [], new Map(), '', { activeId: 'a' }).filter((e) => e.kind === 'new')
+    expect(fresh.map((e) => e.cwd)).toEqual(['/w/repo', '/w/repo'])
+    expect(fresh[0]!.title).toBe('New Claude session in repo')
+  })
+
+  it('never offers a removed worktree folder and lists each folder once', () => {
+    const sessions = [
+      s('a', { cwd: '/w/repo-wt', worktree: wt(true), activeAt: '2026-01-03T00:00:00Z' }),
+      s('b', { cwd: '/w/repo', activeAt: '2026-01-02T00:00:00Z' }),
+      s('c', { cwd: '/w/repo-wt', activeAt: '2026-01-01T00:00:00Z' }),
+    ]
+    const typed = switcherEntries(sessions, [], new Map(), 'new claude').filter((e) => e.kind === 'new')
+    expect(typed.map((e) => e.cwd)).toEqual(['/w/repo'])
+  })
+})

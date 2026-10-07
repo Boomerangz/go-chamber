@@ -8,6 +8,9 @@ import NotifyToggle from './NotifyToggle'
 vi.mock('../../lib/push', () => ({
   WorkerUnavailable: class WorkerUnavailable extends Error {},
   pushSupported: vi.fn(() => true),
+  pushNeedsHttps: vi.fn(() => false),
+  pushBlocked: vi.fn(() => false),
+  pushFailure: vi.fn((err: Error) => `plain: ${err.message}`),
   pushEnabled: vi.fn(async () => false),
   enablePush: vi.fn(async () => {}),
   disablePush: vi.fn(async () => {}),
@@ -73,7 +76,40 @@ describe('NotifyToggle', () => {
     await userEvent.click(button)
     const notice = useNotices.getState().notices.at(-1)
     expect(notice?.kind).toBe('error')
-    expect(notice?.text).toBe('Notifications are not allowed in this browser')
+    expect(notice?.text).toBe('plain: Notifications are not allowed in this browser')
     expect(button).toHaveAttribute('aria-pressed', 'false')
+  })
+
+  it('over plain HTTP shows a bell that says it needs HTTPS', async () => {
+    vi.mocked(push.pushSupported).mockReturnValue(false)
+    vi.mocked(push.pushNeedsHttps).mockReturnValue(true)
+    try {
+      render(<NotifyToggle />)
+      const button = screen.getByRole('button', { name: 'Notifications' })
+      expect(button).toHaveAttribute('aria-disabled', 'true')
+      expect(button).toHaveAttribute('title', expect.stringContaining('need HTTPS'))
+      await userEvent.click(button)
+      expect(push.enablePush).not.toHaveBeenCalled()
+      expect(useNotices.getState().notices.at(-1)).toMatchObject({ title: 'Notifications need HTTPS' })
+    } finally {
+      vi.mocked(push.pushSupported).mockReturnValue(true)
+      vi.mocked(push.pushNeedsHttps).mockReturnValue(false)
+    }
+  })
+
+  it('when blocked, says where to unblock it instead of asking again', async () => {
+    vi.mocked(push.pushBlocked).mockReturnValue(true)
+    try {
+      render(<NotifyToggle />)
+      const button = screen.getByRole('button', { name: 'Notifications' })
+      await waitFor(() => expect(button).toHaveAttribute('title', 'Blocked in browser site settings'))
+      await userEvent.click(button)
+      expect(push.enablePush).not.toHaveBeenCalled()
+      const notice = useNotices.getState().notices.at(-1)
+      expect(notice).toMatchObject({ title: 'Notifications are blocked' })
+      expect(notice?.text).toMatch(/site settings/)
+    } finally {
+      vi.mocked(push.pushBlocked).mockReturnValue(false)
+    }
   })
 })

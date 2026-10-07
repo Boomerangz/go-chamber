@@ -323,7 +323,15 @@ function FileRow(props: {
   return (
     <li className="diff-file" aria-busy={busy || undefined}>
       <div className="diff-file-head">
-        <button type="button" className="diff-file-toggle" aria-expanded={isOpen} title={f.from ? `${f.from} → ${f.path}` : f.path} onClick={props.onToggle}>
+        <button
+          type="button"
+          className="diff-file-toggle"
+          aria-expanded={isOpen}
+          // The row's parts (mark word, cut path, counts) would read as one run.
+          aria-label={[f.from ? `${f.from} → ${f.path}` : f.path, label, ...(f.binary ? ['binary'] : counts ? [`${counts.added} added`, `${counts.removed} removed`] : [])].join(', ')}
+          title={f.from ? `${f.from} → ${f.path}` : f.path}
+          onClick={props.onToggle}
+        >
           {/* a narrow panel keeps only the mark; the word stays for screen readers and the tooltip */}
           <span className="diff-status" data-mark={statusMark[f.status] ?? 'hollow'} title={label}>
             <span className="diff-status-word">{label}</span>
@@ -561,9 +569,8 @@ function WorktreeBar({ session, worktree, changed, commits }: { session: api.Ses
       )}
       {confirming || dirty ? (
         <div className="worktree-confirm" role="group" aria-label="Remove worktree?">
-          <p>
-            Remove the worktree folder <PathText path={worktree.path} />?
-          </p>
+          <p>Remove the worktree folder?</p>
+          <PathText path={worktree.path} className="worktree-path" />
           {losing && <p className="worktree-dirty">{lossOf(changed, commits)}</p>}
           <p>
             Branch {worktree.branch} is kept{commits > 0 ? `, with its ${commits} ${commits === 1 ? 'commit' : 'commits'}` : ''}.

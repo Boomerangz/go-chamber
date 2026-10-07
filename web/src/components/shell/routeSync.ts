@@ -25,6 +25,8 @@ export function replacingHistory(run: () => void): void {
 
 interface Entry {
   pane?: Pane
+  // overChat: a phone pane opened from the chat, one Back step above it.
+  overChat?: boolean
 }
 
 // useRouteSync keeps the URL on the open session (/s/<id>) or terminal
@@ -67,8 +69,13 @@ export function useRouteSync(online: boolean): void {
         else history.pushState(entry, '', path + location.search)
       } else if (now !== lastPane) {
         const here = location.pathname + location.search
-        if (narrow() && lastPane === 'sessions' && now === 'chat' && !replacing) history.pushState(entry, '', here)
-        else history.replaceState(entry, '', here)
+        const was = (history.state ?? {}) as Entry
+        if (narrow() && !replacing && lastPane === 'sessions' && now === 'chat') history.pushState(entry, '', here)
+        // Changes and Requests open over the chat: Back returns to it, and
+        // the Chat tab takes that same step back rather than adding one.
+        else if (narrow() && !replacing && lastPane === 'chat' && now !== 'sessions') history.pushState({ ...entry, overChat: true }, '', here)
+        else if (narrow() && was.overChat && now === 'chat') history.back()
+        else history.replaceState(was.overChat && now !== 'sessions' ? { ...entry, overChat: true } : entry, '', here)
       }
       lastPane = now
     }

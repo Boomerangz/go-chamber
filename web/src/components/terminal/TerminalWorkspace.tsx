@@ -1,7 +1,7 @@
 import { ChevronDown, Copy, SquareTerminal } from 'lucide-react'
 import { icon } from '../icon'
 import type { Session } from '../../lib/api'
-import { recentFolders } from '../../lib/folders'
+import { liveWorktrees, recentFolders, type LiveWorktree } from '../../lib/folders'
 import { basename } from '../../lib/format'
 import { fail, notify } from '../../stores/notices'
 import { useState } from 'react'
@@ -52,6 +52,24 @@ export default function TerminalWorkspace({ sessions }: { sessions: Session[] })
   const openError = useTerminalStore((s) => s.openError)
   const foldNew = narrow && Boolean(active)
   const projects = recentFolders(sessions, 6)
+  // A live worktree is a place of its own: its chip follows its repository's.
+  const worktrees = liveWorktrees(sessions).slice(0, 6)
+  const worktreeChip = (w: LiveWorktree) => (
+    <button
+      key={w.path}
+      type="button"
+      className="chip"
+      title={w.path}
+      aria-label={`Open terminal in ${basename(w.repo)} ⎇ ${w.branch}`}
+      aria-busy={opening[openKey({ cwd: w.path })] || undefined}
+      onClick={() => void open({ cwd: w.path })}
+    >
+      <SquareTerminal {...icon(14)} />
+      <span className="chip-label">
+        {basename(w.repo)} <span className="chip-branch">⎇ {w.branch}</span>
+      </span>
+    </button>
+  )
 
   let list: React.ReactNode
   const failed = loadError && (
@@ -116,7 +134,7 @@ export default function TerminalWorkspace({ sessions }: { sessions: Session[] })
         <div className="term-projects">
           <h2 className="section-title">Projects</h2>
           <div className="term-chips">
-            {projects.map((dir) => (
+            {projects.flatMap((dir) => [
               <button
                 key={dir}
                 type="button"
@@ -128,8 +146,11 @@ export default function TerminalWorkspace({ sessions }: { sessions: Session[] })
               >
                 <SquareTerminal {...icon(14)} />
                 <span className="chip-label">{basename(dir)}</span>
-              </button>
-            ))}
+              </button>,
+              ...worktrees.filter((w) => w.repo === dir).map(worktreeChip),
+            ])}
+            {/* a worktree whose repository isn't among the recent ones still has its place */}
+            {worktrees.filter((w) => !projects.includes(w.repo)).map(worktreeChip)}
           </div>
         </div>
       )}

@@ -1,8 +1,35 @@
+import { describeError } from '../stores/notices'
+
 // Web Push: the service worker shows notifications the server sends when an
 // agent asks for a decision or a turn ends. Needs HTTPS (or localhost).
 
 export function pushSupported(): boolean {
   return typeof navigator !== 'undefined' && 'serviceWorker' in navigator && typeof PushManager !== 'undefined' && typeof Notification !== 'undefined'
+}
+
+// pushNeedsHttps tells why push is missing on a page opened over plain HTTP
+// (a LAN address): browsers only offer it to secure pages.
+export function pushNeedsHttps(): boolean {
+  return !pushSupported() && typeof isSecureContext !== 'undefined' && !isSecureContext
+}
+
+// pushBlocked: the owner (or a policy) blocked notifications for this site;
+// only the browser's site settings can undo it.
+export function pushBlocked(): boolean {
+  return typeof Notification !== 'undefined' && Notification.permission === 'denied'
+}
+
+const BLOCKED = "Notifications are blocked for this site: allow them in the browser's site settings, then try again."
+
+// pushFailure puts why subscribing failed in plain words: the browser's own
+// messages ("Registration failed - push service error") name its internals.
+export function pushFailure(err: unknown): string {
+  if (err instanceof DOMException) {
+    if (err.name === 'NotAllowedError') return BLOCKED
+    if (err.name === 'AbortError') return "The browser's push service didn't answer. Try again in a moment."
+    if (err.name === 'NotSupportedError' || err.name === 'InvalidStateError') return "This browser can't receive notifications here."
+  }
+  return describeError(err)
 }
 
 export function registerWorker(): void {
@@ -64,7 +91,9 @@ async function call(method: string, path: string, body?: unknown): Promise<Respo
 }
 
 export async function enablePush(): Promise<void> {
-  if ((await Notification.requestPermission()) !== 'granted') throw new Error('Notifications are not allowed in this browser')
+  const permission = await Notification.requestPermission()
+  if (permission === 'denied') throw new Error(BLOCKED)
+  if (permission !== 'granted') throw new Error("The browser didn't allow notifications: its prompt was closed")
   const { key } = (await (await call('GET', '/api/push/key')).json()) as { key: string }
   const reg = await ready()
   const sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: decodeKey(key) })
