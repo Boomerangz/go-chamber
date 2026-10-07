@@ -11,14 +11,14 @@
 .diff-head .section-title { margin: 0; }
 /* what the panel says when there is nothing to list starts where its label does */
 .dock-body .diff-panel > .tray-empty { padding: 2px 0; }
-.diff-total { font-family: var(--font-mono); font-size: 12px; color: var(--ink-2); white-space: nowrap; }
+.diff-total { font-family: var(--font-mono); font-size: var(--t-meta); color: var(--ink-2); white-space: nowrap; }
 /* the time gives way before the buttons drop to a second line: it never
    asks for room (no basis), and a narrow panel leaves it out altogether */
-.diff-updated { flex: 1 1 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; font-family: var(--font-mono); font-size: 12px; color: var(--ink-3); white-space: nowrap; }
+.diff-updated { flex: 1 1 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; font-family: var(--font-mono); font-size: var(--t-meta); color: var(--ink-3); white-space: nowrap; }
 @container (max-width: 400px) { .diff-updated { display: none; } }
 .diff-actions { margin-left: auto; display: inline-flex; align-items: center; gap: 2px; }
 .diff-actions .btn[aria-pressed='true'] { border-color: var(--ink); color: var(--ink); }
-.diff-error { margin: 4px 6px; color: var(--bad); font-size: 13px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.diff-error { margin: 4px 6px; color: var(--bad); font-size: var(--t-small); white-space: pre-wrap; overflow-wrap: anywhere; }
 .diff-files { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
 .diff-files > li > .loading-line, .diff-files > li > .load-failed { margin: 6px; }
 /* a file's header stays in view while its diff scrolls under it */
@@ -57,7 +57,7 @@
 /* status: a lowercase word after a square mark whose form is the status */
 .diff-status {
   flex: none; display: inline-flex; align-items: center; gap: 6px; width: calc(9ch + 13px); white-space: nowrap;
-  font-family: var(--font-mono); font-size: 12px; color: var(--ink-3); text-transform: lowercase;
+  font-family: var(--font-mono); font-size: var(--t-meta); color: var(--ink-3); text-transform: lowercase;
 }
 .diff-status::before { content: ''; flex: none; width: 7px; height: 7px; border: 1px solid currentColor; border-radius: 1px; }
 .diff-status[data-mark='solid']::before { background: currentColor; }
@@ -74,7 +74,7 @@
    unless it fits beside the whole new path; the new path is laid out first */
 .diff-path {
   flex: 1; min-width: 0; height: 1lh; display: flex; flex-flow: row-reverse wrap; justify-content: flex-end;
-  overflow: hidden; font-family: var(--font-mono); font-size: 12.5px; white-space: nowrap;
+  overflow: hidden; font-family: var(--font-mono); font-size: var(--t-meta); white-space: nowrap;
 }
 .diff-new { order: -1; flex: 0 1 auto; min-width: 0; display: flex; overflow: hidden; }
 .diff-dir { flex: 0 1000 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; color: var(--ink-3); }
@@ -89,14 +89,14 @@
 .diff-from .midcut-head { min-width: 0; }
 .diff-from .midcut-tail { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .diff-arrow { flex: none; white-space: pre; color: var(--ink-3); }
-.diff-counts { flex: none; display: inline-flex; gap: 6px; font-family: var(--font-mono); font-size: 12px; color: var(--ink-3); }
+.diff-counts { flex: none; display: inline-flex; gap: 6px; font-family: var(--font-mono); font-size: var(--t-meta); color: var(--ink-3); }
 .diff-counts > span { min-width: 4ch; text-align: right; }
 /* the diff grows with the panel (no inner scroll trap); one grid column as
    wide as the longest line keeps every row's wash the same width */
 .diff-view {
   display: grid; grid-template-columns: minmax(100%, max-content);
   margin: 4px 0 8px; padding: 6px 0; overflow-x: auto;
-  border: 1px solid var(--rule); border-radius: var(--r); background: var(--paper); font-size: 12px; line-height: 1.45;
+  border: 1px solid var(--rule); border-radius: var(--r); background: var(--paper); font-size: var(--t-meta); line-height: 1.45;
   tab-size: 4;
 }
 .diff-view > div { display: flex; min-height: 1.45em; padding-right: 8px; border-left: 1px solid transparent; }
@@ -122,30 +122,30 @@
   /* pressed paper is too close to the sheet in the dark: added lines take deep paper */
   .diff-view > .diff-add { background: var(--paper-3); }
 }
-.diff-more { margin: 0 0 8px; font-family: var(--font-mono); font-size: 12px; color: var(--ink-3); }
+.diff-more { margin: 0 0 8px; font-family: var(--font-mono); font-size: var(--t-meta); color: var(--ink-3); }
 .diff-more .act-link, .diff-none .act-link { margin: 0; }
-.diff-none { margin: 4px 6px; color: var(--ink-3); font-size: 12.5px; }
-.diff-note { margin: 4px 6px 0; font-family: var(--font-mono); font-size: 12px; color: var(--ink-3); }
-.worktree-bar { display: flex; flex-direction: column; gap: 6px; padding: 8px 10px; border: 1px solid var(--rule); border-radius: var(--r); font-size: 13px; }
+.diff-none { margin: 4px 6px; color: var(--ink-3); font-size: var(--t-meta); }
+.diff-note { margin: 4px 6px 0; font-family: var(--font-mono); font-size: var(--t-meta); color: var(--ink-3); }
+.worktree-bar { display: flex; flex-direction: column; gap: 6px; padding: 8px 10px; border: 1px solid var(--rule); border-radius: var(--r); font-size: var(--t-small); }
 .worktree-bar p { margin: 0; }
 .worktree-bar > .btn { align-self: flex-start; }
 .merge-row { display: flex; align-items: center; gap: 4px; min-width: 0; }
 .merge-hint { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; user-select: all; color: var(--ink-2); }
-.worktree-confirm { display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; min-width: 0; font-family: var(--font-mono); font-size: 12px; color: var(--ink-2); }
+.worktree-confirm { display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; min-width: 0; font-family: var(--font-mono); font-size: var(--t-meta); color: var(--ink-2); }
 /* the folder on a line of its own: its start gives way, its name stays */
 .worktree-confirm > .worktree-path { display: flex; color: var(--ink); }
 .worktree-confirm p { overflow-wrap: anywhere; }
 .worktree-actions { display: flex; gap: 6px; }
 .worktree-dirty { color: var(--ink); }
 /* the worktree folder is gone: its keyword in mono caps, as on the composer's place */
-.worktree-bar .worktree-gone-kw { font-family: var(--font-mono); font-size: 12px; letter-spacing: 0.04em; text-transform: uppercase; color: var(--ink); }
+.worktree-bar .worktree-gone-kw { font-family: var(--font-mono); font-size: var(--t-meta); letter-spacing: 0.04em; text-transform: uppercase; color: var(--ink); }
 
 .layout[data-dock='changes'] { --dock: max(380px, 34%); }
 .changes-pane { display: none; }
-.worktree-toggle { display: flex; gap: 8px; align-items: center; font-size: 13px; color: var(--ink-2); cursor: pointer; }
+.worktree-toggle { display: flex; gap: 8px; align-items: center; font-size: var(--t-small); color: var(--ink-2); cursor: pointer; }
 .worktree-toggle:has(input:disabled) { color: var(--ink-3); cursor: default; }
-.worktree-off { font-size: 12px; color: var(--ink-3); }
-.worktree-branch { display: flex; align-items: center; gap: 4px; font-family: var(--font-mono); font-size: 12.5px; color: var(--ink-3); }
+.worktree-off { font-size: var(--t-meta); color: var(--ink-3); }
+.worktree-branch { display: flex; align-items: center; gap: 4px; font-family: var(--font-mono); font-size: var(--t-meta); color: var(--ink-3); }
 .worktree-branch .field { flex: 1; min-width: 0; }
 
 @media (max-width: 1100px) {

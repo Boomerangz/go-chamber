@@ -3,7 +3,7 @@
 .inline-diff {
   margin: 6px 0 0; padding: 6px 0; max-height: 280px; overflow: auto;
   border: 1px solid var(--rule); border-radius: var(--r); background: var(--paper);
-  font-family: var(--font-mono); font-size: 12px; line-height: 1.45; color: var(--ink-2);
+  font-family: var(--font-mono); font-size: var(--t-meta); line-height: 1.45; color: var(--ink-2);
 }
 .inline-diff.full { max-height: none; }
 .inline-diff > .idiff {

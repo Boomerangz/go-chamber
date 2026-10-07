@@ -5,7 +5,7 @@
 /* one line above the screen while the connection is not simply live */
 .term-strip {
   flex: none; display: flex; align-items: center; flex-wrap: wrap; gap: 6px 8px; min-height: 24px;
-  font-family: var(--font-mono); font-size: 12px; color: var(--ink-3); text-transform: lowercase;
+  font-family: var(--font-mono); font-size: var(--t-meta); color: var(--ink-3); text-transform: lowercase;
 }
 .term-strip .btn { text-transform: none; }
 .term-strip-word { white-space: nowrap; }
@@ -20,7 +20,7 @@
 
 /* find in scrollback: one line in the strip's place */
 .term-find { flex-wrap: nowrap; text-transform: none; }
-.term-find-input { flex: 1; min-width: 0; max-width: 320px; height: 24px; font-family: var(--font-mono); font-size: 12.5px; }
+.term-find-input { flex: 1; min-width: 0; max-width: 320px; height: 24px; font-family: var(--font-mono); font-size: var(--t-meta); }
 .term-find-count { min-width: 9ch; }
 .term-find .btn-icon { width: 24px; height: 24px; }
 
@@ -39,18 +39,18 @@
 /* close: a running shell asks first, in place */
 .term-confirm {
   flex: none; display: inline-flex; align-items: center; gap: 4px; padding: 0 4px;
-  font-family: var(--font-mono); font-size: 12px; color: var(--ink-2); white-space: nowrap;
+  font-family: var(--font-mono); font-size: var(--t-meta); color: var(--ink-2); white-space: nowrap;
 }
 .term-row:has(.term-confirm) { flex-wrap: wrap; }
 .term-row .term-confirm { flex-basis: 100%; min-width: 0; flex-wrap: wrap; justify-content: flex-end; padding: 0 8px 6px; }
 .term-row.closing, .terminal-tabs li.closing { opacity: 0.5; transition: opacity var(--dur-fast); }
 .term-row.closing [role='tab'] { cursor: progress; }
 /* an exit code: quiet mono after the name, in a tab or a list row */
-.term-exit { font-family: var(--font-mono); font-size: 11px; font-weight: 400; color: var(--ink-3); }
+.term-exit { font-family: var(--font-mono); font-size: var(--t-label); font-weight: 400; color: var(--ink-3); }
 .term-title .term-exit { margin-left: 6px; }
 .term-error {
   display: flex; align-items: center; gap: 6px; margin: 0; flex-basis: 100%;
-  color: var(--bad); font-size: 13px; overflow-wrap: anywhere;
+  color: var(--bad); font-size: var(--t-small); overflow-wrap: anywhere;
 }
 .term-error > span { flex: 1; min-width: 0; }
 .term-error .btn { flex: none; color: var(--ink-3); }
@@ -59,7 +59,7 @@
 .term-header-actions { flex: none; display: inline-flex; gap: 2px; }
 .term-header .term-confirm { padding: 0; }
 .term-header .term-dot { align-self: center; }
-.term-missing { margin: 0 0 4px; font-family: var(--font-mono); font-size: 12px; color: var(--ink-3); }
+.term-missing { margin: 0 0 4px; font-family: var(--font-mono); font-size: var(--t-meta); color: var(--ink-3); }
 .term-main > .hero .btn-primary { margin-top: 6px; }
 
 /* dock: a single row of tabs that scrolls sideways, ending in "+" */
@@ -71,7 +71,7 @@
 .numbered-n { flex: none; white-space: pre; }
 .term-tab-title { display: inline-flex; max-width: 16ch; min-width: 0; white-space: nowrap; }
 /* the folder, quieter, when the title doesn't already say it */
-.term-tab-cwd { display: inline-block; max-width: 12ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11.5px; color: var(--ink-3); }
+.term-tab-cwd { display: inline-block; max-width: 12ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--t-label); color: var(--ink-3); }
 /* the strip fits its tabs before it scrolls: a tab not selected gives up
    its folder, then its title down to a few characters (an ellipsis says
    so); the selected one stays whole. Past that the strip scrolls, and an
@@ -94,7 +94,7 @@
     border: 0; background: transparent; color: var(--ink); font: inherit; text-align: left; cursor: pointer;
   }
   .term-switch .section-title { margin: 0; }
-  .term-switch-title { flex: 1; display: flex; min-width: 0; white-space: nowrap; font-family: var(--font-mono); font-size: 12.5px; }
+  .term-switch-title { flex: 1; display: flex; min-width: 0; white-space: nowrap; font-family: var(--font-mono); font-size: var(--t-meta); }
   .term-switch[aria-expanded='true'] svg { transform: rotate(180deg); }
   /* the switch stays over a long list, so it folds again from anywhere */
   .term-switch[aria-expanded='true'] { position: sticky; top: -12px; z-index: 1; margin-top: -12px; padding-top: 12px; background: var(--paper); }
@@ -107,7 +107,7 @@
   .term-sidebar[data-collapsed] { max-height: none; padding-block: 4px; }
   .term-sidebar[data-collapsed] > :not(.term-switch) { display: none; }
 }
-.term-tab-input { width: 16ch; min-width: 0; height: 24px; margin: 3px 4px; font-family: var(--font-mono); font-size: 12.5px; }
+.term-tab-input { width: 16ch; min-width: 0; height: 24px; margin: 3px 4px; font-family: var(--font-mono); font-size: var(--t-meta); }
 .terminal-tabs .term-confirm { padding-right: 6px; }
 .term-new { position: relative; flex: none; display: flex; align-items: center; height: 30px; padding-left: 4px; }
 .term-new .term-new-more { width: 24px; }
@@ -123,7 +123,7 @@
 .term-all > li { min-width: 0; }
 .term-all-row {
   display: flex; align-items: baseline; gap: 6px; width: 100%; min-height: 28px; padding: 0 6px;
-  border: 0; border-radius: var(--r); background: none; color: var(--ink-2); font-family: var(--font-mono); font-size: 12.5px; text-align: left;
+  border: 0; border-radius: var(--r); background: none; color: var(--ink-2); font-family: var(--font-mono); font-size: var(--t-meta); text-align: left;
 }
 .term-all-row[aria-current='true'] { background: var(--paper-2); color: var(--ink); }
 @media (hover: hover) { .term-all-row:hover { background: var(--paper-2); color: var(--ink); } }
@@ -148,7 +148,7 @@
 .term-zoom {
   position: absolute; top: 8px; right: 14px; z-index: 2; padding: 2px 6px;
   border: 1px solid var(--rule-strong); border-radius: var(--r); background: var(--paper);
-  font-family: var(--font-mono); font-size: 12px; color: var(--ink-2); pointer-events: none;
+  font-family: var(--font-mono); font-size: var(--t-meta); color: var(--ink-2); pointer-events: none;
 }
 
 /* the find bar has its own close; the browser's clear button would be a second */

@@ -33,17 +33,24 @@ colors:
   req-mark-dark: "#e3a33a"
   bad-dark: "#f07a6a"
 typography:
+  display:
+    fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, 'Segoe UI', Roboto, sans-serif"
+    fontSize: "32px"
+    fontWeight: 600
+    lineHeight: 1.15
+    letterSpacing: "-0.022em"
   headline:
     fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, 'Segoe UI', Roboto, sans-serif"
-    fontSize: "20px"
+    fontSize: "26px"
     fontWeight: 600
-    lineHeight: 1.5
-    letterSpacing: "-0.005em"
+    lineHeight: 1.2
+    letterSpacing: "-0.018em"
   title:
     fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, 'Segoe UI', Roboto, sans-serif"
-    fontSize: "15px"
+    fontSize: "18px"
     fontWeight: 600
-    lineHeight: 1.5
+    lineHeight: 1.3
+    letterSpacing: "-0.01em"
   transcript:
     fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, 'Segoe UI', Roboto, sans-serif"
     fontSize: "15px"
@@ -67,7 +74,7 @@ typography:
     letterSpacing: "0.01em"
   control:
     fontFamily: "'PT Mono', ui-monospace, 'SF Mono', Menlo, monospace"
-    fontSize: "12.5px"
+    fontSize: "12px"
     fontWeight: 400
   meta:
     fontFamily: "'PT Mono', ui-monospace, 'SF Mono', Menlo, monospace"
@@ -228,15 +235,17 @@ A near-neutral paper and ink pair with three narrow signal colours, each ratione
 **Character:** A man-page pairing. The mono is the typewritten apparatus of the document (numbers, keywords, paths, controls); the sans is the readable voice inside it.
 
 ### Hierarchy
-- **Headline** (600, 20px, -0.005em): The session title as the document title in the chat header; the notice heading. The empty-state hero steps to 22px.
-- **Title** (600, 15px): The REQUIRES block title; the terminal header title. The folder picker heading uses 16px.
+The scale is ten steps held as tokens (`--t-mark` … `--t-display` in `index.css`); no other size is set in the chrome. The steps cluster small for the dense apparatus and then jump: the titles stand well clear of the 15px transcript, so a page reads as a document with a title rather than one even murmur. On phones (≤720px) headline and display step down one (20px, 26px).
+- **Display** (600, 32px, 1.15, -0.022em, balanced): An empty document's one line (the empty chat and terminal hero).
+- **Headline** (600, 26px, 1.2, -0.018em): The session title as the document title in the chat header; the notice heading.
+- **Title** (600, 18px, 1.3, -0.01em): The REQUIRES block title; the terminal header title; the folder picker and shortcut sheet headings.
 - **Transcript** (400, 15px, 1.6; user turns 1.55): Assistant and user text, capped at a 72ch measure.
 - **Body** (400, 14px, 1.5): Default UI prose.
-- **Body small** (13px): Tool, command, file and subagent items; session titles (500); hints.
+- **Body small** (13px): Tool, command, file and subagent items; session titles (500); hints; turn numbers (PT Mono, ink-3) and the REQUIRES keyword.
 - **Masthead** (PT Mono 400, 14px, 0.01em): The product name in the top bar.
-- **Control** (PT Mono 400, 12.5px; 12px at extra-small): Every `.btn`, the folder input, group names, terminal tabs, crumbs.
-- **Meta** (PT Mono 400, 12px): Paths, model name, token usage, health, status words (lowercase), turn numbers.
-- **Label** (PT Mono 400, 11.5px, 0.06em, uppercase): Section titles in panels, date buckets, the REQUIRES keyword (12px), the decision keyword, the unseen mark.
+- **Control and Meta** (PT Mono 400, 12px): Every `.btn`, the folder input, group names, terminal tabs, crumbs; paths, model name, token usage, health, status words (lowercase).
+- **Label** (PT Mono 400, 11.5px, 0.06em, uppercase): Section titles in panels, date buckets, the decision keyword, the unseen mark, small mono notes.
+- **Mark** (PT Mono 400, 11px): A glyph in a box: the agent letter, a key, a count.
 
 ### Named Rules
 **The Mono Carries Structure Rule.** Anything that names, numbers, labels or commands is set in PT Mono; anything someone wrote to be read is set in the sans. Buttons are commands, so buttons are mono.
@@ -271,7 +280,7 @@ Corners are barely softened: 2px (`r`) on every control, block, row, count and m
 
 ### Buttons
 Plain typed commands on paper.
-- **Shape:** 2px corners, 1px border, 30px tall (36px on mobile), PT Mono 12.5px.
+- **Shape:** 2px corners, 1px border, 30px tall (36px on mobile), PT Mono 12px.
 - **Default:** paper with a strong-rule border and ink text; hover darkens the border to ink; active presses to `paper-2`.
 - **Primary:** solid ink-blue with white (dark: paper) text; hover swaps the border to ink. One primary per group (New session, Allow, Send/Steer).
 - **Danger:** transparent with a red border and red text; hover adds `bad-wash`.
@@ -302,7 +311,7 @@ Plain typed commands on paper.
 - **Mobile:** a three-button pane bar with a 2px ink top rule on the selected pane and an amber count on Requests.
 
 ### The REQUIRES Block (signature)
-The only amber object on screen. A 2px-cornered paper block with a 1px amber border and a 3px amber rule across its top. The title line pairs the keyword `REQUIRES APPROVAL` (PT Mono uppercase, `req`) with the request name in 15px/600, then the prompt, `tool: Name`, the input in an output block, and Allow (primary), Allow for session (default), Deny (danger). A question is the same block in ink-blue with `REQUIRES ANSWER` and bordered option rows that take `act-wash` when checked. It enters from the left margin and scrolls itself into view.
+The only amber object on screen. A 2px-cornered paper block with a 1px amber border and a 3px amber rule across its top. The title line pairs the keyword `REQUIRES APPROVAL` (PT Mono uppercase, `req`) with the request name in 18px/600 (the keyword at 13px), then the prompt, `tool: Name`, the input in an output block, and Allow (primary), Allow for session (default), Deny (danger). A question is the same block in ink-blue with `REQUIRES ANSWER` and bordered option rows that take `act-wash` when checked. It enters from the left margin and scrolls itself into view.
 
 ### Decision Record (signature)
 When a request is answered, the block strikes a 1px ink line across its title, fades and collapses, and a single line is written into the transcript: the outcome keyword (PT Mono uppercase, ink; red for DENIED) followed by the request name in `ink-3`, struck through only when denied (an approved name struck through reads as cancelled), with any answer text beneath. A skipped question and an answered one name nothing; the answer is the record. The transcript keeps what was decided.

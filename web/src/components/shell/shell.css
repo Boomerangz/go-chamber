@@ -9,8 +9,8 @@
 .switcher::backdrop, .shortcut-help::backdrop { background: color-mix(in srgb, var(--paper) 55%, transparent); }
 /* the field keeps its height over a long list; on a phone it is 16px, the
    size below which iOS zooms into a focused field */
-.switcher-input { flex: none; margin: 12px; height: 36px; font-size: 15px; }
-@media (max-width: 720px) { .switcher-input { font-size: 16px; } }
+.switcher-input { flex: none; margin: 12px; height: 36px; font-size: var(--t-read); }
+@media (max-width: 720px) { .switcher-input { font-size: var(--t-input); } }
 .switcher-list { list-style: none; margin: 0; padding: 0 6px 6px; overflow: auto; min-height: 0; }
 .switcher-row {
   /* the folder takes at most 40% of the row, so a long one never squeezes the title away */
@@ -20,25 +20,25 @@
 .switcher-row[aria-selected='true'] { background: var(--paper-2); color: var(--ink); }
 .switcher-mark { gap: 0; justify-self: center; }
 /* the title gives way before its [current] tag, which is never cut */
-.switcher-title { display: flex; min-width: 0; white-space: nowrap; font-size: 13px; }
+.switcher-title { display: flex; min-width: 0; white-space: nowrap; font-size: var(--t-small); }
 .switcher-title-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .switcher-path { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-.switcher-detail { display: inline-flex; gap: 8px; min-width: 0; overflow: hidden; font-family: var(--font-mono); font-size: 12px; color: var(--ink-3); white-space: nowrap; }
+.switcher-detail { display: inline-flex; gap: 8px; min-width: 0; overflow: hidden; font-family: var(--font-mono); font-size: var(--t-meta); color: var(--ink-3); white-space: nowrap; }
 .switcher-time { flex: none; color: var(--ink-3); }
 .switcher-title mark, .switcher-detail mark { background: none; color: var(--ink); box-shadow: inset 0 -1px 0 var(--ink); }
-.switcher-current { flex: none; margin-left: 8px; font-family: var(--font-mono); font-size: 11px; color: var(--ink-3); }
+.switcher-current { flex: none; margin-left: 8px; font-family: var(--font-mono); font-size: var(--t-label); color: var(--ink-3); }
 .switcher-current::before { content: '['; }
 .switcher-current::after { content: ']'; }
-.switcher-empty { padding: 12px 8px; color: var(--ink-3); font-size: 13px; }
+.switcher-empty { padding: 12px 8px; color: var(--ink-3); font-size: var(--t-small); }
 /* the archived sessions a query found, below the rest */
 .switcher-section { margin-top: 6px; padding: 8px 8px 4px; border-top: 1px solid var(--rule); }
 .switcher-foot, .shortcut-note {
   display: flex; gap: 16px; padding: 8px 14px; border-top: 1px solid var(--rule);
-  font-family: var(--font-mono); font-size: 11.5px; color: var(--ink-3);
+  font-family: var(--font-mono); font-size: var(--t-label); color: var(--ink-3);
 }
 .shortcut-help { width: min(860px, calc(100vw - 32px)); max-height: 86vh; }
 .shortcut-head { display: flex; align-items: center; justify-content: space-between; padding: 12px 10px 8px 16px; border-bottom: 1px solid var(--rule); }
-.shortcut-head h2 { font-size: 15px; font-weight: 600; }
+.shortcut-head h2 { font-size: var(--t-title); font-weight: 600; }
 /* the help reads in two columns of groups: navigate beside chat, requests, terminal */
 .shortcut-groups {
   display: grid; grid-template-columns: repeat(auto-fit, minmax(min(340px, 100%), 1fr)); gap: 4px 28px;
@@ -48,7 +48,7 @@
 .shortcut-groups h3 { padding: 6px 0 2px; }
 .shortcut-list { margin: 0; padding: 0 0 8px; display: grid; gap: 0; }
 .shortcut-list > div { display: grid; grid-template-columns: 12em 1fr; align-items: center; gap: 12px; padding: 3px 0; }
-.shortcut-list dd { margin: 0; color: var(--ink-2); font-size: 13px; }
+.shortcut-list dd { margin: 0; color: var(--ink-2); font-size: var(--t-small); }
 .shortcut-list kbd { min-width: 0; padding: 0 6px; }
 /* a long run of alternatives wraps inside its column, never into the words */
 .shortcut-list dt .keys { flex-wrap: wrap; row-gap: 2px; white-space: normal; }

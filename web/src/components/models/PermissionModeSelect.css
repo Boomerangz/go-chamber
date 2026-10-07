@@ -4,7 +4,7 @@
 .reviewer .field[aria-busy='true'] { cursor: progress; }
 .mode-select { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 /* switching to a mode that never asks is confirmed in place */
-.mode-confirm { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 12.5px; color: var(--ink-2); }
+.mode-confirm { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: var(--t-meta); color: var(--ink-2); }
 /* on a wide screen it opens under the select, over the transcript, so the
    header doesn't grow a row and push everything down; flat, ruled, no shadow */
 @media (min-width: 721px) {

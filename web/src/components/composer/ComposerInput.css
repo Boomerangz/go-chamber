@@ -8,7 +8,7 @@
 }
 /* "searching…" / "no matches": a quiet line where the list would be */
 .completions-note {
-  padding: 6px 12px; font-family: var(--font-mono); font-size: 12px; color: var(--ink-3);
+  padding: 6px 12px; font-family: var(--font-mono); font-size: var(--t-meta); color: var(--ink-3);
 }
 /* the last suggestions while the next lookup runs: kept, dimmed */
 .completions.stale li { opacity: 0.55; }
@@ -22,13 +22,13 @@
 @media (hover: hover) { .composer.dragging:hover { border-style: dashed; border-color: var(--act); box-shadow: none; } }
 .completions li {
   display: flex; align-items: baseline; gap: 10px; min-height: 30px; padding: 5px 12px;
-  cursor: pointer; font-family: var(--font-mono); font-size: 13px;
+  cursor: pointer; font-family: var(--font-mono); font-size: var(--t-small);
 }
 .completions li.active { background: var(--act-wash); color: var(--act); }
 .completion-label { white-space: nowrap; }
 .completion-detail {
   min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-  color: var(--ink-2); font-family: var(--font-ui); font-size: 12px;
+  color: var(--ink-2); font-family: var(--font-ui); font-size: var(--t-meta);
 }
 @media (max-width: 720px) {
   .completions li { min-height: 40px; }

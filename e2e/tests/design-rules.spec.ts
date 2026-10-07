@@ -257,3 +257,32 @@ test('a permission card that takes focus draws one frame, not a ring around its 
   await page.keyboard.press('d')
   await expect(page.getByLabel('Deny reason')).toBeVisible()
 })
+
+// The type scale: few steps, far enough apart to carry different jobs. The
+// session title reads as the document's title, the REQUIRES block as the one
+// thing that needs you; the chrome uses the scale's sizes and nothing between.
+const SCALE = ['11px', '11.5px', '12px', '13px', '14px', '15px', '16px', '18px', '20px', '26px', '32px']
+
+test('type keeps to the scale, the session title and the REQUIRES title lead', async ({ page, isMobile }) => {
+  await newSession(page)
+  await say(page, 'please permission')
+  await expect(page.locator('.request.permission')).toBeVisible()
+  const size = (sel: string) => page.locator(sel).first().evaluate((el) => parseFloat(getComputedStyle(el).fontSize))
+  const transcript = await size('.item.user, .row-user_message .item')
+  expect(await size('.chat-heading h2')).toBeGreaterThanOrEqual(isMobile ? 20 : 26)
+  expect(await size('.chat-heading h2')).toBeGreaterThan(transcript * (isMobile ? 1.3 : 1.7))
+  expect(await size('.request-title')).toBeGreaterThanOrEqual(18)
+  expect(await size('.request-kw')).toBeGreaterThanOrEqual(13)
+  const off = await page.evaluate((scale) => {
+    const out = new Set<string>()
+    for (const el of document.querySelectorAll<HTMLElement>('body *')) {
+      if (el.closest('.md, pre, code, kbd, .xterm, svg, .sr-only') || !el.childNodes.length) continue
+      const text = [...el.childNodes].some((n) => n.nodeType === Node.TEXT_NODE && n.textContent!.trim())
+      if (!text || !el.getClientRects().length) continue
+      const fs = getComputedStyle(el).fontSize
+      if (!scale.includes(fs)) out.add(`${fs} ${el.tagName.toLowerCase()}.${[...el.classList].join('.')}`)
+    }
+    return [...out]
+  }, SCALE)
+  expect(off).toEqual([])
+})

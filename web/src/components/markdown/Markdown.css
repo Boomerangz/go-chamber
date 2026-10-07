@@ -8,7 +8,7 @@
 }
 .item .md-code-bar { background: var(--paper-2); border-left: 1px solid var(--rule-strong); }
 .md-code-lang {
-  font-family: var(--font-mono); font-size: 11.5px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-3);
+  font-family: var(--font-mono); font-size: var(--t-label); letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-3);
 }
 .md-code-bar .copy-btn, .md-code-bar .md-code-wrap-toggle { height: 22px; }
 .md-code-tools { display: inline-flex; gap: 2px; }

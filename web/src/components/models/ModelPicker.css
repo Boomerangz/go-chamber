@@ -5,6 +5,6 @@
 .model-button[aria-busy='true'] { cursor: progress; color: var(--ink-3); }
 .model-button[aria-busy='true'] .model-name { text-decoration: underline dashed; text-underline-offset: 3px; }
 .model-options .loading-line, .model-none { margin: 0; padding: 6px 8px; }
-.model-none { font-family: var(--font-mono); font-size: 12px; color: var(--ink-3); }
+.model-none { font-family: var(--font-mono); font-size: var(--t-meta); color: var(--ink-3); }
 /* an effort word keeps clear of the segment borders */
 .effort-options button { flex: 1 0 auto; padding: 0 8px; }

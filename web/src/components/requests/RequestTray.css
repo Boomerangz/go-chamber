@@ -9,7 +9,7 @@
   border: 1px solid var(--rule); border-top: 0; background: var(--paper);
 }
 /* sent, but the line never left: the answer waits on the agent */
-.tray-waiting { font-family: var(--font-mono); font-size: 12px; color: var(--ink-3); }
+.tray-waiting { font-family: var(--font-mono); font-size: var(--t-meta); color: var(--ink-3); }
 
 /* A focused line frames itself and its answers as one. The frame sits inside
    the line, so the tray's scroll box doesn't cut its sides off. */

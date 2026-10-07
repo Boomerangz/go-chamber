@@ -2,20 +2,20 @@
 .empty-sessions ul { list-style: none; margin: 0; padding: 0; display: grid; }
 .empty-session {
   width: 100%; justify-content: flex-start; padding: 0 8px; margin-left: -8px;
-  color: var(--ink); font-family: var(--font-ui); font-size: 14px;
+  color: var(--ink); font-family: var(--font-ui); font-size: var(--t-body);
   overflow: hidden; text-overflow: ellipsis;
 }
 .empty-session { gap: 12px; }
 .empty-session-title { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .empty-session-meta {
   display: inline-flex; flex: 0 1 auto; gap: 8px; min-width: 0; margin-left: auto; overflow: hidden;
-  font-family: var(--font-mono); font-size: 12px; color: var(--ink-3); white-space: nowrap;
+  font-family: var(--font-mono); font-size: var(--t-meta); color: var(--ink-3); white-space: nowrap;
 }
 .empty-session-meta > span:first-child { overflow: hidden; text-overflow: ellipsis; }
 .empty-session-meta > span:not(:first-child) { flex: none; }
 @media (hover: hover) { .empty-session:hover { color: var(--act); border-color: transparent; } }
 .empty-keys {
   display: flex; flex-wrap: wrap; gap: 6px 18px; margin-top: 12px;
-  font-family: var(--font-mono); font-size: 12px; color: var(--ink-3);
+  font-family: var(--font-mono); font-size: var(--t-meta); color: var(--ink-3);
 }
 .empty-actions { margin-top: 16px; }

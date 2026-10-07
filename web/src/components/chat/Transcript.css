@@ -6,12 +6,12 @@
 .item.tool .item-line > code { flex: none; white-space: nowrap; }
 .item-summary {
   flex: 1 1 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-  font-family: var(--font-mono); font-size: 12.5px; color: var(--ink-2);
+  font-family: var(--font-mono); font-size: var(--t-meta); color: var(--ink-2);
 }
 .subagent-head .subagent-name { flex: none; white-space: nowrap; }
 /* a question its cut-off turn never got answered: its words, read plainly
    under the tool line */
-.item.tool .question-asked { grid-column: 2 / -1; margin: 2px 0 0; font-size: 14px; line-height: 1.5; color: var(--ink); overflow-wrap: anywhere; }
+.item.tool .question-asked { grid-column: 2 / -1; margin: 2px 0 0; font-size: var(--t-body); line-height: 1.5; color: var(--ink); overflow-wrap: anywhere; }
 /* named by what it was asked (no type): the ask is cut, not the line */
 .subagent-head .subagent-name[title] { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 
@@ -27,7 +27,7 @@
 
 /* an exit code is a tag on the line, bracketed like a hook outcome */
 .exit-tag {
-  flex: none; font-family: var(--font-mono); font-size: 11.5px; letter-spacing: 0.04em; text-transform: uppercase;
+  flex: none; font-family: var(--font-mono); font-size: var(--t-label); letter-spacing: 0.04em; text-transform: uppercase;
   color: var(--ink-3); white-space: nowrap;
 }
 .exit-tag::before { content: '['; }
@@ -36,7 +36,7 @@
 
 /* folded output: label, then its last line while closed */
 .item-output { grid-column: 1 / -1; margin-top: 4px; }
-.item-output > summary { cursor: pointer; color: var(--ink-3); font-family: var(--font-mono); font-size: 12px; user-select: none; }
+.item-output > summary { cursor: pointer; color: var(--ink-3); font-family: var(--font-mono); font-size: var(--t-meta); user-select: none; }
 @media (hover: hover) { .item-output > summary:hover { color: var(--ink); } }
 .item-output[open] > summary { margin-bottom: 4px; }
 .item-output > summary { display: flex; align-items: baseline; gap: 10px; min-width: 0; list-style: none; }
@@ -46,7 +46,7 @@
 .item-output-label { flex: none; }
 .item-output-preview {
   flex: 1 1 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-  font-family: var(--font-mono); font-size: 12px; color: var(--ink-3);
+  font-family: var(--font-mono); font-size: var(--t-meta); color: var(--ink-3);
 }
 .item-output[open] .item-output-preview { display: none; }
 .item-output-body { position: relative; }
@@ -70,10 +70,10 @@
   display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; white-space: normal;
 }
 .error-kw {
-  flex: none; font-family: var(--font-mono); font-size: 11.5px; letter-spacing: 0.06em; text-transform: uppercase;
+  flex: none; font-family: var(--font-mono); font-size: var(--t-label); letter-spacing: 0.06em; text-transform: uppercase;
   color: var(--bad);
 }
-.error-text { min-width: 0; font-size: 13px; line-height: 1.5; color: var(--ink); white-space: pre-wrap; }
+.error-text { min-width: 0; font-size: var(--t-small); line-height: 1.5; color: var(--ink); white-space: pre-wrap; }
 
 /* a capped box shown whole */
 .item pre.full { max-height: none; }
@@ -83,27 +83,27 @@
 /* reasoning: folded behind +/−, with a dashed rule */
 .item.reasoning summary {
   cursor: pointer; list-style: none; display: inline-flex; align-items: center; gap: 6px;
-  font-family: var(--font-mono); font-size: 12px; color: var(--ink-3);
+  font-family: var(--font-mono); font-size: var(--t-meta); color: var(--ink-3);
 }
 .item.reasoning summary::-webkit-details-marker { display: none; }
 .item.reasoning summary::before { content: '+'; width: 1ch; }
 .item.reasoning[open] summary::before { content: '−'; }
-.item.reasoning pre { background: transparent; border-left-style: dashed; color: var(--ink-3); font-family: var(--font-ui); font-size: 13px; }
-.item.reasoning .md { margin-top: 6px; padding-left: 12px; border-left: 1px dashed var(--rule-strong); color: var(--ink-3); font-size: 13px; }
+.item.reasoning pre { background: transparent; border-left-style: dashed; color: var(--ink-3); font-family: var(--font-ui); font-size: var(--t-small); }
+.item.reasoning .md { margin-top: 6px; padding-left: 12px; border-left: 1px dashed var(--rule-strong); color: var(--ink-3); font-size: var(--t-small); }
 .item.reasoning summary { display: flex; max-width: 100%; min-width: 0; }
 .item.reasoning summary::before { flex: none; }
 .reasoning-label { flex: none; }
 .item.reasoning summary.streaming .reasoning-label { text-decoration: underline dashed var(--rule-strong); text-underline-offset: 4px; }
 .reasoning-preview {
   flex: 1 1 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-  font-family: var(--font-ui); font-size: 12.5px; color: var(--ink-3);
+  font-family: var(--font-ui); font-size: var(--t-meta); color: var(--ink-3);
 }
 
 /* a run of finished tool lines, folded into one line that says what they did */
-.item.tool-group { font-size: 13px; }
+.item.tool-group { font-size: var(--t-small); }
 .item.tool-group > summary {
   display: flex; align-items: center; gap: 8px; min-width: 0; cursor: pointer; list-style: none;
-  font-family: var(--font-mono); font-size: 12.5px; color: var(--ink-2);
+  font-family: var(--font-mono); font-size: var(--t-meta); color: var(--ink-2);
 }
 .item.tool-group > summary::-webkit-details-marker { display: none; }
 .item.tool-group > summary::before { content: '+'; flex: none; width: 1ch; color: var(--ink-3); }
@@ -123,11 +123,11 @@
 .item-error .error-retry { margin-top: 0; }
 
 /* an answered question: the answer is the record, read plainly */
-.item.decision.decision-answer .decision-text { flex: 1 1 0; flex-basis: auto; min-width: 0; color: var(--ink-2); font-size: 13px; }
+.item.decision.decision-answer .decision-text { flex: 1 1 0; flex-basis: auto; min-width: 0; color: var(--ink-2); font-size: var(--t-small); }
 
 /* what a finished turn cost, as its result says */
 .turn-foot {
-  margin-top: -8px; font-family: var(--font-mono); font-size: 11.5px; color: var(--ink-3);
+  margin-top: -8px; font-family: var(--font-mono); font-size: var(--t-label); color: var(--ink-3);
   font-variant-numeric: tabular-nums;
 }
 /* a turn the owner stopped: the keyword of TURN FAILED, in ink */
@@ -136,7 +136,7 @@
 /* a message of the owner's: copy it, or take it back into the composer */
 .item.user {
   position: relative; margin-left: -13px; padding-left: 12px; border-left: 1px solid var(--ink);
-  font-size: 15px; font-weight: 400; line-height: 1.55; color: var(--ink);
+  font-size: var(--t-read); font-weight: 400; line-height: 1.55; color: var(--ink);
 }
 @media (max-width: 720px) { .item.user { margin-left: 0; } }
 .msg-actions {
@@ -175,7 +175,7 @@
 .item.user.folded .user-text { max-height: calc(1.55em * 20); overflow: hidden; }
 .act-link {
   display: inline-flex; margin-top: 4px; padding: 0; border: 0; background: none; cursor: pointer;
-  font-family: var(--font-mono); font-size: 12px; color: var(--act);
+  font-family: var(--font-mono); font-size: var(--t-meta); color: var(--act);
   text-decoration: underline; text-underline-offset: 3px;
 }
 @media (hover: hover) { .act-link:hover { color: var(--ink); } }

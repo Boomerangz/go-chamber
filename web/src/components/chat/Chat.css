@@ -8,7 +8,7 @@
 .chat-path-line .chat-repo { flex: 0 10000 auto; min-width: 3ch; }
 .chat-path-line .session-branch { flex: 0 1 auto; min-width: 0; }
 /* the session is put away: a bracketed tag beside its status */
-.archived-tag { flex: none; font-family: var(--font-mono); font-size: 12px; color: var(--ink-2); white-space: nowrap; }
+.archived-tag { flex: none; font-family: var(--font-mono); font-size: var(--t-meta); color: var(--ink-2); white-space: nowrap; }
 .archived-tag::before { content: '['; }
 .archived-tag::after { content: ']'; }
 
@@ -18,10 +18,10 @@
   display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px;
   width: calc(100% - 2 * var(--gutter)); max-width: var(--column); margin: 12px auto 14px;
   padding: 8px 8px 8px 12px; border: 1px solid var(--rule-strong); border-radius: var(--r);
-  font-size: 13px; color: var(--ink-2);
+  font-size: var(--t-small); color: var(--ink-2);
 }
 .worktree-gone p { margin: 0; min-width: 0; overflow-wrap: anywhere; }
-.worktree-gone-kw { font-family: var(--font-mono); font-size: 12px; letter-spacing: 0.04em; text-transform: uppercase; color: var(--ink); }
+.worktree-gone-kw { font-family: var(--font-mono); font-size: var(--t-meta); letter-spacing: 0.04em; text-transform: uppercase; color: var(--ink); }
 .worktree-gone-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-left: auto; min-width: 0; max-width: 100%; }
 .worktree-gone-actions .btn { min-width: 0; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
@@ -35,7 +35,7 @@
 .working-tail {
   display: flex; align-items: center; gap: 8px;
   max-width: var(--column); margin: 14px auto 0; padding-left: 56px;
-  font-family: var(--font-mono); font-size: 12px; color: var(--ink-2); font-variant-numeric: tabular-nums;
+  font-family: var(--font-mono); font-size: var(--t-meta); color: var(--ink-2); font-variant-numeric: tabular-nums;
 }
 .working-tail::before {
   content: ''; flex: none; width: 8px; height: 8px; border: 1px solid var(--ink); border-radius: 1px;
@@ -65,20 +65,20 @@
 .chat-tools .tool-label { display: none; }
 .chat-more { display: none; }
 /* a session title not known yet: dashed rules where the heading and path land */
-.chat-heading-skeleton { display: grid; align-content: center; gap: 14px; height: 49px; animation: mark-breathe 2.4s ease-in-out infinite; }
+.chat-heading-skeleton { display: grid; align-content: center; gap: 14px; height: 50px; animation: mark-breathe 2.4s ease-in-out infinite; }
 /* the agent runs unguarded: printed as a bracketed tag in the needs-you tone */
-.no-approvals { font-family: var(--font-mono); font-size: 12px; color: var(--req); white-space: nowrap; }
+.no-approvals { font-family: var(--font-mono); font-size: var(--t-meta); color: var(--req); white-space: nowrap; }
 .no-approvals::before { content: '['; }
 .no-approvals::after { content: ']'; }
 
 /* a message on its way: the user rule dashed, the words muted, until the
    agent records it */
 .item.user.pending { border-left-style: dashed; color: var(--ink-2); }
-.pending-label { display: block; margin-top: 2px; font-family: var(--font-mono); font-size: 12px; color: var(--ink-3); }
+.pending-label { display: block; margin-top: 2px; font-family: var(--font-mono); font-size: var(--t-meta); color: var(--ink-3); }
 
 /* the first-message hint: what the composer understands */
 .chat-hint { display: grid; gap: 10px; padding-top: 32px; padding-bottom: 32px; color: var(--ink-3); }
-.chat-hint-keys { font-family: var(--font-mono); font-size: 12px; }
+.chat-hint-keys { font-family: var(--font-mono); font-size: var(--t-meta); }
 .chat-missing { display: grid; justify-items: start; gap: 10px; padding-top: 32px; color: var(--ink-2); }
 
 /* a running turn's clock while text streams, and a turn the page lost sight of */
@@ -97,7 +97,7 @@
 .live-strip {
   display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
   width: calc(100% - 2 * var(--gutter)); max-width: var(--column); margin: 10px auto 0;
-  font-family: var(--font-mono); font-size: 12px; color: var(--ink-2);
+  font-family: var(--font-mono); font-size: var(--t-meta); color: var(--ink-2);
 }
 .live-strip .btn { margin-left: auto; }
 /* the words wrap beside their mark in a narrow pane (the requests tray),
@@ -109,7 +109,7 @@
 .unmerged-note {
   display: flex; align-items: center; gap: 4px 10px; flex-wrap: wrap;
   width: calc(100% - 2 * var(--gutter)); max-width: var(--column); margin: 10px auto 0;
-  font-family: var(--font-mono); font-size: 12px; color: var(--ink-2);
+  font-family: var(--font-mono); font-size: var(--t-meta); color: var(--ink-2);
 }
 .unmerged-what { min-width: 0; overflow-wrap: anywhere; }
 .unmerged-what code { color: var(--ink); }
@@ -119,11 +119,11 @@
 
 /* a stop sent that the agent hasn't answered: on the strip, not in the composer row */
 .live-note { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink-3); }
-.composer-note { align-self: center; font-family: var(--font-mono); font-size: 12px; color: var(--ink-3); white-space: nowrap; }
+.composer-note { align-self: center; font-family: var(--font-mono); font-size: var(--t-meta); color: var(--ink-3); white-space: nowrap; }
 /* the send shortcut, kept beside Send once the placeholder is gone */
 .composer-keys {
   display: inline-flex; align-items: center; gap: 3px; align-self: center; margin: 0 2px;
-  font-family: var(--font-mono); font-size: 11.5px; color: var(--ink-3); white-space: nowrap;
+  font-family: var(--font-mono); font-size: var(--t-label); color: var(--ink-3); white-space: nowrap;
 }
 .composer-keys kbd { color: var(--ink-3); }
 
@@ -143,11 +143,11 @@
   .chat-tools .tool-row, .chat-tools .mode-select > .reviewer, .chat-tools > .reviewer {
     display: grid; grid-template-columns: 64px minmax(0, 1fr) auto; align-items: center; gap: 10px;
   }
-  .chat-tools .tool-label { display: block; font-family: var(--font-mono); font-size: 12px; color: var(--ink-3); }
+  .chat-tools .tool-label { display: block; font-family: var(--font-mono); font-size: var(--t-meta); color: var(--ink-3); }
   .chat-tools .mode-select { display: grid; gap: 8px; }
   .chat-tools .mode-select > .reviewer > .field, .chat-tools > .reviewer > .field,
   .chat-tools .model-picker, .chat-tools .model-button { width: 100%; }
-  .chat-tools .field-sm, .chat-tools .model-button { height: 36px; font-size: 16px; }
+  .chat-tools .field-sm, .chat-tools .model-button { height: 36px; font-size: var(--t-input); }
   .chat-tools .model-button { justify-content: space-between; }
   .chat-tools .model-name { max-width: none; }
   /* Fork is a button of the sheet, framed as the fields above it are and
@@ -156,7 +156,7 @@
   /* "⋯" stays on the title row when the folder line opens under the title */
   .chat-header .chat-more { align-self: flex-start; }
   .chat-header .chat-more[aria-expanded='true'] { color: var(--ink); }
-  .chat-heading-skeleton { height: 26px; gap: 0; }
+  .chat-heading-skeleton { height: 24px; gap: 0; }
   .chat-heading-skeleton .skeleton-line + .skeleton-line { display: none; }
   .live-strip { margin-top: 8px; }
 }
@@ -205,4 +205,4 @@
 
 /* the install command of a missing CLI: mono, on one line, copied whole */
 .cli-install { display: flex; align-items: center; gap: 4px; flex: 1 1 100%; min-width: 0; max-width: 100%; }
-.cli-install code { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--font-mono); font-size: 12px; color: var(--ink); }
+.cli-install code { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--font-mono); font-size: var(--t-meta); color: var(--ink); }
