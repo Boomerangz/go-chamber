@@ -322,6 +322,8 @@ describe('SessionMenu', () => {
     await userEvent.click(screen.getByRole('menuitem', { name: 'Delete…' }))
     const confirm = screen.getByRole('group', { name: 'Delete Release notes?' })
     expect(confirm).toHaveTextContent(/transcript on disk stays/)
+    // the popover may cover the row: the question names the session itself
+    expect(confirm).toHaveTextContent('Delete “Release notes” from go-chamber?')
     expect(screen.getByRole('button', { name: 'Keep' })).toHaveFocus()
     await userEvent.click(screen.getByRole('button', { name: 'Keep' }))
     expect(actions.deleteSession).not.toHaveBeenCalled()

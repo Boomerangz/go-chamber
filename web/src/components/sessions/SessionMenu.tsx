@@ -367,7 +367,8 @@ function MenuSheet(props: {
       {step === 'delete' && (
         <div className="session-menu-confirm" role="group" aria-label={`Delete ${title}?`}>
           <p>
-            Delete from go-chamber? The agent's transcript on disk stays.
+            {/* the popover may cover the row it is about: the question names it */}
+            Delete “{title}” from go-chamber? The agent's transcript on disk stays.
           </p>
           {worktree && (
             <label className="session-menu-check">

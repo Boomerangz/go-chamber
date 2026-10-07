@@ -73,6 +73,8 @@ test('archives, unarchives and deletes a session, live in another tab', async ({
   await menu.getByRole('menuitem', { name: 'Delete…' }).click()
   const confirm = page.getByRole('group', { name: `Delete ${name}?` })
   await expect(confirm).toContainText("transcript on disk stays")
+  // the popover may cover the row: its question names the session
+  await expect(confirm).toContainText(`Delete “${name}” from go-chamber?`)
   await confirm.getByRole('button', { name: 'Keep' }).click()
   await expect(list.getByRole('button', { name: new RegExp(`^${name}`) })).toBeVisible()
 
