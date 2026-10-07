@@ -1,3 +1,6 @@
+/* the same chevron as a select's beside it (the --chevron image): as wide,
+   and drawn with as heavy a line (1.5px of lucide's 24-unit box at 16px) */
+.model-button .chevron { width: 16px; height: 16px; stroke-width: 2.25; }
 /* a choice on its way: shown at once, in the "not yet settled" form */
 .model-button[aria-busy='true'] { cursor: progress; color: var(--ink-3); }
 .model-button[aria-busy='true'] .model-name { text-decoration: underline dashed; text-underline-offset: 3px; }

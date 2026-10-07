@@ -313,6 +313,15 @@ describe('Sidebar folder', () => {
     expect(screen.getByLabelText('Working directory')).toHaveValue('/src/site')
   })
 
+  it('captions the recent folders, so one chip does not read as a second field', () => {
+    setup(undefined, [session])
+    const chips = screen.getByRole('group', { name: 'Recent folders' })
+    const caption = within(chips).getByText('Recent')
+    expect(caption).toHaveClass('section-title')
+    expect(caption).toHaveAttribute('aria-hidden', 'true')
+    expect(within(chips).getByRole('button', { name: 'app' })).toBeInTheDocument()
+  })
+
   it('marks busy the "+" that started a session', async () => {
     let finish!: (ok: boolean) => void
     setup(vi.fn(() => new Promise<boolean>((r) => (finish = r))), [session])

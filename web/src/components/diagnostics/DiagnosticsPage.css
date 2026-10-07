@@ -1,5 +1,5 @@
 .diagnostics-page { width: 100%; max-width: 1280px; margin: 0 auto; padding: var(--gutter); overflow: auto; min-height: 0; }
-.diagnostics-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; flex-wrap: wrap; }
+.diagnostics-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; flex-wrap: wrap; margin-bottom: 12px; }
 .diagnostics-header h2 { margin: 0; font: 600 20px/1.5 var(--font-ui); letter-spacing: -0.005em; }
 .diagnostics-header p, .diagnostics-note, .diagnostic-metric p { color: var(--ink-3); font-size: 12px; }
 .diagnostics-header p { max-width: 70ch; }
