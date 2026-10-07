@@ -94,6 +94,10 @@ async function markResultSeen(id: string): Promise<void> {
   }
 }
 
+// SAME_TIMER_MS: a wait that began this soon after its task reads as the
+// task's own clock.
+const SAME_TIMER_MS = 5000
+
 // pointToRequest moves to the session's request in the inbox above: the
 // card says it waits, the inbox is where it is answered.
 function pointToRequest(event: MouseEvent<HTMLButtonElement>, id: string) {
@@ -168,6 +172,9 @@ export function AttentionPanel({ standalone = false }: { standalone?: boolean })
         const start = entry?.startedAt ?? timestamp(s.activeAt)
         const end = entry?.endedAt ?? timestamp(s.endedAt)
         const clock = done && end === undefined ? '—' : elapsed(start, done ? end! : now)
+        // A wait that began with the task is the header's clock already;
+        // only one that began later has a clock of its own.
+        const waitClock = waitSince !== undefined && (start === undefined || waitSince - start >= SAME_TIMER_MS)
         const outcome = entry?.outcome ?? 'Finished'
         const task = entry?.summary || sessionTitle(s)
         return <article className="attention-session" key={s.id} data-outcome={done ? outcome : undefined}>
@@ -184,7 +191,7 @@ export function AttentionPanel({ standalone = false }: { standalone?: boolean })
             </div>
           </> : pending.length ? <button type="button" className="attention-waiting" title="Answer it in Waiting for you above" onClick={(e) => pointToRequest(e, s.id)}>
             <span>Waiting for you · answer above</span>
-            {waitSince !== undefined && <span aria-label="Waiting elapsed">{elapsed(waitSince, now)}</span>}
+            {waitClock && <span aria-label="Waiting elapsed">{elapsed(waitSince, now)}</span>}
           </button> : <p className="attention-action">
             <span className="attention-action-label">{action?.label || entry?.activity || 'Working'}</span>
             {actions.length > 1 && <small>+{actions.length - 1} parallel</small>}

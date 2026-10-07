@@ -239,6 +239,21 @@ it('says why activity failed to load, with a Retry', async () => {
   expect(screen.queryByRole('alert')).toBeNull()
 })
 
+it('shows one clock when the wait began with the task', async () => {
+  vi.useFakeTimers()
+  vi.setSystemTime(12_000)
+  const request = { id: 'r', sessionId: 's', kind: 'permission' as const, state: 'pending' as const, title: 'Run tests', openedAt: new Date(11_000).toISOString() }
+  useSessionStore.setState({ sessions: [{ id: 's', agent: 'claude', cwd: '/p', status: 'running', title: 'Busy', activeAt: new Date(10_000).toISOString() }], pendingRequests: [request] })
+  for (const standalone of [true, false]) {
+    const view = render(<AttentionPanel standalone={standalone} />)
+    await act(async () => {})
+    expect(screen.getByLabelText('Task elapsed')).toHaveTextContent('0:02')
+    expect(screen.getByRole('button', { name: /Waiting for you/ })).toHaveTextContent(/^Waiting for you · answer above$/)
+    expect(screen.queryByLabelText('Waiting elapsed')).toBeNull()
+    view.unmount()
+  }
+})
+
 it("times a wait from the request's own opening and points to it in the inbox", async () => {
   vi.useFakeTimers()
   vi.setSystemTime(65_000)
