@@ -254,11 +254,21 @@ test('a path shortened at its start lines up with the title above it', async ({ 
       const row = page.locator('.term-sidebar [role="tab"]').filter({ hasText: `projects/${name}` })
       // the server's other shells may push it down the list
       await row.scrollIntoViewIfNeeded()
-      const [title, path] = [await box(row.locator('.term-title')), await box(row.locator('.path-text'))]
       expect(await row.locator('.path-head').evaluate((e) => e.scrollWidth > e.clientWidth)).toBe(true)
-      // where the ink starts: the title's first letter, the path's "…"
-      const clip = { x: title.x - 4, y: title.y, width: 40, height: path.y + path.height - title.y }
-      const png = (await page.screenshot({ clip })).toString('base64')
+      // where the ink starts: the title's first letter, the path's "…". The
+      // screenshot is taken of a row that held still for it: other specs'
+      // shells and projects come and go above it, and a shot of where the
+      // row was a moment ago reads another row's ink.
+      const rowBoxes = () => Promise.all([box(row.locator('.term-title')), box(row.locator('.path-text'))])
+      let shot: { title: Awaited<ReturnType<typeof box>>; path: Awaited<ReturnType<typeof box>>; png: string } | undefined
+      await expect(async () => {
+        const [title, path] = await rowBoxes()
+        const clip = { x: title.x - 4, y: title.y, width: 40, height: path.y + path.height - title.y }
+        const png = (await page.screenshot({ clip })).toString('base64')
+        expect(await rowBoxes()).toEqual([title, path])
+        shot = { title, path, png }
+      }).toPass()
+      const { title, path, png } = shot!
       const [t, p] = await page.evaluate(
         async ({ src, split }) => {
           const img = new Image()
