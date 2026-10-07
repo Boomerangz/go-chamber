@@ -154,7 +154,16 @@ test.describe('a phone', () => {
   })
 
   test('Refresh quotas is finger-sized with no quotas reported', async ({ page }) => {
+    // no agent has reported: neither the snapshot nor the live events (other
+    // specs' turns on the shared server) carry quotas
     await page.route('**/api/quotas', (route) => route.fulfill({ json: [] }))
+    await page.routeWebSocket('**/api/ws', (ws) => {
+      const server = ws.connectToServer()
+      server.onMessage((m) => {
+        if (!String(m).includes('"type":"quota"')) ws.send(m)
+      })
+      ws.onMessage((m) => server.send(m))
+    })
     await page.goto(`/?token=${token}`)
     const refresh = page.locator('.quotas-none').getByRole('button', { name: 'Refresh quotas' })
     await refresh.scrollIntoViewIfNeeded()
