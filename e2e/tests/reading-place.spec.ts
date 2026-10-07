@@ -55,3 +55,36 @@ test('a session keeps its reading place when the owner switches away and back', 
   await expect(page.locator('.item.assistant', { hasText: 'echo: turn 6' })).toBeInViewport()
   expect(await scroll.evaluate((el) => el.scrollHeight - el.scrollTop - el.clientHeight)).toBeLessThan(48)
 })
+
+// A phone shows one pane at a time: the hidden chat loses its scroll, and
+// coming back to it from Sessions must find the place it was read at.
+test('on a phone, the chat keeps its reading place across a look at Sessions', async ({ page, isMobile }, info) => {
+  test.skip(!isMobile, 'only a phone hides the chat for another pane')
+  const name = `pane place ${info.project.name} ${Date.now().toString(36)}`
+  await page.goto(`/?token=${token}`)
+  await newSession(page)
+  await say(page, name)
+  for (let n = 1; n <= 6; n++) await say(page, tall(n))
+  const scroll = page.locator('.chat .scroll')
+  const at = await scroll.evaluate((el) => {
+    el.scrollTop = Math.round(el.scrollHeight / 3)
+    return el.scrollTop
+  })
+  await expect(page.locator('.jump-latest')).toHaveCount(1)
+  // Back by the Chat tab, and by tapping the session's own row.
+  for (const back of ['tab', 'row']) {
+    await showPane(page, 'Sessions')
+    if (back === 'tab') await showPane(page, 'Chat')
+    else await page.locator('button.session.active').tap()
+    await expect(scroll).toBeVisible()
+    await expect.poll(() => scroll.evaluate((el) => el.scrollTop), { message: back }).toBeGreaterThan(at - 4)
+    expect(Math.abs((await scroll.evaluate((el) => el.scrollTop)) - at), back).toBeLessThan(4)
+  }
+
+  // Read to the end, it comes back at the end.
+  await scroll.evaluate((el) => { el.scrollTop = el.scrollHeight })
+  await expect(page.locator('.jump-latest')).toHaveCount(0)
+  await showPane(page, 'Sessions')
+  await showPane(page, 'Chat')
+  await expect(page.locator('.item.assistant', { hasText: 'echo: turn 6' })).toBeInViewport()
+})
