@@ -111,6 +111,30 @@ test('terminal in the session directory', async ({ page }) => {
   await panel.getByRole('group', { name: /^Close terminal / }).getByRole('button', { name: 'Close', exact: true }).click()
 })
 
+test('a shell that fails to open says so at the top of the dock, over its empty state', async ({ page, isMobile }) => {
+  test.skip(isMobile, 'the dock is desktop-only; phones use terminal mode')
+  const dir = fs.realpathSync(fs.mkdtempSync(`${os.tmpdir()}/gc-dockfail-`))
+  await page.goto(`/?token=${token}`)
+  await openNewSession(page)
+  await page.getByLabel('Working directory').fill(dir)
+  await page.getByRole('button', { name: 'New session', exact: true }).click()
+  await expect(page.getByLabel('Message')).toBeVisible()
+  await page.route('**/api/terminals', (route) =>
+    route.request().method() === 'POST' ? route.fulfill({ status: 500, json: { error: 'pty: out of ptys' } }) : route.fallback(),
+  )
+  await page.getByRole('toolbar', { name: 'Dock' }).getByRole('button', { name: /^Terminal/ }).click()
+  const panel = page.getByRole('region', { name: 'Terminals' })
+  await panel.getByRole('button', { name: 'In session dir' }).click()
+  const error = panel.getByRole('alert')
+  await expect(error).toContainText('out of ptys')
+  const hint = panel.locator('.terminal-hint')
+  const [e, h, tabs] = await Promise.all([error.boundingBox(), hint.boundingBox(), panel.locator('.dock-tabs').boundingBox()])
+  // one line under the tabs, and the empty state right after it
+  expect(e!.height).toBeLessThan(48)
+  expect(e!.y - (tabs!.y + tabs!.height)).toBeLessThan(24)
+  expect(h!.y - (e!.y + e!.height)).toBeLessThan(24)
+})
+
 test('ad-hoc terminal docked next to the chat', async ({ page, isMobile }) => {
   test.skip(isMobile, 'the dock is desktop-only; phones use terminal mode')
   const dir = fs.realpathSync(fs.mkdtempSync(`${os.tmpdir()}/gc-dock-`))
