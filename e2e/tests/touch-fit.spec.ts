@@ -4,7 +4,7 @@ import { mkdirSync, mkdtempSync, realpathSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { token } from '../playwright.config'
-import { openNewSession } from './pane'
+import { openNewSession, showSessionDetails } from './pane'
 
 // Phones held sideways and touch tablets: the wide layout with a finger's
 // targets, a short window and the notch at a side.
@@ -121,6 +121,36 @@ test.describe('a phone', () => {
     expect(c.x + c.width).toBeLessThanOrEqual(chip.x)
     expect(Math.abs(c.y + c.height / 2 - (chip.y + chip.height / 2))).toBeLessThanOrEqual(4)
     expect(chip.width).toBeLessThan(field.width - 40)
+  })
+
+  test('the session details sheet: Fork is a button under the fields, and both choosers draw one chevron', async ({ page }) => {
+    const { id } = await sessionIn(page, 'gc-sheet-')
+    await page.request.post(`/api/sessions/${id}/messages`, { headers, data: { text: 'hello sheet' } })
+    await page.goto(`/?token=${token}`)
+    await page.goto(`/s/${id}`)
+    await expect(page.locator('.item.assistant', { hasText: 'echo: hello sheet' })).toBeVisible()
+    await showSessionDetails(page)
+    const fork = page.getByRole('button', { name: 'Fork', exact: true })
+    await expect(fork).toBeVisible()
+    const look = await page.evaluate(() => {
+      const f = document.querySelector<HTMLElement>('.chat-fork')!
+      const field = document.querySelector<HTMLElement>('.chat-tools select')!
+      const chev = document.querySelector<SVGElement>('.model-button .chevron')!
+      const fr = f.getBoundingClientRect()
+      const sr = field.getBoundingClientRect()
+      const cr = chev.getBoundingClientRect()
+      return {
+        bordered: getComputedStyle(f).borderTopColor !== 'rgba(0, 0, 0, 0)',
+        alignedLeft: Math.abs(fr.left - sr.left) <= 1,
+        narrower: fr.width < sr.width / 2,
+        tall: fr.height >= 36,
+        // the drawn line, in px: lucide's 24-unit box scaled to the icon's size
+        stroke: Math.round(parseFloat(getComputedStyle(chev).strokeWidth) * (cr.width / 24) * 10) / 10,
+        chevronWidth: Math.round(cr.width),
+      }
+    })
+    // the select's chevron is drawn 1.5px wide in a 10px box (the --chevron image)
+    expect(look).toEqual({ bordered: true, alignedLeft: true, narrower: true, tall: true, stroke: 1.5, chevronWidth: 16 })
   })
 })
 

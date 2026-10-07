@@ -145,8 +145,9 @@
   .chat-tools .field-sm, .chat-tools .model-button { height: 36px; font-size: 16px; }
   .chat-tools .model-button { justify-content: space-between; }
   .chat-tools .model-name { max-width: none; }
-  /* Fork lines up with the fields above it, its word where theirs start */
-  .chat-tools .chat-fork { align-self: stretch; justify-content: flex-start; margin-left: 74px; padding-left: 10px; }
+  /* Fork is a button of the sheet, framed as the fields above it are and
+     starting where they start */
+  .chat-tools .chat-fork { align-self: flex-start; margin-left: 74px; padding: 0 16px; border-color: var(--rule-strong); color: var(--ink); }
   /* "⋯" stays on the title row when the folder line opens under the title */
   .chat-header .chat-more { align-self: flex-start; }
   .chat-header .chat-more[aria-expanded='true'] { color: var(--ink); }
