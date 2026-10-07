@@ -1,5 +1,5 @@
 import { act, fireEvent, render, screen, within } from '@testing-library/react'
-import { afterEach, beforeEach, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, expect, it, onTestFinished, vi } from 'vitest'
 import { resetStore, useSessionStore } from '../../stores/session'
 import AttentionWindow, { AttentionPanel } from './AttentionWindow'
 import { useAttention } from '../../stores/attention'
@@ -237,6 +237,44 @@ it('says why activity failed to load, with a Retry', async () => {
   fireEvent.click(within(alert).getByRole('button', { name: 'Retry' }))
   await act(async () => {})
   expect(screen.queryByRole('alert')).toBeNull()
+})
+
+it('opens on the first waiting row, so its keys answer it', async () => {
+  const request = { id: 'r', sessionId: 's', kind: 'permission' as const, state: 'pending' as const, title: 'Run tests' }
+  useSessionStore.setState({ sessions: [{ id: 's', agent: 'claude', cwd: '/p', status: 'running', title: 'Busy' }], pendingRequests: [request] })
+  const toggle = document.createElement('button')
+  document.body.append(toggle)
+  onTestFinished(() => toggle.remove())
+  toggle.focus()
+  render(<AttentionPanel standalone />)
+  await act(async () => {})
+  expect(document.activeElement).toHaveClass('tray-row')
+  expect(document.activeElement).toHaveAttribute('data-key', expect.stringMatching(/^s\//))
+})
+
+it('leaves focus alone with nothing waiting, and in the floating panel', async () => {
+  const request = { id: 'r', sessionId: 's', kind: 'permission' as const, state: 'pending' as const, title: 'Run tests' }
+  useSessionStore.setState({ sessions: [{ id: 's', agent: 'claude', cwd: '/p', status: 'running', title: 'Busy' }] })
+  const view = render(<AttentionPanel standalone />)
+  await act(async () => {})
+  expect(document.activeElement).not.toHaveClass('tray-row')
+  view.unmount()
+  useSessionStore.setState({ pendingRequests: [request] })
+  render(<AttentionPanel />)
+  await act(async () => {})
+  expect(document.activeElement).not.toHaveClass('tray-row')
+})
+
+it('takes the first row that arrives once, and not again after the owner moved on', async () => {
+  const request = (id: string) => ({ id, sessionId: 's', kind: 'permission' as const, state: 'pending' as const, title: `Run ${id}` })
+  useSessionStore.setState({ sessions: [{ id: 's', agent: 'claude', cwd: '/p', status: 'running', title: 'Busy' }] })
+  render(<AttentionPanel standalone />)
+  await act(async () => {})
+  act(() => useSessionStore.setState({ pendingRequests: [request('r1')] }))
+  expect(document.activeElement).toHaveClass('tray-row')
+  ;(document.activeElement as HTMLElement).blur()
+  act(() => useSessionStore.setState({ pendingRequests: [request('r1'), request('r2')] }))
+  expect(document.activeElement).not.toHaveClass('tray-row')
 })
 
 it('shows one clock when the wait began with the task', async () => {
