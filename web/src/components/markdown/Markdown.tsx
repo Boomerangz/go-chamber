@@ -1,4 +1,4 @@
-import { memo, useContext, useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
+import { Children, isValidElement, memo, useContext, useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import ReactMarkdown, { defaultUrlTransform, type Components, type UrlTransform } from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import type { ThemedToken } from 'shiki/core'
@@ -10,6 +10,7 @@ import TableBox from './TableBox'
 import { useClip } from './useClip'
 import { setCodeWrap, useCodeWrap } from './wrap'
 import { filePath, MarkLine } from '../../lib/files'
+import { pathBreaks } from '../../lib/path'
 import './Markdown.css'
 
 const urlTransform: UrlTransform = (url, key, node) => {
@@ -98,6 +99,15 @@ function CodeBlock({ code, lang }: { code: string; lang?: string }) {
   )
 }
 
+// slashBreaks puts a line-break chance after each slash of a long path in
+// a piece of text; anything else passes through.
+function slashBreaks(child: ReactNode): ReactNode {
+  if (typeof child !== 'string') return child
+  const pieces = pathBreaks(child)
+  if (pieces.length === 1) return child
+  return pieces.flatMap((piece, i) => (i > 0 ? [<wbr key={i} />, piece] : [piece]))
+}
+
 const components: Components = {
   pre: ({ children }) => <>{children}</>,
   code: ({ className, children }) => {
@@ -108,6 +118,17 @@ const components: Components = {
   },
   a: ({ href, children }) => <MdLink href={href}>{children}</MdLink>,
   table: ({ children }) => <TableBox>{children}</TableBox>,
+  // A long path in a cell's text may break between its folders, so it
+  // doesn't take the table's width and crush the words beside it.
+  td: ({ style, children }) => {
+    const pieces = Children.map(children, slashBreaks)
+    const path = pieces?.some((p) => isValidElement(p) && p.type === 'wbr')
+    return (
+      <td style={style} className={path ? 'md-path' : undefined}>
+        {pieces}
+      </td>
+    )
+  },
   img: ({ src, alt }) => <MdImage src={typeof src === 'string' ? src : undefined} alt={alt} />,
 }
 

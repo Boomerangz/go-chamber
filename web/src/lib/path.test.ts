@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { pathParts, relativePath, shortPath } from './path'
+import { pathBreaks, pathParts, relativePath, shortPath } from './path'
 
 describe('shortPath', () => {
   it('writes the home folder as ~', () => {
@@ -55,5 +55,22 @@ describe('relativePath', () => {
     expect(relativePath('src/a.go', '/w/proj')).toBe('src/a.go')
     expect(relativePath('/w/proj/a.go', undefined)).toBe('/w/proj/a.go')
     expect(relativePath('/a.go', '/')).toBe('/a.go')
+  })
+})
+
+describe('pathBreaks', () => {
+  it('cuts a long path in text after each slash, where a line may break', () => {
+    expect(pathBreaks('see internal/adapters/http/worktrees.go now')).toEqual(['see internal/', 'adapters/', 'http/', 'worktrees.go now'])
+  })
+
+  it('leaves numbers, short paths and plain words whole', () => {
+    expect(pathBreaks('1290/1300 lines')).toEqual(['1290/1300 lines'])
+    expect(pathBreaks('either a/b or c')).toEqual(['either a/b or c'])
+    expect(pathBreaks('a long sentence of words')).toEqual(['a long sentence of words'])
+    expect(pathBreaks('2026/10/07/12/30/45')).toEqual(['2026/10/07/12/30/45'])
+  })
+
+  it('keeps a trailing slash with its folder', () => {
+    expect(pathBreaks('web/src/components/')).toEqual(['web/', 'src/', 'components/'])
   })
 })
