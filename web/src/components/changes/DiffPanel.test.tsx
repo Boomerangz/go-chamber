@@ -86,8 +86,9 @@ describe('DiffPanel', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Remove worktree' }))
     expect(api.removeWorktree).not.toHaveBeenCalled()
     const ask = screen.getByRole('group', { name: 'Remove worktree?' })
-    expect(ask).toHaveTextContent(/^Remove the worktree folder .*fix\?/)
-    expect(ask.querySelector('.path-text')).toHaveAttribute('title', '/wt/app/fix')
+    expect(ask.querySelector('p')).toHaveTextContent(/^Remove the worktree folder\?$/)
+    // The path takes a line of its own, not a run inside the question.
+    expect(ask.querySelector(':scope > .path-text')).toHaveAttribute('title', '/wt/app/fix')
     expect(ask).toHaveTextContent('Branch chamber/fix is kept, with its 2 commits.')
     expect(ask).not.toHaveTextContent(/lost/)
     await userEvent.click(screen.getByRole('button', { name: 'Remove' }))

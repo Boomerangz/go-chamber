@@ -561,9 +561,8 @@ function WorktreeBar({ session, worktree, changed, commits }: { session: api.Ses
       )}
       {confirming || dirty ? (
         <div className="worktree-confirm" role="group" aria-label="Remove worktree?">
-          <p>
-            Remove the worktree folder <PathText path={worktree.path} />?
-          </p>
+          <p>Remove the worktree folder?</p>
+          <PathText path={worktree.path} className="worktree-path" />
           {losing && <p className="worktree-dirty">{lossOf(changed, commits)}</p>}
           <p>
             Branch {worktree.branch} is kept{commits > 0 ? `, with its ${commits} ${commits === 1 ? 'commit' : 'commits'}` : ''}.

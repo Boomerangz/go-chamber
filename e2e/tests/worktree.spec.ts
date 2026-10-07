@@ -58,6 +58,18 @@ test('works in a new worktree and shows its changes', async ({ page }, info) => 
   await expect(panel.getByText('+from the agent')).toBeVisible()
 
   await panel.getByRole('button', { name: 'Remove worktree' }).click()
+  // The confirmation fits the panel: the folder on its own line, its name shown.
+  const ask = panel.getByRole('group', { name: 'Remove worktree?' })
+  await expect(ask.getByText('Remove the worktree folder?', { exact: true })).toBeVisible()
+  const end = await panel.evaluate((el) => el.getBoundingClientRect().right)
+  const fit = await ask.evaluate((el) => {
+    const tail = el.querySelector('.worktree-path .path-tail')!.getBoundingClientRect()
+    return { right: el.getBoundingClientRect().right, tailRight: tail.right, wide: el.scrollWidth - el.clientWidth }
+  })
+  expect(fit.right).toBeLessThanOrEqual(end + 0.5)
+  expect(fit.tailRight).toBeLessThanOrEqual(end + 0.5)
+  expect(fit.wide).toBeLessThanOrEqual(0)
+  await expect(ask.locator('.worktree-path .path-tail')).toHaveText(path.basename(wt.path))
   await panel.getByRole('button', { name: 'Remove anyway' }).click()
   await expect(panel.getByRole('button', { name: /Remove/ })).toHaveCount(0)
   expect(execFileSync('git', ['branch', '--list', `chamber/${branch}`], { cwd: repo, encoding: 'utf8' })).toContain(branch)
