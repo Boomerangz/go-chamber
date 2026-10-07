@@ -19,6 +19,7 @@ import { Row } from './Transcript'
 import { isMac, matches, useMedia } from './useMedia'
 import { useAnnouncement } from './useAnnouncement'
 import { useStickToBottom } from './useStickToBottom'
+import { useReadingPlace } from './useReadingPlace'
 import { useTypingMark } from './useTypingMark'
 import { SENT_HOLD_MS, untilBack, useLiveDropped } from './useLiveDropped'
 import { beginAgentView, endAgentView, recordAgentCommit } from '../../lib/diagnostics'
@@ -213,17 +214,19 @@ export default function Chat() {
   }, [sessionId])
   useLayoutEffect(() => { recordAgentCommit(sessionId) }, [chat, sessionId])
 
+  // Back in a session read halfway, the owner is where they left it.
+  const restored = useReadingPlace(sessionId, scrollRef, stick, chat.order.length > 0, history === 'ready')
   // Opening a session with news lands on the "new since you left" mark.
   const landed = useRef(false)
   useLayoutEffect(() => {
     if (landed.current || history !== 'ready' || chat.order.length === 0) return
     landed.current = true
-    if (!unseen) return
+    if (!unseen || restored.current) return
     const markEl = scrollRef.current?.querySelector('.unseen-mark')
     if (!markEl) return
     stick.unpin()
     markEl.scrollIntoView?.({ block: 'start' })
-  }, [history, chat.order.length, unseen, stick, scrollRef])
+  }, [history, chat.order.length, unseen, stick, scrollRef, restored])
 
   const input = useRef<HTMLTextAreaElement>(null)
   useEffect(() => {

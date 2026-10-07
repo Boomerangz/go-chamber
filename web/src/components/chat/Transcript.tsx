@@ -57,6 +57,7 @@ export const Row = memo(function Row({ node, turn, unseen, reduced, animateIn, o
       )}
       <motion.li
         className={`row row-${node.group ? 'tool_group' : node.item.kind}`}
+        data-row={node.item.id}
         initial={animateIn ? motionProps.initial : false}
         animate={motionProps.animate}
         transition={motionProps.transition}
