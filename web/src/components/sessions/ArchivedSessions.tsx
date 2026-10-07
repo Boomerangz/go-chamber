@@ -93,7 +93,7 @@ function ArchivedRow(props: {
   const title = sessionTitle(s)
   return (
     <li className={props.depth > 0 ? 'session-child' : undefined}>
-      <button className={active ? 'session active' : 'session'} aria-current={active ? 'true' : undefined} onClick={() => props.onSelect(s.id)}>
+      <button className={active ? 'session active' : 'session'} data-session={s.id} aria-current={active ? 'true' : undefined} onClick={() => props.onSelect(s.id)}>
         <span className={`avatar avatar-sm avatar-${s.agent}`} aria-hidden="true">
           {s.agent === 'claude' ? 'C' : 'X'}
         </span>

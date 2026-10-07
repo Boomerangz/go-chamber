@@ -83,6 +83,33 @@ describe('SessionMenu focus after the row leaves', () => {
     await waitFor(() => expect(screen.getByRole('button', { name: 'Third' })).toHaveFocus())
   })
 
+  it("follows the open session's row into Archived instead of a neighbour", async () => {
+    // The fold opens and scrolls to the open session's row: focus on a
+    // neighbour would scroll the list away from it again.
+    useSessionStore.setState({ activeId: 's2' })
+    const shelf = (
+      <details open className="archived">
+        <summary>Archived</summary>
+        <button className="session" data-session="s2">
+          Second (archived)
+        </button>
+      </details>
+    )
+    const view = render(<List />)
+    actions.archiveSession.mockImplementation(async () => {
+      view.rerender(
+        <>
+          <List gone={['s2']} />
+          {shelf}
+        </>,
+      )
+      return true
+    })
+    await userEvent.click(trigger('Second'))
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Archive' }))
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Second (archived)' })).toHaveFocus())
+  })
+
   it('moves focus to the previous row when the last one is deleted', async () => {
     const view = render(<List />)
     actions.deleteSession.mockImplementation(async () => {

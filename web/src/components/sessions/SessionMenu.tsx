@@ -27,8 +27,11 @@ const touch = () => matches('(pointer: coarse)')
 
 // neighbourOf finds where focus goes once a row leaves the list (archived,
 // unarchived or deleted): the next row, else the previous one. Rows nested
-// in the leaving one leave with it.
-function neighbourOf(trigger: React.RefObject<HTMLElement | null>): () => void {
+// in the leaving one leave with it. The open session's row is where you
+// are: when it moves (archived or brought back) the focus follows it to
+// its new place, which the sidebar scrolls to, instead of taking the list
+// away to a neighbour.
+function neighbourOf(trigger: React.RefObject<HTMLElement | null>, follow?: string): () => void {
   const item = trigger.current?.parentElement
   const rows = [...document.querySelectorAll<HTMLElement>('button.session')]
   const own = item?.querySelector<HTMLElement>(':scope > button.session')
@@ -39,7 +42,10 @@ function neighbourOf(trigger: React.RefObject<HTMLElement | null>): () => void {
     // With no row left, the search field takes it, but not on a touch
     // screen: focusing a field there brings the keyboard up.
     const search = touch() ? null : document.querySelector<HTMLElement>('input[aria-label="Search sessions"]')
-    const target = next.find((r) => r.isConnected) ?? search
+    const moved = follow
+      ? [...document.querySelectorAll<HTMLElement>(`button.session[data-session="${CSS.escape(follow)}"]`)].find((r) => r !== own)
+      : undefined
+    const target = moved ?? next.find((r) => r.isConnected) ?? search
     target?.focus()
   }
 }
@@ -155,7 +161,7 @@ function MenuSheet(props: {
   const deleteSession = useSessionStore((s) => s.deleteSession)
   const [archive, archiving] = usePending(
     useCallback(async () => {
-      const refocus = neighbourOf(trigger)
+      const refocus = neighbourOf(trigger, useSessionStore.getState().activeId === session.id ? session.id : undefined)
       const ok = await (archived ? unarchiveSession(session.id) : archiveSession(session.id))
       if (ok) {
         onClose()
