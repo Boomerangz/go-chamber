@@ -1,9 +1,10 @@
 import { useLayoutEffect, useRef, useState, type RefObject } from 'react'
 
 // The title keeps its whole width up to this much (about 17 characters of
-// the 20px heading) before the settings fold away and the usage line gives
-// way; a title being edited or not known yet keeps TITLE_FALLBACK. A long
-// title is cut rather than fold a Codex session's settings at 1440px.
+// the 20px heading) before the settings fold away; the usage line gives way
+// before any of the title does. A title being edited or not known yet keeps
+// TITLE_FALLBACK. A long title is cut rather than fold a Codex session's
+// settings at 1440px.
 const TITLE_MAX = 200
 const TITLE_FALLBACK = 160
 // The usage line is cut down to this before the settings fold.
@@ -13,6 +14,10 @@ const MORE_WIDTH = 28
 // Beside a worktree's branch the folder line keeps a little of the
 // repository's name (3ch), the copy button and their gaps.
 const BRANCH_EXTRA = 62
+// The branch takes at most this share of the folder line (Chat.css).
+const BRANCH_SHARE = 0.7
+// Spare pixels the title leaves the rest of the row against rounding.
+const SLACK = 2
 // The status at its longest, "waiting for you" beside its mark.
 const STATUS_MAX = 128
 
@@ -49,22 +54,25 @@ export function useHeaderFold(header: RefObject<HTMLElement | null>): boolean {
       let parts = 0
       let width = 0
       let settings = 0
-      // What the folded row holds besides the title: the usage line may go
-      // to nothing there, the rest keeps its width.
+      // What the row holds besides the title and the usage line, as it is
+      // now: the status and its tags, each with the gap before it.
       let kept = 0
+      let usage: HTMLElement | null = null
       for (const item of rowItems(meta)) {
         if (tools?.contains(item)) {
           width += item.getBoundingClientRect().width
           settings++
-        } else {
+        } else if (item.classList.contains('usage')) {
           // Its whole text, even while the row cuts it; the usage line may be
           // cut, so a turn that adds to it doesn't fold the settings away.
+          usage = item
+          rest += Math.min(item.scrollWidth, USAGE_MIN)
+          parts++
+        } else {
           // The status counts as its longest word ("waiting for you"), so a
-          // turn starting or asking doesn't either.
-          const usage = item.classList.contains('usage')
-          const own = usage ? 0 : item.classList.contains('status') ? Math.max(item.scrollWidth, STATUS_MAX) : item.scrollWidth
-          rest += usage ? Math.min(item.scrollWidth, USAGE_MIN) : own
-          kept += own + gap
+          // turn starting or asking doesn't fold them either.
+          rest += item.classList.contains('status') ? Math.max(item.scrollWidth, STATUS_MAX) : item.scrollWidth
+          kept += Math.ceil(item.getBoundingClientRect().width)
           parts++
         }
       }
@@ -73,18 +81,44 @@ export function useHeaderFold(header: RefObject<HTMLElement | null>): boolean {
       const heading = el.querySelector<HTMLElement>('.chat-heading h2')
       // The title, or a worktree's branch under it, whichever needs more.
       const branch = el.querySelector<HTMLElement>('.chat-path-line .session-branch')
-      const own = Math.max(heading ? Math.ceil(heading.scrollWidth) : 0, branch ? branch.scrollWidth + BRANCH_EXTRA : 0)
-      const titleMin = heading ? Math.min(own, TITLE_MAX) : TITLE_FALLBACK
-      // The heading holds this much (CSS reads it), so the usage line is cut first.
-      el.style.setProperty('--title-min', `${titleMin}px`)
+      const branchOwn = branch ? Math.ceil(Math.max(branch.scrollWidth + BRANCH_EXTRA, branch.scrollWidth / BRANCH_SHARE)) : 0
+      // The settings fold only for a title (its text) cut below this; a
+      // longer title is cut instead.
+      const titleMin = heading ? Math.min(Math.max(Math.ceil(heading.scrollWidth), branchOwn), TITLE_MAX) : TITLE_FALLBACK
+      // Whole, the title is its text and beside it the rename pencil (a
+      // finger's 36px on a touch screen) with its gap. The pencil is measured
+      // itself: the title's box may stretch to the heading's width.
+      const pencil = heading?.parentElement?.querySelector<HTMLElement>(':scope > .rename-btn')
+      const beside = pencil ? pencil.getBoundingClientRect().width + (parseFloat(getComputedStyle(pencil.parentElement!).columnGap) || 0) : 0
+      const own = Math.max(heading ? Math.ceil(heading.scrollWidth + beside) : 0, branchOwn)
       const lead = avatar ? avatar.offsetWidth + gap : 0
-      // Folded, the row is the title, the status and its tags, the usage
-      // line and "⋯": the title holds no more than leaves them room, so the
-      // row never wraps (see Chat.css).
       const more = el.querySelector<HTMLElement>(':scope > .chat-more')?.offsetWidth || MORE_WIDTH
-      el.style.setProperty('--title-fold-min', `${Math.max(0, Math.min(titleMin, avail - lead - gap - kept - more))}px`)
       const need = lead + titleMin + gap + rest + Math.max(0, parts - 1) * metaGap + toolsWidth.current
-      setFold(need > avail)
+      const fold = need > avail
+      // The title (with a worktree's branch) comes before the usage line:
+      // the heading holds all of it that leaves the rest of the row room
+      // (CSS reads these), and only what is left goes to the usage line.
+      // Unfolded the rest is the status, its tags and the settings, in the
+      // meta block; folded it is the status, its tags and "⋯", each beside
+      // the title. Either way the usage line keeps the gap before it.
+      const others = parts - (usage ? 1 : 0)
+      const besides = fold
+        ? lead + kept + (others + (usage ? 1 : 0)) * gap + more + gap
+        : lead + gap + kept + toolsWidth.current + Math.max(0, others - 1) * metaGap + (usage ? metaGap : 0)
+      // Widths are read rounded: a pixel or two to spare keeps "⋯" on the row.
+      const room = Math.max(0, Math.floor(avail - besides) - SLACK)
+      const whole = heading ? own : TITLE_FALLBACK
+      const fit = Math.min(whole, room)
+      el.style.setProperty('--title-min', `${Math.max(titleMin, fit)}px`)
+      el.style.setProperty('--title-fold-min', `${fit}px`)
+      // What is left for the usage line: cut, it keeps a readable part of
+      // itself or none at all, never a stub of a few characters.
+      if (usage) {
+        const left = room - whole
+        if (left < Math.min(usage.scrollWidth, USAGE_MIN)) el.setAttribute('data-usage', 'off')
+        else el.removeAttribute('data-usage')
+      }
+      setFold(fold)
     }
     check()
     if (typeof ResizeObserver === 'undefined') return

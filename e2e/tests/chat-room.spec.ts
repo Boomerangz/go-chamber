@@ -66,8 +66,9 @@ test.describe('a 900px window', () => {
   })
 })
 
-test.describe('a 1100px window', () => {
-  test.use({ viewport: { width: 1100, height: 800 } })
+// (Up to 1100px an open dock takes the sessions list's place instead.)
+test.describe('a 1180px window', () => {
+  test.use({ viewport: { width: 1180, height: 800 } })
   test('with a dock open, a wide sessions list still leaves the chat its room', async ({ page, isMobile }) => {
     test.skip(isMobile, 'the dock is desktop-only')
     await startSession(page)

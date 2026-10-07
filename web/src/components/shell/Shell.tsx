@@ -265,11 +265,12 @@ export function ShowSessions() {
     <button
       type="button"
       className="btn btn-ghost btn-xs show-sessions"
+      aria-label="Show sessions"
       title={`Show sessions (${formatCombo({ key: 'b', mod: true })})`}
       onClick={toggleSidebar}
     >
       <ChevronsRight {...icon(14)} />
-      Show sessions
+      <span className="show-sessions-label">Show sessions</span>
     </button>
   )
 }
@@ -352,15 +353,17 @@ export function HealthStatus({ health }: { health: Health | null }) {
   const now = useNow(health === 'online' && connection === 'offline' ? 1000 : null)
   if (health === 'online' && connection === 'offline') {
     const wait = nextRetryAt ? Math.max(0, Math.ceil((nextRetryAt - now) / 1000)) : 0
+    const words = `reconnecting${wait > 0 ? ` · ${wait}s` : '…'}`
     return (
       <button
         type="button"
         className="health health-reconnecting"
+        aria-label={words}
         title="Live updates dropped. Click to reconnect now."
         onClick={retryNow}
       >
         <span className="dot" aria-hidden="true" />
-        reconnecting{wait > 0 ? ` · ${wait}s` : '…'}
+        <span className="health-words">{words}</span>
       </button>
     )
   }

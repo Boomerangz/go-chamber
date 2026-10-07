@@ -35,6 +35,17 @@
 .diff-file-actions .btn-icon, .diff-action-gap { width: 24px; height: 24px; }
 .diff-action-gap { flex: none; }
 @media (hover: none) { .diff-file-actions { opacity: 1; } }
+/* with a mouse the actions show on hover only: until then they keep no room
+   (a long name runs up to its counts) and then show over the row's end. An
+   open file keeps them in its header's line. */
+@media (hover: hover) and (pointer: fine) {
+  .diff-file-actions {
+    position: absolute; top: 0; right: 0; bottom: 0; align-items: center; padding-left: 12px;
+    background: linear-gradient(to right, transparent, var(--paper) 12px); pointer-events: none;
+  }
+  .diff-file:hover .diff-file-actions, .diff-file-head:focus-within .diff-file-actions { pointer-events: auto; }
+  .diff-file-head:has(> .diff-file-toggle[aria-expanded='true']) .diff-file-actions { position: static; padding-left: 0; background: none; }
+}
 /* status: a lowercase word after a square mark whose form is the status */
 .diff-status {
   flex: none; display: inline-flex; align-items: center; gap: 6px; width: calc(9ch + 13px); white-space: nowrap;
@@ -134,9 +145,9 @@
 }
 
 @media (max-width: 720px) {
+  .diff-file-actions .btn-icon, .diff-action-gap { width: 36px; height: 36px; }
   .layout[data-pane='changes'] > .changes-pane { display: flex; flex-direction: column; min-height: 0; }
   .changes-pane .diff-panel { --pad-y: 14px; --pad-x: var(--gutter); }
-  .diff-file-actions .btn-icon, .diff-action-gap { width: 36px; height: 36px; }
   .diff-status { width: 11.5ch; gap: 4px; }
   .changes-pane .tray-empty { display: block; padding: 32px var(--gutter); color: var(--ink-3); }
 }

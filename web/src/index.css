@@ -223,7 +223,8 @@ kbd {
 
 /* ---------- app shell ---------- */
 .app {
-  display: grid; grid-template-rows: auto minmax(0, 1fr);
+  /* one column no wider than the window: nothing in it widens the page */
+  display: grid; grid-template-rows: auto minmax(0, 1fr); grid-template-columns: minmax(0, 1fr);
   height: 100vh; height: 100dvh;
 }
 .topbar {
@@ -244,7 +245,20 @@ kbd {
 .brand { display: flex; align-items: center; gap: 12px; }
 .show-sessions { display: inline-flex; align-items: center; gap: 4px; }
 @media (max-width: 720px) { .show-sessions { display: none; } }
-h1 { font-family: var(--font-mono); font-size: 14px; font-weight: 400; letter-spacing: 0.01em; }
+h1 { font-family: var(--font-mono); font-size: 14px; font-weight: 400; letter-spacing: 0.01em; white-space: nowrap; }
+/* tablets and small laptops: the bar's three parts fit side by side. The
+   modes stay centred between the masthead and the controls, Show sessions
+   is its icon and Focus and Sign out draw tighter */
+@media (min-width: 721px) and (max-width: 1100px) {
+  .topbar { grid-template-columns: auto minmax(0, 1fr) auto; gap: 0 12px; }
+  .topbar .mode-switch { justify-self: center; min-width: 0; }
+  .topbar .segmented.mode-switch button { padding: 2px 10px 0; }
+  .brand { gap: 8px; }
+  .show-sessions { width: 30px; height: 30px; padding: 0; justify-content: center; }
+  .show-sessions-label { display: none; }
+  .topbar-end { gap: 6px; }
+  .topbar .focus-toggle, .topbar .signout .btn { padding: 0 8px; }
+}
 
 .segmented.mode-switch { display: flex; gap: 0; align-self: stretch; border: 0; border-radius: 0; background: none; }
 .segmented.mode-switch button + button { border-left: 0; }
@@ -282,7 +296,9 @@ button.health { border: 0; background: none; padding: 0; }
   /* the chat keeps --chat-min: the sessions list and the dock give way to it */
   --chat-min: 360px; --rail-w: 44px;
   --sb: min(var(--sidebar-w, 300px), max(200px, 100% - var(--chat-min) - var(--rail-w)));
-  position: relative; display: grid; min-height: 0;
+  position: relative; display: grid; min-height: 0; min-width: 0;
+  /* a part too wide for its column is cut, never scrolls the page sideways */
+  overflow-x: clip;
   grid-template-columns: var(--sb) minmax(0, 1fr) auto;
 }
 /* --dock is each dock's default width; --dock-w a dragged one */
@@ -444,8 +460,16 @@ button.health { border: 0; background: none; padding: 0; }
    so it is what yields when the row is short of room */
 .session-branch { flex: 0 100 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--font-mono); font-size: 11.5px; color: var(--ink-3); }
 .session-branch::before { content: '⎇ '; }
-/* the worktree folder is gone; the branch stays */
+/* the worktree folder is gone; the branch stays. A narrow row keeps the
+   branch's name and says "removed" by a dashed glyph (gone, as a detached
+   status's dashed mark), the words in its tooltip */
 .session-branch[data-removed]::before { content: '⎇ removed · '; }
+@container (max-width: 280px) {
+  .session-branch[data-removed]::before {
+    content: '⎇'; display: inline-block; margin-right: 3px; padding: 0 1px; line-height: 1.2;
+    border: 1px dashed currentColor; border-radius: 1px;
+  }
+}
 .session-status-interrupted { color: var(--ink); }
 .session-status-interrupted::before { background: linear-gradient(to top right, transparent 45%, currentColor 45% 60%, transparent 60%); }
 .session-status-detached { color: var(--ink-3); }
@@ -458,7 +482,8 @@ button.health { border: 0; background: none; padding: 0; }
   flex: none; font-family: var(--font-mono); font-size: 11.5px; letter-spacing: 0.06em; text-transform: uppercase;
   color: var(--ink); border-bottom: 1px dashed var(--ink); line-height: 1.2;
 }
-.session-time { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-left: auto; }
+/* the age is short and reads whole: the branch beside it yields instead */
+.session-time { flex: none; white-space: nowrap; margin-left: auto; }
 @container (max-width: 240px) {
   .status-more { display: none; }
   /* an archived row that waits says "archived" by its fold alone */
@@ -491,9 +516,13 @@ button.health { border: 0; background: none; padding: 0; }
   .sidebar-body > .session-search { top: -14px; }
   .sidebar-body { flex: none; overflow: visible; }
   .sidebar-footer { flex: none; }
+  .sidebar-signout { display: block; }
+}
+/* a finger's targets: on a phone by its width, and on any touch screen (a
+   tablet keeps the wide layout but not a mouse's precision) */
+@media (max-width: 720px), (pointer: coarse) {
   /* the row menu is always shown here: keep the row's text clear of it */
   .session { padding-right: 44px; }
-  .sidebar-signout { display: block; }
   .group-new { width: 40px; height: 40px; }
   .group-more { min-height: 40px; }
   .group-toggle { height: 40px; }
@@ -1054,6 +1083,9 @@ button.health { border: 0; background: none; padding: 0; }
     position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap;
   }
   .topbar-end { grid-column: 2; grid-row: 1; gap: 4px; }
+  /* a dropped socket shows as the dashed mark alone: the modes keep their
+     room, and the strip above the composer says it in words */
+  .topbar-end .health-words { display: none; }
   .mode-switch { grid-column: 1; grid-row: 1; justify-self: start; min-width: 0; overflow-x: auto; scrollbar-width: none; }
   .segmented.mode-switch button { flex: none; padding: 0 10px; }
   .mode-switch { max-width: 100%; }
@@ -1082,18 +1114,6 @@ button.health { border: 0; background: none; padding: 0; }
   .chat-header > .avatar { display: none; }
   .composer { width: calc(100% - 2 * var(--gutter)); margin-bottom: 10px; }
   .field, .composer textarea, .session-search input { font-size: 16px; }
-  .btn { height: 36px; }
-  /* every control a finger can find: icon buttons, the small selects and
-     switches, fold summaries and text links, grown by padding not by ink */
-  .btn-icon { width: 36px; height: 36px; }
-  .segmented button, .model-button, .field-sm, .effort-options button { height: 36px; }
-  .chip { height: 36px; }
-  .folder-item .pick { height: 36px; }
-  .item-output > summary, .item.hook > summary, .item.reasoning summary, .item.tool-group > summary,
-  .quotas-details summary, .request-raw > summary { padding-block: 9px; }
-  .act-link { min-height: 36px; align-items: center; }
-  /* a component's own smaller size (copy path, copy reply) yields here */
-  .chat-path-line .chat-path-copy, .items .row .msg-copy { width: 36px; height: 36px; }
   .terminal-view { min-height: 0; }
 
   .panebar {
@@ -1121,6 +1141,23 @@ button.health { border: 0; background: none; padding: 0; }
   .notices { bottom: calc(64px + env(safe-area-inset-bottom)); right: 14px; left: 14px; width: auto; }
 }
 
+/* every control a finger can find, on a phone and on any touch screen:
+   icon buttons, the small selects and switches, fold summaries and text
+   links, grown by padding not by ink */
+@media (max-width: 720px), (pointer: coarse) {
+  .btn { height: 36px; }
+  .btn-icon, .topbar-end .btn-icon { width: 36px; height: 36px; }
+  .segmented button, .model-button, .field-sm, .effort-options button { height: 36px; }
+  .chip { height: 36px; }
+  .folder-item .pick { height: 36px; }
+  .item-output > summary, .item.hook > summary, .item.reasoning summary, .item.tool-group > summary,
+  .quotas-details summary, .request-raw > summary { padding-block: 9px; }
+  .act-link { min-height: 36px; align-items: center; }
+  /* a component's own smaller size (copy path, copy reply) yields here */
+  .chat-path-line .chat-path-copy, .items .row .msg-copy { width: 36px; height: 36px; }
+  .rail-btn { width: 36px; height: 36px; }
+}
+
 /* the narrowest phones: the three modes and the toggles fit on one row,
    none under another, none scrolled away */
 @media (max-width: 360px) {
@@ -1129,9 +1166,16 @@ button.health { border: 0; background: none; padding: 0; }
   .topbar-end { gap: 0; }
   .segmented.mode-switch button { gap: 4px; padding: 0 4px; font-size: 12.5px; }
 }
+/* a count on a mode (what waits, the shells running) widens the tabs: up
+   to a large phone they draw as tight as on the narrowest */
+@media (max-width: 430px) {
+  .topbar:has(.mode-switch :is(.badge, .count)) { gap: 0 4px; padding-left: 10px; padding-right: 6px; }
+  .topbar:has(.mode-switch :is(.badge, .count)) .topbar-end { gap: 0; }
+  .topbar:has(.mode-switch :is(.badge, .count)) .segmented.mode-switch button { gap: 4px; padding: 0 4px; font-size: 12.5px; }
+}
 /* below that, every pixel goes to the modes */
 @media (max-width: 340px) {
-  .topbar { padding-left: 0; }
+  .topbar, .topbar:has(.mode-switch :is(.badge, .count)) { padding-left: 0; }
 }
 
 /* nothing moves or breathes; an animation only snaps to its end, so a
