@@ -793,6 +793,13 @@ describe('usage in the header', () => {
     setup({ chat: chatOf([], { usage: { totalTokens: 1200 }, result: { inputTokens: 1, outputTokens: 2 } }) })
     expect(screen.getByLabelText('Session usage')).toHaveTextContent('1,200 tokens')
   })
+
+  it('splits the line into whole parts the header can drop, the whole line on hover', () => {
+    setup({ chat: chatOf([], { result: { inputTokens: 10, outputTokens: 12, costUsd: 0.5 } }) })
+    const usage = screen.getByLabelText('Last turn usage')
+    expect([...usage.querySelectorAll('.usage-part')].map((p) => p.textContent)).toEqual(['22 tokens', ' · $0.5000', ' · last turn'])
+    expect(usage).toHaveAttribute('title', '22 tokens · $0.5000 · last turn')
+  })
 })
 
 describe('session not loaded yet', () => {
