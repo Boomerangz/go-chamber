@@ -110,13 +110,13 @@ test('Overview toggles back to the workspace and keeps workspace keys working', 
   test.skip(info.project.name !== 'desktop', 'the top bar toggles are desktop controls')
   await page.goto(`/?token=${token}`)
   const toggle = page.getByRole('banner').getByRole('button', { name: 'Overview' })
-  await expect(page.getByRole('button', { name: 'Focus' })).toBeVisible()
+  await expect(page.getByRole('banner').getByRole('button', { name: 'Focus', exact: true })).toBeVisible()
   await toggle.click()
   await expect(overviewOf(page)).toBeVisible()
   await expect(toggle).toHaveAttribute('aria-pressed', 'true')
   const ink = await page.locator('h1').evaluate((el) => getComputedStyle(el).color)
   await expect(toggle).toHaveCSS('border-top-color', ink)
-  await expect(page.getByRole('button', { name: 'Focus' })).toHaveCount(0)
+  await expect(page.getByRole('banner').getByRole('button', { name: 'Focus', exact: true })).toHaveCount(0)
   // A second click leaves.
   await toggle.click()
   await expect(overviewOf(page)).toHaveCount(0)
@@ -130,8 +130,8 @@ test('Overview toggles back to the workspace and keeps workspace keys working', 
   await overviewOf(page).getByRole('heading', { name: 'Overview' }).click()
   await page.keyboard.press('f')
   await expect(overviewOf(page)).toHaveCount(0)
-  await expect(page.getByRole('button', { name: 'Focus' })).toHaveAttribute('aria-pressed', 'true')
-  await page.getByRole('button', { name: 'Focus' }).click()
+  await expect(page.getByRole('banner').getByRole('button', { name: 'Focus', exact: true })).toHaveAttribute('aria-pressed', 'true')
+  await page.getByRole('banner').getByRole('button', { name: 'Focus', exact: true }).click()
 })
 
 test('a refused floating panel says so in a notice, not in the top bar', async ({ page }, info) => {
