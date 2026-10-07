@@ -6,6 +6,8 @@ import { useNow } from '../../lib/now'
 import { useSessionStore } from '../../stores/session'
 import { icon } from '../icon'
 import SessionMenu from './SessionMenu'
+import StatusMark from './StatusMark'
+import { owesAnswer, shownStatus } from '../../lib/status'
 import './HistoryPanel.css'
 import './ArchivedSessions.css'
 
@@ -91,18 +93,21 @@ function ArchivedRow(props: {
             {title}
           </span>
           <span className="session-meta">
-            {waiting > 0 ? (
-              <>
-                <span className="session-status session-status-waiting">waiting for you</span>
-                <span className="badge" title="Requests waiting for you">
-                  {waiting}
-                </span>
-              </>
-            ) : (
-              s.status === 'running' && <span className="session-status session-status-running">running</span>
+            <StatusMark shown={shownStatus({ status: s.status, started: !!s.nativeId, waiting, owed: owesAnswer(s) })} />
+            {waiting > 0 && (
+              <span className="badge" title="Requests waiting for you">
+                {waiting}
+              </span>
             )}
             <span className="session-time">
-              {s.archivedAt ? `archived ${relativeTime(s.archivedAt, new Date(props.now))}` : relativeTime(s.activeAt ?? s.createdAt, new Date(props.now))}
+              {s.archivedAt ? (
+                <>
+                  <span className="time-more">archived </span>
+                  {relativeTime(s.archivedAt, new Date(props.now))}
+                </>
+              ) : (
+                relativeTime(s.activeAt ?? s.createdAt, new Date(props.now))
+              )}
             </span>
           </span>
         </span>
