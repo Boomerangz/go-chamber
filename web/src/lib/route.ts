@@ -6,11 +6,13 @@ export type Route =
   | { kind: 'terminal'; id: string }
   | { kind: 'terminals' }
   | { kind: 'diagnostics' }
+  | { kind: 'overview' }
   | { kind: 'none' }
 
 export function parseRoute(pathname: string): Route {
   if (/^\/diagnostics\/?$/.test(pathname)) return { kind: 'diagnostics' }
   if (/^\/terminal\/?$/.test(pathname)) return { kind: 'terminals' }
+  if (/^\/overview\/?$/.test(pathname)) return { kind: 'overview' }
   const m = /^\/([st])\/([^/]+)\/?$/.exec(pathname)
   if (!m) return { kind: 'none' }
   try {
@@ -21,8 +23,9 @@ export function parseRoute(pathname: string): Route {
   }
 }
 
-export function routePath(mode: 'agents' | 'terminal' | 'diagnostics', sessionId: string | null, terminalId: string | null): string {
+export function routePath(mode: 'agents' | 'terminal' | 'diagnostics', sessionId: string | null, terminalId: string | null, pane?: string): string {
   if (mode === 'diagnostics') return '/diagnostics'
   if (mode === 'terminal') return terminalId ? `/t/${encodeURIComponent(terminalId)}` : '/terminal'
+  if (pane === 'overview') return '/overview'
   return sessionId ? `/s/${encodeURIComponent(sessionId)}` : '/'
 }

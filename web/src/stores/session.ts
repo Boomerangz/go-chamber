@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { useAttention } from './attention'
 import { recordAgentEvent, recordAgentBatch, markAgentUpdate } from '../lib/diagnostics'
 import * as api from '../lib/api'
 import { applyEvents, initialChat, type ChatState } from '../lib/events'
@@ -27,7 +28,7 @@ export interface HistoryError {
 }
 
 // Pane is the view shown on narrow screens, where only one fits at a time.
-export type Pane = 'sessions' | 'chat' | 'requests' | 'changes'
+export type Pane = 'overview' | 'sessions' | 'chat' | 'requests' | 'changes'
 
 export interface SessionStore {
   sessions: api.Session[]
@@ -644,6 +645,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
   },
 
   applyIncoming(ev) {
+    useAttention.getState().ingest(ev, Date.now())
     recordAgentEvent()
     chimeOnEvent(ev)
     const prev = lastSeqs[ev.sessionId]
@@ -976,6 +978,7 @@ function dropQueued(): void {
 
 // resetStore restores the initial state; used by tests.
 export function resetStore(): void {
+  useAttention.getState().reset()
   preferenceRequest++
   modelPreferenceRequests.clear()
   modePreferenceRequests.clear()

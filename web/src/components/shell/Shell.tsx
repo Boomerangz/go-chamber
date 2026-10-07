@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { useNow } from '../../lib/now'
 import type { Health } from '../../lib/api'
 import { useRequestsFailure, useWaitingCount } from '../../lib/waiting'
-import { ChevronsRight, FileDiff, Inbox, List, MessageSquareText, SquareTerminal } from 'lucide-react'
+import { Activity, ChevronsRight, FileDiff, Inbox, List, MessageSquareText, SquareTerminal } from 'lucide-react'
 import { icon } from '../icon'
 import { DOCK_MAX, DOCK_MIN, SIDEBAR_MAX, SIDEBAR_MIN, useLayoutStore, visibleDock, type DockTab, type Mode } from '../../stores/layout'
 import { useSidebarShown } from './sidebarShown'
@@ -353,6 +353,7 @@ export function SidebarSplitter() {
 }
 
 const panes: { id: Pane; label: string; icon: ReactNode }[] = [
+  { id: 'overview', label: 'Overview', icon: <Activity {...icon(18)} /> },
   { id: 'sessions', label: 'Sessions', icon: <List {...icon(18)} /> },
   { id: 'chat', label: 'Chat', icon: <MessageSquareText {...icon(18)} /> },
   { id: 'requests', label: 'Requests', icon: <Inbox {...icon(18)} /> },
