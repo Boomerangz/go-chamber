@@ -5,7 +5,8 @@ import { applyEvents, initialChat, type ChatState } from '../lib/events'
 import type { GroupMode } from '../lib/sessions'
 import { LiveList } from '../lib/live-list'
 import { chimeOnEvent } from '../lib/chime'
-import { describeError, fail, useNotices } from './notices'
+import { bindPresence, setActiveClient, startPresence } from '../lib/presence'
+import { describeError, dropSessionNotices, fail, useNotices } from './notices'
 import { parseRoute } from '../lib/route'
 import { branchError, folderError } from '../lib/branch'
 import { useCLIs } from '../lib/clis'
@@ -78,9 +79,10 @@ export interface SessionStore {
   loadSessions: () => Promise<void>
   loadRequests: () => Promise<void>
   loadQuotas: () => Promise<void>
-  // createSession starts a session in cwd, or in a new worktree on branch chamber/<branch>.
+  // createSession starts a session in cwd, or in a new worktree on branch chamber/<branch>
+  // (with existing, on that branch as it already is).
   // With inForm, a folder that isn't there is left to the form to say.
-  createSession: (agent: api.AgentKind, cwd: string, branch?: string, inForm?: boolean) => Promise<boolean>
+  createSession: (agent: api.AgentKind, cwd: string, branch?: string, inForm?: boolean, existing?: boolean) => Promise<boolean>
   selectSession: (id: string) => Promise<void>
   // closeSession leaves the open session for the empty workspace.
   closeSession: () => void
@@ -397,10 +399,10 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     }
   },
 
-  async createSession(agent, cwd, branch, inForm) {
+  async createSession(agent, cwd, branch, inForm, existing) {
     try {
       const created = branch
-        ? await api.createWorktreeSession(agent, cwd, branch, startChoice(agent))
+        ? await (existing ? api.createWorktreeSession(agent, cwd, branch, startChoice(agent), true) : api.createWorktreeSession(agent, cwd, branch, startChoice(agent)))
         : await api.createSession(agent, cwd, startChoice(agent))
       set({ sessions: replaceSession(get().sessions, created) })
       // An earlier failed start is over now.
@@ -715,6 +717,7 @@ function removeSession(get: () => SessionStore, set: (partial: Partial<SessionSt
     sessionRevisions.delete(sid)
     delete lastSeqs[sid]
   }
+  dropSessionNotices(gone)
   const dropped = pendingRequests.filter((r) => gone.has(r.sessionId))
   for (const r of dropped) requestLists.update(requestKey(r), null)
   set({
@@ -746,6 +749,16 @@ function connect(
   socket = ws
   set({ connection: 'connecting' })
   ws.onopen = () => {
+    // Say where this page is: the server pushes nothing about a session a
+    // focused page shows, and tells every page which one should chime.
+    startPresence()
+    bindPresence((frame) => {
+      try {
+        ws.send(frame)
+      } catch {
+        // Closing already: onclose unbinds, and the next socket says it again.
+      }
+    })
     reconnectDelay = 1000
     set({ connection: 'online', nextRetryAt: null })
     // Anything missed while offline: reload the lists the socket feeds.
@@ -761,6 +774,7 @@ function connect(
   ws.onclose = () => {
     if (socket !== ws) return
     socket = null
+    bindPresence(null)
     set({ connection: 'offline', nextRetryAt: Date.now() + reconnectDelay })
     reconnectTimer = setTimeout(() => {
       reconnectTimer = null
@@ -772,7 +786,12 @@ function connect(
   ws.onerror = () => set({ connection: 'offline' })
   ws.onmessage = (msg) => {
     try {
-      get().applyIncoming(JSON.parse(msg.data as string) as api.SessionEvent)
+      const frame = JSON.parse(msg.data as string) as api.SessionEvent | { type: 'presence'; active?: string }
+      if (frame.type === 'presence') {
+        setActiveClient((frame as { active?: string }).active ?? '')
+        return
+      }
+      get().applyIncoming(frame as api.SessionEvent)
     } catch {
       // ignore malformed frames
     }

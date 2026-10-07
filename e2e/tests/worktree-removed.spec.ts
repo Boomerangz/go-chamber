@@ -232,10 +232,11 @@ test('the branch field previews its branch, refuses in place, and unticks once s
 
   await branch.fill(taken)
   await page.getByRole('button', { name: 'New session', exact: true }).click()
-  await expect(page.getByRole('alert').filter({ hasText: `Branch chamber/${taken} already exists` })).toBeVisible()
+  // The branch is checked out in the live worktree: the form says where.
+  await expect(page.getByRole('alert').filter({ hasText: `Branch chamber/${taken} is checked out in ` })).toBeVisible()
   await expect(branch).toHaveAttribute('aria-invalid', 'true')
   // Said in the form, not in a corner notice.
-  await expect(page.locator('.toast', { hasText: 'already exists' })).toHaveCount(0)
+  await expect(page.locator('.toast', { hasText: 'checked out' })).toHaveCount(0)
 
   await branch.fill(`fresh-${info.project.name}`)
   await page.getByRole('button', { name: 'New session', exact: true }).click()
@@ -267,4 +268,25 @@ test('a fork of a live worktree session shares the worktree', async ({ page }, i
   expect((await page.request.delete(`/api/sessions/${id}/worktree?force=1`, { headers })).status()).toBe(200)
   const after = (await (await page.request.get(`/api/sessions/${forked.id}`, { headers })).json()) as { worktree?: { removed?: boolean } }
   expect(after.worktree?.removed).toBe(true)
+})
+
+// A notice about a session leaves with it: deleting the session right after
+// removing its worktree doesn't leave "Worktree removed" over an empty screen.
+test('the worktree-removed notice goes when its session is deleted', async ({ page }, info) => {
+  const repo = newRepo()
+  const title = `notice goes ${info.project.name}`
+  const made = await worktreeSession(page.request, repo, `notice-${info.project.name}`, title)
+  await page.goto(`/s/${made.id}?token=${token}`)
+  await showPane(page, 'Sessions')
+  await page.getByRole('button', { name: `Actions for ${title}` }).click()
+  await page.getByRole('menuitem', { name: 'Remove worktree…' }).click()
+  await page.getByRole('group', { name: `Remove the worktree of ${title}?` }).getByRole('button', { name: 'Remove' }).click()
+  const notice = page.locator('.toast', { hasText: `Worktree removed · branch ${made.worktree.branch} kept` })
+  await expect(notice).toBeVisible()
+  await page.getByRole('button', { name: `Actions for ${title}` }).click()
+  await page.getByRole('menuitem', { name: 'Delete…' }).click()
+  await page.getByRole('button', { name: 'Delete', exact: true }).click()
+  await expect(page.locator('button.session', { hasText: title })).toHaveCount(0)
+  // Well before the notice would fade by itself.
+  await expect(notice).toHaveCount(0, { timeout: 1500 })
 })

@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { SessionEvent } from './api'
 import { chimeFor, chimeOnEvent, setSoundOn, soundOn } from './chime'
+import { presenceClient, resetPresence, setActiveClient, setPresenceSession } from './presence'
 
 const ev = (type: SessionEvent['type']): SessionEvent => ({ seq: 1, sessionId: 's', type }) as SessionEvent
 
@@ -8,6 +9,7 @@ let tones: number
 let clock = 0
 beforeEach(() => {
   localStorage.clear()
+  resetPresence()
   tones = 0
   class FakeContext {
     currentTime = 0
@@ -83,4 +85,27 @@ describe('chimeOnEvent', () => {
     setSoundOn(true)
     expect(() => chimeOnEvent(ev('request.opened'))).not.toThrow()
   })
+
+  it('sounds only on the page the owner was at last, on whichever device', () => {
+    setSoundOn(true)
+    setActiveClient('the-phone')
+    chimeOnEvent(ev('turn.ended'))
+    expect(tones).toBe(0)
+    setActiveClient(presenceClient())
+    chimeOnEvent(ev('turn.ended'))
+    expect(tones).toBe(1)
+  })
+
+  it('sounds on a focused page showing that session even if the owner was elsewhere last', () => {
+    setSoundOn(true)
+    setActiveClient('the-phone')
+    vi.spyOn(document, 'hasFocus').mockReturnValue(true)
+    setPresenceSession('other')
+    chimeOnEvent(ev('turn.ended'))
+    expect(tones).toBe(0)
+    setPresenceSession('s')
+    chimeOnEvent(ev('turn.ended'))
+    expect(tones).toBe(1)
+  })
+
 })

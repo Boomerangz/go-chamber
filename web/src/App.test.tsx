@@ -10,9 +10,11 @@ import { resetLayout } from './stores/layout'
 import { useSessionStore } from './stores/session'
 import { resetTerminals, useTerminalStore } from './stores/terminals'
 import { useLayoutStore } from './stores/layout'
+import { setPresenceSession } from './lib/presence'
 
 vi.mock('./lib/api', () => ({
   fetchHealth: vi.fn(),
+  markSeen: vi.fn(async () => ({})),
   listSessions: vi.fn(),
   listRequests: vi.fn(),
   getQuotas: vi.fn(),
@@ -25,6 +27,11 @@ vi.mock('./lib/api', () => ({
   respondRequest: vi.fn(),
   fetchEvents: vi.fn(),
   UNAUTHORIZED_EVENT: 'gc:unauthorized',
+}))
+
+vi.mock('./lib/presence', async (actual) => ({
+  ...(await actual<typeof import('./lib/presence')>()),
+  setPresenceSession: vi.fn(),
 }))
 
 vi.mock('./components/terminal/TerminalView', () => ({
@@ -282,6 +289,18 @@ describe('App', () => {
       await new Promise((r) => setTimeout(r, 50))
     })
     await vi.waitFor(() => expect(useSessionStore.getState().activeId).toBe('s1'))
+  })
+
+  it('tells the server the session it shows, and none while it shows shells', async () => {
+    mockApi()
+    vi.mocked(api.fetchEvents).mockResolvedValue([])
+    history.replaceState(null, '', '/s/s1')
+    render(<App />)
+    await vi.waitFor(() => expect(setPresenceSession).toHaveBeenLastCalledWith('s1'))
+    act(() => useLayoutStore.getState().setMode('terminal'))
+    expect(setPresenceSession).toHaveBeenLastCalledWith(null)
+    act(() => useLayoutStore.getState().setMode('agents'))
+    expect(setPresenceSession).toHaveBeenLastCalledWith('s1')
   })
 
   it('opens the terminal named in the URL', async () => {

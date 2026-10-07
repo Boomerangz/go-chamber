@@ -9,10 +9,13 @@ import { usePending } from '../../lib/pending'
 import { useLayoutStore } from '../../stores/layout'
 import { describeError, fail, notify } from '../../stores/notices'
 import { useSessionStore } from '../../stores/session'
+import { useShellsWithin } from '../../stores/terminals'
+import { closingNote } from '../../lib/shells'
 import { icon } from '../icon'
 import { FileViewer } from '../markdown/FileLink'
 import { LoadFailed, LoadingLine } from '../ui/Loading'
 import MidCut from '../ui/MidCut'
+import GoneNote from '../ui/GoneNote'
 import PathText from '../ui/PathText'
 import { diffBody } from './diffBody'
 import './DiffPanel.css'
@@ -285,9 +288,9 @@ function SessionDiffPanel({ sessionId }: { sessionId: string | null }) {
       {session?.worktree?.removed && <RemovedWorktree worktree={session.worktree} />}
       {folderGone && session && (
         <div className="worktree-bar" role="status" aria-label="Folder gone">
-          <p>
-            <span className="worktree-gone-kw">Folder gone</span> · <PathText path={session.cwd} /> no longer exists
-          </p>
+          <GoneNote label="Folder gone" path={session.cwd}>
+            This folder no longer exists.
+          </GoneNote>
         </div>
       )}
       {listError && !folderGone && (
@@ -552,7 +555,7 @@ function WorktreeBar({ session, worktree, changed, commits }: { session: api.Ses
       try {
         const result: unknown = await useSessionStore.getState().removeWorktree(session.id, force)
         if (result === false) return false
-        notify({ kind: 'info', text: `Worktree removed · branch ${worktree.branch} kept` })
+        notify({ kind: 'info', text: `Worktree removed · branch ${worktree.branch} kept`, sessionId: session.id })
         return true
       } catch (err) {
         const msg = describeError(err)
@@ -565,6 +568,7 @@ function WorktreeBar({ session, worktree, changed, commits }: { session: api.Ses
   )
   const merge = `git -C ${worktree.repo} merge ${worktree.branch}`
   const losing = dirty || changed > 0
+  const closing = closingNote(useShellsWithin(worktree.path))
   return (
     <div className="worktree-bar">
       {commits > 0 ? (
@@ -589,6 +593,7 @@ function WorktreeBar({ session, worktree, changed, commits }: { session: api.Ses
           <p>Remove the worktree folder?</p>
           <PathText path={worktree.path} className="worktree-path" />
           {losing && <p className="worktree-dirty">{lossOf(changed, commits)}</p>}
+          {closing && <p className="worktree-closing">{closing}</p>}
           <p>
             Branch {worktree.branch} is kept{commits > 0 ? `, with its ${commits} ${commits === 1 ? 'commit' : 'commits'}` : ''}.
           </p>

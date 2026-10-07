@@ -9,12 +9,13 @@ import ArchivedSessions from './ArchivedSessions'
 import { SignOut } from '../shell/Shell'
 import HistoryPanel from './HistoryPanel'
 import SessionList from './SessionList'
-import { branchError, branchPreview, folderError } from '../../lib/branch'
+import { branchError, branchPreview, continuable, folderError } from '../../lib/branch'
 import { cliMissingText, missingCLIs, useCLIs } from '../../lib/clis'
 import { recentFolders } from '../../lib/folders'
 import { usePending } from '../../lib/pending'
 import { useIsRepo } from '../../lib/useIsRepo'
 import { goneFolders, recentProjects, startFolder } from '../../lib/sessions'
+import { stableOrder } from '../../lib/stable-order'
 import PathText from '../ui/PathText'
 import { lastError } from '../../stores/notices'
 import { useSessionStore } from '../../stores/session'
@@ -63,8 +64,9 @@ function rememberFolder(cwd: string) {
 const CHIPS = 4
 
 export interface SidebarProps {
-  // onCreate resolves true when the session started.
-  onCreate: (agent: AgentKind, cwd: string, branch?: string) => Promise<boolean>
+  // onCreate resolves true when the session started; existing starts the
+  // worktree on the branch that is already there.
+  onCreate: (agent: AgentKind, cwd: string, branch?: string, existing?: boolean) => Promise<boolean>
   sessions: Session[]
 }
 
@@ -97,8 +99,10 @@ export default function Sidebar(props: SidebarProps) {
   const repo = useIsRepo(cwd)
   const inWorktree = wantWorktree && repo !== false
   const [branch, setBranch] = useState('')
-  // refused is why the server turned the branch down, until it is edited.
+  // refused is why the server turned the branch down, until it is edited;
+  // canContinue is set when the branch is there to go on with.
   const [refused, setRefused] = useState<string | null>(null)
+  const [canContinue, setCanContinue] = useState(false)
   const preview = branchPreview(branch)
   // A new search reads from the top: what matches is above, not scrolled past.
   const body = useRef<HTMLDivElement>(null)
@@ -121,8 +125,8 @@ export default function Sidebar(props: SidebarProps) {
 
   const { onCreate } = props
   const start = useCallback(
-    async (agent: AgentKind, dir: string, branch?: string) => {
-      const ok = await onCreate(agent, dir, branch)
+    async (agent: AgentKind, dir: string, branch?: string, existing?: boolean) => {
+      const ok = await (existing ? onCreate(agent, dir, branch, true) : onCreate(agent, dir, branch))
       if (ok) {
         rememberFolder(dir)
         setRemembered(dir)
@@ -131,6 +135,8 @@ export default function Sidebar(props: SidebarProps) {
       if (ok && branch) {
         setBranch('')
         setInWorktree(false)
+        setRefused(null)
+        setCanContinue(false)
       }
       // The form says a refused folder under the folder field and a refused
       // branch under its branch; anything else was a notice.
@@ -143,6 +149,7 @@ export default function Sidebar(props: SidebarProps) {
         folderInput.current?.focus()
       } else if (name) {
         setRefused(name)
+        setCanContinue(continuable(why))
         branchInput.current?.focus()
       }
       if (ok) {
@@ -162,7 +169,9 @@ export default function Sidebar(props: SidebarProps) {
       setCreatingIn(null)
     }
   }
-  const chips = recentProjects(props.sessions, CHIPS)
+  // The chips keep their place while the page is open; a folder new to
+  // them comes in first.
+  const chips = stableOrder.by('chips', recentProjects(props.sessions, CHIPS), (c) => c.cwd)
 
   const submit = () => {
     if (!cwd.trim()) {
@@ -223,7 +232,7 @@ export default function Sidebar(props: SidebarProps) {
         </div>
         <FolderField
           label="Working directory"
-          placeholder="Choose a project folder"
+          placeholder="Project folder"
           value={cwd}
           onChange={(v) => {
             setCwd(v)
@@ -297,12 +306,23 @@ export default function Sidebar(props: SidebarProps) {
               onChange={(e) => {
                 setBranch(e.target.value)
                 setRefused(null)
+                setCanContinue(false)
                 if (missing === 'branch' && e.target.value.trim()) setMissing(null)
               }}
             />
           </label>
         )}
         {inWorktree && <BranchHint id="new-session-branch-hint" missing={missing === 'branch'} refused={refused} preview={preview} />}
+        {inWorktree && refused && canContinue && (
+          <button
+            type="button"
+            className="act-link branch-continue"
+            aria-busy={(creating && !creatingIn) || undefined}
+            onClick={() => void create(agent, cwd.trim(), branch.trim(), true)}
+          >
+            Continue on the existing branch
+          </button>
+        )}
         <button type="submit" className="btn btn-primary" title="New session (n)" aria-busy={(creating && !creatingIn) || undefined}>
           {creating && !creatingIn ? 'Starting…' : 'New session'}
         </button>

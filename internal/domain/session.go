@@ -110,6 +110,8 @@ type Session struct {
 	effort       string
 	worktree     *Worktree
 	archivedAt   time.Time
+	seen         Seen
+	endedAt      time.Time
 }
 
 // SessionSnapshot is the persistable state of a Session.
@@ -143,6 +145,10 @@ type SessionSnapshot struct {
 	// FolderGone is observed when the session is listed, not kept: its
 	// folder was not there (a removed worktree says so by itself).
 	FolderGone bool `json:"folderGone,omitempty"`
+	// Seen is where the owner last looked, on any device.
+	Seen Seen `json:"seen,omitzero"`
+	// EndedAt is when a turn last ended.
+	EndedAt time.Time `json:"endedAt,omitzero"`
 }
 
 func NewSession(id SessionID, agent AgentKind, cwd string) (*Session, error) {
@@ -202,6 +208,7 @@ func RestoreSession(snap SessionSnapshot) (*Session, error) {
 		nativeID: snap.NativeID, parentID: snap.ParentID, forkOf: snap.ForkOf, status: StatusDetached,
 		reviewer: snap.ApprovalReviewer, mode: snap.PermissionMode, createdAt: snap.CreatedAt, activeAt: snap.ActiveAt,
 		model: snap.Model, effort: snap.Effort, archivedAt: snap.ArchivedAt,
+		seen: snap.Seen, endedAt: snap.EndedAt,
 	}
 	if snap.Worktree != nil {
 		wt := *snap.Worktree
@@ -359,6 +366,7 @@ func (s *Session) Snapshot() SessionSnapshot {
 		Status: s.status, Title: s.title, Interruption: s.interruption, AutoContinue: s.autoContinue,
 		ApprovalReviewer: s.reviewer, PermissionMode: s.mode, CreatedAt: s.createdAt, ActiveAt: s.activeAt,
 		Model: s.model, Effort: s.effort, Worktree: s.Worktree(), ArchivedAt: s.archivedAt,
+		Seen: s.seen, EndedAt: s.endedAt,
 	}
 }
 

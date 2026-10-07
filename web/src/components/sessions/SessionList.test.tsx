@@ -4,11 +4,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Session } from '../../lib/api'
 import { resetStore, useSessionStore } from '../../stores/session'
 import SessionList from './SessionList'
-import { markEnded, markVisited, resetVisits } from '../../lib/visits'
 
 beforeEach(() => {
   localStorage.clear()
-  resetVisits()
   resetStore()
   useSessionStore.setState({ searchMessages: vi.fn(async () => {}), sessionsStatus: 'ready' })
   Element.prototype.scrollIntoView = vi.fn()
@@ -272,9 +270,13 @@ describe('session rows', () => {
 })
 
 describe('what changed while you were away', () => {
-  it('marks a row whose activity is later than your last visit, and counts it on the group', () => {
-    markVisited({ ...session('s1', 'One'), activeAt: '2026-10-06T10:00:00Z' })
-    useSessionStore.setState({ sessions: [{ ...session('s1', 'One'), activeAt: '2026-10-06T11:00:00Z' }, session('s2', 'Two')] })
+  it('marks a row whose turn ended after your last look on any device, and counts it on the group', () => {
+    useSessionStore.setState({
+      sessions: [
+        { ...session('s1', 'One'), seen: { at: '2026-10-06T10:00:00Z' }, endedAt: '2026-10-06T11:00:00Z' },
+        { ...session('s2', 'Two'), seen: { at: '2026-10-06T11:00:00Z' }, endedAt: '2026-10-06T11:00:00Z' },
+      ],
+    })
     render(<SessionList onCreateIn={() => {}} />)
     const row = screen.getByText('One').closest('button')!
     expect(row.querySelector('.session-unseen')).toHaveTextContent('new')
@@ -282,16 +284,14 @@ describe('what changed while you were away', () => {
     expect(screen.getByTitle('1 changed since you last looked')).toHaveTextContent('1 new')
   })
 
-  it('marks a session whose turn ended while you looked elsewhere', () => {
-    markEnded('s1')
-    useSessionStore.setState({ sessions: [session('s1', 'One')] })
+  it('marks a session whose turn ended before you ever looked', () => {
+    useSessionStore.setState({ sessions: [{ ...session('s1', 'One'), endedAt: '2026-10-06T11:00:00Z' }] })
     render(<SessionList onCreateIn={() => {}} />)
     expect(screen.getByText('One').closest('button')!.querySelector('.session-unseen')).toHaveTextContent('new')
   })
 
   it('does not mark the open session', () => {
-    markVisited({ ...session('s1', 'One'), activeAt: '2026-10-06T10:00:00Z' })
-    useSessionStore.setState({ activeId: 's1', sessions: [{ ...session('s1', 'One'), activeAt: '2026-10-06T11:00:00Z' }] })
+    useSessionStore.setState({ activeId: 's1', sessions: [{ ...session('s1', 'One'), endedAt: '2026-10-06T11:00:00Z' }] })
     render(<SessionList onCreateIn={() => {}} />)
     expect(document.querySelector('.session-unseen')).toBeNull()
   })
@@ -430,5 +430,26 @@ describe('a gone folder', () => {
     const lost = screen.getByRole('button', { name: /^Lost work/ })
     expect(lost.querySelector('.session-gone')).toHaveAttribute('title', 'Folder /work/doomed no longer exists')
     expect(screen.getByRole('button', { name: /^Fine work/ }).querySelector('.session-gone')).toBeNull()
+  })
+})
+
+describe('folder groups', () => {
+  const at = (id: string, cwd: string, activeAt: string): Session => ({ ...session(id, id), cwd, activeAt })
+  const order = () => screen.getAllByRole('region').map((r) => r.getAttribute('aria-label'))
+
+  it('keep their place while the page is open; a new folder comes in on top', () => {
+    useSessionStore.setState({ sessions: [at('a', '/w/shop', '2026-01-02T00:00:00Z'), at('b', '/w/api', '2026-01-01T00:00:00Z')] })
+    render(<SessionList onCreateIn={() => {}} />)
+    expect(order()).toEqual(['Project shop', 'Project api'])
+    // api gets busy: it stays below shop.
+    act(() => useSessionStore.setState({ sessions: [at('a', '/w/shop', '2026-01-02T00:00:00Z'), at('b', '/w/api', '2026-01-03T00:00:00Z')] }))
+    expect(order()).toEqual(['Project shop', 'Project api'])
+    // A folder not seen before comes in on top, even when it is older.
+    act(() =>
+      useSessionStore.setState({
+        sessions: [at('a', '/w/shop', '2026-01-02T00:00:00Z'), at('b', '/w/api', '2026-01-03T00:00:00Z'), at('c', '/w/docs', '2025-12-01T00:00:00Z')],
+      }),
+    )
+    expect(order()).toEqual(['Project docs', 'Project shop', 'Project api'])
   })
 })

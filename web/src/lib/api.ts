@@ -45,6 +45,16 @@ export interface Session {
   // folderGone is set when the server last found the session's folder
   // missing (a removed worktree says so by itself).
   folderGone?: boolean
+  // seen is where the owner last looked, on any device: when, and the last
+  // item read then.
+  seen?: Seen
+  // endedAt is when a turn last ended.
+  endedAt?: string
+}
+
+export interface Seen {
+  item?: string
+  at?: string
 }
 
 export interface Worktree {
@@ -421,6 +431,12 @@ export function renameSession(id: string, title: string): Promise<Session> {
   return request<Session>(`/api/sessions/${encodeURIComponent(id)}/title`, json({ title }))
 }
 
+// markSeen tells the server the owner looks at a session, having read up
+// to item (none when they are not at the end).
+export function markSeen(id: string, item?: string): Promise<Session> {
+  return request<Session>(`/api/sessions/${encodeURIComponent(id)}/seen`, json(item ? { item } : {}))
+}
+
 // archiveSession puts a session away from the list; it keeps working.
 export function archiveSession(id: string): Promise<Session> {
   return request<Session>(`/api/sessions/${encodeURIComponent(id)}/archive`, { method: 'POST' })
@@ -560,8 +576,10 @@ export interface Changes {
   branch?: string
 }
 
-export function createWorktreeSession(agent: AgentKind, cwd: string, branch: string, choice?: ModelChoice): Promise<Session> {
-  return request<Session>('/api/worktrees', json({ agent, cwd, branch, ...choice }), LONG_MS)
+// createWorktreeSession starts a session in a new worktree on a new branch,
+// or with existing on the branch that is already there.
+export function createWorktreeSession(agent: AgentKind, cwd: string, branch: string, choice?: ModelChoice, existing?: boolean): Promise<Session> {
+  return request<Session>('/api/worktrees', json({ agent, cwd, branch, ...choice, ...(existing ? { continue: true } : {}) }), LONG_MS)
 }
 
 export function getChanges(id: string): Promise<Changes> {

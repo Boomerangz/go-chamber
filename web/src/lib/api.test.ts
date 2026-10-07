@@ -27,6 +27,7 @@ import {
   requestRaw,
   TIMEOUT_MS,
   getUnmerged,
+  markSeen,
 } from './api'
 import { describeError } from '../stores/notices'
 
@@ -184,6 +185,17 @@ describe('steer API', () => {
   })
 })
 
+describe('markSeen API', () => {
+  it('posts the item read up to, or none', async () => {
+    const fn = stubFetch(async () => new Response('{"id":"a"}', { status: 200 }))
+    await markSeen('s a', 'i3')
+    expect(fn.mock.calls[0]![0]).toBe('/api/sessions/s%20a/seen')
+    expect(JSON.parse(String(fn.mock.calls[0]![1]?.body))).toEqual({ item: 'i3' })
+    await markSeen('a')
+    expect(JSON.parse(String(fn.mock.calls[1]![1]?.body))).toEqual({})
+  })
+})
+
 describe('stopTask API', () => {
   it('posts to the task stop endpoint', async () => {
     const fn = stubFetch(async () => new Response('', { status: 202 }))
@@ -292,6 +304,15 @@ describe('request timeouts', () => {
     expect(settled).toBe(false)
     await vi.advanceTimersByTimeAsync(10 * 60_000)
     expect(settled).toBe(true)
+  })
+
+  it('asks for the existing branch only when told to', async () => {
+    const fetch = stubFetch(async () => json({ id: 's1' }))
+    await createWorktreeSession('claude', '/p', 'b')
+    await createWorktreeSession('claude', '/p', 'b', undefined, true)
+    const bodies = fetch.mock.calls.map(([, init]) => JSON.parse(String(init?.body)) as Record<string, unknown>)
+    expect(bodies[0]).toEqual({ agent: 'claude', cwd: '/p', branch: 'b' })
+    expect(bodies[1]).toEqual({ agent: 'claude', cwd: '/p', branch: 'b', continue: true })
   })
 
   it('stops the clock once the answer arrives', async () => {

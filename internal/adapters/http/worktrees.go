@@ -12,6 +12,8 @@ import (
 // Worktrees creates worktree sessions and reports a session folder's changes.
 type Worktrees interface {
 	Create(ctx context.Context, agent domain.AgentKind, dir, name string) (domain.SessionSnapshot, error)
+	// Continue is Create on the branch that is already there.
+	Continue(ctx context.Context, agent domain.AgentKind, dir, name string) (domain.SessionSnapshot, error)
 	Remove(ctx context.Context, id domain.SessionID, force bool) (domain.SessionSnapshot, error)
 	Changes(ctx context.Context, id domain.SessionID) (app.Changes, error)
 	FileDiff(ctx context.Context, id domain.SessionID, path string) (string, error)
@@ -51,11 +53,17 @@ func (s *server) createWorktree(w http.ResponseWriter, r *http.Request) {
 		Model  string           `json:"model"`
 		Effort string           `json:"effort"`
 		Mode   string           `json:"permissionMode"`
+		// Continue checks out the existing branch instead of making one.
+		Continue bool `json:"continue"`
 	}
 	if !decode(w, r, &body) {
 		return
 	}
-	session, err := s.cfg.Worktrees.Create(r.Context(), body.Agent, body.Cwd, body.Branch)
+	create := s.cfg.Worktrees.Create
+	if body.Continue {
+		create = s.cfg.Worktrees.Continue
+	}
+	session, err := create(r.Context(), body.Agent, body.Cwd, body.Branch)
 	if err != nil {
 		s.failWorktree(w, err)
 		return
@@ -108,8 +116,14 @@ func (s *server) failWorktree(w http.ResponseWriter, err error) {
 	switch {
 	case errors.Is(err, app.ErrNotRepository), errors.Is(err, app.ErrInvalidPath), errors.Is(err, app.ErrInvalidBranch):
 		writeJSON(w, http.StatusBadRequest, errorBody{Error: err.Error()})
-	case errors.Is(err, app.ErrWorktreeDirty), errors.Is(err, app.ErrNoWorktree),
-		errors.Is(err, app.ErrBranchExists), errors.Is(err, app.ErrWorktreeExists):
+	case errors.Is(err, app.ErrBranchExists):
+		// The form offers to continue on it.
+		writeJSON(w, http.StatusConflict, errorBody{Error: err.Error(), Code: "branch_exists"})
+	case errors.Is(err, app.ErrBranchCheckedOut):
+		writeJSON(w, http.StatusConflict, errorBody{Error: err.Error(), Code: "branch_checked_out"})
+	case errors.Is(err, app.ErrNoBranch):
+		writeJSON(w, http.StatusConflict, errorBody{Error: err.Error(), Code: "no_branch"})
+	case errors.Is(err, app.ErrWorktreeDirty), errors.Is(err, app.ErrNoWorktree), errors.Is(err, app.ErrWorktreeExists):
 		writeJSON(w, http.StatusConflict, errorBody{Error: err.Error()})
 	default:
 		s.fail(w, err)
