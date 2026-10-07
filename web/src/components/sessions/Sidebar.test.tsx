@@ -366,6 +366,22 @@ describe('Sidebar folder', () => {
     expect(screen.getByLabelText('Working directory')).toHaveValue('/src/site')
   })
 
+  it('keeps the recent folders in place while the page is open', () => {
+    const at = (id: string, cwd: string, activeAt: string): Session => ({ ...session, id, cwd, activeAt })
+    const chips = () => within(screen.getByRole('group', { name: 'Recent folders' })).getAllByRole('button').map((b) => b.textContent)
+    const { rerender } = render(<Sidebar sessions={[at('a', '/src/app', '2026-10-02T00:00:00Z'), at('b', '/src/site', '2026-10-01T00:00:00Z')]} onCreate={vi.fn(async () => true)} />)
+    expect(chips()).toEqual(['app', 'site'])
+    rerender(<Sidebar sessions={[at('a', '/src/app', '2026-10-02T00:00:00Z'), at('b', '/src/site', '2026-10-03T00:00:00Z')]} onCreate={vi.fn(async () => true)} />)
+    expect(chips()).toEqual(['app', 'site'])
+    rerender(
+      <Sidebar
+        sessions={[at('a', '/src/app', '2026-10-02T00:00:00Z'), at('b', '/src/site', '2026-10-03T00:00:00Z'), at('c', '/src/docs', '2026-10-04T00:00:00Z')]}
+        onCreate={vi.fn(async () => true)}
+      />,
+    )
+    expect(chips()).toEqual(['docs', 'app', 'site'])
+  })
+
   it('captions the recent folders, so one chip does not read as a second field', () => {
     setup(undefined, [session])
     const chips = screen.getByRole('group', { name: 'Recent folders' })

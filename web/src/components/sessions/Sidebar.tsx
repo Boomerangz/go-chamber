@@ -15,6 +15,7 @@ import { recentFolders } from '../../lib/folders'
 import { usePending } from '../../lib/pending'
 import { useIsRepo } from '../../lib/useIsRepo'
 import { goneFolders, recentProjects, startFolder } from '../../lib/sessions'
+import { stableOrder } from '../../lib/stable-order'
 import PathText from '../ui/PathText'
 import { lastError } from '../../stores/notices'
 import { useSessionStore } from '../../stores/session'
@@ -168,7 +169,9 @@ export default function Sidebar(props: SidebarProps) {
       setCreatingIn(null)
     }
   }
-  const chips = recentProjects(props.sessions, CHIPS)
+  // The chips keep their place while the page is open; a folder new to
+  // them comes in first.
+  const chips = stableOrder.by('chips', recentProjects(props.sessions, CHIPS), (c) => c.cwd)
 
   const submit = () => {
     if (!cwd.trim()) {
