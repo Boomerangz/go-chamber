@@ -25,6 +25,25 @@ it('renders a long diff from its head until asked for the rest', () => {
   expect(container.querySelector('.inline-diff')).toHaveClass('full')
 })
 
+it('adds a huge diff a chunk at a time', () => {
+  const lines: DiffLine[] = Array.from({ length: 10000 }, (_, i) => ({ kind: 'add', text: `l${i}` }))
+  const { container } = render(<InlineDiff lines={lines} />)
+  expect(container.querySelectorAll('.idiff')).toHaveLength(400)
+  fireEvent.click(screen.getByRole('button', { name: 'show 500 more of 10,000 lines' }))
+  expect(container.querySelectorAll('.idiff')).toHaveLength(900)
+  expect(container.querySelector('.inline-diff')).toHaveClass('full')
+  fireEvent.click(screen.getByRole('button', { name: 'show 500 more of 10,000 lines' }))
+  expect(container.querySelectorAll('.idiff')).toHaveLength(1400)
+})
+
+it('shows the rest at once when only a chunk is left', () => {
+  const lines: DiffLine[] = Array.from({ length: 1000 }, (_, i) => ({ kind: 'add', text: `l${i}` }))
+  const { container } = render(<InlineDiff lines={lines} />)
+  fireEvent.click(screen.getByRole('button', { name: 'show 500 more of 1,000 lines' }))
+  fireEvent.click(screen.getByRole('button', { name: 'show all 1,000 lines' }))
+  expect(container.querySelectorAll('.idiff')).toHaveLength(1000)
+})
+
 it('offers to uncap a diff its box clips', () => {
   const scroll = vi.spyOn(HTMLElement.prototype, 'scrollHeight', 'get').mockReturnValue(600)
   const client = vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(280)

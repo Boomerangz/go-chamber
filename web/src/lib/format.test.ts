@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { basename, displayStatus, resetLabel, windowLabel } from './format'
+import { basename, count, displayStatus, lineCount, resetLabel, windowLabel } from './format'
 import { initialChat } from './events'
 
 describe('windowLabel', () => {
@@ -68,5 +68,15 @@ describe('displayStatus', () => {
   it('falls back to the session status without history', () => {
     expect(displayStatus(initialChat('detached'), { status: 'interrupted' })).toBe('interrupted')
     expect(displayStatus(initialChat('detached'), undefined)).toBe('detached')
+  })
+})
+
+describe('count and lineCount', () => {
+  it('write numbers one way everywhere, grouped by thousands', () => {
+    expect(count(7)).toBe('7')
+    expect(count(10000)).toBe('10,000')
+    expect(lineCount(1)).toBe('1 line')
+    expect(lineCount(0)).toBe('0 lines')
+    expect(lineCount(12001)).toBe('12,001 lines')
   })
 })

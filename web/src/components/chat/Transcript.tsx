@@ -12,6 +12,7 @@ import { imageUrl, type Item, type TurnResult } from '../../lib/api'
 import { diffStat, diffText, editDiff, formatStat, parseUnified, type DiffLine } from '../../lib/diff'
 import { TURN_FAILED } from '../../lib/events'
 import { groupSummary } from '../../lib/group'
+import { count, lineCount } from '../../lib/format'
 import { enter } from '../../lib/motion'
 import { usePending } from '../../lib/pending'
 import { toolInput, toolLabel, toolSummary } from '../../lib/toolSummary'
@@ -479,8 +480,6 @@ function GroupView({ nodes, onStopTask }: { nodes: ItemNode[]; onStopTask: StopT
   )
 }
 
-const numberFormat = new Intl.NumberFormat('en-US')
-
 // cutOff says why a turn ended before it was done, after its keyword.
 const cutOff: Record<string, string> = {
   crashed: 'the agent exited',
@@ -493,8 +492,8 @@ const cutOff: Record<string, string> = {
 // banner that said so goes once the next turn starts, this stays).
 function TurnFoot({ result }: { result: TurnResult }) {
   const parts: string[] = []
-  if (result.inputTokens) parts.push(`${numberFormat.format(result.inputTokens)} in`)
-  if (result.outputTokens) parts.push(`${numberFormat.format(result.outputTokens)} out`)
+  if (result.inputTokens) parts.push(`${count(result.inputTokens)} in`)
+  if (result.outputTokens) parts.push(`${count(result.outputTokens)} out`)
   if (result.costUsd) parts.push(`$${result.costUsd.toFixed(4)}`)
   const interrupted = !result.stopped && !!result.interruptionReason
   const keyword = result.stopped ? 'turn stopped' : interrupted ? 'turn interrupted' : ''
@@ -556,7 +555,7 @@ const Folded = memo(function Folded({
       <summary>
         <span className="item-output-label">
           {label} ·{' '}
-          {stat ? <span className="diff-stat">{stat}</span> : `${lines.length} ${lines.length === 1 ? 'line' : 'lines'}`}
+          {stat ? <span className="diff-stat">{stat}</span> : lineCount(lines.length)}
         </span>
         {last && (
           <span className="item-output-preview" title={last}>
