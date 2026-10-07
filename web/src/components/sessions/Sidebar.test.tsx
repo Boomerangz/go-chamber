@@ -92,6 +92,7 @@ describe('Sidebar new session', () => {
     await userEvent.click(screen.getByRole('button', { name: 'New session' }))
     expect(onCreate).not.toHaveBeenCalled()
     expect(screen.getByLabelText('Branch name')).toHaveFocus()
+    expect(screen.getByLabelText('Branch name')).toHaveAttribute('placeholder', 'Branch name')
     expect(screen.getByLabelText('Branch name')).toHaveAttribute('aria-invalid', 'true')
     expect(screen.getByRole('alert')).toHaveTextContent('Name the branch')
     expect(screen.getByLabelText('Branch name')).toHaveAccessibleDescription('Name the branch')
@@ -331,6 +332,15 @@ describe('Sidebar folder', () => {
     const chips = screen.getByRole('group', { name: 'Recent folders' })
     await userEvent.click(within(chips).getByRole('button', { name: 'site' }))
     expect(screen.getByLabelText('Working directory')).toHaveValue('/src/site')
+  })
+
+  it('captions the recent folders, so one chip does not read as a second field', () => {
+    setup(undefined, [session])
+    const chips = screen.getByRole('group', { name: 'Recent folders' })
+    const caption = within(chips).getByText('Recent')
+    expect(caption).toHaveClass('section-title')
+    expect(caption).toHaveAttribute('aria-hidden', 'true')
+    expect(within(chips).getByRole('button', { name: 'app' })).toBeInTheDocument()
   })
 
   it('marks busy the "+" that started a session', async () => {

@@ -21,13 +21,13 @@ test('the Terminal dock doesn’t carry one project’s shell into another sessi
   await page.goto(`/s/${ids[0]}?token=${token}`)
   await page.getByRole('toolbar', { name: 'Dock' }).getByRole('button', { name: /^Terminal/ }).click()
   const panel = page.getByRole('region', { name: 'Terminals' })
-  await panel.getByRole('button', { name: 'New terminal in session dir' }).click()
+  await panel.getByRole('button', { name: 'New terminal in session folder' }).click()
   await expect(panel.getByTestId('terminal-view')).toBeVisible()
 
   await page.goto(`/s/${ids[1]}`)
   await expect(panel.getByTestId('terminal-view')).toHaveCount(0)
-  await expect(panel).toContainText('No shell in second-proj.')
-  await panel.getByRole('button', { name: 'Open shell in second-proj' }).click()
+  await expect(panel).toContainText('No terminal in second-proj.')
+  await panel.getByRole('button', { name: 'Open terminal in second-proj' }).click()
   await expect(panel.getByTestId('terminal-view')).toBeVisible()
   await expect(panel.getByRole('tab', { selected: true })).toHaveAccessibleName(/second-proj/)
   const shells = (await (await page.request.get('/api/terminals', { headers })).json()) as { id: string; cwd: string }[]

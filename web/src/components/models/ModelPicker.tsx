@@ -81,7 +81,17 @@ export default function ModelPicker({ session }: { session: Session }) {
   const anyModelChecked = model === '' || list.some((m) => m.id === model)
 
   return (
-    <div className="model-picker" ref={root}>
+    <div
+      className="model-picker"
+      ref={root}
+      onBlur={(e) => {
+        // Tab took the focus elsewhere: the menu goes. A click on the menu's
+        // own surface blurs to nothing (no relatedTarget) and keeps it; a
+        // click outside is the mousedown handler's.
+        const to = e.relatedTarget
+        if (open && to instanceof Node && !e.currentTarget.contains(to)) setOpen(false)
+      }}
+    >
       <button
         ref={trigger}
         type="button"

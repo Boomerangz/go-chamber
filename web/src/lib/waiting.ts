@@ -16,3 +16,10 @@ export function waitingCount(requests: readonly SessionRequest[], sessions: read
 export function useWaitingCount(): number {
   return useSessionStore((s) => waitingCount(s.pendingRequests, s.sessions))
 }
+
+// useRequestsFailure is why the request inbox couldn't load, or null. While
+// it is set nobody knows what waits, so every place that shows the count
+// marks the failure instead (the tray itself says why, with a Retry).
+export function useRequestsFailure(): string | null {
+  return useSessionStore((s) => (s.requestsStatus === 'error' ? (s.requestsError ?? 'unknown error') : null))
+}

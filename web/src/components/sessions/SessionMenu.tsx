@@ -38,6 +38,18 @@ function neighbourOf(trigger: React.RefObject<HTMLElement | null>): () => void {
   }
 }
 
+// focusRestored puts the focus where a session brought back by Undo is
+// used: the composer when it is the open one (and on screen: a phone may
+// show the list instead), else its row in the list.
+function focusRestored(id: string) {
+  const composer = useSessionStore.getState().activeId === id ? document.querySelector<HTMLElement>('textarea[aria-label="Message"]') : null
+  const target =
+    composer && (composer.checkVisibility?.() ?? true)
+      ? composer
+      : document.querySelector<HTMLElement>(`button.session[data-session="${CSS.escape(id)}"]`)
+  target?.focus()
+}
+
 // SessionMenu is a session row's "⋯" button and its menu: Rename, Archive
 // or Unarchive, Remove worktree (a worktree session) and Delete after an
 // in-place question. Right-clicking the
@@ -146,7 +158,7 @@ function MenuSheet(props: {
             kind: 'info',
             text: `Archived ${title.length > 60 ? `${title.slice(0, 59)}…` : title}`,
             key: `archive-${session.id}`,
-            action: { label: 'Undo', run: () => void unarchiveSession(session.id) },
+            action: { label: 'Undo', run: () => void unarchiveSession(session.id).then((back) => back && requestAnimationFrame(() => focusRestored(session.id))) },
           })
         }
       } else {
@@ -382,7 +394,7 @@ function RemoveWorktree({ session, title, worktree, onDone }: { session: Session
           else setError(msg)
           return false
         }
-        notify({ kind: 'info', text: `Worktree removed, branch ${worktree.branch} kept` })
+        notify({ kind: 'info', text: `Worktree removed · branch ${worktree.branch} kept` })
         onDone()
         return true
       },

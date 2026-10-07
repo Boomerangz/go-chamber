@@ -14,8 +14,6 @@ const MORE_WIDTH = 28
 // Beside a worktree's branch the folder line keeps a little of the
 // repository's name (3ch), the copy button and their gaps.
 const BRANCH_EXTRA = 62
-// The branch takes at most this share of the folder line (Chat.css).
-const BRANCH_SHARE = 0.7
 // Spare pixels the title leaves the rest of the row against rounding.
 const SLACK = 2
 // The status at its longest, "waiting for you" beside its mark.
@@ -39,6 +37,9 @@ export function useHeaderFold(header: RefObject<HTMLElement | null>): boolean {
     const el = header.current
     if (!el) return
     const check = () => {
+      // Every part of the usage line is measured whole; cut ones come back.
+      const usageParts = Array.from(el.querySelectorAll<HTMLElement>('.usage .usage-part'))
+      for (const part of usageParts) part.removeAttribute('data-cut')
       if (window.matchMedia?.('(max-width: 720px)').matches) {
         setFold(false)
         return
@@ -81,7 +82,7 @@ export function useHeaderFold(header: RefObject<HTMLElement | null>): boolean {
       const heading = el.querySelector<HTMLElement>('.chat-heading h2')
       // The title, or a worktree's branch under it, whichever needs more.
       const branch = el.querySelector<HTMLElement>('.chat-path-line .session-branch')
-      const branchOwn = branch ? Math.ceil(Math.max(branch.scrollWidth + BRANCH_EXTRA, branch.scrollWidth / BRANCH_SHARE)) : 0
+      const branchOwn = branch ? Math.ceil(branch.scrollWidth + BRANCH_EXTRA) : 0
       // The settings fold only for a title (its text) cut below this; a
       // longer title is cut instead.
       const titleMin = heading ? Math.min(Math.max(Math.ceil(heading.scrollWidth), branchOwn), TITLE_MAX) : TITLE_FALLBACK
@@ -111,12 +112,20 @@ export function useHeaderFold(header: RefObject<HTMLElement | null>): boolean {
       const fit = Math.min(whole, room)
       el.style.setProperty('--title-min', `${Math.max(titleMin, fit)}px`)
       el.style.setProperty('--title-fold-min', `${fit}px`)
-      // What is left for the usage line: cut, it keeps a readable part of
-      // itself or none at all, never a stub of a few characters.
+      // What is left for the usage line: cut, it keeps its first parts
+      // whole ("22 tokens", not "22 tokens ·…") or none at all.
       if (usage) {
         const left = room - whole
-        if (left < Math.min(usage.scrollWidth, USAGE_MIN)) el.setAttribute('data-usage', 'off')
+        let shown = 0
+        let used = 0
+        for (const part of usageParts) {
+          used += part.getBoundingClientRect().width
+          if (used > left) break
+          shown++
+        }
+        if (usageParts.length === 0 ? left < Math.min(usage.scrollWidth, USAGE_MIN) : shown === 0) el.setAttribute('data-usage', 'off')
         else el.removeAttribute('data-usage')
+        for (const part of usageParts.slice(Math.max(shown, 1))) part.setAttribute('data-cut', '')
       }
       setFold(fold)
     }

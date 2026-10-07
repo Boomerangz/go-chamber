@@ -1,0 +1,275 @@
+import { expect, test, type Locator, type Page } from '@playwright/test'
+import { execFileSync } from 'node:child_process'
+import { mkdirSync, mkdtempSync, realpathSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import path from 'node:path'
+import { token } from '../playwright.config'
+import { openNewSession, showSessionDetails } from './pane'
+
+// Phones held sideways and touch tablets: the wide layout with a finger's
+// targets, a short window and the notch at a side.
+
+const headers = { Authorization: `Bearer ${token}` }
+
+async function sessionIn(page: Page, prefix: string) {
+  const dir = realpathSync(mkdtempSync(path.join(tmpdir(), prefix)))
+  const created = await page.request.post('/api/sessions', { headers, data: { agent: 'claude', cwd: dir } })
+  const { id } = (await created.json()) as { id: string }
+  return { dir, id }
+}
+
+test.describe('a phone held sideways', () => {
+  test.use({ hasTouch: true, isMobile: true })
+  for (const [width, height] of [[844, 390], [932, 430]]) {
+    test(`the sessions stay reachable at ${width}x${height}`, async ({ page }, info) => {
+      test.skip(info.project.name === 'mobile', 'the viewport is set here')
+      await page.setViewportSize({ width, height })
+      const { dir, id } = await sessionIn(page, 'gc-land-')
+      await page.goto(`/?token=${token}`)
+      // the search and the list are not squeezed away by the form and the footer
+      const search = page.locator('.sidebar .session-search')
+      await expect(search).toBeVisible()
+      expect((await search.boundingBox())!.height).toBeGreaterThanOrEqual(30)
+      const row = page.getByRole('region', { name: `Project ${path.basename(dir)}` }).locator('.session').first()
+      await row.scrollIntoViewIfNeeded()
+      await expect(row).toBeInViewport({ ratio: 0.9 })
+      // nothing (the footer) sits over the row: the tap reaches it
+      await row.tap()
+      await expect(page).toHaveURL(new RegExp(`/s/${id}`))
+    })
+  }
+
+  // edges lists the watched parts that reach into the notch or the home
+  // indicator's strip.
+  function edges(page: Page, inset: { left: number; right: number; bottom: number }) {
+    return page.evaluate((inset) => {
+      const out: string[] = []
+      const W = window.innerWidth
+      const H = window.innerHeight
+      const watch = ['.brand h1', '.topbar-end', '.sidebar .segmented', '.sidebar .folder-field', '.dock-rail', '.composer', '.term-sidebar .folder-field', '.term-main']
+      for (const s of watch) {
+        const e = document.querySelector(s)
+        if (!e) continue
+        const r = e.getBoundingClientRect()
+        if (r.width === 0) continue
+        if (r.left < inset.left - 0.5) out.push(`${s} left ${Math.round(r.left)}`)
+        if (r.right > W - inset.right + 0.5) out.push(`${s} right ${Math.round(r.right)}`)
+        if (r.bottom > H - inset.bottom + 0.5) out.push(`${s} bottom ${Math.round(r.bottom)}`)
+      }
+      return out
+    }, inset)
+  }
+
+  test('nothing sits under the notch or the home indicator', async ({ page }, info) => {
+    test.skip(info.project.name === 'mobile', 'the viewport is set here')
+    await page.setViewportSize({ width: 844, height: 390 })
+    const inset = { top: 0, left: 47, right: 47, bottom: 21 }
+    const cdp = await page.context().newCDPSession(page)
+    await cdp.send('Emulation.setSafeAreaInsetsOverride', { insets: inset })
+    const { id } = await sessionIn(page, 'gc-notch-')
+    await page.goto(`/?token=${token}`)
+    await page.goto(`/s/${id}`)
+    await expect(page.getByLabel('Message')).toBeVisible()
+    await expect.poll(() => edges(page, inset)).toEqual([])
+    await page.getByRole('radiogroup', { name: /mode/i }).getByRole('radio', { name: /^Terminal/ }).tap()
+    await expect(page.locator('.term-sidebar')).toBeVisible()
+    await expect.poll(() => edges(page, inset)).toEqual([])
+  })
+})
+
+const gitEnv = { ...process.env, GIT_AUTHOR_NAME: 't', GIT_AUTHOR_EMAIL: 't@t', GIT_COMMITTER_NAME: 't', GIT_COMMITTER_EMAIL: 't@t' }
+const LONG = 'SomeVeryLongFileName_1.tsx'
+const LONG_REPO = 'a-really-long-project-folder-name-for-a-phone'
+
+function longRepo() {
+  const dir = path.join(realpathSync(mkdtempSync(path.join(tmpdir(), 'gc-wt-'))), LONG_REPO)
+  execFileSync('git', ['init', '-q', '-b', 'main', dir], { env: gitEnv })
+  writeFileSync(path.join(dir, 'README.md'), 'hello\n')
+  execFileSync('git', ['add', '.'], { cwd: dir, env: gitEnv })
+  execFileSync('git', ['commit', '-q', '-m', 'init'], { cwd: dir, env: gitEnv })
+  return dir
+}
+
+test.describe('a phone', () => {
+  test.use({ hasTouch: true, isMobile: true, viewport: { width: 390, height: 844 } })
+  test('a worktree chip under Projects keeps its branch; the repository name gives way', async ({ page }, info) => {
+    const branch = `phone-${info.project.name}-${Date.now() % 100000}`
+    await page.request.post('/api/worktrees', { headers, data: { agent: 'claude', cwd: longRepo(), branch } })
+    await page.goto(`/terminal?token=${token}`)
+    const chip = page.getByRole('button', { name: `Open terminal in ${LONG_REPO} ⎇ ${branch}` })
+    await expect(chip).toBeVisible()
+    const fit = await chip.evaluate((el) => {
+      const b = el.querySelector('.chip-branch')!
+      const repo = el.querySelector('.chip-label')!
+      const c = el.getBoundingClientRect()
+      return { whole: b.scrollWidth <= b.clientWidth, inside: b.getBoundingClientRect().right <= c.right + 0.5, repoCut: repo.scrollWidth > repo.clientWidth, repoShown: repo.getBoundingClientRect().width }
+    })
+    expect(fit).toEqual({ whole: true, inside: true, repoCut: true, repoShown: expect.any(Number) })
+    expect(fit.repoShown).toBeGreaterThanOrEqual(20)
+  })
+
+  test('a recent folder reads as a captioned chip, not a second folder field', async ({ page }) => {
+    const created = await page.request.post('/api/sessions', { headers, data: { agent: 'claude', cwd: longRepo() } })
+    expect(created.ok()).toBe(true)
+    await page.goto(`/?token=${token}`)
+    await openNewSession(page)
+    const chips = page.getByRole('group', { name: 'Recent folders' })
+    const caption = chips.getByText('Recent', { exact: true })
+    await expect(caption).toBeVisible()
+    const [c, chip, field] = [(await caption.boundingBox())!, (await chips.getByRole('button').first().boundingBox())!, (await page.locator('.new-session .folder-field').boundingBox())!]
+    // the caption leads the chips' first line, and the chip is narrower than the field
+    expect(c.x + c.width).toBeLessThanOrEqual(chip.x)
+    expect(Math.abs(c.y + c.height / 2 - (chip.y + chip.height / 2))).toBeLessThanOrEqual(4)
+    expect(chip.width).toBeLessThan(field.width - 40)
+  })
+
+  test('the session details sheet: Fork is a button under the fields, and both choosers draw one chevron', async ({ page }) => {
+    const { id } = await sessionIn(page, 'gc-sheet-')
+    await page.request.post(`/api/sessions/${id}/messages`, { headers, data: { text: 'hello sheet' } })
+    await page.goto(`/?token=${token}`)
+    await page.goto(`/s/${id}`)
+    await expect(page.locator('.item.assistant', { hasText: 'echo: hello sheet' })).toBeVisible()
+    await showSessionDetails(page)
+    const fork = page.getByRole('button', { name: 'Fork', exact: true })
+    await expect(fork).toBeVisible()
+    const look = await page.evaluate(() => {
+      const f = document.querySelector<HTMLElement>('.chat-fork')!
+      const field = document.querySelector<HTMLElement>('.chat-tools select')!
+      const chev = document.querySelector<SVGElement>('.model-button .chevron')!
+      const fr = f.getBoundingClientRect()
+      const sr = field.getBoundingClientRect()
+      const cr = chev.getBoundingClientRect()
+      return {
+        bordered: getComputedStyle(f).borderTopColor !== 'rgba(0, 0, 0, 0)',
+        alignedLeft: Math.abs(fr.left - sr.left) <= 1,
+        narrower: fr.width < sr.width / 2,
+        tall: fr.height >= 36,
+        // the drawn line, in px: lucide's 24-unit box scaled to the icon's size
+        stroke: Math.round(parseFloat(getComputedStyle(chev).strokeWidth) * (cr.width / 24) * 10) / 10,
+        chevronWidth: Math.round(cr.width),
+      }
+    })
+    // the select's chevron is drawn 1.5px wide in a 10px box (the --chevron image)
+    expect(look).toEqual({ bordered: true, alignedLeft: true, narrower: true, tall: true, stroke: 1.5, chevronWidth: 16 })
+  })
+
+  test('Refresh quotas is finger-sized with no quotas reported', async ({ page }) => {
+    // no agent has reported: neither the snapshot nor the live events (other
+    // specs' turns on the shared server) carry quotas
+    await page.route('**/api/quotas', (route) => route.fulfill({ json: [] }))
+    await page.routeWebSocket('**/api/ws', (ws) => {
+      const server = ws.connectToServer()
+      server.onMessage((m) => {
+        if (!String(m).includes('"type":"quota"')) ws.send(m)
+      })
+      ws.onMessage((m) => server.send(m))
+    })
+    await page.goto(`/?token=${token}`)
+    const refresh = page.locator('.quotas-none').getByRole('button', { name: 'Refresh quotas' })
+    await refresh.scrollIntoViewIfNeeded()
+    expect(await side(refresh)).toBeGreaterThanOrEqual(40)
+  })
+})
+
+test.describe('Diagnostics on the narrowest phone', () => {
+  test.use({ hasTouch: true, isMobile: true, viewport: { width: 361, height: 800 } })
+  test('the wrapped action buttons stand clear of the rule under them', async ({ page }) => {
+    await page.goto(`/diagnostics?token=${token}`)
+    const actions = page.locator('.diagnostics-actions')
+    await expect(actions.getByRole('button').first()).toBeVisible()
+    const [a, status] = [(await actions.boundingBox())!, (await page.locator('.diagnostics-status').boundingBox())!]
+    // the buttons wrap to two rows here, and leave the row gap above the rule
+    expect(a.height).toBeGreaterThan(60)
+    expect(status.y - (a.y + a.height)).toBeGreaterThanOrEqual(8)
+  })
+})
+
+test.describe('the narrowest phone', () => {
+  test.use({ hasTouch: true, isMobile: true, viewport: { width: 360, height: 740 } })
+  test('a waiting worktree row keeps "waiting" whole; only the branch yields', async ({ page }, info) => {
+    const branch = `phone-390-${info.project.name}-long-branch-${Date.now() % 100000}`
+    const res = await page.request.post('/api/worktrees', { headers, data: { agent: 'claude', cwd: longRepo(), branch } })
+    const { id } = (await res.json()) as { id: string }
+    await page.request.post(`/api/sessions/${id}/messages`, { headers, data: { text: 'ask me something' } })
+    await page.goto(`/?token=${token}`)
+    const row = page.locator('.session').filter({ has: page.locator('.session-branch', { hasText: branch }) })
+    const status = row.locator('.session-status-waiting')
+    await expect(status).toBeVisible()
+    const fit = await row.evaluate((el) => {
+      const word = el.querySelector<HTMLElement>('.status-word')!
+      const b = el.querySelector<HTMLElement>('.session-branch')!
+      // the visible part of the word: up to "for you", which may fold away
+      const more = word.querySelector<HTMLElement>('.status-more')
+      const lead = more && more.getBoundingClientRect().width > 0 ? more.getBoundingClientRect().left : word.getBoundingClientRect().left + word.scrollWidth
+      return { waiting: word.getBoundingClientRect().right + 0.5 >= lead, branchCut: b.scrollWidth > b.clientWidth }
+    })
+    expect(fit).toEqual({ waiting: true, branchCut: true })
+  })
+})
+
+// changedRepo is a repository with a changed file deep in folders, under a
+// long name, beside a short one.
+function changedRepo() {
+  const dir = path.join(realpathSync(mkdtempSync(path.join(tmpdir(), 'gc-tab-'))), 'app')
+  execFileSync('git', ['init', '-q', '-b', 'main', dir], { env: gitEnv })
+  writeFileSync(path.join(dir, 'README.md'), 'hello\n')
+  execFileSync('git', ['add', '.'], { cwd: dir, env: gitEnv })
+  execFileSync('git', ['commit', '-q', '-m', 'init'], { cwd: dir, env: gitEnv })
+  mkdirSync(path.join(dir, 'src/components/deeply/nested'), { recursive: true })
+  writeFileSync(path.join(dir, 'src/components/deeply/nested', LONG), 'x\n'.repeat(120))
+  writeFileSync(path.join(dir, 'README.md'), 'hello\nagain\n')
+  return dir
+}
+
+async function openDock(page: Page, name: string) {
+  const button = page.getByRole('toolbar', { name: 'Dock' }).getByRole('button', { name: new RegExp(`^${name}`) })
+  if ((await button.getAttribute('aria-pressed')) !== 'true') await button.tap()
+  await expect(button).toHaveAttribute('aria-pressed', 'true')
+}
+
+async function side(l: Locator) {
+  const b = (await l.boundingBox())!
+  return Math.round(Math.min(b.width, b.height))
+}
+
+test.describe('a touch tablet', () => {
+  test.use({ hasTouch: true })
+  for (const [width, height] of [[768, 1024], [820, 1180], [1024, 768]]) {
+    test(`the docks' controls are finger-sized and a long name keeps its end at ${width}`, async ({ page }, info) => {
+      test.skip(info.project.name === 'mobile', 'the viewport is set here')
+      await page.addInitScript(() => Object.defineProperty(window, 'RTCPeerConnection', { value: undefined }))
+      await page.setViewportSize({ width, height })
+      const created = await page.request.post('/api/sessions', { headers, data: { agent: 'claude', cwd: changedRepo() } })
+      const { id } = (await created.json()) as { id: string }
+      await page.goto(`/?token=${token}`)
+      await page.goto(`/s/${id}`)
+      await expect(page.getByLabel('Message')).toBeVisible()
+
+      await openDock(page, 'Changes')
+      const panel = page.getByRole('region', { name: 'Changes' })
+      const row = panel.locator('.diff-file-head').filter({ hasText: 'nested' })
+      await expect(row).toBeVisible()
+      for (const name of ['Copy path', 'View file']) expect(await side(row.getByRole('button', { name })), name).toBeGreaterThanOrEqual(36)
+      if (width <= 1100) expect(await side(page.locator('.topbar .show-sessions')), 'Show sessions').toBeGreaterThanOrEqual(36)
+      // the name's end and extension show whole, inside the row, and some of its start besides
+      const tail = row.locator('.diff-base .midcut-tail')
+      await expect(tail).toHaveText(/_1\.tsx$/)
+      expect(await tail.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true)
+      const [t, clip] = [(await tail.boundingBox())!, (await row.locator('.diff-new').boundingBox())!]
+      expect(t.x + t.width).toBeLessThanOrEqual(clip.x + clip.width + 0.5)
+      expect((await row.locator('.diff-base').boundingBox())!.width).toBeGreaterThanOrEqual(t.width + 14)
+      // the counts show, inside the row
+      const [counts, head] = [(await row.locator('.diff-counts').boundingBox())!, (await row.boundingBox())!]
+      expect(counts.width).toBeGreaterThan(10)
+      expect(counts.x + counts.width).toBeLessThanOrEqual(head.x + head.width + 0.5)
+
+      await openDock(page, 'Terminal')
+      const terms = page.getByRole('region', { name: 'Terminals' })
+      await terms.getByRole('button', { name: 'New terminal in session folder' }).tap()
+      await expect(terms.getByRole('tab', { selected: true })).toBeVisible()
+      expect(await side(terms.getByRole('button', { name: 'More terminals' })), 'More terminals').toBeGreaterThanOrEqual(36)
+      await terms.getByRole('button', { name: /^Close terminal / }).first().tap()
+      await terms.getByRole('group', { name: /^Close terminal / }).getByRole('button', { name: 'Close', exact: true }).tap()
+    })
+  }
+})

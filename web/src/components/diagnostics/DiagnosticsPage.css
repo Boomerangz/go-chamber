@@ -1,5 +1,5 @@
 .diagnostics-page { width: 100%; max-width: 1280px; margin: 0 auto; padding: var(--gutter); overflow: auto; min-height: 0; }
-.diagnostics-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; flex-wrap: wrap; }
+.diagnostics-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; flex-wrap: wrap; margin-bottom: 12px; }
 .diagnostics-header h2 { margin: 0; font: 600 20px/1.5 var(--font-ui); letter-spacing: -0.005em; }
 .diagnostics-header p, .diagnostics-note, .diagnostic-metric p { color: var(--ink-3); font-size: 12px; }
 .diagnostics-header p { max-width: 70ch; }
@@ -17,7 +17,6 @@
 .diagnostics-page dd { margin: 0; font-family: var(--font-mono); }
 .diagnostics-server { margin-bottom: 12px; }
 .diagnostics-server-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
-.diagnostics-error { color: var(--bad); }
 .diagnostics-table-wrap { overflow-x: auto; }
 .diagnostics-page table { border-collapse: collapse; width: 100%; font-size: 12px; text-align: left; }
 .diagnostics-page th, .diagnostics-page td { padding: 10px 12px; border-bottom: 1px solid var(--rule); white-space: nowrap; }

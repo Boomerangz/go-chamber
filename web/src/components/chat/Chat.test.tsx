@@ -240,7 +240,7 @@ describe('header status', () => {
     expect(path).toHaveAttribute('title', '/home/me/project')
     await userEvent.click(screen.getByRole('button', { name: 'Copy path' }))
     expect(writeText).toHaveBeenCalledWith('/home/me/project')
-    expect(useNotices.getState().notices.at(-1)?.text).toBe('Path copied')
+    expect(useNotices.getState().notices.at(-1)?.text).toBe('Copied the folder path')
   })
 
   it('reads a worktree session by its repository and branch, and copies the worktree', async () => {
@@ -821,6 +821,13 @@ describe('usage in the header', () => {
   it('keeps the session total when the agent reports one', () => {
     setup({ chat: chatOf([], { usage: { totalTokens: 1200 }, result: { inputTokens: 1, outputTokens: 2 } }) })
     expect(screen.getByLabelText('Session usage')).toHaveTextContent('1,200 tokens')
+  })
+
+  it('splits the line into whole parts the header can drop, the whole line on hover', () => {
+    setup({ chat: chatOf([], { result: { inputTokens: 10, outputTokens: 12, costUsd: 0.5 } }) })
+    const usage = screen.getByLabelText('Last turn usage')
+    expect([...usage.querySelectorAll('.usage-part')].map((p) => p.textContent)).toEqual(['22 tokens', ' · $0.5000', ' · last turn'])
+    expect(usage).toHaveAttribute('title', '22 tokens · $0.5000 · last turn')
   })
 })
 

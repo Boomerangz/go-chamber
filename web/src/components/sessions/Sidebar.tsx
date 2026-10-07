@@ -179,7 +179,10 @@ export default function Sidebar(props: SidebarProps) {
   }
 
   return (
-    <aside className="sidebar panel">
+    <aside className="sidebar panel" aria-labelledby="sidebar-heading">
+      <h2 id="sidebar-heading" className="sr-only">
+        Sessions
+      </h2>
       <form
         className="new-session"
         data-folded={!composing || undefined}
@@ -239,21 +242,28 @@ export default function Sidebar(props: SidebarProps) {
         )}
         {chips.length > 0 && (
           <div className="recent folder-chips" role="group" aria-label="Recent folders">
-            {chips.map((g) => (
-              <button
-                type="button"
-                key={g.cwd}
-                className="chip"
-                title={g.cwd}
-                aria-pressed={g.cwd === cwd}
-                onClick={() => {
-                  setCwd(g.cwd)
-                  if (missing === 'cwd') setMissing(null)
-                }}
-              >
-                <span className="chip-label">{g.name}</span>
-              </button>
-            ))}
+            {/* captioned beside the chips: a lone chip under the field must
+                not read as a second field with the same path */}
+            <span className="section-title" aria-hidden="true">
+              Recent
+            </span>
+            <div className="folder-chips-list">
+              {chips.map((g) => (
+                <button
+                  type="button"
+                  key={g.cwd}
+                  className="chip"
+                  title={g.cwd}
+                  aria-pressed={g.cwd === cwd}
+                  onClick={() => {
+                    setCwd(g.cwd)
+                    if (missing === 'cwd') setMissing(null)
+                  }}
+                >
+                  <span className="chip-label">{g.name}</span>
+                </button>
+              ))}
+            </div>
           </div>
         )}
         <label className="worktree-toggle">
@@ -282,7 +292,7 @@ export default function Sidebar(props: SidebarProps) {
               aria-label="Branch name"
               aria-invalid={(missing === 'branch' || refused !== null) || undefined}
               aria-describedby="new-session-branch-hint"
-              placeholder="branch name"
+              placeholder="Branch name"
               value={branch}
               onChange={(e) => {
                 setBranch(e.target.value)

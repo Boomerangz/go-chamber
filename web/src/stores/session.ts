@@ -576,7 +576,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       await api.continueSession(id)
       return true
     } catch (err) {
-      fail("Couldn't continue", err)
+      fail("Couldn't continue the session", err)
       return false
     }
   },

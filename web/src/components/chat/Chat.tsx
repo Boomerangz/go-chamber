@@ -440,7 +440,7 @@ export default function Chat() {
   useTypingMark(section)
 
   return (
-    <section className="chat panel" ref={section}>
+    <main className="chat panel" aria-label="Chat" ref={section}>
       <ChatHeader
         session={session}
         status={shown}
@@ -614,7 +614,7 @@ export default function Chat() {
         </div>
       </form>
       )}
-    </section>
+    </main>
   )
 }
 

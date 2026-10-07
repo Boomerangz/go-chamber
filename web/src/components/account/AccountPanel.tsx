@@ -1,7 +1,8 @@
 import { Check, Copy } from 'lucide-react'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { getAccount, startLogin, type AccountInfo, type AgentKind, type LoginChallenge } from '../../lib/api'
 import { usePending } from '../../lib/pending'
+import { failedTo } from '../../lib/failed'
 import { describeError, fail } from '../../stores/notices'
 import { useSessionStore } from '../../stores/session'
 import { icon } from '../icon'
@@ -33,7 +34,11 @@ export function Accounts() {
   const loadQuotas = useSessionStore((s) => s.loadQuotas)
   const down = agents.filter((a) => failed[a] !== undefined)
   let line: string | null = null
-  if (down.length === agents.length) line = quotasDown ? "Couldn't reach the accounts or quotas" : "Couldn't reach the accounts"
+  if (down.length === agents.length) {
+    const reasons = new Set(down.map((a) => failed[a]))
+    const reason = reasons.size === 1 ? failed[down[0]!] : down.map((a) => `${agentName[a]}: ${failed[a]}`).join('; ')
+    line = failedTo(quotasDown ? 'reach the accounts or quotas' : 'reach the accounts', reason)
+  }
   else if (down.length === 1) line = `Couldn't check the ${agentName[down[0]!]} account: ${failed[down[0]!]}${quotasDown ? ' (and the quotas)' : ''}`
   return (
     <div className="accounts">
@@ -68,6 +73,15 @@ export default function AccountPanel({ agent, quietFailure = false }: { agent: A
   const [expired, setExpired] = useState(false)
   const [copied, setCopied] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // Cancelling the code hands focus back to the Sign in button it replaced.
+  const refocus = useRef(false)
+  const signInButton = useRef<HTMLButtonElement>(null)
+  useEffect(() => {
+    if (!login && refocus.current) {
+      refocus.current = false
+      signInButton.current?.focus()
+    }
+  }, [login])
 
   useEffect(() => {
     let alive = true
@@ -101,7 +115,7 @@ export default function AccountPanel({ agent, quietFailure = false }: { agent: A
           setError(null)
           if (a.loggedIn) setLogin(null)
         })
-        .catch((e) => setError(describeError(e)))
+        .catch((e) => setError(failedTo(`check the ${agentName[agent]} sign-in`, describeError(e))))
     }, POLL_MS)
     const expire = setTimeout(() => {
       setLogin(null)
@@ -125,7 +139,7 @@ export default function AccountPanel({ agent, quietFailure = false }: { agent: A
     try {
       setLogin(await startLogin(agent))
     } catch (e) {
-      setError(describeError(e))
+      setError(failedTo(`start the ${agentName[agent]} sign-in`, describeError(e)))
     }
   }, [agent])
   const [signIn, requesting] = usePending(request)
@@ -193,7 +207,7 @@ export default function AccountPanel({ agent, quietFailure = false }: { agent: A
         </span>
       ) : (
         !login && (
-          <button className="btn sign-in" aria-busy={requesting || undefined} onClick={() => void signIn()}>
+          <button ref={signInButton} className="btn sign-in" aria-busy={requesting || undefined} onClick={() => void signIn()}>
             {requesting ? 'Requesting code…' : 'Sign in to Codex'}
           </button>
         )
@@ -207,6 +221,8 @@ export default function AccountPanel({ agent, quietFailure = false }: { agent: A
               className="btn btn-ghost btn-icon copy-code"
               aria-label="Copy code"
               title="Copy code"
+              // The code takes the place of the button that asked for it.
+              autoFocus
               onClick={copy}
             >
               {copied ? <Check {...icon(14)} /> : <Copy {...icon(14)} />}
@@ -225,7 +241,12 @@ export default function AccountPanel({ agent, quietFailure = false }: { agent: A
           </p>
           <p className="device-code-wait">
             <span className="busy-mark" aria-hidden="true" /> waiting for sign-in
-            <button type="button" className="btn btn-ghost btn-xs" onClick={() => setLogin(null)}>
+            <button type="button" className="btn btn-ghost btn-xs" 
+              onClick={() => {
+                refocus.current = true
+                setLogin(null)
+              }}
+            >
               Cancel
             </button>
           </p>

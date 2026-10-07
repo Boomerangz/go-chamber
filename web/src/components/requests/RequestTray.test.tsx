@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import RequestTray from './RequestTray'
 import { resetStore, useSessionStore } from '../../stores/session'
-import { fail } from '../../stores/notices'
+import { fail, useNotices } from '../../stores/notices'
 import * as api from '../../lib/api'
 
 vi.mock('../../lib/api', () => ({
@@ -270,14 +270,14 @@ describe('RequestTray', () => {
     render(<RequestTray />)
     const first = screen.getAllByRole('listitem')[0]!
     await userEvent.click(within(first).getByRole('button', { name: 'Allow' }))
-    expect(await within(first).findByText('Not sent: agent gone')).toBeInTheDocument()
+    expect(await within(first).findByText("Couldn't send the answer: agent gone")).toBeInTheDocument()
     expect(first).not.toHaveClass('answering')
     expect(within(first).getByRole('button', { name: 'Allow' })).toBeEnabled()
     const row = within(first).getByRole('button', { name: /First/ })
     row.focus()
     await userEvent.keyboard('a')
     expect(respond).toHaveBeenCalledTimes(2)
-    await vi.waitFor(() => expect(within(first).getByText('Not sent: agent gone')).toBeInTheDocument())
+    await vi.waitFor(() => expect(within(first).getByText("Couldn't send the answer: agent gone")).toBeInTheDocument())
     expect(row).toHaveFocus()
   })
 
@@ -397,6 +397,14 @@ describe('a turn cut off while it waited for the owner', () => {
     expect(api.continueSession).toHaveBeenCalledWith('s2')
     await userEvent.click(line)
     expect(useSessionStore.getState().activeId).toBe('s2')
+  })
+
+  it('names the session when it could not continue it', async () => {
+    vi.mocked(api.continueSession).mockRejectedValue(new Error('agent gone'))
+    useSessionStore.setState({ requestsStatus: 'ready', sessions: [owed] })
+    render(<RequestTray />)
+    await userEvent.click(screen.getByRole('button', { name: 'Continue' }))
+    await vi.waitFor(() => expect(useNotices.getState().notices.at(-1)).toMatchObject({ kind: 'error', title: "Couldn't continue the session" }))
   })
 
   it('says it stopped waiting when the request is not known', () => {

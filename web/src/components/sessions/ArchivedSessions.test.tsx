@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi, type Mock } from 'vitest'
 import { resetStore, useSessionStore } from '../../stores/session'
@@ -48,6 +48,24 @@ describe('ArchivedSessions', () => {
     expect(screen.getByRole('button', { name: /^gone/ }).querySelector('.session-status-detached')).not.toBeNull()
     const kid = screen.getByRole('button', { name: /^helper/ })
     expect(kid.querySelector('.session-meta .session-status')).not.toBeNull()
+  })
+
+  it('brings the open session into view when archiving it unfolds the section', async () => {
+    const scrolled: Element[] = []
+    const scrollIntoView = vi.fn(function (this: Element) {
+      scrolled.push(this)
+    })
+    Element.prototype.scrollIntoView = scrollIntoView
+    try {
+      useSessionStore.setState({ activeId: 'open', sessions: [s('open'), s('other', { archivedAt: '2026-10-01T09:00:00Z' })] })
+      render(<ArchivedSessions />)
+      expect(scrollIntoView).not.toHaveBeenCalled()
+      act(() => useSessionStore.setState({ sessions: [s('open', { archivedAt: '2026-10-03T09:00:00Z' }), s('other', { archivedAt: '2026-10-01T09:00:00Z' })] }))
+      await waitFor(() => expect(scrollIntoView).toHaveBeenCalledWith({ block: 'nearest' }))
+      expect(scrolled.at(-1)).toBe(screen.getByRole('button', { name: /^open/ }))
+    } finally {
+      delete (Element.prototype as Partial<Element>).scrollIntoView
+    }
   })
 
   it('is not there while nothing is archived', () => {

@@ -169,7 +169,7 @@ for (const width of [1024, 1440]) {
     const panel = await openChanges(page)
     await panel.getByRole('button', { name: 'Remove worktree' }).click()
     await panel.getByRole('group', { name: 'Remove worktree?' }).getByRole('button', { name: /^Remove/ }).click()
-    const notice = page.locator('.toast', { hasText: 'Worktree removed, branch kept' })
+    const notice = page.locator('.toast', { hasText: /^Worktree removed · branch \S+ kept$/ })
     await expect(notice).toBeVisible()
     await page.getByRole('button', { name: 'Fork into app' }).click()
     const note = page.getByRole('status', { name: 'Unmerged branch' })

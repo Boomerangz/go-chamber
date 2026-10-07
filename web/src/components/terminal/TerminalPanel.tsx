@@ -105,10 +105,10 @@ export default function TerminalPanel({ sessionId }: { sessionId: string | null 
       <EndedNote />
       {loadError && (
         <LoadFailed onRetry={() => void load()}>
-          {loaded || terminals.length > 0 ? `Couldn't refresh shells: ${loadError}` : `Couldn't load shells: ${loadError}`}
+          {loaded || terminals.length > 0 ? `Couldn't refresh terminals: ${loadError}` : `Couldn't load terminals: ${loadError}`}
         </LoadFailed>
       )}
-      {!loaded && terminals.length === 0 && !loadError && <LoadingLine>loading shells…</LoadingLine>}
+      {!loaded && terminals.length === 0 && !loadError && <LoadingLine>loading terminals…</LoadingLine>}
       {/* Nothing attaches unasked (each viewer answers the shell's queries), but the first is one click away. */}
       {loaded && !attached && gone === 'folder' && cwd && (
         <p className="terminal-hint" role="status" aria-label="Folder gone">
@@ -124,22 +124,22 @@ export default function TerminalPanel({ sessionId }: { sessionId: string | null 
         <p className="terminal-hint">
           {own[0] ? (
             <>
-              No shell attached.{' '}
+              No terminal attached.{' '}
               <button type="button" className="act-link" onClick={() => pick(own[0]!.id)}>
                 Attach {own[0].title}
               </button>
             </>
           ) : sessionId && folder && sorted.length > 0 ? (
             <>
-              No shell in {folder}.{' '}
+              No terminal in {folder}.{' '}
               <button type="button" className="act-link" onClick={() => void open({ sessionId })}>
-                Open shell in {folder}
+                Open terminal in {folder}
               </button>
             </>
           ) : sessionId ? (
-            'No shells yet. + opens one in the session folder.'
+            'No terminals yet. + opens one in the session folder.'
           ) : (
-            'No shells yet. + opens one in your home folder.'
+            'No terminals yet. + opens one in your home folder.'
           )}
         </p>
       )}
@@ -256,7 +256,7 @@ function NewTerminalButton({ sessionId, terminals, onPick }: { sessionId: string
   const busyHere = Boolean(opening[openKey(here)])
   const busyHome = Boolean(opening[openKey({})])
   const busyFolder = Boolean(cwd.trim() && opening[openKey({ cwd: cwd.trim() })])
-  const label = sessionId ? 'New terminal in session dir' : 'New terminal in home folder'
+  const label = sessionId ? 'New terminal in session folder' : 'New terminal in home folder'
   return (
     <div
       className="term-new"
@@ -324,7 +324,7 @@ function NewTerminalButton({ sessionId, terminals, onPick }: { sessionId: string
                 if (dir) void openIn({ cwd: dir })
               }}
             >
-              <FolderField label="Terminal directory" placeholder="another folder" value={cwd} onChange={setCwd} />
+              <FolderField label="Terminal folder" placeholder="Another folder" value={cwd} onChange={setCwd} />
               <button type="submit" className="btn btn-xs" disabled={!cwd.trim()} aria-busy={busyFolder || undefined}>
                 {busyFolder ? 'Opening…' : 'Open'}
               </button>

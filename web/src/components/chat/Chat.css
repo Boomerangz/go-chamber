@@ -3,10 +3,10 @@
 .chat-path-copy { width: 22px; height: 22px; flex: none; opacity: 0; transition: opacity var(--dur-fast); }
 .chat-path-line:hover .chat-path-copy, .chat-path-copy:focus-visible { opacity: 1; }
 @media (hover: none) { .chat-path-copy { opacity: 1; } }
-/* a worktree session: the repository's name gives way before the branch,
-   which is cut only past most of the line */
-.chat-path-line .chat-repo { flex: 0 1 auto; min-width: 3ch; }
-.chat-path-line .session-branch { flex: none; max-width: 70%; }
+/* a worktree session: the repository's name gives way first (down to a
+   little of itself), then the branch, which has the rest of the line */
+.chat-path-line .chat-repo { flex: 0 10000 auto; min-width: 3ch; }
+.chat-path-line .session-branch { flex: 0 1 auto; min-width: 0; }
 /* the session is put away: a bracketed tag beside its status */
 .archived-tag { flex: none; font-family: var(--font-mono); font-size: 12px; color: var(--ink-2); white-space: nowrap; }
 .archived-tag::before { content: '['; }
@@ -88,9 +88,10 @@
 /* the transcript holds focus after a keyboard answer: no ring round it all */
 .chat > .scroll:focus { outline: none; }
 
-/* a request card takes focus after the one above it was answered */
+/* a request card takes focus after the one above it was answered: the ring
+   goes round the card, not the slot with the turn-number margin to its left */
 .request-slot:focus { outline: none; }
-.request-slot:focus-visible { outline: 2px solid var(--act-ring); outline-offset: 2px; }
+.request-slot:focus-visible > .request { outline: 2px solid var(--act-ring); outline-offset: 2px; }
 
 /* the live socket dropped: a quiet line above the composer */
 .live-strip {
@@ -145,8 +146,9 @@
   .chat-tools .field-sm, .chat-tools .model-button { height: 36px; font-size: 16px; }
   .chat-tools .model-button { justify-content: space-between; }
   .chat-tools .model-name { max-width: none; }
-  /* Fork lines up with the fields above it, its word where theirs start */
-  .chat-tools .chat-fork { align-self: stretch; justify-content: flex-start; margin-left: 74px; padding-left: 10px; }
+  /* Fork is a button of the sheet, framed as the fields above it are and
+     starting where they start */
+  .chat-tools .chat-fork { align-self: flex-start; margin-left: 74px; padding: 0 16px; border-color: var(--rule-strong); color: var(--ink); }
   /* "⋯" stays on the title row when the folder line opens under the title */
   .chat-header .chat-more { align-self: flex-start; }
   .chat-header .chat-more[aria-expanded='true'] { color: var(--ink); }
@@ -179,6 +181,8 @@
   .chat-header .usage { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   /* too little left for a readable part of it: none at all (useHeaderFold) */
   .chat-header[data-usage='off'] .usage { max-width: 0; visibility: hidden; }
+  /* short of room, the usage line drops whole parts from its end */
+  .chat-header .usage-part[data-cut] { display: none; }
   /* folded, the title row stays one row in every state: the title holds
      all of itself that leaves the status, its tags and "⋯" room
      (useHeaderFold), and the usage line has what is left. Only the opened settings wrap, to a

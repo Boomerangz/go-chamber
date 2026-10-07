@@ -1,3 +1,4 @@
+import { failedTo } from '../../lib/failed'
 import { describeError, lastError } from '../../stores/notices'
 
 // notSent is the inline line under an answer that didn't go through. The
@@ -6,7 +7,7 @@ import { describeError, lastError } from '../../stores/notices'
 // latest error notice.
 export function notSent(err?: unknown): string {
   const reason = err !== undefined ? describeError(err) : lastError()
-  return reason ? `Not sent: ${reason}` : 'Not sent'
+  return failedTo('send the answer', reason)
 }
 
 // answerKey is the shortcut a key press means on a permission, if any.

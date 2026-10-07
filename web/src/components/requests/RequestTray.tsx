@@ -213,7 +213,7 @@ function OwedLine({ session }: { session: Session }) {
         await continueSession(session.id)
         return true
       } catch (err) {
-        fail("Couldn't continue", err)
+        fail("Couldn't continue the session", err)
         return false
       }
     },

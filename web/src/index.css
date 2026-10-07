@@ -157,6 +157,8 @@ select.field option { background: var(--paper); color: var(--ink); }
 }
 /* a request count is small text on amber: the deeper text tone keeps it legible */
 .badge { background: var(--req); color: var(--paper); }
+/* the requests couldn't load: a "!" where the count would be */
+.badge.failed, .rail-requests .rail-count.failed { background: var(--bad); color: var(--paper); }
 
 /* status: a mark and a word; the mark's form carries the state */
 .status {
@@ -230,7 +232,13 @@ kbd {
   /* one column no wider than the window: nothing in it widens the page */
   display: grid; grid-template-rows: auto minmax(0, 1fr); grid-template-columns: minmax(0, 1fr);
   height: 100vh; height: 100dvh;
+  /* the page runs under the notch (viewport-fit=cover): a phone held
+     sideways keeps the app clear of it at both sides */
+  padding-left: env(safe-area-inset-left); padding-right: env(safe-area-inset-right);
 }
+/* the wide layout has no pane bar to stand on the home indicator: the app
+   ends above it (a phone's pane bar pads itself) */
+@media (min-width: 721px) { .app { padding-bottom: env(safe-area-inset-bottom); } }
 .topbar {
   display: grid; grid-template-columns: 1fr auto 1fr; align-items: center;
   height: 44px; padding: 0 var(--gutter); border-bottom: 1px solid var(--rule);
@@ -457,7 +465,7 @@ button.health { border: 0; background: none; padding: 0; }
 .session-status::before { content: ''; flex: none; width: 7px; height: 7px; border: 1px solid currentColor; border-radius: 1px; }
 /* "waiting for you" is what may give way in a full row: it keeps "waiting"
    on a narrow row, and ends in an ellipsis before the row spills */
-.session-meta > .session-status-waiting { flex: 0 10 auto; min-width: 0; }
+.session-meta > .session-status-waiting { flex: 0 10 auto; min-width: calc(8ch + 12px); }
 .session-status-waiting .status-word { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .session-status-running { color: var(--ink); }
 .session-status-running::before { background: currentColor; }
@@ -492,6 +500,7 @@ button.health { border: 0; background: none; padding: 0; }
 .session-time { flex: none; white-space: nowrap; margin-left: auto; }
 @container (max-width: 240px) {
   .status-more { display: none; }
+  .session-meta > .session-status-waiting { min-width: calc(7ch + 12px); }
   /* an archived row that waits says "archived" by its fold alone */
   .session-meta:has(.badge) .time-more { display: none; }
 }
@@ -514,16 +523,17 @@ button.health { border: 0; background: none; padding: 0; }
 .sidebar-signout { display: none; }
 .sidebar-signout .btn { width: 100%; }
 
-/* phones: the sidebar itself scrolls, footer and all, and its controls
-   get a finger-sized target */
-@media (max-width: 720px) {
+/* phones, and a short window (a phone held sideways, where the form and the
+   footer would squeeze the list to nothing): the sidebar itself scrolls,
+   footer and all */
+@media (max-width: 720px), (max-height: 500px) {
   .sidebar { overflow-y: auto; scroll-padding-top: 52px; }
   /* sticky offsets count from inside the sidebar's 14px top padding */
   .sidebar-body > .session-search { top: -14px; }
   .sidebar-body { flex: none; overflow: visible; }
   .sidebar-footer { flex: none; }
-  .sidebar-signout { display: block; }
 }
+@media (max-width: 720px) { .sidebar-signout { display: block; } }
 /* a finger's targets: on a phone by its width, and on any touch screen (a
    tablet keeps the wide layout but not a mouse's precision) */
 @media (max-width: 720px), (pointer: coarse) {
@@ -533,7 +543,7 @@ button.health { border: 0; background: none; padding: 0; }
   .group-more { min-height: 40px; }
   .group-toggle { height: 40px; }
   .session-search { height: 40px; }
-  .session-search .search-clear, .quota .refresh, .quotas-none .refresh, .account .copy-code { width: 40px; height: 40px; }
+  .session-search .search-clear, .quota .refresh, .account .copy-code { width: 40px; height: 40px; }
   .rename-btn { min-width: 36px; min-height: 36px; justify-content: center; }
   .crumb button { min-height: 40px; }
 }
@@ -925,8 +935,11 @@ button.health { border: 0; background: none; padding: 0; }
 .term-projects { display: grid; gap: 8px; }
 .term-chips { display: flex; flex-wrap: wrap; gap: 6px; min-width: 0; }
 .term-chips .chip .icon { color: var(--ink-3); }
-/* a worktree chip: its repository, then the branch as context */
-.term-chips .chip-branch { color: var(--ink-3); }
+/* a worktree chip: its repository, then the branch, which tells it from the
+   repository's own chip. The repository gives way first; a branch longer
+   than most of the chip is cut too, each part with its own ellipsis */
+.term-chips .chip-label:has(+ .chip-branch) { flex: 0 1 auto; min-width: 4ch; }
+.term-chips .chip-branch { flex: none; max-width: 70%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink-3); }
 .term-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 1px; }
 .term-row { display: flex; align-items: center; border: 1px solid transparent; border-radius: var(--r); transition: background var(--dur-fast); }
 .term-row:hover { background: var(--paper-2); }
@@ -995,7 +1008,10 @@ button.health { border: 0; background: none; padding: 0; }
 .chip-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .chip:hover { border-color: var(--ink); color: var(--ink); }
 .chip[aria-pressed='true'] { border-color: var(--ink); color: var(--ink); }
-.folder-chips { gap: 4px 6px; min-width: 0; }
+/* the caption on the chips' first line, the chips wrapping beside it */
+.folder-chips { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: baseline; gap: 0 8px; min-width: 0; }
+.folder-chips > .section-title { margin: 0; }
+.folder-chips-list { display: flex; flex-wrap: wrap; gap: 4px 6px; min-width: 0; }
 .field-hint { margin: -4px 0 0; color: var(--bad); font-size: 12.5px; }
 
 .folder-list {
@@ -1049,7 +1065,7 @@ button.health { border: 0; background: none; padding: 0; }
    script); without a transcript, bottom right clear of the dock rail. The
    stack never takes clicks beyond its own sheets. */
 .notices {
-  position: fixed; bottom: 16px; right: 60px; z-index: 20;
+  position: fixed; bottom: calc(16px + env(safe-area-inset-bottom)); right: calc(60px + env(safe-area-inset-right)); z-index: 20;
   display: grid; gap: 6px; width: min(420px, calc(100vw - 32px));
   pointer-events: none;
 }
@@ -1162,6 +1178,7 @@ button.health { border: 0; background: none; padding: 0; }
   /* a component's own smaller size (copy path, copy reply) yields here */
   .chat-path-line .chat-path-copy, .items .row .msg-copy { width: 36px; height: 36px; }
   .rail-btn { width: 36px; height: 36px; }
+  .show-sessions { min-width: 36px; height: 36px; }
 }
 
 /* the narrowest phones: the three modes and the toggles fit on one row,

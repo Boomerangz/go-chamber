@@ -34,7 +34,14 @@ it('reports a failed copy', async () => {
   render(<CopyButton text="x" />)
   await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Copy' })))
   expect(screen.getByRole('button', { name: 'Copy' })).toBeInTheDocument()
-  expect(useNotices.getState().notices[0]).toMatchObject({ kind: 'error', title: "Couldn't copy" })
+  expect(useNotices.getState().notices[0]).toMatchObject({ kind: 'error', title: "Couldn't copy the text" })
+})
+
+it('names what it could not copy', async () => {
+  writeText.mockRejectedValue(new Error('denied'))
+  render(<CopyButton text="x" label="Copy reply" iconOnly />)
+  await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Copy reply' })))
+  expect(useNotices.getState().notices[0]).toMatchObject({ kind: 'error', title: "Couldn't copy the reply" })
 })
 
 it('falls back to a textarea without the Clipboard API', async () => {

@@ -42,7 +42,7 @@ export default function UnmergedNote({ session }: { session: Session }) {
           className="btn btn-ghost btn-icon"
           aria-label="Copy merge command"
           title="Copy merge command"
-          onClick={() => void copyText(merge)}
+          onClick={() => void copyText(merge, 'merge command')}
         >
           <Copy {...icon(12)} />
         </button>

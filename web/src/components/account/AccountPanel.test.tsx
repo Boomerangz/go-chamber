@@ -85,7 +85,12 @@ describe('AccountPanel', () => {
     await startSignIn()
     await userEvent.click(screen.getByRole('button', { name: 'Cancel' }))
     expect(screen.queryByText('ABCD')).toBeNull()
-    expect(screen.getByRole('button', { name: 'Sign in to Codex' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Sign in to Codex' })).toHaveFocus()
+  })
+
+  it('hands the focus to Copy code when the code replaces the Sign in button', async () => {
+    await startSignIn()
+    expect(screen.getByRole('button', { name: 'Copy code' })).toHaveFocus()
   })
 
   it('stops waiting when the code expires and offers a new one', async () => {
@@ -113,11 +118,11 @@ describe('AccountPanel', () => {
     await act(async () => {
       await vi.advanceTimersByTimeAsync(3000)
     })
-    expect(screen.getByText('codex stopped')).toBeInTheDocument()
+    expect(screen.getByText("Couldn't check the Codex sign-in: codex stopped")).toBeInTheDocument()
     await act(async () => {
       await vi.advanceTimersByTimeAsync(3000)
     })
-    await waitFor(() => expect(screen.queryByText('codex stopped')).toBeNull())
+    await waitFor(() => expect(screen.queryByText("Couldn't check the Codex sign-in: codex stopped")).toBeNull())
   })
 
   it('clears a failed code request when trying again', async () => {
@@ -125,11 +130,11 @@ describe('AccountPanel', () => {
     vi.mocked(api.startLogin).mockRejectedValueOnce(new Error('no network'))
     render(<AccountPanel agent="codex" />)
     await userEvent.click(await screen.findByRole('button', { name: 'Sign in to Codex' }))
-    expect(await screen.findByText('no network')).toBeInTheDocument()
+    expect(await screen.findByText("Couldn't start the Codex sign-in: no network")).toBeInTheDocument()
     vi.mocked(api.startLogin).mockResolvedValueOnce(challenge)
     await userEvent.click(screen.getByRole('button', { name: 'Sign in to Codex' }))
     expect(await screen.findByText('ABCD')).toBeInTheDocument()
-    expect(screen.queryByText('no network')).toBeNull()
+    expect(screen.queryByText("Couldn't start the Codex sign-in: no network")).toBeNull()
   })
 
   it('says the check failed, with a retry, instead of offering to sign in', async () => {
@@ -140,6 +145,22 @@ describe('AccountPanel', () => {
     vi.mocked(api.getAccount).mockResolvedValueOnce({ ...out, loggedIn: true, email: 'dev@example.com' })
     await userEvent.click(screen.getByRole('button', { name: 'Retry' }))
     expect(await screen.findByText(/Signed in as dev@example.com/)).toBeInTheDocument()
+  })
+
+  it('says what failed when the sign-in cannot start', async () => {
+    vi.mocked(api.getAccount).mockResolvedValue(out)
+    vi.mocked(api.startLogin).mockRejectedValue(new Error('boom: database is locked'))
+    render(<AccountPanel agent="codex" />)
+    await userEvent.click(await screen.findByRole('button', { name: 'Sign in to Codex' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent("Couldn't start the Codex sign-in: boom: database is locked")
+  })
+
+  it('says what failed when the sign-in cannot be checked', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    await startSignIn()
+    vi.mocked(api.getAccount).mockRejectedValue(new Error('database is locked'))
+    await vi.advanceTimersByTimeAsync(3000)
+    expect(await screen.findByRole('alert')).toHaveTextContent("Couldn't check the Codex sign-in: database is locked")
   })
 
   it('says when the code could not be copied', async () => {
@@ -158,7 +179,7 @@ describe('Accounts', () => {
     vi.mocked(api.getAccount).mockRejectedValue(new TypeError('Failed to fetch'))
     render(<Accounts />)
     const line = await screen.findByRole('alert')
-    await waitFor(() => expect(line).toHaveTextContent("Couldn't reach the accounts or quotas"))
+    await waitFor(() => expect(line).toHaveTextContent("Couldn't reach the accounts or quotas: go-chamber is not reachable"))
     expect(screen.getAllByRole('alert')).toHaveLength(1)
     expect(screen.getAllByRole('button', { name: 'Retry' })).toHaveLength(1)
     vi.mocked(api.getAccount).mockResolvedValue({ agent: 'claude', loggedIn: true, authMode: 'cli' })
@@ -166,6 +187,15 @@ describe('Accounts', () => {
     expect(loadQuotas).toHaveBeenCalled()
     expect(await screen.findAllByText(/Signed in with the CLI login/)).toHaveLength(2)
     expect(screen.queryByRole('alert')).toBeNull()
+  })
+
+  it('names each reason when the accounts fail differently', async () => {
+    vi.mocked(api.getAccount).mockImplementation(async (agent) => {
+      throw new Error(agent === 'codex' ? 'codex stopped' : 'claude stopped')
+    })
+    render(<Accounts />)
+    const line = await screen.findByRole('alert')
+    await waitFor(() => expect(line).toHaveTextContent("Couldn't reach the accounts: Claude: claude stopped; Codex: codex stopped"))
   })
 
   it('names the one account it could not check', async () => {

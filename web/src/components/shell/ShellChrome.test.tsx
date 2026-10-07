@@ -78,6 +78,31 @@ describe('ShowSessions', () => {
       vi.unstubAllGlobals()
     }
   })
+
+  it('hands the focus to the open session row, else the search, as it goes', async () => {
+    useLayoutStore.setState({ mode: 'agents', sidebar: false, focus: false })
+    const { rerender } = render(
+      <>
+        <input aria-label="Search sessions" />
+        <button type="button" className="session" aria-current="true">
+          open one
+        </button>
+        <ShowSessions />
+      </>,
+    )
+    await userEvent.click(screen.getByRole('button', { name: 'Show sessions' }))
+    await waitFor(() => expect(screen.getByRole('button', { name: 'open one' })).toHaveFocus())
+
+    act(() => useLayoutStore.setState({ sidebar: false }))
+    rerender(
+      <>
+        <input aria-label="Search sessions" />
+        <ShowSessions />
+      </>,
+    )
+    await userEvent.click(screen.getByRole('button', { name: 'Show sessions' }))
+    await waitFor(() => expect(screen.getByLabelText('Search sessions')).toHaveFocus())
+  })
 })
 
 describe('DockRail', () => {
@@ -119,6 +144,17 @@ describe('DockRail', () => {
     act(() => useLayoutStore.setState({ dock: null }))
     fireEvent.click(screen.getByRole('button', { name: 'Terminal' }), { detail: 0 })
     await waitFor(() => expect(screen.getByRole('button', { name: 'inside' })).toHaveFocus())
+  })
+
+  it('collapsing the dock hands the focus back to the tab that was open', async () => {
+    useLayoutStore.setState({ dock: 'terminal' })
+    render(<DockRail />)
+    await userEvent.click(screen.getByRole('button', { name: 'Collapse dock' }))
+    expect(useLayoutStore.getState().dock).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Collapse dock' })).toBeNull()
+    const terminal = screen.getByRole('button', { name: 'Terminal' })
+    expect(terminal).toHaveFocus()
+    expect(terminal).toHaveAttribute('tabindex', '0')
   })
 })
 
@@ -199,5 +235,42 @@ describe('Notices', () => {
     await userEvent.click(screen.getByLabelText('field'))
     await userEvent.keyboard('{Escape}')
     expect(useNotices.getState().notices).toHaveLength(1)
+  })
+})
+
+describe('a request inbox that failed to load', () => {
+  const failed = () => useSessionStore.setState({ requestsStatus: 'error', requestsError: 'database is locked' })
+
+  it('marks the Requests rail button, with the reason', () => {
+    failed()
+    render(<DockRail />)
+    const button = screen.getByRole('button', { name: /^Requests/ })
+    expect(button).toHaveAccessibleName("Requests: couldn't load")
+    expect(button).toHaveAttribute('title', expect.stringContaining('database is locked'))
+    expect(button.querySelector('.rail-count.failed')).toHaveTextContent('!')
+  })
+
+  it('marks the phone Requests tab', () => {
+    failed()
+    render(<PaneBar />)
+    const button = screen.getByRole('button', { name: /^Requests/ })
+    expect(button).toHaveAccessibleName("Requests: couldn't load")
+    expect(button).toHaveAttribute('title', expect.stringContaining('database is locked'))
+    expect(button.querySelector('.badge.failed')).toHaveTextContent('!')
+  })
+
+  it('marks the Agents tab while another mode is open', () => {
+    failed()
+    useLayoutStore.setState({ mode: 'terminal' })
+    render(<ModeSwitch />)
+    const agents = screen.getByRole('radio', { name: /Agents/ })
+    expect(agents).toHaveAttribute('title', expect.stringContaining("requests couldn't load"))
+    expect(agents.querySelector('.badge.failed')).toHaveTextContent('!')
+  })
+
+  it('shows no mark once the inbox loaded', () => {
+    useSessionStore.setState({ requestsStatus: 'ready' })
+    render(<DockRail />)
+    expect(screen.getByRole('button', { name: 'Requests' }).querySelector('.failed')).toBeNull()
   })
 })
