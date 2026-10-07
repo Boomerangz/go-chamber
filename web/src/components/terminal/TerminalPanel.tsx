@@ -117,7 +117,7 @@ export default function TerminalPanel({ sessionId }: { sessionId: string | null 
       )}
       {loaded && !attached && gone === 'worktree' && (
         <p className="terminal-hint" role="status" aria-label="Worktree removed">
-          <span className="worktree-gone-kw">Worktree removed</span> · no shell opens in it
+          <span className="worktree-gone-kw">Worktree removed</span> · no terminal opens in it
         </p>
       )}
       {loaded && !attached && (!gone || own[0]) && (

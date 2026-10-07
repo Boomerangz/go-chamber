@@ -62,19 +62,19 @@ test.beforeAll(async () => {
 
 test.afterAll(stop)
 
-test('shells a restart ended are said to have ended, until a new one opens', async ({ page, request }) => {
+test('terminals a restart ended are said to have ended, until a new one opens', async ({ page, request }) => {
   const headers = { Authorization: `Bearer ${token}` }
   expect((await request.post(`${base}/api/terminals`, { headers, data: { cwd: root } })).status()).toBe(201)
   await page.goto(`${base}/terminal?token=${token}`)
   await expect(page.locator('.term-list [role="tab"]')).toHaveCount(1)
-  await expect(page.getByRole('status', { name: 'Shells ended' })).toHaveCount(0)
+  await expect(page.getByRole('status', { name: 'Terminals ended' })).toHaveCount(0)
 
   await stop()
   await start()
   await page.reload()
-  const note = page.getByRole('status', { name: 'Shells ended' })
-  await expect(note).toHaveText('1 shell ended when go-chamber restarted')
-  await expect(page.getByText('No shells yet.')).toBeVisible()
+  const note = page.getByRole('status', { name: 'Terminals ended' })
+  await expect(note).toHaveText('1 terminal ended when go-chamber restarted')
+  await expect(page.getByText('No terminals yet.')).toBeVisible()
 
   await page.getByRole('button', { name: 'New terminal', exact: true }).click()
   await expect(note).toHaveCount(0)

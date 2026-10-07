@@ -77,7 +77,7 @@ test('a gone folder offers no new work: no "+", no form prefill, no shell, no ch
     await page.getByRole('toolbar', { name: 'Dock' }).getByRole('button', { name: /^Terminal/ }).click()
     const shells = page.getByRole('region', { name: 'Terminals' })
     await expect(shells.getByRole('status', { name: 'Folder gone' })).toContainText('no longer exists')
-    await expect(shells.getByRole('button', { name: /Open shell in/ })).toHaveCount(0)
+    await expect(shells.getByRole('button', { name: /Open terminal in/ })).toHaveCount(0)
   }
 
   // The list: its group has no "+", its row says gone; the form doesn't take the folder.

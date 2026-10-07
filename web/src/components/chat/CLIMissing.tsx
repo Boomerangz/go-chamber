@@ -18,7 +18,7 @@ export default function CLIMissing({ cli }: { cli: CLIStatus }) {
   const name = agentName[cli.agent]
   const copy = async () => {
     if (!cli.hint) return
-    if (await copyText(cli.hint)) notify({ kind: 'info', text: 'Copied the install command', key: 'copy-install' })
+    if (await copyText(cli.hint, 'install command')) notify({ kind: 'info', text: 'Copied the install command', key: 'copy-install' })
   }
   return (
     <div className="worktree-gone cli-missing" role="group" aria-label={`${name} CLI missing`}>
