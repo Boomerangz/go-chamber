@@ -53,11 +53,13 @@ test('on a phone, the list moves as one block when the new-session form unfolds'
   await showPane(page, 'Sessions')
   const open = page.locator('.new-session-open')
   await expect(open).toHaveAttribute('aria-expanded', 'false')
-  const group = page.locator('.group').first()
+  // its own group: other specs on the shared server add rows to theirs
+  const label = `Project ${path.basename(dir)}`
+  const group = page.getByRole('region', { name: label })
   await expect(group.locator('.sessions > li').first()).toBeVisible()
-  // record the gap between the first group's header and its first row, every frame
-  await page.evaluate(() => {
-    const g = document.querySelector('.group')!
+  // record the gap between the group's header and its first row, every frame
+  await page.evaluate((label) => {
+    const g = document.querySelector(`[aria-label="${label}"]`)!
     const gaps: number[] = []
     ;(window as unknown as { gaps: number[] }).gaps = gaps
     const t0 = performance.now()
@@ -68,7 +70,7 @@ test('on a phone, the list moves as one block when the new-session form unfolds'
       if (performance.now() - t0 < 700) requestAnimationFrame(tick)
     }
     requestAnimationFrame(tick)
-  })
+  }, label)
   await open.click()
   await page.waitForTimeout(800)
   const gaps = await page.evaluate(() => (window as unknown as { gaps: number[] }).gaps)
