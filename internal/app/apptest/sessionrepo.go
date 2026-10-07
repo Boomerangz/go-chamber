@@ -30,6 +30,8 @@ func SessionRepoContract(t *testing.T, newRepo func(t *testing.T) app.SessionRep
 		AutoContinue:     true,
 		Worktree:         &domain.Worktree{Repo: "/src/p", Path: "/p", Branch: "chamber/x", Base: "abc", Removed: true},
 		ArchivedAt:       reset.Add(30 * time.Minute),
+		Seen:             domain.Seen{Item: "i7", At: reset.Add(20 * time.Minute)},
+		EndedAt:          reset.Add(25 * time.Minute),
 	}
 
 	t.Run("get missing", func(t *testing.T) {
@@ -60,6 +62,8 @@ func SessionRepoContract(t *testing.T, newRepo func(t *testing.T) app.SessionRep
 		upd := full
 		upd.Status, upd.Title, upd.Interruption = domain.StatusIdle, "new", domain.Interruption{}
 		upd.ArchivedAt = time.Time{}
+		upd.Seen = domain.Seen{Item: "i8", At: reset.Add(40 * time.Minute)}
+		upd.EndedAt = reset.Add(35 * time.Minute)
 		if err := r.Save(ctx, upd); err != nil {
 			t.Fatal(err)
 		}

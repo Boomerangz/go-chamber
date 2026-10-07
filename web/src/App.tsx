@@ -22,7 +22,7 @@ import { setAttentionIcon } from './lib/favicon'
 import { usePending } from './lib/pending'
 import { sessionTitle } from './lib/sessions'
 import { attentionTitle } from './lib/title'
-import { endedTurns, markEnded, markVisited, unseenCount, useVisits } from './lib/visits'
+import { unseenCount } from './lib/visits'
 import { useWaitingCount } from './lib/waiting'
 import { settleRestoredDock, useLayoutStore, useLayoutVars, visibleDock } from './stores/layout'
 import { useSessionStore } from './stores/session'
@@ -49,7 +49,6 @@ export default function App() {
   const loadTerminals = useTerminalStore((s) => s.load)
 
   useAttentionTitle()
-  useVisitMarks()
   const [tryNow, trying] = usePending(retryHealth)
 
   useEffect(() => {
@@ -227,28 +226,10 @@ function useAttentionTitle() {
   const terminalName = useTerminalStore((s) => s.terminals.find((t) => t.id === s.activeId)?.title)
   const session =
     mode === 'terminal' ? (terminalName ? `${terminalName} · Terminal` : 'Terminal') : mode === 'diagnostics' ? 'Diagnostics' : sessionName
-  const visits = useVisits()
-  const unseen = useSessionStore((s) => unseenCount(s.sessions, visits, s.activeId))
+  const unseen = useSessionStore((s) => unseenCount(s.sessions, s.activeId))
   useEffect(() => {
     document.title = attentionTitle({ pending, running, session, unseen })
     setAttentionIcon(pending > 0)
   }, [pending, running, session, unseen])
 }
 
-// useVisitMarks records that the open session has been seen as it is now,
-// so the list marks only what changed while the owner looked elsewhere.
-// A turn that ends in another session is marked as changed while away.
-function useVisitMarks() {
-  const active = useSessionStore((s) => s.sessions.find((x) => x.id === s.activeId))
-  useEffect(() => {
-    if (active) markVisited(active)
-  }, [active])
-  useEffect(
-    () =>
-      useSessionStore.subscribe((now, before) => {
-        if (now.sessions === before.sessions) return
-        for (const id of endedTurns(before.sessions, now.sessions)) if (id !== now.activeId) markEnded(id)
-      }),
-    [],
-  )
-}

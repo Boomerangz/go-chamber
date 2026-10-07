@@ -27,6 +27,7 @@ import {
   requestRaw,
   TIMEOUT_MS,
   getUnmerged,
+  markSeen,
 } from './api'
 import { describeError } from '../stores/notices'
 
@@ -181,6 +182,17 @@ describe('steer API', () => {
     await steer('a', 'more')
     expect(fn.mock.calls[0]![0]).toBe('/api/sessions/a/steer')
     expect(JSON.parse(String(fn.mock.calls[0]![1]?.body))).toEqual({ text: 'more' })
+  })
+})
+
+describe('markSeen API', () => {
+  it('posts the item read up to, or none', async () => {
+    const fn = stubFetch(async () => new Response('{"id":"a"}', { status: 200 }))
+    await markSeen('s a', 'i3')
+    expect(fn.mock.calls[0]![0]).toBe('/api/sessions/s%20a/seen')
+    expect(JSON.parse(String(fn.mock.calls[0]![1]?.body))).toEqual({ item: 'i3' })
+    await markSeen('a')
+    expect(JSON.parse(String(fn.mock.calls[1]![1]?.body))).toEqual({})
   })
 })
 

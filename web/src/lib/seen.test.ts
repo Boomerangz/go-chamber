@@ -1,7 +1,15 @@
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { Item } from './api'
+import type { Item, Session } from './api'
+
+vi.mock('./visits', async (actual) => ({
+  ...(await actual<typeof import('./visits')>()),
+  reportSeen: vi.fn(),
+  flushSeen: vi.fn(),
+}))
+
 import { firstUnseen, loadSeen, saveSeen, useUnseen } from './seen'
+import { flushSeen, reportSeen } from './visits'
 
 describe('firstUnseen', () => {
   it('points at the item after the last one seen', () => {
@@ -60,15 +68,17 @@ describe('useUnseen', () => {
       document.dispatchEvent(new Event('visibilitychange'))
     })
   }
-  type Props = { order: string[]; items: Record<string, Item>; ready?: boolean; pinned?: boolean }
+  type Props = { order: string[]; items: Record<string, Item>; ready?: boolean; pinned?: boolean; session?: Session; shown?: boolean }
   const mount = (initial: Props) =>
     renderHook(
-      ({ order, items, ready = true, pinned = true }: Props) =>
-        useUnseen({ sessionId: 's1', order, items, ready, pinned, isPinned: () => pinned }),
+      ({ order, items, ready = true, pinned = true, session, shown = true }: Props) =>
+        useUnseen({ sessionId: 's1', session, shown, order, items, ready, pinned, isPinned: () => pinned }),
       { initialProps: initial },
     )
+  const session = (extra: Partial<Session> = {}): Session => ({ id: 's1', agent: 'claude', cwd: '/p', status: 'idle', ...extra })
 
   beforeEach(() => {
+    vi.clearAllMocks()
     localStorage.clear()
     Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true })
   })
@@ -157,5 +167,62 @@ describe('useUnseen', () => {
   it('remembers nothing before the transcript is in', () => {
     mount({ order: ['a'], items: itemsOf(user('a')), ready: false })
     expect(loadSeen('s1')).toBeNull()
+  })
+
+  it('starts from where the owner stopped on any device', () => {
+    saveSeen('s1', 'a')
+    const items = itemsOf(user('a'), reply('b'), reply('c'))
+    const view = mount({ order: ['a', 'b', 'c'], items, pinned: false, session: session({ seen: { item: 'b' } }) })
+    expect(view.result.current).toBe('c')
+  })
+
+  it('follows what the owner read on another device while away from this one', () => {
+    const items = itemsOf(user('a'), reply('b'), user('c'), reply('d'))
+    const view = mount({ order: ['a', 'b'], items, session: session({ seen: { item: 'b' } }) })
+    setVisibility('hidden')
+    // The phone sends a message and reads the answer.
+    view.rerender({ order: ['a', 'b', 'c', 'd'], items, session: session({ seen: { item: 'c' } }) })
+    view.rerender({ order: ['a', 'b', 'c', 'd'], items, session: session({ seen: { item: 'd' } }) })
+    setVisibility('visible')
+    expect(view.result.current).toBeNull()
+  })
+
+  it('marks after the owner\'s own message from another device what they have not read', () => {
+    const items = itemsOf(user('a'), reply('b'), user('c'), reply('d'))
+    const view = mount({ order: ['a', 'b'], items, session: session({ seen: { item: 'b' } }) })
+    setVisibility('hidden')
+    view.rerender({ order: ['a', 'b', 'c', 'd'], items, session: session({ seen: { item: 'c' } }) })
+    setVisibility('visible')
+    expect(view.result.current).toBe('d')
+  })
+
+  it('tells the server where the owner stopped while the end is on screen', () => {
+    const items = itemsOf(user('a'), reply('b'))
+    const view = mount({ order: ['a', 'b'], items, session: session() })
+    expect(reportSeen).toHaveBeenLastCalledWith('s1', 'b', undefined)
+    vi.clearAllMocks()
+    // Scrolled up after a turn ended: a look, but not a read.
+    const ended = session({ seen: { item: 'b', at: '2026-10-07T09:00:00Z' }, endedAt: '2026-10-07T09:01:00Z' })
+    view.rerender({ order: ['a', 'b'], items, pinned: false, session: ended })
+    expect(reportSeen).toHaveBeenLastCalledWith('s1', undefined, '2026-10-07T09:01:00Z')
+  })
+
+  it('tells nothing the server knows, nor while the chat is not in front', () => {
+    const items = itemsOf(user('a'), reply('b'))
+    const known = session({ seen: { item: 'b', at: '2026-10-07T09:01:00Z' }, endedAt: '2026-10-07T09:01:00Z' })
+    const view = mount({ order: ['a', 'b'], items, session: known })
+    expect(reportSeen).not.toHaveBeenCalled()
+    view.rerender({ order: ['a', 'b'], items, session: session(), shown: false })
+    expect(reportSeen).not.toHaveBeenCalled()
+    expect(flushSeen).toHaveBeenCalledWith('s1')
+  })
+
+  it('tells a waiting look at once when the page goes away or the session closes', () => {
+    const view = mount({ order: ['a'], items: itemsOf(user('a')), session: session() })
+    setVisibility('hidden')
+    expect(flushSeen).toHaveBeenCalledWith('s1')
+    vi.clearAllMocks()
+    view.unmount()
+    expect(flushSeen).toHaveBeenCalledWith('s1')
   })
 })

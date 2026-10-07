@@ -73,6 +73,7 @@ func NewServer(cfg Config) http.Handler {
 	s.historyRoutes()
 	s.pushRoutes()
 	s.renameRoutes()
+	s.seenRoutes()
 	s.archiveRoutes()
 	s.fileRoutes()
 	return &auth{token: []byte(cfg.Token), next: s.mux}

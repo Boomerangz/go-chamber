@@ -13,6 +13,7 @@ import { useLayoutStore } from './stores/layout'
 
 vi.mock('./lib/api', () => ({
   fetchHealth: vi.fn(),
+  markSeen: vi.fn(async () => ({})),
   listSessions: vi.fn(),
   listRequests: vi.fn(),
   getQuotas: vi.fn(),
