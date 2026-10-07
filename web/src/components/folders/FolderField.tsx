@@ -2,6 +2,7 @@ import { Folder } from 'lucide-react'
 import { icon } from '../icon'
 import { useEffect, useLayoutEffect, useRef, useState, type Ref } from 'react'
 import FolderPicker from './FolderPicker'
+import { fadeOf } from '../../lib/fade'
 import './FolderField.css'
 
 export interface FolderFieldProps {
@@ -23,9 +24,15 @@ export default function FolderField({ label, placeholder, value, onChange, recen
   const [open, setOpen] = useState(false)
   const browse = useRef<HTMLButtonElement>(null)
   const box = useRef<HTMLDivElement>(null)
+  // Scrolled past its start, the field fades its left edge: the first glyph
+  // in view is cut, and a fade says more lies before it. (Not an ellipsis:
+  // Chromium draws a scrolled, ellipsized input blank.)
+  const [fade, setFade] = useState(false)
+  const measure = (el: HTMLInputElement) => setFade(fadeOf(el.scrollLeft, el.scrollWidth, el.clientWidth).includes('start'))
   // A long path shows its end, the project name, unless the owner is typing in it.
   const showEnd = (el: HTMLInputElement | null) => {
     if (el && document.activeElement !== el) el.scrollLeft = el.scrollWidth
+    if (el) measure(el)
   }
   useLayoutEffect(() => showEnd(box.current?.querySelector('input') ?? null), [value])
   // A field set while hidden (a phone's folded form) or resized (the phone's
@@ -43,7 +50,7 @@ export default function FolderField({ label, placeholder, value, onChange, recen
     browse.current?.focus()
   }
   return (
-    <div ref={box} className="folder-field" data-invalid={invalid || undefined}>
+    <div ref={box} className="folder-field" data-invalid={invalid || undefined} data-fade={fade ? 'start' : undefined}>
       <Folder {...icon(14)} className="icon folder-icon" />
       <input
         ref={inputRef}
@@ -54,6 +61,8 @@ export default function FolderField({ label, placeholder, value, onChange, recen
         value={value}
         onChange={(e) => onChange(e.target.value)}
         onBlur={(e) => showEnd(e.currentTarget)}
+        onScroll={(e) => measure(e.currentTarget)}
+        onSelect={(e) => measure(e.currentTarget)}
       />
       <button ref={browse} type="button" className="btn btn-ghost btn-xs browse" onClick={() => setOpen(true)}>
         Browse

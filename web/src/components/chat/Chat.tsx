@@ -354,6 +354,8 @@ export default function Chat() {
     if (value) setText('')
     sentHere.current = true
     queue.current.push({ key, value, raw: text, images })
+    // The owner's own message is in view at once, even one that waits.
+    stick.stick()
     void pump()
   }
   const submitting = inFlight !== null

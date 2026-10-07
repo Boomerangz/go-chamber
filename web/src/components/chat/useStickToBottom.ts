@@ -23,17 +23,33 @@ export function useStickToBottom(dep: unknown, news: string[]) {
   useEffect(() => {
     const el = ref.current
     if (!el) return
-    const onScroll = () => setPinnedTo(el.scrollHeight - el.scrollTop - el.clientHeight < 48)
+    // A box that shrank (a phone's bar or keyboard back, a strip above the
+    // composer) can scroll in the same frame, before the resize is reported:
+    // that is the box moving, not the owner leaving the end.
+    let height = el.clientHeight
+    const onScroll = () => {
+      const shrank = el.clientHeight < height
+      height = el.clientHeight
+      if (shrank && pinnedRef.current) {
+        el.scrollTop = el.scrollHeight
+        return
+      }
+      setPinnedTo(el.scrollHeight - el.scrollTop - el.clientHeight < 48)
+    }
     // Images load after layout and push the end down; follow them.
     const onLoad = () => {
+      height = el.clientHeight
       if (pinnedRef.current) el.scrollTop = el.scrollHeight
     }
     el.addEventListener('scroll', onScroll, { passive: true })
     el.addEventListener('load', onLoad, true)
     // Rows grow after they mount: a size measured a frame later, a row
-    // off screen laid out once it comes near. Follow them too.
+    // off screen laid out once it comes near. Follow them too. The box
+    // itself shrinks when a strip, a notice or the keyboard takes room
+    // under it; a view at the end stays there.
     if (typeof ResizeObserver !== 'undefined') {
       grown.current = new ResizeObserver(onLoad)
+      grown.current.observe(el)
       for (const child of el.children) grown.current.observe(child)
     }
     return () => {

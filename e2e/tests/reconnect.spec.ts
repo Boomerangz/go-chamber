@@ -1,5 +1,21 @@
 import { expect, test, type WebSocketRoute } from '@playwright/test'
 import { token } from '../playwright.config'
+import { showPane } from './pane'
+
+// Accounts that couldn't be checked while go-chamber was out of reach are
+// checked again once live updates are back, without a tap on Retry.
+test('the accounts are checked again when live updates come back', async ({ page }) => {
+  let down = true
+  await page.routeWebSocket(/\/api\/ws$/, (ws) => (down ? void ws.close() : void ws.connectToServer()))
+  await page.route('**/api/account?*', (route) => (down ? route.abort() : route.continue()))
+  await page.goto(`/?token=${token}`)
+  await showPane(page, 'Sessions')
+  const failed = page.locator('.accounts').getByRole('alert')
+  await expect(failed).toContainText("Couldn't reach the accounts")
+  down = false
+  await expect(failed).toHaveCount(0, { timeout: 15_000 })
+  await expect(page.locator('.accounts')).toContainText('Claude')
+})
 
 // A server restart, as the page sees it: the live socket drops, health and
 // new sockets fail for a while, then both answer again.

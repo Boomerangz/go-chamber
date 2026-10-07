@@ -18,6 +18,8 @@ interface Anchor {
   y: number
   // alignRight lines the menu's right edge up with x (under the button).
   alignRight: boolean
+  // above is where the sheet's foot goes when it has no room below y.
+  above: number
 }
 
 type Step = 'menu' | 'rename' | 'delete' | 'worktree'
@@ -92,7 +94,7 @@ export default function SessionMenu({ session }: { session: Session }) {
       if (e.defaultPrevented) return
       e.preventDefault()
       setStep('menu')
-      setAnchor({ x: e.clientX, y: e.clientY, alignRight: false })
+      setAnchor({ x: e.clientX, y: e.clientY, alignRight: false, above: e.clientY })
     }
     row.addEventListener('contextmenu', onContext)
     return () => row.removeEventListener('contextmenu', onContext)
@@ -104,8 +106,10 @@ export default function SessionMenu({ session }: { session: Session }) {
       return
     }
     const r = triggerRef.current!.getBoundingClientRect()
+    // Below the row, or above it: never over the row the sheet is about.
+    const row = triggerRef.current!.parentElement?.getBoundingClientRect() ?? r
     setStep('menu')
-    setAnchor({ x: r.right, y: r.bottom + 2, alignRight: true })
+    setAnchor({ x: r.right, y: Math.max(r.bottom, row.bottom) + 2, alignRight: true, above: Math.min(r.top, row.top) - 2 })
   }
 
   return (
@@ -215,12 +219,18 @@ function MenuSheet(props: {
   useLayoutEffect(() => {
     const el = sheet.current
     if (!el) return
+    // Measured at the screen's left edge: a fixed sheet shrinks to fit the
+    // room right of where it stands, so measured where the menu was, the
+    // question would take that narrower width and spill once moved left.
+    el.style.left = '0px'
     const { width, height } = el.getBoundingClientRect()
     let left = anchor.alignRight ? anchor.x - width : anchor.x
     let top = anchor.y
     const inset = edge()
     left = Math.max(inset, Math.min(left, window.innerWidth - width - inset))
-    if (top + height > window.innerHeight - inset) top = Math.max(inset, anchor.y - height - (anchor.alignRight ? 30 : 0))
+    if (top + height > window.innerHeight - inset) top = Math.max(inset, anchor.above - height)
+    // Set here too: a left equal to the last one leaves React nothing to write.
+    el.style.left = `${left}px`
     setPos({ left, top })
   }, [anchor, step])
 

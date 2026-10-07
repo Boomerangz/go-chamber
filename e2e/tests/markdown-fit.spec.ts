@@ -80,14 +80,14 @@ const TABLE = [
 ].join('\n')
 
 // tableFit measures the table as a phone shows it.
-function tableFit(page: Page) {
-  return page.locator('.item.assistant', { hasText: 'echo: table' }).locator('.md-table').evaluate((box) => {
+function tableFit(page: Page, name = 'table') {
+  return page.locator('.item.assistant', { hasText: `echo: ${name}` }).locator('.md-table').evaluate((box) => {
     const words: string[] = []
-    // a word (or number) outside code is never cut across lines
+    // a word (or number) outside code and paths is never cut across lines
     for (const td of box.querySelectorAll('td')) {
       const walk = document.createTreeWalker(td, NodeFilter.SHOW_TEXT)
       for (let n = walk.nextNode() as Text | null; n; n = walk.nextNode() as Text | null) {
-        if (n.parentElement!.closest('code')) continue
+        if (n.parentElement!.closest('code, .md-path')) continue
         const re = /\S+/g
         for (let m = re.exec(n.data); m; m = re.exec(n.data)) {
           const r = document.createRange()
@@ -129,6 +129,40 @@ test('a three-column table with a long path reads on a phone', async ({ page }) 
       expect(fit.fade, `${width} fade`).toContain('end')
       expect(fit.mask, `${width} mask`).not.toBe('none')
     } else expect(fit.fade, `${width} no fade`).toBe('')
+  }
+})
+
+// The same with the path in plain text, first: it breaks between its
+// folders rather than take its whole width, so the words beside it keep a
+// readable column and the last column stays in view.
+const PLAIN = [
+  'plain paths',
+  '',
+  '| File | Change | Risk |',
+  '|---|---|---|',
+  '| internal/adapters/http/worktree_continue_handler.go | Continues a worktree session after the folder was moved back | high |',
+  '| web/src/components/sessions/SessionList.tsx | Reorders the list | low |',
+].join('\n')
+
+test('a table whose first column holds a plain-text path reads on a phone', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 800 })
+  await newSession(page)
+  await page.getByLabel('Message').fill(PLAIN)
+  await page.getByRole('button', { name: 'Send' }).click()
+  const reply = page.locator('.item.assistant', { hasText: 'echo: plain paths' })
+  await expect(reply.locator('table')).toBeVisible()
+  for (const width of [390, 360]) {
+    await page.setViewportSize({ width, height: 800 })
+    await expect.poll(async () => (await tableFit(page, 'plain paths')).words, { message: `${width} words` }).toEqual([])
+    const fit = await tableFit(page, 'plain paths')
+    expect(fit.descWidth, `${width} change`).toBeGreaterThanOrEqual(100)
+    expect(fit.pageSideways, `${width} page`).toBeLessThanOrEqual(0)
+    // the Risk column is in the box's view, not behind its fade
+    const risk = await reply.locator('.md-table').evaluate((box) => {
+      const cell = box.querySelector('tbody td:last-child')!.getBoundingClientRect()
+      return cell.right - box.getBoundingClientRect().right
+    })
+    expect(risk, `${width} risk`).toBeLessThanOrEqual(0)
   }
 })
 

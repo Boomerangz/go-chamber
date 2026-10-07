@@ -12,6 +12,19 @@ describe('Markdown', () => {
     expect(container.querySelector('table')).not.toBeNull()
   })
 
+  it('lets a long path in a table cell break between its folders, keeping its alignment', () => {
+    const { container } = render(
+      <Markdown text={'| Path | n |\n|---|---:|\n| web/src/components/Chat.tsx and more | 1290/1300 |'} />,
+    )
+    const [path, n] = container.querySelectorAll('td')
+    expect(path!.querySelectorAll('wbr')).toHaveLength(3)
+    expect(path).toHaveTextContent('web/src/components/Chat.tsx and more')
+    expect(path).toHaveClass('md-path')
+    expect(n!.querySelector('wbr')).toBeNull()
+    expect(n).not.toHaveClass('md-path')
+    expect(n!.style.textAlign).toBe('right')
+  })
+
   it('keeps inline code inline', () => {
     const { container } = render(<Markdown text={'run `ls -la` now'} />)
     expect(container.querySelector('code')).toHaveTextContent('ls -la')

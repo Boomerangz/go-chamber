@@ -726,6 +726,10 @@ button.health { border: 0; background: none; padding: 0; }
 @media (max-width: 720px) {
   .md td { min-width: calc(8ch + 20px); }
   .md td code { white-space: normal; overflow-wrap: anywhere; }
+  /* a long path in a cell's text breaks between its folders (inside a
+     folder name only when that alone is too long): its column keeps a
+     readable minimum and leaves the rest to the words beside it */
+  .md td.md-path { width: 1%; min-width: calc(14ch + 20px); overflow-wrap: anywhere; }
 }
 /* images fit the column; remote ones are links, failed ones a line of words */
 .md img { display: block; max-width: 100%; height: auto; margin: 4px 0; }

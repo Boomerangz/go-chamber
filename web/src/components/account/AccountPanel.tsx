@@ -7,7 +7,7 @@ import { describeError, fail } from '../../stores/notices'
 import { useSessionStore } from '../../stores/session'
 import { icon } from '../icon'
 import { LoadFailed, LoadingLine } from '../ui/Loading'
-import { useAccountChecks } from './checks'
+import { followConnection, useAccountChecks } from './checks'
 import './AccountPanel.css'
 
 const POLL_MS = 3000
@@ -32,6 +32,7 @@ export function Accounts() {
   const retryAll = useAccountChecks((s) => s.retryAll)
   const quotasDown = useSessionStore((s) => s.quotasStatus === 'error' && s.quotas.length === 0)
   const loadQuotas = useSessionStore((s) => s.loadQuotas)
+  useEffect(() => followConnection(), [])
   const down = agents.filter((a) => failed[a] !== undefined)
   let line: string | null = null
   if (down.length === agents.length) {
