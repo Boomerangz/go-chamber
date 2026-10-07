@@ -71,6 +71,9 @@ type GitRepo interface {
 	FileDiff(ctx context.Context, dir, base, path string) (string, error)
 	// Commits counts the commits on dir's HEAD since base.
 	Commits(ctx context.Context, dir, base string) (int, error)
+	// Ahead counts the commits on branch that repo's HEAD doesn't have and
+	// names the branch HEAD is on; a branch that is gone counts none.
+	Ahead(ctx context.Context, repo, branch string) (ahead int, head string, err error)
 }
 
 // WorktreeSessions is the session manager subset worktrees need.
@@ -185,6 +188,52 @@ func (w *Worktrees) Changes(ctx context.Context, id domain.SessionID) (Changes, 
 		}
 	}
 	return Changes{Repository: true, Root: root, Base: base, Files: files, Commits: commits}, nil
+}
+
+// Unmerged is a worktree branch that a fork's repository hasn't taken in:
+// the fork was made after its parent's worktree was removed, so it works in
+// the repository while the branch may still hold the parent's commits.
+type Unmerged struct {
+	Branch string `json:"branch"`
+	// Into is the branch the repository is on ("HEAD" when detached).
+	Into  string `json:"into"`
+	Ahead int    `json:"ahead"`
+	// Merge is the command that merges Branch into Into.
+	Merge string `json:"merge"`
+}
+
+// Unmerged names the branch a fork left behind while it has commits the
+// repository doesn't; nil when there is none or it is merged.
+func (w *Worktrees) Unmerged(ctx context.Context, id domain.SessionID) (*Unmerged, error) {
+	snap, err := w.cfg.Sessions.GetSession(ctx, id)
+	if err != nil || snap.ForkOf == "" || snap.Worktree != nil {
+		return nil, err
+	}
+	parent, err := w.cfg.Sessions.GetSession(ctx, snap.ForkOf)
+	if errors.Is(err, ErrSessionNotFound) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	wt := parent.Worktree
+	if wt == nil || !wt.Removed || wt.Repo != snap.Cwd {
+		return nil, nil
+	}
+	ahead, head, err := w.cfg.Git.Ahead(ctx, wt.Repo, wt.Branch)
+	if err != nil || ahead == 0 {
+		return nil, err
+	}
+	return &Unmerged{Branch: wt.Branch, Into: head, Ahead: ahead, Merge: mergeCommand(wt.Repo, wt.Branch)}, nil
+}
+
+// mergeCommand merges branch in repo from any folder; a repo path a shell
+// would split is single-quoted. Branch names go-chamber makes need no quotes.
+func mergeCommand(repo, branch string) string {
+	if strings.ContainsAny(repo, " \t\n'\"$`\\!*?[]{}()<>|&;#~") {
+		repo = "'" + strings.ReplaceAll(repo, "'", `'\''`) + "'"
+	}
+	return "git -C " + repo + " merge " + branch
 }
 
 // FileDiff is the unified diff of one changed file of the session folder.

@@ -21,6 +21,7 @@ type stubWorktrees struct {
 	err       error
 	deleted   domain.SessionID
 	folder    bool
+	unmerged  *app.Unmerged
 }
 
 func (s *stubWorktrees) Delete(_ context.Context, id domain.SessionID, removeFolder bool) error {
@@ -45,6 +46,30 @@ func (s *stubWorktrees) Changes(_ context.Context, id domain.SessionID) (app.Cha
 func (s *stubWorktrees) FileDiff(_ context.Context, id domain.SessionID, path string) (string, error) {
 	s.path = path
 	return "+x", s.err
+}
+
+func (s *stubWorktrees) Unmerged(_ context.Context, id domain.SessionID) (*app.Unmerged, error) {
+	s.path = string(id)
+	return s.unmerged, s.err
+}
+
+func TestUnmergedEndpoint(t *testing.T) {
+	stub := &stubWorktrees{}
+	h := newWorktreeServer(stub, nil)
+	rec := do(h, authed("GET", "/api/sessions/f1/unmerged", ""))
+	if rec.Code != http.StatusOK || rec.Body.String() != "{\"unmerged\":null}\n" || stub.path != "f1" {
+		t.Fatalf("none: %d %q", rec.Code, rec.Body.String())
+	}
+	stub.unmerged = &app.Unmerged{Branch: "chamber/x", Into: "main", Ahead: 2, Merge: "git -C /r merge chamber/x"}
+	rec = do(h, authed("GET", "/api/sessions/f1/unmerged", ""))
+	want := `{"unmerged":{"branch":"chamber/x","into":"main","ahead":2,"merge":"git -C /r merge chamber/x"}}` + "\n"
+	if rec.Code != http.StatusOK || rec.Body.String() != want {
+		t.Fatalf("branch: %d %q", rec.Code, rec.Body.String())
+	}
+	stub.err = app.ErrSessionNotFound
+	if rec := do(h, authed("GET", "/api/sessions/f1/unmerged", "")); rec.Code != http.StatusNotFound {
+		t.Fatalf("missing: %d", rec.Code)
+	}
 }
 
 func newWorktreeServer(w Worktrees, sessions Sessions) http.Handler {

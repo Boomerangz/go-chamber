@@ -233,6 +233,30 @@ func (r Repo) Commits(ctx context.Context, dir, base string) (int, error) {
 	return n, nil
 }
 
+// Ahead counts the commits on branch that repo's HEAD doesn't have, and
+// names the branch HEAD is on ("HEAD" when detached). A branch that no
+// longer exists has nothing to merge.
+func (r Repo) Ahead(ctx context.Context, repo, branch string) (int, string, error) {
+	head, err := run(ctx, repo, "rev-parse", "--abbrev-ref", "HEAD")
+	if err != nil {
+		return 0, "", err
+	}
+	head = strings.TrimSpace(head)
+	ref := "refs/heads/" + branch
+	if _, err := run(ctx, repo, "rev-parse", "--verify", "-q", ref); err != nil {
+		return 0, head, nil
+	}
+	out, err := run(ctx, repo, "rev-list", "--count", "HEAD.."+ref, "--")
+	if err != nil {
+		return 0, head, err
+	}
+	n, err := strconv.Atoi(strings.TrimSpace(out))
+	if err != nil {
+		return 0, head, fmt.Errorf("git rev-list: %q: %w", out, err)
+	}
+	return n, head, nil
+}
+
 func resolve(ctx context.Context, dir, base string) (string, error) {
 	if _, err := run(ctx, dir, "rev-parse", "--verify", "-q", base+"^{commit}"); err == nil {
 		return base, nil

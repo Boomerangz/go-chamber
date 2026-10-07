@@ -17,6 +17,8 @@ type Worktrees interface {
 	FileDiff(ctx context.Context, id domain.SessionID, path string) (string, error)
 	// Delete removes the session, and with removeFolder its worktree folder.
 	Delete(ctx context.Context, id domain.SessionID, removeFolder bool) error
+	// Unmerged names the branch a fork left behind with commits to merge.
+	Unmerged(ctx context.Context, id domain.SessionID) (*app.Unmerged, error)
 }
 
 func (s *server) worktreeRoutes() {
@@ -27,6 +29,18 @@ func (s *server) worktreeRoutes() {
 	s.mux.HandleFunc("DELETE /api/sessions/{id}/worktree", s.removeWorktree)
 	s.mux.HandleFunc("GET /api/sessions/{id}/changes", s.sessionChanges)
 	s.mux.HandleFunc("GET /api/sessions/{id}/changes/diff", s.fileDiff)
+	s.mux.HandleFunc("GET /api/sessions/{id}/unmerged", s.unmerged)
+}
+
+func (s *server) unmerged(w http.ResponseWriter, r *http.Request) {
+	branch, err := s.cfg.Worktrees.Unmerged(r.Context(), sessionID(r))
+	if err != nil {
+		s.failWorktree(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, struct {
+		Unmerged *app.Unmerged `json:"unmerged"`
+	}{branch})
 }
 
 func (s *server) createWorktree(w http.ResponseWriter, r *http.Request) {
