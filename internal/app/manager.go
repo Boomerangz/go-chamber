@@ -811,6 +811,9 @@ func (m *Manager) consume(s *domain.Session, rt AgentRuntime) {
 			}
 			s.NoteTurnEnd(m.cfg.Now())
 		case domain.EventRequestOpened:
+			if ev.Request.OpenedAt.IsZero() {
+				ev.Request.OpenedAt = m.cfg.Now().UTC()
+			}
 			if m.pending[s.ID()] == nil {
 				m.pending[s.ID()] = map[domain.RequestID]*domain.Request{}
 			}

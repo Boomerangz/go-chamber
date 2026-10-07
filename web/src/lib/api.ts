@@ -168,6 +168,8 @@ export interface SessionRequest {
   payload?: RequestPayload
   state: RequestState
   answer?: unknown
+  // openedAt is when go-chamber received the request.
+  openedAt?: string
 }
 
 export interface RequestAnswerInput {

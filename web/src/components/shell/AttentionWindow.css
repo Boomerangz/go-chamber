@@ -1,33 +1,63 @@
 .attention-body { margin: 0; overflow: auto; height: auto; min-width: 0; }
-.attention-panel { padding: 14px; display: flex; flex-direction: column; gap: 16px; min-height: 100dvh; box-sizing: border-box; }
+.attention-panel { padding: 14px; display: flex; flex-direction: column; gap: 14px; min-height: 100dvh; box-sizing: border-box; }
 .attention-panel header { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .attention-summary { margin: 0; font-family: var(--font-mono); font-size: 12px; }
 .attention-panel .panel { padding: 0; }
 .attention-panel .request-tray { max-height: none; }
-.attention-panel .tray-empty { display: block; color: var(--ink-3); font-size: 13px; }
 .attention-panel .tray-actions { flex-wrap: wrap; }
-.attention-session { display: flex; flex-direction: column; gap: 8px; width: 100%; padding: 14px 0; border-bottom: 1px solid var(--rule); color: var(--ink); }
+.attention-panel .live-strip { margin: 0; }
+/* the panel's own paused line covers the inbox too: say it once */
+.attention-inbox .live-strip { display: none; }
+/* one quiet line for every empty list here, the inbox's included */
+.attention-panel .tray-empty, .attention-empty { display: block; margin: 0; color: var(--ink-3); font-size: 13px; }
+.attention-panel .loading-line, .attention-panel .load-failed { margin: 0; }
+/* cards are divided by hairlines between them: the last one leaves the
+   floating panel's footer rule alone */
+.attention-session { display: flex; flex-direction: column; gap: 4px; width: 100%; min-width: 0; padding: 10px 0; color: var(--ink); }
+.attention-session + .attention-session { border-top: 1px solid var(--rule); }
 .attention-session span { max-width: 100%; overflow-wrap: anywhere; }
 .attention-session small, .attention-panel footer { color: var(--ink-3); font-size: 12px; }
 .attention-panel footer { margin-top: auto; padding-top: 12px; border-top: 1px solid var(--rule); }
 .attention-session-head { display: flex; justify-content: space-between; gap: 12px; font: 12px var(--font-mono); color: var(--ink-3); }
-.attention-session-head > :last-child { flex: none; font-variant-numeric: tabular-nums; }
-.attention-task { padding: 0; background: transparent; border: 0; color: var(--ink); text-align: left; font-size: 14px; font-weight: 600; cursor: pointer; overflow-wrap: anywhere; }
+.attention-session-head > :last-child, .attention-clock { flex: none; font-variant-numeric: tabular-nums; }
+/* the task is one line cut to the card's width; the whole of it on hover */
+.attention-task {
+  display: block; max-width: 100%; padding: 0; background: transparent; border: 0; color: var(--ink);
+  text-align: left; font: 600 14px/1.4 var(--font-ui); cursor: pointer;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
 .attention-task:hover { text-decoration: underline; }
-.attention-action { display: flex; flex-wrap: wrap; gap: 6px; color: var(--ink-2); font: 12px var(--font-mono); }
-.attention-action > :first-child { overflow-wrap: anywhere; }
-.attention-panel .attention-action, .attention-panel .attention-result, .attention-panel .attention-waiting { margin: 0; }
-.attention-waiting { color: var(--req); font: 12px var(--font-mono); }
-.attention-outcome { font: 12px var(--font-mono); }
+.attention-action { display: flex; align-items: baseline; gap: 8px; color: var(--ink-2); font: 12px var(--font-mono); }
+.attention-action-label { flex: 1 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.attention-panel .attention-action, .attention-panel .attention-result { margin: 0; }
+.attention-waiting {
+  display: flex; align-items: baseline; gap: 8px; width: 100%; padding: 0; border: 0; background: none;
+  color: var(--req); font: 12px var(--font-mono); text-align: left; cursor: pointer;
+}
+.attention-waiting > :first-child { flex: 1 1 auto; }
+.attention-waiting > :last-child:not(:first-child) { flex: none; font-variant-numeric: tabular-nums; }
+.attention-waiting:hover > :first-child { text-decoration: underline; }
+/* outcome, result and its actions share one line while there is room */
+.attention-result-line { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; min-width: 0; }
+/* an outcome annotates the card: a bracketed mono keyword */
+.attention-session .attention-outcome { flex: none; font: 400 12px var(--font-mono); text-transform: uppercase; letter-spacing: 0.02em; }
+.attention-outcome::before { content: '['; }
+.attention-outcome::after { content: ']'; }
 .attention-session[data-outcome='Failed'] .attention-outcome { color: var(--bad); }
-.attention-result { font-size: 13px; overflow-wrap: anywhere; }
-.attention-result-actions { display: flex; gap: 8px; }
+.attention-result { flex: 1 1 140px; min-width: 0; font-size: 13px; color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.attention-result-actions { display: flex; gap: 8px; margin-left: auto; }
 
 .attention-overview { min-height: 0; overflow-y: auto; padding: 24px max(20px, calc((100% - 800px) / 2)); }
 .attention-overview h2 { margin: 0; }
-.attention-overview .btn, .attention-overview .attention-task { min-height: 44px; }
+/* a finger needs room; a mouse doesn't */
+@media (pointer: coarse) {
+  .attention-panel .btn, .attention-task, .attention-waiting { min-height: 44px; }
+}
+.overview-toggle[aria-pressed='true'], .pip-toggle[aria-pressed='true'] { color: var(--ink); border-color: var(--ink); }
 @media (max-width: 720px) {
   /* a phone has no floating windows, and its top bar no room to spare */
   .overview-toggle, .pip-toggle { display: none; }
+  /* the pane bar right below already leads to Sessions */
+  .attention-overview .attention-leave { display: none; }
   .attention-overview { padding: 16px 16px calc(76px + env(safe-area-inset-bottom)); }
 }

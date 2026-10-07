@@ -159,6 +159,22 @@ describe('Hotkeys', () => {
     expect(useLayoutStore.getState().dock).toBeNull()
   })
 
+  it('brings the workspace back from the Overview for f, d and t', async () => {
+    render(<Hotkeys />)
+    useSessionStore.setState({ activeId: 's1', pane: 'overview' })
+    await userEvent.keyboard('f')
+    expect(useSessionStore.getState().pane).toBe('chat')
+    expect(useLayoutStore.getState().focus).toBe(true)
+    act(() => useSessionStore.setState({ pane: 'overview' }))
+    act(() => useLayoutStore.setState({ focus: false }))
+    await userEvent.keyboard('d')
+    expect(useSessionStore.getState().pane).toBe('chat')
+    expect(useLayoutStore.getState().dock).toBe('changes')
+    act(() => useSessionStore.setState({ pane: 'overview', activeId: null }))
+    await userEvent.keyboard('j')
+    expect(useSessionStore.getState().pane).toBe('sessions')
+  })
+
   it('hides and shows the sessions list with the mod key and B', async () => {
     useLayoutStore.setState({ sidebar: true })
     render(<Hotkeys />)

@@ -664,6 +664,39 @@ func TestRequestLifecycle(t *testing.T) {
 	}
 }
 
+// A request says when it opened, so every device can show how long it has
+// waited, not only the one that saw it arrive.
+func TestRequestOpenedCarriesItsTime(t *testing.T) {
+	repo, bus, factory, ids := newMemRepo(), newFakeBus(), &fakeFactory{}, &counter{}
+	at := time.Date(2026, 10, 7, 12, 0, 0, 0, time.FixedZone("x", 3600))
+	m := NewManager(ManagerConfig{
+		Repo: repo, Runtimes: factory, Bus: bus,
+		NewID: func() string { return ids.next() },
+		Now:   func() time.Time { return at },
+	})
+	ctx := context.Background()
+	snap := createClaude(t, m)
+	rt := newFakeRuntime("n1")
+	factory.runtimes = []*fakeRuntime{rt}
+	if err := m.SendMessage(ctx, snap.ID, "hi"); err != nil {
+		t.Fatal(err)
+	}
+	rt.events <- requestEvent(snap.ID, "r1")
+	eventually(t, "pending request", func() bool { return len(m.PendingRequests(ctx)) == 1 })
+	if got := m.PendingRequests(ctx)[0].OpenedAt; !got.Equal(at) || got.Location() != time.UTC {
+		t.Fatalf("pending openedAt = %v, want %v in UTC", got, at)
+	}
+	var opened *domain.Request
+	for _, ev := range bus.snapshot() {
+		if ev.Type == domain.EventRequestOpened {
+			opened = ev.Request
+		}
+	}
+	if opened == nil || !opened.OpenedAt.Equal(at) {
+		t.Fatalf("published request = %+v", opened)
+	}
+}
+
 func TestRespondRequestRecordsDecision(t *testing.T) {
 	cases := []struct {
 		name     string
