@@ -10,6 +10,7 @@ export function useStickToBottom(dep: unknown, news: string[]) {
   const newsRef = useRef(news)
   const [pinned, setPinned] = useState(true)
   const [base, setBase] = useState<ReadonlySet<string>>(() => new Set())
+  const grown = useRef<ResizeObserver | null>(null)
   useEffect(() => {
     newsRef.current = news
   }, [news])
@@ -29,14 +30,25 @@ export function useStickToBottom(dep: unknown, news: string[]) {
     }
     el.addEventListener('scroll', onScroll, { passive: true })
     el.addEventListener('load', onLoad, true)
+    // Rows grow after they mount: a size measured a frame later, a row
+    // off screen laid out once it comes near. Follow them too.
+    if (typeof ResizeObserver !== 'undefined') {
+      grown.current = new ResizeObserver(onLoad)
+      for (const child of el.children) grown.current.observe(child)
+    }
     return () => {
       el.removeEventListener('scroll', onScroll)
       el.removeEventListener('load', onLoad, true)
+      grown.current?.disconnect()
+      grown.current = null
     }
   }, [setPinnedTo])
   useLayoutEffect(() => {
     const el = ref.current
-    if (el && pinnedRef.current) el.scrollTop = el.scrollHeight
+    if (!el) return
+    // The transcript replaces its placeholder once loaded; watch what is there now.
+    for (const child of el.children) grown.current?.observe(child)
+    if (pinnedRef.current) el.scrollTop = el.scrollHeight
   }, [dep])
   const stick = useCallback(() => {
     setPinnedTo(true)
