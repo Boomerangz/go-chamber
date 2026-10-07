@@ -1,4 +1,5 @@
 import { act, render } from '@testing-library/react'
+import { useEffect } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { useStickToBottom } from './useStickToBottom'
 
@@ -17,7 +18,9 @@ class Observer {
 let unpin: () => void = () => {}
 function Chat({ dep }: { dep: number }) {
   const [ref, stick] = useStickToBottom(dep, [])
-  unpin = stick.unpin
+  useEffect(() => {
+    unpin = stick.unpin
+  })
   return (
     <div ref={ref} data-testid="scroll">
       <ol className="items" />

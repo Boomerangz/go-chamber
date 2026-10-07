@@ -1,11 +1,14 @@
 import { act, render } from '@testing-library/react'
+import { useEffect } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { useClip, type Clip } from './useClip'
 
 let seen: Clip | undefined
 function Box() {
   const [ref, clip] = useClip<HTMLDivElement>([])
-  seen = clip
+  useEffect(() => {
+    seen = clip
+  })
   return <div ref={ref} />
 }
 
