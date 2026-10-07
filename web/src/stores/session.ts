@@ -5,6 +5,7 @@ import { applyEvents, initialChat, type ChatState } from '../lib/events'
 import type { GroupMode } from '../lib/sessions'
 import { LiveList } from '../lib/live-list'
 import { chimeOnEvent } from '../lib/chime'
+import { bindPresence, setActiveClient, startPresence } from '../lib/presence'
 import { describeError, dropSessionNotices, fail, useNotices } from './notices'
 import { parseRoute } from '../lib/route'
 import { branchError, folderError } from '../lib/branch'
@@ -747,6 +748,16 @@ function connect(
   socket = ws
   set({ connection: 'connecting' })
   ws.onopen = () => {
+    // Say where this page is: the server pushes nothing about a session a
+    // focused page shows, and tells every page which one should chime.
+    startPresence()
+    bindPresence((frame) => {
+      try {
+        ws.send(frame)
+      } catch {
+        // Closing already: onclose unbinds, and the next socket says it again.
+      }
+    })
     reconnectDelay = 1000
     set({ connection: 'online', nextRetryAt: null })
     // Anything missed while offline: reload the lists the socket feeds.
@@ -762,6 +773,7 @@ function connect(
   ws.onclose = () => {
     if (socket !== ws) return
     socket = null
+    bindPresence(null)
     set({ connection: 'offline', nextRetryAt: Date.now() + reconnectDelay })
     reconnectTimer = setTimeout(() => {
       reconnectTimer = null
@@ -773,7 +785,12 @@ function connect(
   ws.onerror = () => set({ connection: 'offline' })
   ws.onmessage = (msg) => {
     try {
-      get().applyIncoming(JSON.parse(msg.data as string) as api.SessionEvent)
+      const frame = JSON.parse(msg.data as string) as api.SessionEvent | { type: 'presence'; active?: string }
+      if (frame.type === 'presence') {
+        setActiveClient((frame as { active?: string }).active ?? '')
+        return
+      }
+      get().applyIncoming(frame as api.SessionEvent)
     } catch {
       // ignore malformed frames
     }

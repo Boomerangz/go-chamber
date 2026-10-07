@@ -54,7 +54,7 @@ test('what the owner read on one device is not new on the other', async ({ page,
   await expect(row(page, title)).toBeVisible()
   await expect(row(page, title)).not.toContainText('working')
   await expect(row(page, title).locator('.session-unseen')).toHaveCount(0)
-  await expect(page.locator('.group-unseen')).toHaveCount(0)
+  await expect(page.locator('.group', { has: row(page, title) }).locator('.group-unseen')).toHaveCount(0)
   await row(page, title).click()
   await expect(page.locator('.item.assistant', { hasText: `echo: ${title}` })).toBeVisible()
   await expect(page.locator('.unseen-mark')).toHaveCount(0)
@@ -74,5 +74,61 @@ test('what the owner read on one device is not new on the other', async ({ page,
   await row(phone, title).click()
   await expect(phone.locator('.item.assistant', { hasText: 'echo: more please' })).toBeVisible()
   await expect(row(page, title).locator('.session-unseen')).toHaveCount(0)
+  await phoneContext.close()
+})
+
+// Sounds on everywhere, the chime plays once: on the page the owner was at
+// last, whichever device it is on. Presence is server-wide, so a page of a
+// spec running alongside may take "last" for a moment: the page that should
+// sound is focused again before each try, and the other must stay silent.
+test('a finished turn chimes only where the owner was last', async ({ page, browser, isMobile }) => {
+  // It brings its own phone; two runs at once would take "last" from each other.
+  test.skip(isMobile, 'the desktop run has a phone of its own')
+  const listen = async (p: Page) => {
+    await p.addInitScript(() => {
+      localStorage.setItem('gc.sound', 'on')
+      const w = window as unknown as { tones: number }
+      w.tones = 0
+      const create = AudioContext.prototype.createOscillator
+      AudioContext.prototype.createOscillator = function () {
+        w.tones++
+        return create.call(this)
+      }
+    })
+    await p.goto(`/?token=${token}`)
+  }
+  const tones = (p: Page) => p.evaluate(() => (window as unknown as { tones: number }).tones)
+  // A focus event says "the owner is here", as switching to the page does.
+  const focus = (p: Page) => p.evaluate(() => window.dispatchEvent(new Event('focus')))
+  const phoneContext = await browser.newContext({ ...devices['Pixel 7'] })
+  const phone = await phoneContext.newPage()
+  await listen(page)
+  await listen(phone)
+  const id = await newSession(page.request)
+  let turns = 0
+  const finish = async () => {
+    const was = (await snapshot(page.request, id)).endedAt ?? ''
+    const sent = await page.request.post(`/api/sessions/${id}/messages`, { headers, data: { text: `turn ${++turns}` } })
+    expect(sent.ok()).toBe(true)
+    await expect.poll(async () => (await snapshot(page.request, id)).endedAt ?? '').not.toBe(was)
+  }
+  const chimesOn = async (here: Page, silent: Page) => {
+    const quiet = await tones(silent)
+    await expect
+      .poll(async () => {
+        await focus(here)
+        const before = await tones(here)
+        await finish()
+        // Chimes within 600ms of each other make one sound.
+        await here.waitForTimeout(700)
+        return (await tones(here)) > before
+      }, { timeout: 20_000 })
+      .toBe(true)
+    expect(await tones(silent)).toBe(quiet)
+  }
+
+  await chimesOn(page, phone)
+  // The owner picks up the phone.
+  await chimesOn(phone, page)
   await phoneContext.close()
 })
