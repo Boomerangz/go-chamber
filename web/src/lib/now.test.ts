@@ -20,6 +20,17 @@ describe('useNow', () => {
     expect(result.current).toBe(1000)
   })
 
+  it('reads the clock again when ticking resumes, not on the first tick', () => {
+    vi.useFakeTimers({ now: 1000 })
+    const { result, rerender } = renderHook(({ interval }: { interval: number | null }) => useNow(interval), {
+      initialProps: { interval: 1000 as number | null },
+    })
+    rerender({ interval: null })
+    act(() => vi.advanceTimersByTime(7300))
+    rerender({ interval: 1000 })
+    expect(result.current).toBe(8300)
+  })
+
   it('stops ticking when unmounted', () => {
     vi.useFakeTimers({ now: 1000 })
     const { unmount } = renderHook(() => useNow(100))
