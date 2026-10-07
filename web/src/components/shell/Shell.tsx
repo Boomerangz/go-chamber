@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { useNow } from '../../lib/now'
 import type { Health } from '../../lib/api'
 import { useRequestsFailure, useWaitingCount } from '../../lib/waiting'
-import { Activity, ChevronsRight, FileDiff, Inbox, List, MessageSquareText, SquareTerminal } from 'lucide-react'
+import { Activity, ChevronsRight, LogOut, FileDiff, Inbox, List, MessageSquareText, SquareTerminal } from 'lucide-react'
 import { icon } from '../icon'
 import { DOCK_MAX, DOCK_MIN, SIDEBAR_MAX, SIDEBAR_MIN, useLayoutStore, visibleDock, type DockTab, type Mode } from '../../stores/layout'
 import { useSidebarShown } from './sidebarShown'
@@ -469,7 +469,8 @@ export function SignOut({ className }: { className?: string }) {
     return (
       <div className={className}>
         <button ref={ask} type="button" className="btn btn-ghost" onClick={() => setAsking(true)}>
-          Sign out
+          <LogOut {...icon(16)} className="icon bar-icon" />
+          <span className="bar-label">Sign out</span>
         </button>
       </div>
     )
