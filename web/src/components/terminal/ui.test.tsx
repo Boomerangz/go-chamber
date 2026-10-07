@@ -541,6 +541,16 @@ describe('TerminalPanel', () => {
     expect(screen.getByRole('button', { name: 'Home folder' })).toBeInTheDocument()
   })
 
+  it('says how many shells a restart ended, in the dock and in terminal mode', () => {
+    useTerminalStore.setState({ loaded: true, terminals: [], ended: 1 })
+    const { unmount } = render(<TerminalPanel sessionId={null} />)
+    expect(screen.getByRole('status', { name: 'Shells ended' })).toHaveTextContent('1 shell ended when go-chamber restarted')
+    unmount()
+    useTerminalStore.setState({ ended: 3 })
+    render(<TerminalWorkspace sessions={[]} />)
+    expect(screen.getByRole('status', { name: 'Shells ended' })).toHaveTextContent('3 shells ended when go-chamber restarted')
+  })
+
   it('says a removed worktree takes no shell either', () => {
     const worktree = { repo: '/src/app', path: '/wt/app/fix', branch: 'chamber/fix', base: 'abc', removed: true }
     useSessionStore.setState({ sessions: [{ id: 'w', agent: 'claude', cwd: '/wt/app/fix', status: 'detached', worktree }] })

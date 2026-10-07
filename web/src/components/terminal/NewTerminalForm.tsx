@@ -54,3 +54,16 @@ export function OpenError() {
     </p>
   )
 }
+
+// EndedNote says, in one line, that shells this tab knew ended when the
+// server restarted, instead of letting them vanish; it goes once a shell
+// is opened.
+export function EndedNote() {
+  const ended = useTerminalStore((s) => s.ended)
+  if (ended === 0) return null
+  return (
+    <p className="terminal-hint term-ended" role="status" aria-label="Shells ended">
+      {ended} {ended === 1 ? 'shell' : 'shells'} ended when go-chamber restarted
+    </p>
+  )
+}

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strconv"
 
 	"github.com/coder/websocket"
 	"github.com/coder/websocket/wsjson"
@@ -24,7 +25,10 @@ type Terminals interface {
 	Close(id domain.TerminalID) error
 }
 
+// listTerminals names the server run in a header: shells don't outlive it,
+// so a client that knew shells of another run knows they ended with it.
 func (s *server) listTerminals(w http.ResponseWriter, _ *http.Request) {
+	w.Header().Set("X-Go-Chamber-Run", strconv.FormatInt(s.started.UnixNano(), 36))
 	writeJSON(w, http.StatusOK, s.cfg.Terminals.List())
 }
 

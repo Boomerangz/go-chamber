@@ -10,7 +10,7 @@ import FolderField from '../folders/FolderField'
 import { LoadFailed, LoadingLine } from '../ui/Loading'
 import PathText from '../ui/PathText'
 import CloseTerminalButton from './CloseTerminalButton'
-import { OpenError } from './NewTerminalForm'
+import { EndedNote, OpenError } from './NewTerminalForm'
 import TerminalScreen from './TerminalScreen'
 import { markOf, sortForSession } from './marks'
 import { stepOf, stepTerminal, useTerminalSteps } from './steps'
@@ -102,6 +102,7 @@ export default function TerminalPanel({ sessionId }: { sessionId: string | null 
         <NewTerminalButton sessionId={gone ? null : sessionId} terminals={sorted} onPick={pick} />
       </div>
       <OpenError />
+      <EndedNote />
       {loadError && (
         <LoadFailed onRetry={() => void load()}>
           {loaded || terminals.length > 0 ? `Couldn't refresh shells: ${loadError}` : `Couldn't load shells: ${loadError}`}

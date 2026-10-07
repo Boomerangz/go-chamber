@@ -8,6 +8,7 @@ import {
   openTerminal,
   type OpenTerminalOptions,
   type Terminal,
+  type TerminalList,
   type TerminalState,
 } from '../lib/terminal'
 
@@ -46,6 +47,9 @@ interface TerminalStoreState {
   findTick: number
   // unseen marks terminals scrolled up while new output arrived below.
   unseen: Record<string, true>
+  // ended counts the shells this tab knew that a server restart ended,
+  // until a shell is opened.
+  ended: number
   load: () => Promise<void>
   open: (opts: OpenTerminalOptions) => Promise<boolean>
   dismissOpenError: () => void
@@ -77,6 +81,7 @@ const initial = {
   finding: null as string | null,
   findTick: 0,
   unseen: {} as Record<string, true>,
+  ended: 0,
 }
 
 const STORAGE_KEY = 'go-chamber.terminal'
@@ -99,6 +104,41 @@ function remember(id: string | null) {
   } catch {
     // storage unavailable: the selection just won't survive a reload
   }
+}
+
+// The shells this tab knew, and the server run they belong to, are kept per
+// tab: a list from another run that lacks some of them means a restart
+// ended them; in the same run they were closed (maybe from elsewhere).
+const KNOWN_KEY = 'go-chamber.terminal.known'
+
+interface Known {
+  run: string
+  ids: string[]
+}
+
+function knownShells(): Known | null {
+  try {
+    const known = JSON.parse(sessionStorage.getItem(KNOWN_KEY) ?? 'null') as Known | null
+    return known && typeof known.run === 'string' && Array.isArray(known.ids) ? known : null
+  } catch {
+    return null
+  }
+}
+
+function keepKnown(known: Known | null) {
+  try {
+    if (known) sessionStorage.setItem(KNOWN_KEY, JSON.stringify(known))
+  } catch {
+    // storage unavailable: a restart's shells just end unremarked
+  }
+}
+
+// changeKnown adds or drops a shell this tab opened or closed.
+function changeKnown(add: string | null, drop: string | null) {
+  const known = knownShells()
+  if (!known) return
+  const ids = known.ids.filter((id) => id !== drop && id !== add)
+  keepKnown({ run: known.run, ids: add ? [...ids, add] : ids })
 }
 
 const exists = (terminals: Terminal[], id: string | null) => id !== null && terminals.some((t) => t.id === id)
@@ -154,12 +194,24 @@ export const useTerminalStore = create<TerminalStoreState>((set, get) => {
     fontSize: storedFont(),
     load: async () => {
       try {
-        const terminals = await terminalLists.load(listTerminals)
+        let run: string | undefined
+        const terminals = await terminalLists.load(async () => {
+          const list: TerminalList = await listTerminals()
+          run = list.run
+          return list
+        })
         if (!terminals) return
+        let ended = get().ended
+        if (run) {
+          const known = knownShells()
+          if (known && known.run !== run) ended = known.ids.filter((id) => !exists(terminals, id)).length
+          keepKnown({ run, ids: terminals.map((t) => t.id) })
+        }
         const requested = get().activeId
         const current = requested ?? remembered()
         const found = exists(terminals, current)
         set({
+          ended,
           terminals,
           activeId: found ? current : null,
           missingId: !found && requested ? requested : get().missingId,
@@ -178,7 +230,9 @@ export const useTerminalStore = create<TerminalStoreState>((set, get) => {
         const term = await openTerminal(opts)
         terminalLists.update(term.id, term)
         remember(term.id)
+        changeKnown(term.id, null)
         set((s) => ({
+          ended: 0,
           terminals: s.terminals.some((t) => t.id === term.id)
             ? s.terminals.map((t) => t.id === term.id ? term : t)
             : [...s.terminals, term],
@@ -217,6 +271,7 @@ export const useTerminalStore = create<TerminalStoreState>((set, get) => {
       terminalLists.update(fresh.id, fresh)
       terminalLists.update(id, null)
       remember(fresh.id)
+      changeKnown(fresh.id, id)
       set((s) => {
         const conn = { ...s.conn }
         delete conn[id]
@@ -242,6 +297,7 @@ export const useTerminalStore = create<TerminalStoreState>((set, get) => {
       try {
         await closeTerminal(id)
         terminalLists.update(id, null)
+        changeKnown(null, id)
         set((s) => {
           const terminals = s.terminals.filter((t) => t.id !== id)
           const activeId = keepActive(terminals, s.activeId)
