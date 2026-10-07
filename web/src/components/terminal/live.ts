@@ -253,7 +253,7 @@ export function liveFor(id: string, host: HTMLElement, callbacks: Callbacks): Li
 function copySelection(xterm: XTerm): void {
   const text = xterm.getSelection()
   if (!text) return
-  void navigator.clipboard?.writeText(text).catch((err: unknown) => fail("Couldn't copy", err))
+  void navigator.clipboard?.writeText(text).catch((err: unknown) => fail("Couldn't copy the selection", err))
 }
 
 export interface FindResult {

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { applyCompletion, filterCommands, findToken, forgetCommands, listCommands } from './complete'
+import { applyCompletion, completeFiles, filterCommands, findToken, forgetCommands, listCommands } from './complete'
 
 describe('findToken', () => {
   it('finds an @ mention ending at the caret', () => {
@@ -89,5 +89,19 @@ describe('listCommands', () => {
     forgetCommands('forget')
     expect((await listCommands('forget'))[0]?.name).toBe('compact')
     expect(fetch).toHaveBeenCalledTimes(2)
+  })
+})
+
+describe('completeFiles', () => {
+  afterEach(() => vi.unstubAllGlobals())
+
+  it("gives the server's reason when the listing fails", async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('{"error":"session not found"}', { status: 404, statusText: 'Not Found' })))
+    await expect(completeFiles('s1', 'src')).rejects.toThrow('session not found')
+  })
+
+  it('falls back to the status when the server says nothing', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('', { status: 500, statusText: 'Internal Server Error' })))
+    await expect(completeFiles('s1', 'src')).rejects.toThrow('500 Internal Server Error')
   })
 })

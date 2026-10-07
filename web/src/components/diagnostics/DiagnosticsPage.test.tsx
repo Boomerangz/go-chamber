@@ -19,7 +19,7 @@ const server: ServerDiagnostics = {
 }
 
 const state = (over: Partial<ReturnType<typeof useDiagnostics>>) =>
-  vi.mocked(useDiagnostics).mockReturnValue({ client: diagnostics(), server: null, error: null, socketStatus: 'online', ...over })
+  vi.mocked(useDiagnostics).mockReturnValue({ client: diagnostics(), server: null, error: null, socketStatus: 'online', retry: vi.fn(), ...over })
 
 describe('DiagnosticsPage', () => {
   beforeEach(() => vi.clearAllMocks())
@@ -40,15 +40,18 @@ describe('DiagnosticsPage', () => {
     expect(section).toHaveTextContent('Codex CLInot found on PATH · npm install -g @openai/codex')
   })
 
-  it('only mentions the last snapshot when there is one', () => {
-    state({ error: 'HTTP 502' })
+  it('says what failed and why, with a Retry, and only mentions the last snapshot when there is one', async () => {
+    const retry = vi.fn()
+    state({ error: '502 Bad Gateway', retry })
     const first = render(<DiagnosticsPage />)
-    expect(screen.getByRole('alert')).toHaveTextContent('HTTP 502')
-    expect(screen.getByRole('alert')).not.toHaveTextContent('last successful')
+    expect(screen.getByRole('alert')).toHaveTextContent("Couldn't load the server diagnostics: 502 Bad Gateway")
+    expect(screen.queryByText(/last successful/)).toBeNull()
+    await userEvent.click(screen.getByRole('button', { name: 'Retry' }))
+    expect(retry).toHaveBeenCalledOnce()
     first.unmount()
-    state({ error: 'HTTP 502', server })
+    state({ error: '502 Bad Gateway', server })
     render(<DiagnosticsPage />)
-    expect(screen.getByRole('alert')).toHaveTextContent('The last successful server snapshot is shown below.')
+    expect(screen.getByText('The last successful server snapshot is shown below.')).toBeInTheDocument()
   })
 
   it('copies the report', async () => {
@@ -59,6 +62,15 @@ describe('DiagnosticsPage', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Copy report' }))
     expect(JSON.parse((writeText.mock.calls[0] as unknown as [string])[0])).toMatchObject({ server: { goroutines: 10 } })
     expect(useNotices.getState().notices.at(-1)).toMatchObject({ kind: 'info', text: 'Copied the report' })
+    vi.unstubAllGlobals()
+  })
+
+  it('names the report when it could not copy it', async () => {
+    vi.stubGlobal('navigator', { ...navigator, clipboard: { writeText: vi.fn(() => Promise.reject(new Error('denied'))) } })
+    state({ server })
+    render(<DiagnosticsPage />)
+    await userEvent.click(screen.getByRole('button', { name: 'Copy report' }))
+    expect(useNotices.getState().notices.at(-1)).toMatchObject({ kind: 'error', title: "Couldn't copy the report" })
     vi.unstubAllGlobals()
   })
 

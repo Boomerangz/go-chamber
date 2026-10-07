@@ -125,7 +125,10 @@ describe('TerminalWorkspace', () => {
     render(<TerminalWorkspace sessions={[]} />)
     await userEvent.click(screen.getByRole('button', { name: 'Copy folder path' }))
     expect(writeText).toHaveBeenCalledWith('/home/me/app')
-    expect(useNotices.getState().notices.at(-1)).toMatchObject({ kind: 'info' })
+    expect(useNotices.getState().notices.at(-1)).toMatchObject({ kind: 'info', text: 'Copied the folder path' })
+    writeText.mockRejectedValueOnce(new Error('denied'))
+    await userEvent.click(screen.getByRole('button', { name: 'Copy folder path' }))
+    expect(useNotices.getState().notices.at(-1)).toMatchObject({ kind: 'error', title: "Couldn't copy the folder path" })
     expect(screen.getByRole('button', { name: 'Close this shell' })).toBeInTheDocument()
   })
 })
@@ -369,6 +372,13 @@ describe('TerminalKeys', () => {
     render(<TerminalKeys id="t1" />)
     await userEvent.click(screen.getByRole('button', { name: 'Paste' }))
     expect(live.pasteInto).toHaveBeenCalledWith('t1', 'ls')
+  })
+
+  it('names what it could not paste into', async () => {
+    vi.stubGlobal('navigator', { ...navigator, clipboard: { readText: () => Promise.reject(new Error('denied')) } })
+    render(<TerminalKeys id="t1" />)
+    await userEvent.click(screen.getByRole('button', { name: 'Paste' }))
+    expect(useNotices.getState().notices.at(-1)).toMatchObject({ kind: 'error', title: "Couldn't paste into the terminal" })
   })
 })
 

@@ -23,7 +23,7 @@ const copyPath = async (path: string) => {
     await navigator.clipboard.writeText(path)
     notify({ kind: 'info', text: 'Copied the folder path', key: 'copy-cwd' })
   } catch (err) {
-    fail("Couldn't copy", err)
+    fail("Couldn't copy the folder path", err)
   }
 }
 

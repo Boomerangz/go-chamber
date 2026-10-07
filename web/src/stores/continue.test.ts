@@ -9,7 +9,7 @@ vi.mock('../lib/api', () => ({
 
 import * as api from '../lib/api'
 import { resetStore, useSessionStore } from './session'
-import { lastError, resetNotices } from './notices'
+import { lastError, resetNotices, useNotices } from './notices'
 
 const store = () => useSessionStore.getState()
 
@@ -30,6 +30,7 @@ describe('continue and fork', () => {
     ;(api.continueSession as Mock).mockRejectedValue(new Error('nothing to continue'))
     await store().continueSession()
     expect(lastError()).toBe('nothing to continue')
+    expect(useNotices.getState().notices.at(-1)?.title).toBe("Couldn't continue the session")
   })
 
   it('toggles auto-continue and keeps the server copy', async () => {

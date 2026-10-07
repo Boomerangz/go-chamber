@@ -82,9 +82,9 @@ function ChatPath({ cwd, worktree }: { cwd: string; worktree?: Worktree }) {
   const copy = async () => {
     try {
       await navigator.clipboard.writeText(cwd)
-      notify({ kind: 'info', text: 'Path copied', key: 'copy-path' })
+      notify({ kind: 'info', text: 'Copied the folder path', key: 'copy-path' })
     } catch {
-      notify({ kind: 'error', title: "Couldn't copy the path", text: 'the browser refused clipboard access', key: 'copy-path' })
+      notify({ kind: 'error', title: "Couldn't copy the folder path", text: 'the browser refused clipboard access', key: 'copy-path' })
     }
   }
   return (

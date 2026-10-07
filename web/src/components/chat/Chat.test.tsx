@@ -211,7 +211,7 @@ describe('header status', () => {
     expect(path).toHaveAttribute('title', '/home/me/project')
     await userEvent.click(screen.getByRole('button', { name: 'Copy path' }))
     expect(writeText).toHaveBeenCalledWith('/home/me/project')
-    expect(useNotices.getState().notices.at(-1)?.text).toBe('Path copied')
+    expect(useNotices.getState().notices.at(-1)?.text).toBe('Copied the folder path')
   })
 
   it('reads a worktree session by its repository and branch, and copies the worktree', async () => {

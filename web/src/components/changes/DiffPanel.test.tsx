@@ -425,6 +425,10 @@ describe('DiffPanel reading', () => {
     const [copyA] = screen.getAllByRole('button', { name: 'Copy path' })
     await userEvent.click(copyA!)
     expect(writeText).toHaveBeenCalledWith('src/a.go')
+    expect(useNotices.getState().notices.at(-1)).toMatchObject({ kind: 'info', text: 'Copied the path' })
+    writeText.mockRejectedValueOnce(new Error('denied'))
+    await userEvent.click(copyA!)
+    expect(useNotices.getState().notices.at(-1)).toMatchObject({ kind: 'error', title: "Couldn't copy the path" })
     // A deleted file has nothing to view.
     expect(screen.getAllByRole('button', { name: 'View file' })).toHaveLength(2)
     await userEvent.click(screen.getAllByRole('button', { name: 'View file' })[0]!)

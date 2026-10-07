@@ -33,7 +33,7 @@ export default function CopyButton({
       title={iconOnly ? name : undefined}
       onClick={async (e) => {
         e.stopPropagation()
-        if (await copyText(text)) setCopied(true)
+        if (await copyText(text, label.startsWith('Copy ') ? label.slice(5) : undefined)) setCopied(true)
       }}
     >
       {iconOnly ? (copied ? <Check {...icon(14)} /> : <Copy {...icon(14)} />) : name}
