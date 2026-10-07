@@ -47,13 +47,45 @@ for (const width of [390, 360]) {
   })
 }
 
+// placing reads the row and its sheet in one go: other workers' sessions
+// move the list at any moment (the sheet catches up on the next frame), and
+// two separate reads can straddle such a move.
+function placing(page: Page, name: string) {
+  return page.getByRole('button', { name: `Actions for ${name}` }).evaluate((trigger) => {
+    const row = trigger.parentElement!.getBoundingClientRect()
+    const sheet = document.querySelector('.session-menu')!.getBoundingClientRect()
+    return {
+      rowY: row.y,
+      overlap: Math.min(row.bottom, sheet.bottom) - Math.max(row.top, sheet.top),
+      // right under the row, or right over it (SessionMenu keeps 2px between)
+      beside: Math.abs(sheet.top - row.bottom - 2) < 1 || Math.abs(row.top - sheet.bottom - 2) < 1,
+    }
+  })
+}
+
 // The question sits beside the row it asks about, not over it.
 test('the delete question leaves its own row in view', async ({ page }, info) => {
   const name = `row in view ${info.project.name}`
   await namedSession(page, name)
   await askDelete(page, name)
-  const row = (await page.getByRole('button', { name: `Actions for ${name}` }).locator('..').boundingBox())!
-  const sheet = (await page.locator('.session-menu').boundingBox())!
-  const overlap = Math.min(row.y + row.height, sheet.y + sheet.height) - Math.max(row.y, sheet.y)
-  expect(overlap).toBeLessThanOrEqual(0)
+  await expect.poll(async () => (await placing(page, name)).overlap).toBeLessThanOrEqual(0)
+})
+
+// Sessions started elsewhere (another tab, another device) join the list
+// while the question is open and move its row without any scroll: the
+// question moves with the row instead of staying where the row was.
+test('the delete question keeps beside its row when the list changes under it', async ({ page }, info) => {
+  const name = `row moved ${info.project.name}`
+  await namedSession(page, name)
+  await askDelete(page, name)
+  await expect.poll(async () => (await placing(page, name)).beside).toBe(true)
+  const before = (await placing(page, name)).rowY
+  const headers = { Authorization: `Bearer ${token}` }
+  const cwd = fs.realpathSync(fs.mkdtempSync(`${os.tmpdir()}/gc-menufit-other-`))
+  const created = await page.request.post('/api/sessions', { headers, data: { agent: 'claude', cwd } })
+  const { id } = (await created.json()) as { id: string }
+  expect((await page.request.post(`/api/sessions/${id}/messages`, { headers, data: { text: 'hello' } })).ok()).toBeTruthy()
+  await expect.poll(async () => (await placing(page, name)).rowY).not.toBe(before)
+  await expect(page.getByRole('group', { name: `Delete ${name}?` })).toBeVisible()
+  await expect.poll(async () => (await placing(page, name)).beside).toBe(true)
 })

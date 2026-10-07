@@ -25,6 +25,10 @@ test('loading sessions has visible placeholders, then a direct route to starting
     await gate
     await route.fulfill({ json: [] })
   })
+  // The server is shared with other workers: their sessions would reach
+  // the list over the socket while the listing is held, and take the
+  // placeholders' place. The socket opens and stays quiet.
+  await page.routeWebSocket('**/api/ws', () => {})
   await page.goto(`/?token=${token}`)
   await showPane(page, 'Chat')
   const skeleton = page.locator('.empty .skeleton-line').first()
