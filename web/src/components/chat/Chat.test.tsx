@@ -867,6 +867,57 @@ describe('screen reader', () => {
   })
 })
 
+describe('typing on a phone', () => {
+  const phone = (coarse = true) =>
+    vi.stubGlobal('matchMedia', (q: string) => ({
+      matches: q.includes('max-width: 720px') || (coarse && q.includes('pointer: coarse')),
+      media: q, addEventListener: () => {}, removeEventListener: () => {},
+    }))
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    delete document.documentElement.dataset.typing
+  })
+
+  it('marks the page while a chat field has the keyboard, so the chrome can make room', () => {
+    phone()
+    const { unmount } = setup()
+    act(() => box().focus())
+    expect(document.documentElement.dataset.typing).toBe('chat')
+    act(() => box().blur())
+    expect(document.documentElement.dataset.typing).toBeUndefined()
+    act(() => box().focus())
+    unmount()
+    expect(document.documentElement.dataset.typing).toBeUndefined()
+  })
+
+  it('leaves a mouse, or a wide screen, alone', () => {
+    phone(false)
+    setup()
+    act(() => box().focus())
+    expect(document.documentElement.dataset.typing).toBeUndefined()
+  })
+
+  it("brings a card's field back into view once the keyboard is up", () => {
+    vi.useFakeTimers()
+    phone()
+    const question: api.SessionRequest = {
+      id: 'q1', sessionId: 's1', kind: 'question', state: 'pending', title: 'Pick',
+      payload: { input: { questions: [{ question: 'Which?', options: [{ label: 'a' }, { label: 'b' }] }] } },
+    }
+    setup({ chat: running([item('u1', 'user_message')], { requests: { q1: question } }) })
+    const card = document.querySelector<HTMLElement>('[data-request-id="q1"]')!
+    const field = screen.getByLabelText('Other Which?')
+    vi.mocked(card.scrollIntoView).mockClear()
+    act(() => field.focus())
+    expect(document.documentElement.dataset.typing).toBe('chat')
+    act(() => {
+      window.dispatchEvent(new Event('resize'))
+    })
+    expect(card.scrollIntoView).toHaveBeenCalledWith({ block: 'nearest' })
+    expect(field.scrollIntoView).toHaveBeenCalledWith({ block: 'nearest' })
+  })
+})
+
 describe('first message hint', () => {
   it('lists what the composer understands', () => {
     setup()

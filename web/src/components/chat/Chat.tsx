@@ -17,6 +17,7 @@ import { Row } from './Transcript'
 import { isMac, matches, useMedia } from './useMedia'
 import { useAnnouncement } from './useAnnouncement'
 import { useStickToBottom } from './useStickToBottom'
+import { useTypingMark } from './useTypingMark'
 import { SENT_HOLD_MS, untilBack, useLiveDropped } from './useLiveDropped'
 import { beginAgentView, endAgentView, recordAgentCommit } from '../../lib/diagnostics'
 import { SessionFiles } from '../../lib/files'
@@ -424,9 +425,11 @@ export default function Chat() {
   // A long message says how long it is; the box itself stops growing.
   const lines = text ? text.split('\n').length : 0
   const multiline = useMultiline(input, text)
+  const section = useRef<HTMLElement>(null)
+  useTypingMark(section)
 
   return (
-    <section className="chat panel">
+    <section className="chat panel" ref={section}>
       <ChatHeader
         session={session}
         status={shown}

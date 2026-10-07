@@ -155,6 +155,13 @@
   .live-strip { margin-top: 8px; }
 }
 
+/* the on-screen keyboard is up for a chat field (useTypingMark): the header
+   keeps only its title row, so the transcript keeps some room */
+@media (max-width: 720px) {
+  :root[data-typing='chat'] .chat-header { padding-top: 4px; padding-bottom: 4px; }
+  :root[data-typing='chat'] .chat-header:not([data-details='open']) .chat-meta { display: none; }
+}
+
 /* a touch screen keeps no hover: a tapped "⋯" doesn't keep a border */
 @media (hover: none) { .chat-header .chat-more:hover { border-color: transparent; } }
 
