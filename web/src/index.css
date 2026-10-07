@@ -798,6 +798,8 @@ button.health { border: 0; background: none; padding: 0; }
   transition: background var(--dur-fast);
 }
 .request-tray li > button:hover { background: var(--req-wash); }
+/* answers (Allow, Continue) belong to their line: no rule between them */
+.request-tray li > button:has(+ .tray-actions) { border-bottom: 0; }
 /* a permission is answered right in the tray, under its line */
 .tray-actions kbd { margin-left: 4px; }
 .tray-actions { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 10px 9px; border: 1px solid var(--rule); border-top: 0; background: var(--paper); }

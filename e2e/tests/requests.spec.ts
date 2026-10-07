@@ -75,9 +75,27 @@ test('approves a permission from the requests tray with the keyboard', async ({ 
   if (await bar.isVisible()) await bar.getByRole('button', { name: /^Requests/ }).click()
   else await page.getByRole('toolbar', { name: 'Dock' }).getByRole('button', { name: /^Requests/ }).click()
   const line = page.getByRole('complementary', { name: 'Pending requests' }).getByRole('listitem').filter({ hasText: text })
+  // The answers sit in the line, not on a rule under it: as much room above
+  // them as below.
+  expect(await line.locator('.tray-row').evaluate((el) => getComputedStyle(el).borderBottomWidth)).toBe('0px')
+  // Measured once the line has sprung in.
+  await expect
+    .poll(() =>
+      line.evaluate((li) => {
+        const text = Math.max(...[...li.querySelectorAll('.tray-row > *')].map((el) => el.getBoundingClientRect().bottom))
+        const actions = li.querySelector('.tray-actions')!.getBoundingClientRect()
+        const buttons = [...li.querySelectorAll('.tray-actions .btn')].map((el) => el.getBoundingClientRect())
+        const top = Math.min(...buttons.map((r) => r.top))
+        const bottom = Math.max(...buttons.map((r) => r.bottom))
+        return Math.abs(top - text - (actions.bottom - bottom)) <= 3
+      }),
+    )
+    .toBe(true)
   await line.locator('.tray-row').focus()
   await page.keyboard.press('a')
   await expect(line).toHaveCount(0)
+  // Focus stays in the tray (the next line, or the tray itself), never the page.
+  await expect.poll(() => page.evaluate(() => !!document.activeElement?.closest('.request-tray, .tray-empty'))).toBe(true)
 
   await showPane(page, 'Chat')
   await expect(page.locator('.item.assistant', { hasText: /approved: run/ })).toBeVisible()
