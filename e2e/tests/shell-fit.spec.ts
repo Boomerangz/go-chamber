@@ -252,17 +252,18 @@ test('a path shortened at its start lines up with the title above it', async ({ 
     await page.getByRole('radio', { name: /^Terminal/ }).click()
     for (const name of ['billing-service', 'docs']) {
       const row = page.locator('.term-sidebar [role="tab"]').filter({ hasText: `projects/${name}` })
-      // the server's other shells may push it down the list
-      await row.scrollIntoViewIfNeeded()
       expect(await row.locator('.path-head').evaluate((e) => e.scrollWidth > e.clientWidth)).toBe(true)
       // where the ink starts: the title's first letter, the path's "…". The
-      // screenshot is taken of a row that held still for it: other specs'
-      // shells and projects come and go above it, and a shot of where the
-      // row was a moment ago reads another row's ink.
+      // screenshot is taken of a row in view that held still for it: other
+      // specs' shells and projects come and go above it, pushing it down and
+      // out of the window, and a shot of where the row was a moment ago
+      // reads another row's ink, or none.
       const rowBoxes = () => Promise.all([box(row.locator('.term-title')), box(row.locator('.path-text'))])
       let shot: { title: Awaited<ReturnType<typeof box>>; path: Awaited<ReturnType<typeof box>>; png: string } | undefined
       await expect(async () => {
+        await row.scrollIntoViewIfNeeded()
         const [title, path] = await rowBoxes()
+        expect(path.y + path.height).toBeLessThanOrEqual(page.viewportSize()!.height)
         const clip = { x: title.x - 4, y: title.y, width: 40, height: path.y + path.height - title.y }
         const png = (await page.screenshot({ clip })).toString('base64')
         expect(await rowBoxes()).toEqual([title, path])
