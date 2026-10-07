@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"path"
 	"strings"
+	"time"
 )
 
 var (
@@ -51,6 +52,9 @@ type Request struct {
 	Payload   json.RawMessage `json:"payload,omitempty"`
 	State     RequestState    `json:"state"`
 	Answer    json.RawMessage `json:"answer,omitempty"`
+	// OpenedAt is when go-chamber received the request: every device can
+	// tell how long it has waited.
+	OpenedAt time.Time `json:"openedAt,omitzero"`
 }
 
 func (r *Request) Validate() error {
