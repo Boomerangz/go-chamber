@@ -9,6 +9,8 @@ export interface Interruption {
   // withRequest: the turn was cut off while a question or permission waited
   // for the owner, who still owes it an answer.
   withRequest?: boolean
+  // request: the gist of the request it was waiting on, when known.
+  request?: string
 }
 
 // ApprovalReviewer decides who reviews the agent's approval requests (Codex);
