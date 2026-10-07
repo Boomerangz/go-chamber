@@ -1200,7 +1200,8 @@ button.health { border: 0; background: none; padding: 0; }
   .term-main { padding: 10px; }
   .scroll { padding: 14px var(--gutter) 10px; }
   .items, .scroll > .request, .scroll > .request-slot, .chat-hint { padding-left: 0; }
-  .turn-no, .row-user_message:first-child .turn-no { position: static; flex: none; width: auto; margin: 3px 10px 0 0; }
+  /* room for "10." from the start, so turn 10 doesn't move the words */
+  .turn-no, .row-user_message:first-child .turn-no { position: static; flex: none; width: auto; min-width: 3ch; margin: 3px 10px 0 0; }
   .chat-meta { margin-left: 0; width: 100%; gap: 12px; }
   .chat-header > .avatar { display: none; }
   .composer { width: calc(100% - 2 * var(--gutter)); margin-bottom: 10px; }

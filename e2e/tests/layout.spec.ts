@@ -47,3 +47,21 @@ test('opening a session low in a long list leaves the page where it is', async (
   await page.waitForTimeout(100)
   expect((await page_()).top).toBe(0)
 })
+
+// On a phone the turn number sits inline before the message: from turn 10
+// it must not push the message and its rule further right than turns 1–9.
+test('on a phone, two-digit turn numbers keep the messages aligned', async ({ page, isMobile }) => {
+  test.skip(!isMobile, 'the turn number is inline on a phone only')
+  await page.goto(`/?token=${token}`)
+  await openNewSession(page)
+  await page.getByLabel('Working directory').fill('/tmp')
+  await page.getByRole('button', { name: 'New session', exact: true }).click()
+  for (let n = 1; n <= 10; n++) {
+    await page.getByLabel('Message').fill(`align ${n}`)
+    await page.getByRole('button', { name: 'Send' }).click()
+    await expect(page.locator('.item.assistant', { hasText: `echo: align ${n}` })).toBeVisible()
+  }
+  const left = (n: number) =>
+    page.getByLabel(`Turn ${n}`).locator('xpath=..').locator('.item.user').evaluate((el) => Math.round(el.getBoundingClientRect().left))
+  expect(await left(10)).toBe(await left(9))
+})
