@@ -57,6 +57,18 @@ export function resetLabel(resetsAt: string | undefined, now: Date = new Date())
   return `resets in ${rest}m`
 }
 
+const numbers = new Intl.NumberFormat('en-US')
+
+// count writes a number the one way the app writes numbers: "12,001".
+export function count(n: number): string {
+  return numbers.format(n)
+}
+
+// lineCount says how many lines: "1 line", "12,001 lines".
+export function lineCount(n: number): string {
+  return `${count(n)} ${n === 1 ? 'line' : 'lines'}`
+}
+
 export function basename(path: string): string {
   const parts = path.split('/').filter(Boolean)
   return parts.length ? parts[parts.length - 1] : path

@@ -20,10 +20,11 @@ import { Row } from './Transcript'
 import { isMac, matches, useMedia } from './useMedia'
 import { useAnnouncement } from './useAnnouncement'
 import { useStickToBottom } from './useStickToBottom'
+import { useReadingPlace } from './useReadingPlace'
 import { useTypingMark } from './useTypingMark'
 import { SENT_HOLD_MS, untilBack, useLiveDropped } from './useLiveDropped'
 import { beginAgentView, endAgentView, recordAgentCommit } from '../../lib/diagnostics'
-import { SessionFiles } from '../../lib/files'
+import { SessionFiles, SessionFolder } from '../../lib/files'
 import type { RequestAnswerInput, Session, SessionStatus, TurnResult } from '../../lib/api'
 import { forgetCommands } from '../../lib/complete'
 import { basename, displayStatus } from '../../lib/format'
@@ -217,17 +218,19 @@ export default function Chat() {
   }, [sessionId])
   useLayoutEffect(() => { recordAgentCommit(sessionId) }, [chat, sessionId])
 
+  // Back in a session read halfway, the owner is where they left it.
+  const restored = useReadingPlace(sessionId, scrollRef, stick, chat.order.length > 0, history === 'ready')
   // Opening a session with news lands on the "new since you left" mark.
   const landed = useRef(false)
   useLayoutEffect(() => {
     if (landed.current || history !== 'ready' || chat.order.length === 0) return
     landed.current = true
-    if (!unseen) return
+    if (!unseen || restored.current) return
     const markEl = scrollRef.current?.querySelector('.unseen-mark')
     if (!markEl) return
     stick.unpin()
     markEl.scrollIntoView?.({ block: 'start' })
-  }, [history, chat.order.length, unseen, stick, scrollRef])
+  }, [history, chat.order.length, unseen, stick, scrollRef, restored])
 
   const input = useRef<HTMLTextAreaElement>(null)
   useEffect(() => {
@@ -465,32 +468,34 @@ export default function Chat() {
           </div>
         ) : (
           <SessionFiles.Provider value={sessionId}>
-            <ol className="items" aria-label="Transcript" aria-busy={streaming}>
-              {rows.map((node, i) => (
-                <Row
-                  key={node.item.id}
-                  node={node}
-                  turn={turns.get(node.item.id)}
-                  unseen={node.item.id === unseen}
-                  reduced={reduced}
-                  animateIn={listedFor === sessionId}
-                  onStopTask={stopTask}
-                  onRetry={i === rows.length - 1 && node.item.kind === 'error' && !busy ? retry : undefined}
-                  onEdit={editMessage}
-                  result={chat.turnResults?.[lastItemId(node)]}
-                />
-              ))}
-              {pendingSends.map((p) => (
-                <li key={p.key} className="row row-user_message row-pending">
-                  <div className="item user pending">
-                    <div className="user-text">{p.text}</div>
-                    <span className="pending-label">
-                      {p.state === 'sending' ? 'sending…' : p.state === 'queued' && dropped ? 'queued · waits for go-chamber' : p.state}
-                    </span>
-                  </div>
-                </li>
-              ))}
-            </ol>
+            <SessionFolder.Provider value={session?.cwd}>
+              <ol className="items" aria-label="Transcript" aria-busy={streaming}>
+                {rows.map((node, i) => (
+                  <Row
+                    key={node.item.id}
+                    node={node}
+                    turn={turns.get(node.item.id)}
+                    unseen={node.item.id === unseen}
+                    reduced={reduced}
+                    animateIn={listedFor === sessionId}
+                    onStopTask={stopTask}
+                    onRetry={i === rows.length - 1 && node.item.kind === 'error' && !busy ? retry : undefined}
+                    onEdit={editMessage}
+                    result={chat.turnResults?.[lastItemId(node)]}
+                  />
+                ))}
+                {pendingSends.map((p) => (
+                  <li key={p.key} className="row row-user_message row-pending">
+                    <div className="item user pending">
+                      <div className="user-text">{p.text}</div>
+                      <span className="pending-label">
+                        {p.state === 'sending' ? 'sending…' : p.state === 'queued' && dropped ? 'queued · waits for go-chamber' : p.state}
+                      </span>
+                    </div>
+                  </li>
+                ))}
+              </ol>
+            </SessionFolder.Provider>
           </SessionFiles.Provider>
         )}
         {notFound ? (

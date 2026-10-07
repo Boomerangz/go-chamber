@@ -4,12 +4,12 @@ import './PathText.css'
 
 // PathText shows a folder path on one line, home as "~". When it doesn't
 // fit, the start gives way ("…") and the last folder, the project's name,
-// stays. The title and a copy keep the full path.
-export default function PathText({ path, className }: { path: string; className?: string }) {
+// stays. The title (path itself unless given) and a copy keep the full path.
+export default function PathText({ path, className, title = path }: { path: string; className?: string; title?: string }) {
   const home = useHome()
   const { head, tail } = pathParts(path, home)
   return (
-    <span className={className ? `path-text ${className}` : 'path-text'} title={path}>
+    <span className={className ? `path-text ${className}` : 'path-text'} title={title}>
       {head && (
         <span className="path-head">
           <bdi>{head}</bdi>

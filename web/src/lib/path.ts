@@ -20,6 +20,16 @@ export function shortPath(path: string, home?: string, max = Infinity): string {
   return `…/${out}`
 }
 
+// relativePath writes a path inside folder (the session's) from that folder:
+// "src/a.go" rather than a long absolute path whose start says nothing. A
+// path elsewhere stays as it is.
+export function relativePath(path: string, folder: string | undefined): string {
+  const f = folder && folder.length > 1 ? folder.replace(/\/+$/, '') : ''
+  if (!f) return path
+  if (path === f) return '.'
+  return path.startsWith(`${f}/`) ? path.slice(f.length + 1) : path
+}
+
 // pathParts splits a path (home as "~") into the folders above and the last
 // folder, so a layout can shorten the first and keep the second.
 export function pathParts(path: string, home?: string): { head: string; tail: string } {

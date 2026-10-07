@@ -18,8 +18,13 @@ export function useClip<T extends HTMLElement>(deps: DependencyList): [RefObject
     const el = ref.current
     if (!el || full) return
     const measure = () => setClipped(el.scrollHeight > el.clientHeight + 1)
-    measure()
-    if (typeof ResizeObserver === 'undefined') return
+    if (typeof ResizeObserver === 'undefined') {
+      measure()
+      return
+    }
+    // The observer reports once the frame is laid out, every box at once.
+    // Reading the size here instead forced a layout per box: a long
+    // transcript opening spent most of its time in hundreds of them.
     const observer = new ResizeObserver(measure)
     observer.observe(el)
     return () => observer.disconnect()
