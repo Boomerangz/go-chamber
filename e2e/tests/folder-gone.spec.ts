@@ -20,6 +20,15 @@ test('a session whose folder is gone says so in the composer’s place and can b
   const made = (await (await page.request.post('/api/sessions', { headers, data: { agent: 'claude', cwd } })).json()) as { id: string }
   await page.goto(`/s/${made.id}?token=${token}`)
   await expect(page.getByLabel('Message')).toBeVisible()
+  // Other tests can invalidate the shared list while this folder disappears.
+  // Hold those refreshes until the send itself has reported the missing folder,
+  // so this scenario exercises the send-error path rather than the list path.
+  let releaseLists!: () => void
+  const listsReady = new Promise<void>((resolve) => { releaseLists = resolve })
+  await page.route('**/api/sessions', async (route) => {
+    if (route.request().method() === 'GET') await listsReady
+    await route.continue()
+  })
   rmSync(cwd, { recursive: true, force: true })
 
   // The send is refused with the folder named, once, and no raw chdir error.
@@ -28,10 +37,12 @@ test('a session whose folder is gone says so in the composer’s place and can b
   expect(((await res.json()) as { error: string }).error).toBe(`Folder ${cwd} no longer exists`)
 
   // Sent from the open chat, the composer gives way; no notice is raised.
-  await page.getByLabel('Message').fill('hello?')
-  await page.getByRole('button', { name: 'Send' }).click()
   const gone = page.getByRole('group', { name: 'Folder gone' })
-  await expect(gone).toContainText('no longer exists')
+  try {
+    await page.getByLabel('Message').fill('hello?')
+    await page.getByRole('button', { name: 'Send' }).click()
+    await expect(gone).toContainText('no longer exists')
+  } finally { releaseLists() }
   await expect(page.getByLabel('Message')).toHaveCount(0)
   await expect(page.locator('.toast-error')).toHaveCount(0)
   expect(await gone.evaluate((el) => el.scrollWidth <= el.clientWidth + 1)).toBe(true)

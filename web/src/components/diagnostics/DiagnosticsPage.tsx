@@ -107,7 +107,7 @@ export default function DiagnosticsPage() {
             <div><dt>Persistence calls / errors</dt><dd>{server.events.persistCalls} / {server.events.persistErrors}</dd></div>
             {(server.clis ?? []).map((c) => (
               <div key={c.agent}>
-                <dt>{c.agent === 'claude' ? 'Claude Code CLI' : 'Codex CLI'}</dt>
+                <dt>{`${c.name ?? (c.agent === 'opencode' ? 'OpenCode' : c.agent === 'claude' ? 'Claude Code' : 'Codex')} CLI`}</dt>
                 <dd>{c.found ? c.path || 'found' : `not found on PATH${c.hint ? ` · ${c.hint}` : ''}`}</dd>
               </div>
             ))}

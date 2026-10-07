@@ -28,6 +28,7 @@ describe('switcherEntries', () => {
       ['terminal', 'checkout', false],
       ['new', 'claude:/p/checkout live', false],
       ['new', 'codex:/p/checkout live', false],
+      ['new', 'opencode:/p/checkout live', false],
       ['session', 'checkout old', true],
       ['session', 'checkout sub', true],
     ])
@@ -82,7 +83,7 @@ describe('switcherEntries', () => {
   it('offers new sessions in the open folder, and in any folder that matches', () => {
     const sessions = [s('a', { cwd: '/w/api' }), s('b', { cwd: '/w/site' })]
     const idle = switcherEntries(sessions, [], new Map(), '', { activeId: 'a' }).filter((e) => e.kind === 'new')
-    expect(idle.map((e) => e.title)).toEqual(['New Claude session in api', 'New Codex session in api'])
+    expect(idle.map((e) => e.title)).toEqual(['New Claude session in api', 'New Codex session in api', 'New OpenCode session in api'])
     const typed = switcherEntries(sessions, [], new Map(), 'new codex site').filter((e) => e.kind === 'new')
     expect(typed.map((e) => [e.title, e.cwd, e.agent])).toEqual([['New Codex session in site', '/w/site', 'codex']])
   })
@@ -131,7 +132,7 @@ describe('switcher matching', () => {
   it('offers new sessions in the most recent folder when none is open', () => {
     const sessions = [s('a', { cwd: '/w/old', activeAt: '2026-01-01T00:00:00Z' }), s('b', { cwd: '/w/new', activeAt: '2026-01-05T00:00:00Z' }), s('c', { cwd: '/w/kid', parentId: 'b', activeAt: '2026-01-09T00:00:00Z' })]
     const fresh = switcherEntries(sessions, [], new Map(), '').filter((e) => e.kind === 'new')
-    expect(fresh.map((e) => e.cwd)).toEqual(['/w/new', '/w/new'])
+    expect(fresh.map((e) => e.cwd)).toEqual(['/w/new', '/w/new', '/w/new'])
   })
 
   it('orders new-session folders by recency when asked', () => {
@@ -147,7 +148,7 @@ describe('switcherEntries new sessions in worktrees', () => {
   it('starts a new session in the repository of an open worktree session, not in the worktree', () => {
     const sessions = [s('a', { cwd: '/w/repo-wt', worktree: wt() })]
     const fresh = switcherEntries(sessions, [], new Map(), '', { activeId: 'a' }).filter((e) => e.kind === 'new')
-    expect(fresh.map((e) => e.cwd)).toEqual(['/w/repo', '/w/repo'])
+    expect(fresh.map((e) => e.cwd)).toEqual(['/w/repo', '/w/repo', '/w/repo'])
     expect(fresh[0]!.title).toBe('New Claude session in repo')
   })
 
@@ -174,4 +175,9 @@ describe('switcherEntries new sessions in worktrees', () => {
     const typed = switcherEntries(sessions, [], new Map(), 'new claude').filter((e) => e.kind === 'new')
     expect(typed.map((e) => e.cwd)).toEqual(['/w/repo'])
   })
+})
+
+it('uses the available agent registry for new-session actions', () => {
+  const entries = switcherEntries([s('a')], [], new Map(), '', { agents: ['opencode'] }).filter((e) => e.kind === 'new')
+  expect(entries.map((e) => e.agent)).toEqual(['opencode'])
 })

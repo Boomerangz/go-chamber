@@ -1372,3 +1372,13 @@ describe('transcript downloads', () => {
     expect(store().chat.order).toEqual([])
   })
 })
+
+it('caches contextual OpenCode catalogs separately and refreshes explicitly', async () => {
+  vi.mocked(api.listModels).mockResolvedValue([{id:'provider/model',name:'Model'}])
+  await store().loadModels('opencode','/one')
+  await store().loadModels('opencode','/two')
+  await store().loadModels('opencode','/one')
+  expect(api.listModels).toHaveBeenCalledTimes(2)
+  await store().loadModels('opencode','/one',true)
+  expect(api.listModels).toHaveBeenCalledTimes(3)
+})

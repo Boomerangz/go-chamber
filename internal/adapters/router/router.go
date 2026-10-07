@@ -12,8 +12,9 @@ import (
 
 // Router is an app.RuntimeFactory that delegates by agent kind.
 type Router struct {
-	Claude app.RuntimeFactory
-	Codex  app.RuntimeFactory
+	Claude   app.RuntimeFactory
+	Codex    app.RuntimeFactory
+	OpenCode app.RuntimeFactory
 	// Accounts handles login for agents that support it (Codex). Claude
 	// manages its own login through `claude login`.
 	Accounts app.AccountManager
@@ -31,6 +32,12 @@ func (r *Router) RateLimits(ctx context.Context, agent domain.AgentKind) (domain
 
 // Account implements app.AccountManager.
 func (r *Router) Account(ctx context.Context, agent domain.AgentKind) (app.AccountInfo, error) {
+	if agent == domain.AgentOpenCode {
+		if accounts, ok := r.OpenCode.(app.AccountManager); ok {
+			return accounts.Account(ctx, agent)
+		}
+		return app.AccountInfo{}, app.ErrAccountsUnsupported
+	}
 	if agent == domain.AgentCodex {
 		if r.Accounts == nil {
 			return app.AccountInfo{}, app.ErrAccountsUnsupported
@@ -70,28 +77,31 @@ func (r *Router) factory(agent domain.AgentKind) app.RuntimeFactory {
 		return r.Claude
 	case domain.AgentCodex:
 		return r.Codex
+	case domain.AgentOpenCode:
+		return r.OpenCode
 	}
 	return nil
 }
 
 func (r *Router) Start(ctx context.Context, req app.StartRequest) (app.AgentRuntime, error) {
-	switch req.Agent {
-	case domain.AgentClaude:
-		if r.Claude == nil {
-			return nil, fmt.Errorf("router: no runtime for %s", req.Agent)
-		}
-		return r.Claude.Start(ctx, req)
-	case domain.AgentCodex:
-		if r.Codex == nil {
-			return nil, fmt.Errorf("router: no runtime for %s", req.Agent)
-		}
-		return r.Codex.Start(ctx, req)
-	default:
+	if !req.Agent.Valid() {
 		return nil, fmt.Errorf("router: unknown agent %q", req.Agent)
 	}
+	factory := r.factory(req.Agent)
+	if factory == nil {
+		return nil, fmt.Errorf("router: no runtime for %s", req.Agent)
+	}
+	return factory.Start(ctx, req)
 }
 
 var _ app.RuntimeFactory = (*Router)(nil)
 var _ app.AccountManager = (*Router)(nil)
 var _ app.QuotaProvider = (*Router)(nil)
 var _ app.CommandCatalog = (*Router)(nil)
+
+func (r *Router) ModelsInFolder(ctx context.Context, agent domain.AgentKind, cwd string) ([]app.ModelInfo, error) {
+	if catalog, ok := r.factory(agent).(app.FolderModelCatalog); ok {
+		return catalog.ModelsInFolder(ctx, agent, cwd)
+	}
+	return r.Models(ctx, agent)
+}

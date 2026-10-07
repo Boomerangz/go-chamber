@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import * as api from '../../lib/api'
 import { resetStore, useSessionStore } from '../../stores/session'
-import { effortsFor, modelLabel } from '../../lib/models'
+import { effortsFor, modelLabel, supportsImages } from '../../lib/models'
 import ModelPicker from './ModelPicker'
 
 vi.mock('../../lib/api', () => ({ listModels: vi.fn(), setModel: vi.fn() }))
@@ -193,4 +193,29 @@ describe('ModelPicker', () => {
     expect(screen.queryByRole('dialog')).toBeNull()
     expect(button).toHaveFocus()
   })
+})
+
+it('loads OpenCode models for this folder, searches providers and labels variants', async () => {
+  vi.mocked(api.listModels).mockResolvedValue([
+    { id: 'openrouter/vendor/model', name: 'Large model', provider: 'OpenRouter', efforts: ['high'], default: true },
+    { id: 'other/fast', name: 'Fast API', provider: 'Other API' },
+  ])
+  render(<ModelPicker session={session({ agent: 'opencode', model: 'openrouter/vendor/model', cwd: '/project' })} />)
+  await userEvent.click(await screen.findByRole('button', { name: 'Model: Large model' }))
+  expect(api.listModels).toHaveBeenCalledWith('opencode', '/project')
+  expect(screen.getByText('Variant')).toBeInTheDocument()
+  await userEvent.type(screen.getByRole('searchbox', { name: 'Search models' }), 'openrouter')
+  expect(screen.getByRole('radio', { name: /^Large model/ })).toBeInTheDocument()
+  expect(screen.queryByRole('radio', { name: /Fast API/ })).toBeNull()
+  await userEvent.click(screen.getByRole('button', { name: 'Refresh models' }))
+  expect(api.listModels).toHaveBeenCalledTimes(2)
+})
+
+it('requires explicit image capability for OpenCode models', () => {
+  const models = [{id:'p/image',name:'Image',images:true,default:true}, {id:'p/text',name:'Text',images:false}]
+  expect(supportsImages('opencode', models, 'p/image')).toBe(true)
+  expect(supportsImages('opencode', models, 'p/text')).toBe(false)
+  expect(supportsImages('opencode', undefined, '')).toBe(false)
+  expect(supportsImages('opencode', models, '')).toBe(true)
+  expect(supportsImages('claude', undefined, '')).toBe(true)
 })

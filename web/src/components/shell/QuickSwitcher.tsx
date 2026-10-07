@@ -1,3 +1,4 @@
+import { useCLIs } from '../../lib/clis'
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import { Plus, SquareTerminal } from 'lucide-react'
 import { icon } from '../icon'
@@ -24,12 +25,13 @@ export default function QuickSwitcher({ onClose }: { onClose: () => void }) {
   const terminals = useTerminalStore((s) => s.terminals)
   const activeId = useSessionStore((s) => s.activeId)
   const status = useSessionStore((s) => s.sessionsStatus)
+  const clis = useCLIs((s) => s.clis)
   const now = useNow(60_000)
   const entries = useMemo(() => {
     const waiting = new Map<string, number>()
     for (const r of requests) waiting.set(r.sessionId, (waiting.get(r.sessionId) ?? 0) + 1)
-    return switcherEntries(sessions, terminals, waiting, query, { activeId })
-  }, [sessions, terminals, requests, query, activeId])
+    return switcherEntries(sessions, terminals, waiting, query, { activeId, ...(clis.length ? { agents: clis.filter((c) => c.found).map((c) => c.agent) } : {}) })
+  }, [sessions, terminals, requests, query, activeId, clis])
   const loading = status === 'loading' && sessions.length === 0
   const current = Math.min(at, entries.length - 1)
 

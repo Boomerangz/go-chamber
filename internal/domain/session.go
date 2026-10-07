@@ -27,11 +27,12 @@ type SessionID string
 type AgentKind string
 
 const (
-	AgentClaude AgentKind = "claude"
-	AgentCodex  AgentKind = "codex"
+	AgentClaude   AgentKind = "claude"
+	AgentCodex    AgentKind = "codex"
+	AgentOpenCode AgentKind = "opencode"
 )
 
-func (k AgentKind) Valid() bool { return k == AgentClaude || k == AgentCodex }
+func (k AgentKind) Valid() bool { return k == AgentClaude || k == AgentCodex || k == AgentOpenCode }
 
 type SessionStatus string
 
@@ -378,7 +379,11 @@ func (s *Session) Model() (model, effort string) { return s.model, s.effort }
 // their shape is checked.
 func (s *Session) SetModel(model, effort string) error {
 	for _, v := range []string{model, effort} {
-		if len(v) > 100 || strings.ContainsFunc(v, unicode.IsSpace) {
+		limit := 100
+		if s.agent == AgentOpenCode {
+			limit = 512
+		}
+		if len(v) > limit || strings.ContainsFunc(v, unicode.IsSpace) {
 			return fmt.Errorf("%w: %q", ErrInvalidModel, v)
 		}
 	}

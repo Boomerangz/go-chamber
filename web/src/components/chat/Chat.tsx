@@ -1,3 +1,6 @@
+import { supportsImages } from '../../lib/models'
+import { modelCatalogKey } from '../../stores/session'
+import { useCapabilities } from '../../lib/clis'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { AnimatePresence, motion, useReducedMotion, type TargetAndTransition } from 'motion/react'
 import { ArrowDown } from 'lucide-react'
@@ -185,7 +188,10 @@ export default function Chat() {
   }, [starting])
   const busy = running || starting !== null
   // A running turn takes text only; images wait for the next message.
-  const attachments = useAttachments(sessionId, busy)
+  const caps = useCapabilities(session?.agent ?? 'claude')
+  const models = useSessionStore((s) => session ? s.models?.[modelCatalogKey(session.agent, session.agent === 'opencode' ? session.cwd : undefined)] : undefined)
+  const canAttach = caps.images && supportsImages(session?.agent ?? 'claude', models, session?.model ?? '')
+  const attachments = useAttachments(sessionId, busy || !canAttach)
   // When this turn started, for the working clock: now for a turn sent from
   // here, else when the session last started one (a turn already running
   // when the page opened keeps its clock across a reload).
@@ -599,7 +605,7 @@ export default function Chat() {
           placeholder={placeholder}
         />
         <div className="composer-actions">
-          <Attachments state={attachments} locked={busy} />
+          {canAttach && <Attachments state={attachments} locked={busy} />}
           {busy && (
             <button
               type="button"

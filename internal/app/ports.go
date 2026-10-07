@@ -26,7 +26,8 @@ type AccountInfo struct {
 	Plan     string           `json:"plan,omitempty"`
 	// CLIMissing says the agent's CLI is not installed, so its login
 	// could not be asked.
-	CLIMissing bool `json:"cliMissing,omitempty"`
+	CLIMissing bool     `json:"cliMissing,omitempty"`
+	Providers  []string `json:"providers,omitempty"`
 }
 
 // LoginChallenge is a device-code login prompt shown to the user.
@@ -180,6 +181,9 @@ type ModelInfo struct {
 	ID          string `json:"id"`
 	Name        string `json:"name"`
 	Description string `json:"description,omitempty"`
+	Provider    string `json:"provider,omitempty"`
+	// Images describes image input support when the catalog knows it.
+	Images *bool `json:"images,omitempty"`
 	// Efforts are the reasoning efforts the model accepts, if any.
 	Efforts       []string `json:"efforts,omitempty"`
 	DefaultEffort string   `json:"defaultEffort,omitempty"`
@@ -190,4 +194,9 @@ type ModelInfo struct {
 // ModelCatalog lists the models an agent offers.
 type ModelCatalog interface {
 	Models(ctx context.Context, agent domain.AgentKind) ([]ModelInfo, error)
+}
+
+// FolderModelCatalog includes project-local configuration in model discovery.
+type FolderModelCatalog interface {
+	ModelsInFolder(ctx context.Context, agent domain.AgentKind, cwd string) ([]ModelInfo, error)
 }

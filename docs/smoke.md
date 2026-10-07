@@ -46,3 +46,11 @@ git -C /tmp/gc-smoke/proj init
   элементе `fileChange`, пришедшем раньше;
 - глобальные Stop-хуки пользователя (`~/.claude`, `~/.codex`) срабатывают и в сессиях
   go-chamber и добавляют к ходу второй ответ; теперь это видно в чате (п. 13).
+
+## OpenCode
+
+See [OpenCode setup and verified smoke](opencode.md). In an isolated instance:
+choose a configured provider/model, verify an answer, read/edit a disposable file,
+answer a native permission, restart the backend, and verify context continuation.
+Confirm provider/model in the native export, including the `:free` suffix when
+using a free model. Use native project/agent permissions and a bounded output limit.

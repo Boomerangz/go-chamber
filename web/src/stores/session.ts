@@ -44,11 +44,11 @@ export interface SessionStore {
   // searchHits are sessions whose messages match the query.
   searchHits: api.SearchHit[]
   // models caches each agent's model catalog; empty when unsupported.
-  models: Partial<Record<api.AgentKind, api.ModelInfo[]>>
+  models: Partial<Record<string, api.ModelInfo[]>>
   // modelsStatus tells a catalog loading or failed from an empty one.
-  modelsStatus: Partial<Record<api.AgentKind, LoadStatus>>
+  modelsStatus: Partial<Record<string, LoadStatus>>
   // modelsError says why an agent's catalog failed to load.
-  modelsError: Partial<Record<api.AgentKind, string>>
+  modelsError: Partial<Record<string, string>>
   // sessionsStatus tells a list still loading (or failed) from an empty one.
   sessionsStatus: LoadStatus
   // sessionsError, requestsError and quotasError say why a first load
@@ -76,7 +76,7 @@ export interface SessionStore {
   setGroupMode: (cwd: string, mode: GroupMode) => void
   setQuery: (query: string) => void
   searchMessages: (query: string) => Promise<void>
-  loadModels: (agent: api.AgentKind) => Promise<void>
+  loadModels: (agent: api.AgentKind, cwd?: string, refresh?: boolean) => Promise<void>
   setModel: (sessionId: string, choice: api.ModelChoice) => Promise<boolean>
   loadSessions: () => Promise<void>
   loadRequests: () => Promise<void>
@@ -211,7 +211,7 @@ const sessionRevisions = new Map<string, Partial<Record<keyof api.Session, numbe
 let preferenceRequest = 0
 const modelPreferenceRequests = new Map<api.AgentKind, number>()
 const modePreferenceRequests = new Map<api.AgentKind, number>()
-const modelsFailed = new Set<api.AgentKind>()
+const modelsFailed = new Set<string>()
 let wakeListening = false
 
 function recordSessionChanges(before: api.Session | undefined, updated: api.Session): void {
@@ -297,26 +297,27 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
   },
   setQuery: (query) => set({ query }),
 
-  async loadModels(agent) {
-    if (get().models[agent] && !modelsFailed.has(agent)) return
-    if (get().modelsStatus[agent] === 'loading') return
-    set({ modelsStatus: { ...get().modelsStatus, [agent]: 'loading' } })
+  async loadModels(agent, cwd, refresh = false) {
+    const key = modelCatalogKey(agent, cwd)
+    if (!refresh && get().models[key] && !modelsFailed.has(key)) return
+    if (get().modelsStatus[key] === 'loading') return
+    set({ modelsStatus: { ...get().modelsStatus, [key]: 'loading' } })
     try {
-      const list = await api.listModels(agent)
-      modelsFailed.delete(agent)
-      const { [agent]: _, ...modelsError } = get().modelsError
-      set({ models: { ...get().models, [agent]: list }, modelsStatus: { ...get().modelsStatus, [agent]: 'ready' }, modelsError })
+      const list = cwd === undefined ? await api.listModels(agent) : await api.listModels(agent, cwd)
+      modelsFailed.delete(key)
+      const { [key]: _, ...modelsError } = get().modelsError
+      set({ models: { ...get().models, [key]: list }, modelsStatus: { ...get().modelsStatus, [key]: 'ready' }, modelsError })
     } catch (err) {
       // An agent without a catalog says so: that is an answer. Anything else
       // failed: the picker offers only the default and a retry, and asks
       // again next time it opens.
       const why = describeError(err)
       const unsupported = /not supported/i.test(why)
-      if (!unsupported) modelsFailed.add(agent)
+      if (!unsupported) modelsFailed.add(key)
       set({
-        models: { ...get().models, [agent]: [] },
-        modelsStatus: { ...get().modelsStatus, [agent]: unsupported ? 'ready' : 'error' },
-        ...(unsupported ? {} : { modelsError: { ...get().modelsError, [agent]: why } }),
+        models: { ...get().models, [key]: [] },
+        modelsStatus: { ...get().modelsStatus, [key]: unsupported ? 'ready' : 'error' },
+        ...(unsupported ? {} : { modelsError: { ...get().modelsError, [key]: why } }),
       })
     }
   },
@@ -1032,4 +1033,8 @@ export function resetStore(): void {
     quotasStatus: 'loading',
     nextRetryAt: null,
   })
+}
+
+export function modelCatalogKey(agent: api.AgentKind, cwd?: string): string {
+  return cwd === undefined ? agent : `${agent}:${cwd}`
 }

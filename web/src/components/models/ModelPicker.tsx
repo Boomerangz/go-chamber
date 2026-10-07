@@ -4,19 +4,22 @@ import { useEffect, useRef, useState, type KeyboardEvent } from 'react'
 import type { ModelChoice, Session } from '../../lib/api'
 import { failedTo } from '../../lib/failed'
 import { effortsFor, modelLabel } from '../../lib/models'
-import { useSessionStore } from '../../stores/session'
+import { modelCatalogKey, useSessionStore } from '../../stores/session'
 import { LoadFailed, LoadingLine } from '../ui/Loading'
 import './ModelPicker.css'
 
-const agentConfig = { claude: 'Claude settings', codex: 'Codex config' } as const
+const agentConfig = { claude: 'Claude settings', codex: 'Codex config', opencode: 'OpenCode config' } as const
 
 // ModelPicker chooses the session's model and reasoning effort. A choice
 // shows at once in the "not yet settled" form until the server agrees, and
 // goes back if it refuses.
 export default function ModelPicker({ session }: { session: Session }) {
-  const models = useSessionStore((s) => s.models[session.agent])
-  const status = useSessionStore((s) => s.modelsStatus[session.agent])
-  const modelsError = useSessionStore((s) => s.modelsError[session.agent])
+  const cwd = session.agent === 'opencode' ? session.cwd : undefined
+  const key = modelCatalogKey(session.agent, cwd)
+  const [search, setSearch] = useState('')
+  const models = useSessionStore((s) => s.models[key])
+  const status = useSessionStore((s) => s.modelsStatus[key])
+  const modelsError = useSessionStore((s) => s.modelsError[key])
   const loadModels = useSessionStore((s) => s.loadModels)
   const setModel = useSessionStore((s) => s.setModel)
   const [open, setOpen] = useState(false)
@@ -27,8 +30,8 @@ export default function ModelPicker({ session }: { session: Session }) {
   const menu = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    void loadModels(session.agent)
-  }, [session.agent, loadModels])
+    void loadModels(session.agent, cwd)
+  }, [session.agent, cwd, loadModels])
 
   const close = (refocus: boolean) => {
     setOpen(false)
@@ -104,7 +107,7 @@ export default function ModelPicker({ session }: { session: Session }) {
         onClick={() => {
           if (open) return close(false)
           // A listing that failed is asked for again when the menu opens.
-          void loadModels(session.agent)
+          void loadModels(session.agent, cwd)
           setOpen(true)
         }}
       >
@@ -114,6 +117,7 @@ export default function ModelPicker({ session }: { session: Session }) {
       </button>
       {open && (
         <div className="model-menu" role="dialog" aria-label="Choose model" ref={menu}>
+          {session.agent === 'opencode' && <div className="model-search"><input className="field" type="search" aria-label="Search models" placeholder="Model or provider…" value={search} onChange={(e) => setSearch(e.target.value)} /><button className="btn btn-xs" onClick={() => void loadModels(session.agent, cwd, true)}>Refresh models</button></div>}
           <div className="model-options" role="radiogroup" aria-label="Model" onKeyDown={walkRadios}>
             <ModelOption
               checked={modelChecked('')}
@@ -122,25 +126,28 @@ export default function ModelPicker({ session }: { session: Session }) {
               description={defaultModel ? `${defaultModel.name}, from ${agentConfig[session.agent]}` : `From ${agentConfig[session.agent]}`}
               onSelect={() => void choose('', effort)}
             />
-            {list.map((m) => (
+            {list.filter((m) => `${m.name} ${m.id} ${m.provider ?? ''}`.toLowerCase().includes(search.toLowerCase())).map((m, i, shown) => (
+              <div key={m.id}>
+              {m.provider && (i === 0 || shown[i-1]?.provider !== m.provider) && <p className="model-provider">{m.provider}</p>}
               <ModelOption
                 key={m.id}
                 checked={modelChecked(m.id)}
                 focusable={modelChecked(m.id)}
                 name={m.name}
-                description={m.description}
+                description={m.provider ? `${m.id}${m.description ? ` · ${m.description}` : ''}` : m.description}
                 onSelect={() => void choose(m.id, effort)}
               />
+              </div>
             ))}
             {(status === 'loading' || (status === undefined && models === undefined)) && <LoadingLine>loading models…</LoadingLine>}
             {status === 'error' && (
-              <LoadFailed onRetry={() => void loadModels(session.agent)}>{failedTo('load models', modelsError)}</LoadFailed>
+              <LoadFailed onRetry={() => void loadModels(session.agent, cwd)}>{failedTo('load models', modelsError)}</LoadFailed>
             )}
             {status === 'ready' && models?.length === 0 && <p className="model-none">this agent doesn't list models</p>}
           </div>
           {efforts.length > 0 && (
             <div className="effort">
-              <span className="section-title">Reasoning effort</span>
+              <span className="section-title">{session.agent === 'opencode' ? 'Variant' : 'Reasoning effort'}</span>
               <div className="effort-options" role="radiogroup" aria-label="Effort" onKeyDown={walkRadios}>
                 {['', ...efforts].map((e) => (
                   <button
@@ -157,7 +164,7 @@ export default function ModelPicker({ session }: { session: Session }) {
               </div>
             </div>
           )}
-          <p className="model-hint">Applies from the next turn.</p>
+          <p className="model-hint">Applies to the next message.</p>
         </div>
       )}
     </div>

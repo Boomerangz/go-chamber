@@ -33,7 +33,7 @@ import { stableOrder } from '../../lib/stable-order'
 // RECENT is how many sessions an expanded project shows before "older".
 const RECENT = 5
 
-const agentName: Record<AgentKind, string> = { claude: 'Claude', codex: 'Codex' }
+const agentName: Record<AgentKind, string> = { claude: 'Claude', codex: 'Codex', opencode: 'OpenCode' }
 
 export interface SessionListProps {
   onCreateIn: (cwd: string) => void
@@ -395,7 +395,7 @@ function SessionRow(props: {
         onClick={() => props.onSelect(s.id)}
       >
         <span className={`avatar avatar-sm avatar-${s.agent}`} aria-hidden="true">
-          {s.agent === 'claude' ? 'C' : 'X'}
+          {s.agent === 'claude' ? 'C' : s.agent === 'opencode' ? 'O' : 'X'}
         </span>
         <span className="session-text">
           <span className="session-title" title={title}>
@@ -470,7 +470,7 @@ function MessageHits(props: {
               onClick={() => props.onSelect(session.id)}
             >
               <span className={`avatar avatar-sm avatar-${session.agent}`} aria-hidden="true">
-                {session.agent === 'claude' ? 'C' : 'X'}
+                {session.agent === 'claude' ? 'C' : session.agent === 'opencode' ? 'O' : 'X'}
               </span>
               <span className="session-text">
                 <span className="session-title" title={sessionTitle(session)}>

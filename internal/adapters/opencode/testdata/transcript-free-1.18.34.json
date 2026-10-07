@@ -1,0 +1,622 @@
+[
+  {
+    "info": {
+      "role": "user",
+      "time": {
+        "created": 1791376302746
+      },
+      "agent": "build",
+      "model": {
+        "providerID": "openrouter",
+        "modelID": "cohere/north-mini-code:free"
+      },
+      "summary": {
+        "diffs": []
+      },
+      "id": "msg_11659229a001w0WNtvsuybDIQV",
+      "sessionID": "ses_ee9a6dd83ffe0dqDeNotCI7Q04"
+    },
+    "parts": [
+      {
+        "type": "text",
+        "text": "Reply with exactly OPENROUTER_OK. Do not use tools.",
+        "id": "prt_11659229f001Pj0uqTfVsVcLpv",
+        "sessionID": "ses_ee9a6dd83ffe0dqDeNotCI7Q04",
+        "messageID": "msg_11659229a001w0WNtvsuybDIQV"
+      }
+    ]
+  },
+  {
+    "info": {
+      "parentID": "msg_11659229a001w0WNtvsuybDIQV",
+      "role": "assistant",
+      "mode": "build",
+      "agent": "build",
+      "path": {
+        "cwd": "/test/project",
+        "root": "/test/repository"
+      },
+      "cost": 0,
+      "tokens": {
+        "total": 14486,
+        "input": 14381,
+        "output": 0,
+        "reasoning": 112,
+        "cache": {
+          "write": 0,
+          "read": 0
+        }
+      },
+      "modelID": "cohere/north-mini-code:free",
+      "providerID": "openrouter",
+      "time": {
+        "created": 1791376302773,
+        "completed": 1791376308843
+      },
+      "finish": "stop",
+      "id": "msg_1165922b5001VcB8ea240FElS5",
+      "sessionID": "ses_ee9a6dd83ffe0dqDeNotCI7Q04"
+    },
+    "parts": [
+      {
+        "snapshot": "fec139b77610a49504e9a12467be8d6fc6df6f79",
+        "type": "step-start",
+        "id": "prt_1165931b2001xwB9I83vF2J43W",
+        "sessionID": "ses_ee9a6dd83ffe0dqDeNotCI7Q04",
+        "messageID": "msg_1165922b5001VcB8ea240FElS5"
+      },
+      {
+        "type": "reasoning",
+        "text": "The user is asking me to reply with exactly \"OPENROUTER_OK\" and not use any tools. This is a very specific instruction - they want the exact text \"OPENROUTER_OK\" and no tools should be used.\n\nI need to follow this instruction precisely:\n1. Reply with exactly \"OPENROUTER_OK\" \n2. Do not use any tools\n3. No additional text or explanation\n\nThis is a simple text response requirement, so I should just output the exact text they requested.",
+        "time": {
+          "start": 1791376306616,
+          "end": 1791376308741
+        },
+        "metadata": {
+          "openrouter": {
+            "reasoning_details": [
+              {
+                "type": "reasoning.text",
+                "text": "The user is asking me to reply with exactly \"OPENROUTER_OK\" and not use any tools. This is a very specific instruction - they want the exact text \"OPENROUTER_OK\" and no tools should be used.\n\nI need to follow this instruction precisely:\n1. Reply with exactly \"OPENROUTER_OK\" \n2. Do not use any tools\n3. No additional text or explanation\n\nThis is a simple text response requirement, so I should just output the exact text they requested.",
+                "format": "unknown",
+                "index": 0
+              }
+            ]
+          }
+        },
+        "id": "prt_1165931b8001csZ74InOyMRAll",
+        "sessionID": "ses_ee9a6dd83ffe0dqDeNotCI7Q04",
+        "messageID": "msg_1165922b5001VcB8ea240FElS5"
+      },
+      {
+        "type": "text",
+        "text": "OPENROUTER_OK",
+        "time": {
+          "start": 1791376308745,
+          "end": 1791376308751
+        },
+        "id": "prt_116593a09001jj4kg3Ro9HgeJ4",
+        "sessionID": "ses_ee9a6dd83ffe0dqDeNotCI7Q04",
+        "messageID": "msg_1165922b5001VcB8ea240FElS5"
+      },
+      {
+        "reason": "stop",
+        "snapshot": "fec139b77610a49504e9a12467be8d6fc6df6f79",
+        "type": "step-finish",
+        "tokens": {
+          "total": 14486,
+          "input": 14381,
+          "output": 0,
+          "reasoning": 112,
+          "cache": {
+            "write": 0,
+            "read": 0
+          }
+        },
+        "cost": 0,
+        "id": "prt_116593a41001cFCphA8Ky0opGy",
+        "sessionID": "ses_ee9a6dd83ffe0dqDeNotCI7Q04",
+        "messageID": "msg_1165922b5001VcB8ea240FElS5"
+      }
+    ]
+  },
+  {
+    "info": {
+      "role": "user",
+      "time": {
+        "created": 1791376308917
+      },
+      "agent": "build",
+      "model": {
+        "providerID": "openrouter",
+        "modelID": "cohere/north-mini-code:free"
+      },
+      "summary": {
+        "diffs": []
+      },
+      "id": "msg_116593ab5001i2ebbqopA7nqC2",
+      "sessionID": "ses_ee9a6dd83ffe0dqDeNotCI7Q04"
+    },
+    "parts": [
+      {
+        "type": "text",
+        "text": "Read test.txt with the read tool, then use the edit tool to replace before-openrouter with after-openrouter in this test file. Do not use bash or any other tools. Reply EDIT_OK when finished.",
+        "id": "prt_116593ab6001lrNxJbuI5bC00g",
+        "sessionID": "ses_ee9a6dd83ffe0dqDeNotCI7Q04",
+        "messageID": "msg_116593ab5001i2ebbqopA7nqC2"
+      }
+    ]
+  },
+  {
+    "info": {
+      "parentID": "msg_116593ab5001i2ebbqopA7nqC2",
+      "role": "assistant",
+      "mode": "build",
+      "agent": "build",
+      "path": {
+        "cwd": "/test/project",
+        "root": "/test/repository"
+      },
+      "cost": 0,
+      "tokens": {
+        "total": 14564,
+        "input": 14427,
+        "output": 29,
+        "reasoning": 108,
+        "cache": {
+          "write": 0,
+          "read": 0
+        }
+      },
+      "modelID": "cohere/north-mini-code:free",
+      "providerID": "openrouter",
+      "time": {
+        "created": 1791376308926,
+        "completed": 1791376312631
+      },
+      "finish": "tool-calls",
+      "id": "msg_116593abe001dQ4aGRMkdJ3UGW",
+      "sessionID": "ses_ee9a6dd83ffe0dqDeNotCI7Q04"
+    },
+    "parts": [
+      {
+        "snapshot": "fec139b77610a49504e9a12467be8d6fc6df6f79",
+        "type": "step-start",
+        "id": "prt_116593d81001lje14whkR9mr33",
+        "sessionID": "ses_ee9a6dd83ffe0dqDeNotCI7Q04",
+        "messageID": "msg_116593abe001dQ4aGRMkdJ3UGW"
+      },
+      {
+        "type": "reasoning",
+        "text": "The user wants me to:\n1. Read test.txt using the read tool\n2. Use the edit tool to replace \"before-openrouter\" with \"after-openrouter\" in this file\n3. Do not use bash or any other tools\n4. Reply \"EDIT_OK\" when finished\n\nI need to:\n1. First read test.txt to see its contents\n2. Then edit the file to replace \"before-openrouter\" with \"after-openrouter\"\n3. Finally respond with \"EDIT_OK\"\n\nLet me start by reading the file.",
+        "time": {
+          "start": 1791376309636,
+          "end": 1791376312554
+        },
+        "metadata": {
+          "openrouter": {
+            "reasoning_details": [
+              {
+                "type": "reasoning.text",
+                "text": "The user wants me to:\n1. Read test.txt using the read tool\n2. Use the edit tool to replace \"before-openrouter\" with \"after-openrouter\" in this file\n3. Do not use bash or any other tools\n4. Reply \"EDIT_OK\" when finished\n\nI need to:\n1. First read test.txt to see its contents\n2. Then edit the file to replace \"before-openrouter\" with \"after-openrouter\"\n3. Finally respond with \"EDIT_OK\"\n\nLet me start by reading the file.",
+                "format": "unknown",
+                "index": 0
+              }
+            ]
+          }
+        },
+        "id": "prt_116593d84001gQyA3eMH1dEZck",
+        "sessionID": "ses_ee9a6dd83ffe0dqDeNotCI7Q04",
+        "messageID": "msg_116593abe001dQ4aGRMkdJ3UGW"
+      },
+      {
+        "type": "tool",
+        "tool": "read",
+        "callID": "read_p472bkrwqghb",
+        "state": {
+          "status": "completed",
+          "input": {
+            "filePath": "/test/project/test.txt"
+          },
+          "output": "<path>/test/project/test.txt</path>\n<type>file</type>\n<content>\n1: before-openrouter\n\n(End of file - total 1 lines)\n</content>",
+          "metadata": {
+            "preview": "before-openrouter",
+            "truncated": false,
+            "loaded": [],
+            "display": {
+              "type": "file",
+              "path": "/test/project/test.txt",
+              "text": "before-openrouter",
+              "lineStart": 1,
+              "lineEnd": 1,
+              "totalLines": 1,
+              "truncated": false
+            }
+          },
+          "title": "bin/smoke/project/test.txt",
+          "time": {
+            "start": 1791376312482,
+            "end": 1791376312498
+          }
+        },
+        "metadata": {
+          "openrouter": {
+            "reasoning_details": [
+              {
+                "type": "reasoning.text",
+                "text": "The user wants me to:\n1. Read test.txt using the read tool\n2. Use the edit tool to replace \"before-openrouter\" with \"after-openrouter\" in this file\n3. Do not use bash or any other tools\n4. Reply \"EDIT_OK\" when finished\n\nI need to:\n1. First read test.txt to see its contents\n2. Then edit the file to replace \"before-openrouter\" with \"after-openrouter\"\n3. Finally respond with \"EDIT_OK\"\n\nLet me start by reading the file.",
+                "format": "unknown",
+                "index": 0
+              }
+            ]
+          }
+        },
+        "id": "prt_11659459f001hYHF5BvEQWW7a0",
+        "sessionID": "ses_ee9a6dd83ffe0dqDeNotCI7Q04",
+        "messageID": "msg_116593abe001dQ4aGRMkdJ3UGW"
+      },
+      {
+        "reason": "tool-calls",
+        "snapshot": "fec139b77610a49504e9a12467be8d6fc6df6f79",
+        "type": "step-finish",
+        "tokens": {
+          "total": 14564,
+          "input": 14427,
+          "output": 29,
+          "reasoning": 108,
+          "cache": {
+            "write": 0,
+            "read": 0
+          }
+        },
+        "cost": 0,
+        "id": "prt_116594915001bG0gVVzZUTF21z",
+        "sessionID": "ses_ee9a6dd83ffe0dqDeNotCI7Q04",
+        "messageID": "msg_116593abe001dQ4aGRMkdJ3UGW"
+      }
+    ]
+  },
+  {
+    "info": {
+      "parentID": "msg_116593ab5001i2ebbqopA7nqC2",
+      "role": "assistant",
+      "mode": "build",
+      "agent": "build",
+      "path": {
+        "cwd": "/test/project",
+        "root": "/test/repository"
+      },
+      "cost": 0,
+      "tokens": {
+        "total": 14566,
+        "input": 14484,
+        "output": 38,
+        "reasoning": 44,
+        "cache": {
+          "write": 0,
+          "read": 0
+        }
+      },
+      "modelID": "cohere/north-mini-code:free",
+      "providerID": "openrouter",
+      "time": {
+        "created": 1791376312633,
+        "completed": 1791376330899
+      },
+      "finish": "tool-calls",
+      "id": "msg_116594939001ufJxZ8XmQVwWTh",
+      "sessionID": "ses_ee9a6dd83ffe0dqDeNotCI7Q04"
+    },
+    "parts": [
+      {
+        "snapshot": "fec139b77610a49504e9a12467be8d6fc6df6f79",
+        "type": "step-start",
+        "id": "prt_116597a1b001Ny3R2gVNEKFIc7",
+        "sessionID": "ses_ee9a6dd83ffe0dqDeNotCI7Q04",
+        "messageID": "msg_116594939001ufJxZ8XmQVwWTh"
+      },
+      {
+        "type": "reasoning",
+        "text": "Good, I can see the content of test.txt. It contains one line:\n\"before-openrouter\"\n\nNow I need to use the edit tool to replace \"before-openrouter\" with \"after-openrouter\".",
+        "time": {
+          "start": 1791376325150,
+          "end": 1791376330813
+        },
+        "metadata": {
+          "openrouter": {
+            "reasoning_details": [
+              {
+                "type": "reasoning.text",
+                "text": "Good, I can see the content of test.txt. It contains one line:\n\"before-openrouter\"\n\nNow I need to use the edit tool to replace \"before-openrouter\" with \"after-openrouter\".",
+                "format": "unknown",
+                "index": 0
+              }
+            ]
+          }
+        },
+        "id": "prt_116597a1e001xm1bPd04ukRdpt",
+        "sessionID": "ses_ee9a6dd83ffe0dqDeNotCI7Q04",
+        "messageID": "msg_116594939001ufJxZ8XmQVwWTh"
+      },
+      {
+        "type": "tool",
+        "tool": "edit",
+        "callID": "edit_yt6c6b8kfyr5",
+        "state": {
+          "status": "completed",
+          "input": {
+            "filePath": "/test/project/test.txt",
+            "oldString": "before-openrouter",
+            "newString": "after-openrouter"
+          },
+          "output": "Edit applied successfully.",
+          "metadata": {
+            "diagnostics": {},
+            "diff": "Index: /test/project/test.txt\n===================================================================\n--- /test/project/test.txt\n+++ /test/project/test.txt\n@@ -1,1 +1,1 @@\n-before-openrouter\n+after-openrouter\n",
+            "filediff": {
+              "file": "/test/project/test.txt",
+              "patch": "Index: /test/project/test.txt\n===================================================================\n--- /test/project/test.txt\n+++ /test/project/test.txt\n@@ -1,1 +1,1 @@\n-before-openrouter\n+after-openrouter\n",
+              "additions": 1,
+              "deletions": 1
+            },
+            "truncated": false
+          },
+          "title": "bin/smoke/project/test.txt",
+          "time": {
+            "start": 1791376330610,
+            "end": 1791376330679
+          }
+        },
+        "metadata": {
+          "openrouter": {
+            "reasoning_details": [
+              {
+                "type": "reasoning.text",
+                "text": "Good, I can see the content of test.txt. It contains one line:\n\"before-openrouter\"\n\nNow I need to use the edit tool to replace \"before-openrouter\" with \"after-openrouter\".",
+                "format": "unknown",
+                "index": 0
+              }
+            ]
+          }
+        },
+        "id": "prt_116598786001q8OZS79YRUqoSR",
+        "sessionID": "ses_ee9a6dd83ffe0dqDeNotCI7Q04",
+        "messageID": "msg_116594939001ufJxZ8XmQVwWTh"
+      },
+      {
+        "reason": "tool-calls",
+        "snapshot": "fec139b77610a49504e9a12467be8d6fc6df6f79",
+        "type": "step-finish",
+        "tokens": {
+          "total": 14566,
+          "input": 14484,
+          "output": 38,
+          "reasoning": 44,
+          "cache": {
+            "write": 0,
+            "read": 0
+          }
+        },
+        "cost": 0,
+        "id": "prt_11659906a001s3nvtikxEiMs3M",
+        "sessionID": "ses_ee9a6dd83ffe0dqDeNotCI7Q04",
+        "messageID": "msg_116594939001ufJxZ8XmQVwWTh"
+      }
+    ]
+  },
+  {
+    "info": {
+      "parentID": "msg_116593ab5001i2ebbqopA7nqC2",
+      "role": "assistant",
+      "mode": "build",
+      "agent": "build",
+      "path": {
+        "cwd": "/test/project",
+        "root": "/test/repository"
+      },
+      "cost": 0,
+      "tokens": {
+        "total": 14531,
+        "input": 14490,
+        "output": 0,
+        "reasoning": 46,
+        "cache": {
+          "write": 0,
+          "read": 0
+        }
+      },
+      "modelID": "cohere/north-mini-code:free",
+      "providerID": "openrouter",
+      "time": {
+        "created": 1791376330902,
+        "completed": 1791376332266
+      },
+      "finish": "stop",
+      "id": "msg_116599096001w3PfMM0Q5hgc6w",
+      "sessionID": "ses_ee9a6dd83ffe0dqDeNotCI7Q04"
+    },
+    "parts": [
+      {
+        "snapshot": "fec139b77610a49504e9a12467be8d6fc6df6f79",
+        "type": "step-start",
+        "id": "prt_11659939b00146d4wa6Co7Z7Ji",
+        "sessionID": "ses_ee9a6dd83ffe0dqDeNotCI7Q04",
+        "messageID": "msg_116599096001w3PfMM0Q5hgc6w"
+      },
+      {
+        "type": "reasoning",
+        "text": "Perfect! I've successfully edited the file to replace \"before-openrouter\" with \"after-openrouter\". The edit was applied successfully. Now I need to reply with \"EDIT_OK\" as requested.",
+        "time": {
+          "start": 1791376331677,
+          "end": 1791376332178
+        },
+        "metadata": {
+          "openrouter": {
+            "reasoning_details": [
+              {
+                "type": "reasoning.text",
+                "text": "Perfect! I've successfully edited the file to replace \"before-openrouter\" with \"after-openrouter\". The edit was applied successfully. Now I need to reply with \"EDIT_OK\" as requested.",
+                "format": "unknown",
+                "index": 0
+              }
+            ]
+          }
+        },
+        "id": "prt_11659939d001UUC5SqZTbVRdwM",
+        "sessionID": "ses_ee9a6dd83ffe0dqDeNotCI7Q04",
+        "messageID": "msg_116599096001w3PfMM0Q5hgc6w"
+      },
+      {
+        "type": "text",
+        "text": "EDIT_OK",
+        "time": {
+          "start": 1791376332181,
+          "end": 1791376332183
+        },
+        "id": "prt_116599595001pPuM4vZSZYJXU0",
+        "sessionID": "ses_ee9a6dd83ffe0dqDeNotCI7Q04",
+        "messageID": "msg_116599096001w3PfMM0Q5hgc6w"
+      },
+      {
+        "reason": "stop",
+        "snapshot": "fec139b77610a49504e9a12467be8d6fc6df6f79",
+        "type": "step-finish",
+        "tokens": {
+          "total": 14531,
+          "input": 14490,
+          "output": 0,
+          "reasoning": 46,
+          "cache": {
+            "write": 0,
+            "read": 0
+          }
+        },
+        "cost": 0,
+        "id": "prt_1165995c3001FgYOyul8thkIii",
+        "sessionID": "ses_ee9a6dd83ffe0dqDeNotCI7Q04",
+        "messageID": "msg_116599096001w3PfMM0Q5hgc6w"
+      }
+    ]
+  },
+  {
+    "info": {
+      "role": "user",
+      "time": {
+        "created": 1791376333760
+      },
+      "agent": "build",
+      "model": {
+        "providerID": "openrouter",
+        "modelID": "cohere/north-mini-code:free"
+      },
+      "summary": {
+        "diffs": []
+      },
+      "id": "msg_116599bc00013m65Ogam8Ul4sl",
+      "sessionID": "ses_ee9a6dd83ffe0dqDeNotCI7Q04"
+    },
+    "parts": [
+      {
+        "type": "text",
+        "text": "What exact two strings did you replace in test.txt? Answer briefly from our prior conversation, do not use tools.",
+        "id": "prt_116599bc1001u7g4vB2Lb7DeCE",
+        "sessionID": "ses_ee9a6dd83ffe0dqDeNotCI7Q04",
+        "messageID": "msg_116599bc00013m65Ogam8Ul4sl"
+      }
+    ]
+  },
+  {
+    "info": {
+      "parentID": "msg_116599bc00013m65Ogam8Ul4sl",
+      "role": "assistant",
+      "mode": "build",
+      "agent": "build",
+      "path": {
+        "cwd": "/test/project",
+        "root": "/test/repository"
+      },
+      "cost": 0,
+      "tokens": {
+        "total": 14632,
+        "input": 14515,
+        "output": 5,
+        "reasoning": 112,
+        "cache": {
+          "write": 0,
+          "read": 0
+        }
+      },
+      "modelID": "cohere/north-mini-code:free",
+      "providerID": "openrouter",
+      "time": {
+        "created": 1791376333975,
+        "completed": 1791376340316
+      },
+      "finish": "stop",
+      "id": "msg_116599c970012FcWDU2O2cP2gj",
+      "sessionID": "ses_ee9a6dd83ffe0dqDeNotCI7Q04"
+    },
+    "parts": [
+      {
+        "snapshot": "fec139b77610a49504e9a12467be8d6fc6df6f79",
+        "type": "step-start",
+        "id": "prt_11659ac9a0010M1uAitt8kNmYd",
+        "sessionID": "ses_ee9a6dd83ffe0dqDeNotCI7Q04",
+        "messageID": "msg_116599c970012FcWDU2O2cP2gj"
+      },
+      {
+        "type": "reasoning",
+        "text": "The user is asking what exact two strings I replaced in test.txt. From my prior conversation, I can see:\n\n1. I read the file and it contained \"before-openrouter\" on line 1\n2. I edited the file to replace \"before-openrouter\" with \"after-openrouter\"\n\nSo the two strings I replaced were:\n- \"before-openrouter\" (the old string)\n- \"after-openrouter\" (the new string)\n\nI need to answer briefly from our prior conversation without using tools.",
+        "time": {
+          "start": 1791376338078,
+          "end": 1791376340018
+        },
+        "metadata": {
+          "openrouter": {
+            "reasoning_details": [
+              {
+                "type": "reasoning.text",
+                "text": "The user is asking what exact two strings I replaced in test.txt. From my prior conversation, I can see:\n\n1. I read the file and it contained \"before-openrouter\" on line 1\n2. I edited the file to replace \"before-openrouter\" with \"after-openrouter\"\n\nSo the two strings I replaced were:\n- \"before-openrouter\" (the old string)\n- \"after-openrouter\" (the new string)\n\nI need to answer briefly from our prior conversation without using tools.",
+                "format": "unknown",
+                "index": 0
+              }
+            ]
+          }
+        },
+        "id": "prt_11659ac9e001Rc2ImBhRKvHGUt",
+        "sessionID": "ses_ee9a6dd83ffe0dqDeNotCI7Q04",
+        "messageID": "msg_116599c970012FcWDU2O2cP2gj"
+      },
+      {
+        "type": "text",
+        "text": "I replaced \"before-openrouter\" with \"after-openrouter\".",
+        "time": {
+          "start": 1791376340019,
+          "end": 1791376340232
+        },
+        "id": "prt_11659b433001n9lTI88JwVGebj",
+        "sessionID": "ses_ee9a6dd83ffe0dqDeNotCI7Q04",
+        "messageID": "msg_116599c970012FcWDU2O2cP2gj"
+      },
+      {
+        "reason": "stop",
+        "snapshot": "fec139b77610a49504e9a12467be8d6fc6df6f79",
+        "type": "step-finish",
+        "tokens": {
+          "total": 14632,
+          "input": 14515,
+          "output": 5,
+          "reasoning": 112,
+          "cache": {
+            "write": 0,
+            "read": 0
+          }
+        },
+        "cost": 0,
+        "id": "prt_11659b534001FQiCwXeE6bDo05",
+        "sessionID": "ses_ee9a6dd83ffe0dqDeNotCI7Q04",
+        "messageID": "msg_116599c970012FcWDU2O2cP2gj"
+      }
+    ]
+  }
+]

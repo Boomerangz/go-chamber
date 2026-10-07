@@ -25,6 +25,7 @@ import (
 	"github.com/igorzygin/go-chamber/internal/adapters/git"
 	httpapi "github.com/igorzygin/go-chamber/internal/adapters/http"
 	"github.com/igorzygin/go-chamber/internal/adapters/hub"
+	"github.com/igorzygin/go-chamber/internal/adapters/opencode"
 	"github.com/igorzygin/go-chamber/internal/adapters/pty"
 	"github.com/igorzygin/go-chamber/internal/adapters/router"
 	"github.com/igorzygin/go-chamber/internal/adapters/sqlite"
@@ -87,9 +88,12 @@ func run(ctx context.Context, args []string, out io.Writer) error {
 		_, _ = fmt.Fprintln(os.Stderr, "event log:", err)
 	})
 	codexFactory := &codex.Factory{}
+	openCodeFactory := &opencode.Factory{}
+	defer func() { _ = openCodeFactory.Close() }()
 	runtimes := &router.Router{
 		Claude:   &claude.Factory{},
 		Codex:    codexFactory,
+		OpenCode: openCodeFactory,
 		Accounts: codexFactory,
 		Quotas:   codexFactory,
 	}

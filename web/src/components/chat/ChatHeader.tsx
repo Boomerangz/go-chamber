@@ -1,3 +1,4 @@
+import { useCapabilities } from '../../lib/clis'
 import { useId, useRef, useState } from 'react'
 import { Copy, MoreHorizontal } from 'lucide-react'
 import AgentAvatar from '../AgentAvatar'
@@ -22,7 +23,8 @@ import { useSessionStore } from '../../stores/session'
 function ApprovalReviewerSelect({ session }: { session: Session }) {
   const setReviewer = useSessionStore((s) => s.setApprovalReviewer)
   const [saving, setSaving] = useState<ApprovalReviewer | null>(null)
-  if (session.agent !== 'codex') return null
+  const caps = useCapabilities(session.agent)
+  if (!caps.approvalReviewer) return null
   const change = async (reviewer: ApprovalReviewer) => {
     setSaving(reviewer)
     try {
@@ -147,6 +149,7 @@ interface Props {
 // folds to the title and one meta line; the folder, model, mode and fork
 // open behind "⋯" so the transcript keeps the screen.
 export default function ChatHeader({ session, status, unsettled, loading, notFound, forking, onFork }: Props) {
+  const caps = useCapabilities(session?.agent ?? 'claude')
   const renameSession = useSessionStore((s) => s.renameSession)
   const [open, setOpen] = useState(false)
   const toolsId = useId()
@@ -208,11 +211,11 @@ export default function ChatHeader({ session, status, unsettled, loading, notFou
               </span>
               <ModelPicker session={session} />
             </span>
-            <PermissionModeSelect session={session} />
+            {caps.permissionModes && <PermissionModeSelect session={session} />}
             <ApprovalReviewerSelect session={session} />
             {/* A fork starts in the session's folder: none once it's gone. */}
             {session.nativeId && !session.folderGone && (
-              <button type="button" className="btn btn-ghost chat-fork" aria-busy={forking} onClick={onFork}>
+              <button disabled={!caps.fork} type="button" className="btn btn-ghost chat-fork" aria-busy={forking} onClick={onFork}>
                 {forking ? 'Forking…' : 'Fork'}
               </button>
             )}

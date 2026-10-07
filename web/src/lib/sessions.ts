@@ -225,7 +225,7 @@ export function matchesQuery(session: Session, query: string): boolean {
   return [session.title ?? '', session.cwd, session.agent, session.worktree?.branch ?? ''].some((v) => v.toLowerCase().includes(q))
 }
 
-const agentName: Record<AgentKind, string> = { claude: 'Claude', codex: 'Codex' }
+const agentName: Record<AgentKind, string> = { claude: 'Claude', codex: 'Codex', opencode: 'OpenCode' }
 
 // sessionTitle is the name shown for a session: its title (the first
 // message by default) or a placeholder before anything was sent.
