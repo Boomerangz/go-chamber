@@ -116,7 +116,15 @@ test.describe('a phone', () => {
     const chips = page.getByRole('group', { name: 'Recent folders' })
     const caption = chips.getByText('Recent', { exact: true })
     await expect(caption).toBeVisible()
-    const [c, chip, field] = [(await caption.boundingBox())!, (await chips.getByRole('button').first().boundingBox())!, (await page.locator('.new-session .folder-field').boundingBox())!]
+    // Measured in one go: other specs' sessions may add or reorder chips
+    // between two separate measurements on the shared server.
+    const { c, chip, field } = await chips.evaluate((g) => {
+      const box = (el: Element) => {
+        const r = el.getBoundingClientRect()
+        return { x: r.x, y: r.y, width: r.width, height: r.height }
+      }
+      return { c: box(g.querySelector('.section-title')!), chip: box(g.querySelector('button')!), field: box(document.querySelector('.new-session .folder-field')!) }
+    })
     // the caption leads the chips' first line, and the chip is narrower than the field
     expect(c.x + c.width).toBeLessThanOrEqual(chip.x)
     expect(Math.abs(c.y + c.height / 2 - (chip.y + chip.height / 2))).toBeLessThanOrEqual(4)
