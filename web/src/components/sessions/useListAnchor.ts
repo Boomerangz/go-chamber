@@ -46,7 +46,20 @@ export function useListAnchor(of: RefObject<HTMLElement | null>): void {
     list.addEventListener('keydown', onPress, true)
     const mutations = new MutationObserver(restore)
     mutations.observe(list, { childList: true, subtree: true, characterData: true, attributes: true })
-    const sizes = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(restore)
+    const onResize = () => {
+      restore()
+      // Accounts can finish loading after focus moves to an archived row.
+      // A taller footer reduces the viewport without moving any row's offset.
+      const focused = document.activeElement
+      const scroller = scrollerOf(list)
+      if (focused instanceof HTMLElement && focused.matches('button.session') && list.contains(focused) && scroller) {
+        const row = focused.getBoundingClientRect()
+        const view = scroller.getBoundingClientRect()
+        if (row.bottom > view.bottom || row.top < view.top) focused.scrollIntoView?.({ block: 'nearest' })
+      }
+      note()
+    }
+    const sizes = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(onResize)
     sizes?.observe(list)
     note()
     return () => {

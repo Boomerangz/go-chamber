@@ -142,7 +142,14 @@ func (s *server) setModel(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *server) listModels(w http.ResponseWriter, r *http.Request) {
-	models, err := s.cfg.Sessions.Models(r.Context(), domain.AgentKind(r.PathValue("agent")))
+	agent := domain.AgentKind(r.PathValue("agent"))
+	var models []app.ModelInfo
+	var err error
+	if catalog, ok := s.cfg.Sessions.(app.FolderModelCatalog); ok && r.URL.Query().Has("cwd") {
+		models, err = catalog.ModelsInFolder(r.Context(), agent, r.URL.Query().Get("cwd"))
+	} else {
+		models, err = s.cfg.Sessions.Models(r.Context(), agent)
+	}
 	if err != nil {
 		s.fail(w, err)
 		return

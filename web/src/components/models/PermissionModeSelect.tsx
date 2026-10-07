@@ -13,6 +13,7 @@ const modes: Record<Session['agent'], [string, string][]> = {
     ['plan', 'plan only'],
     ['bypassPermissions', 'bypass permissions'],
   ],
+  opencode: [],
   codex: [
     ['read-only', 'read only'],
     ['auto', 'auto'],

@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"errors"
+	"reflect"
 	"testing"
 
 	"github.com/igorzygin/go-chamber/internal/domain"
@@ -35,8 +36,12 @@ func TestCLIsReportsEachAgent(t *testing.T) {
 	want := []CLIStatus{
 		{Agent: domain.AgentClaude, Found: true, Path: "/usr/local/bin/claude"},
 		{Agent: domain.AgentCodex, Found: false, Hint: "npm install -g @openai/codex"},
+		{Agent: domain.AgentOpenCode, Found: false, Hint: "npm install -g opencode-ai"},
 	}
-	if len(got) != len(want) || got[0] != want[0] || got[1] != want[1] {
+	for i := range want {
+		want[i].Name, want[i].Capabilities = agentDescription(want[i].Agent)
+	}
+	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("CLIs = %+v, want %+v", got, want)
 	}
 }
@@ -44,7 +49,7 @@ func TestCLIsReportsEachAgent(t *testing.T) {
 func TestCLIsWithoutAFinderAssumesInstalled(t *testing.T) {
 	m := NewManager(ManagerConfig{Repo: newMemRepo(), Runtimes: &fakeFactory{}, Bus: newFakeBus()})
 	all := m.CLIs()
-	if len(all) != 2 {
+	if len(all) != 3 {
 		t.Fatalf("CLIs = %+v, want both agents", all)
 	}
 	for _, s := range all {
@@ -113,7 +118,7 @@ func TestAccountOfAnAgentWithoutItsCLISaysItIsMissing(t *testing.T) {
 		Accounts: accounts, CLIs: cliFinder{domain.AgentClaude: "/bin/claude"}})
 	ctx := context.Background()
 	info, err := m.Account(ctx, domain.AgentCodex)
-	if err != nil || info != (AccountInfo{Agent: domain.AgentCodex, CLIMissing: true}) {
+	if err != nil || !reflect.DeepEqual(info, AccountInfo{Agent: domain.AgentCodex, CLIMissing: true}) {
 		t.Fatalf("Account = %+v, %v", info, err)
 	}
 	if _, err := m.StartLogin(ctx, domain.AgentCodex); !errors.Is(err, domain.ErrCLIMissing) {

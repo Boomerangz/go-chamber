@@ -106,6 +106,26 @@ describe('useListAnchor', () => {
     expect(scroller.scrollTop).toBe(500)
   })
 
+  it('keeps the focused row visible when a loaded account footer shrinks the list', () => {
+    let resize!: () => void
+    vi.stubGlobal('ResizeObserver', class {
+      constructor(callback: () => void) { resize = callback }
+      observe() {}
+      disconnect() {}
+    })
+    try {
+      const view = render(<List order={rows(20)} active="r17" />)
+      const scroller = view.getByTestId('scroller')
+      read(scroller, 500)
+      const row = view.getByRole('button', { name: 'r17' })
+      row.scrollIntoView = vi.fn()
+      row.focus()
+      scroller.getBoundingClientRect = () => rect(0, 200)
+      act(() => resize())
+      expect(row.scrollIntoView).toHaveBeenCalledWith({ block: 'nearest' })
+    } finally { vi.unstubAllGlobals() }
+  })
+
   it('goes where the owner scrolls', async () => {
     const view = render(<List order={rows(20)} />)
     const scroller = view.getByTestId('scroller')

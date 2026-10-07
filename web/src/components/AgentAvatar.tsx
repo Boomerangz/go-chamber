@@ -4,7 +4,7 @@ import type { AgentKind } from '../lib/api'
 export default function AgentAvatar({ agent }: { agent: AgentKind }) {
   return (
     <span className={`avatar avatar-${agent}`} aria-hidden="true">
-      {agent === 'claude' ? 'C' : 'X'}
+      {agent === 'claude' ? 'C' : agent === 'opencode' ? 'O' : 'X'}
     </span>
   )
 }

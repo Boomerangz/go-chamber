@@ -7,7 +7,7 @@ import { notify } from '../../stores/notices'
 import { icon } from '../icon'
 import GoneNote from '../ui/GoneNote'
 
-const agentName = { claude: 'Claude Code', codex: 'Codex' } as const
+const agentName = { claude: 'Claude Code', codex: 'Codex', opencode: 'OpenCode' } as const
 
 // CLIMissing stands where the composer was while the session's agent CLI
 // is not on go-chamber's PATH: no turn can start, so it says how to install

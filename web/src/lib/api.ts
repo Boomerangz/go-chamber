@@ -1,6 +1,6 @@
 export type Health = 'online' | 'offline' | 'unauthorized'
 
-export type AgentKind = 'claude' | 'codex'
+export type AgentKind = 'claude' | 'codex' | 'opencode'
 export type SessionStatus = 'detached' | 'idle' | 'running' | 'interrupted'
 
 export interface Interruption {
@@ -151,6 +151,7 @@ export interface RequestInput {
 }
 
 export interface Question {
+  custom?: boolean
   question: string
   header?: string
   multiSelect?: boolean
@@ -387,6 +388,7 @@ export function respondRequest(
 export interface AccountInfo {
   agent: AgentKind
   loggedIn: boolean
+  providers?: string[]
   authMode?: string
   email?: string
   plan?: string
@@ -396,7 +398,21 @@ export interface AccountInfo {
 
 // CLIStatus says whether the server found an agent's CLI on its PATH, and
 // how to install a missing one.
+export interface AgentCapabilities {
+  steer: boolean
+  images: boolean
+  fork: boolean
+  subagents: boolean
+  permissionModes: boolean
+  approvalReviewer: boolean
+  login: boolean
+  quotas: boolean
+  historyImport: boolean
+}
+
 export interface CLIStatus {
+  name?: string
+  capabilities?: AgentCapabilities
   agent: AgentKind
   found: boolean
   path?: string
@@ -537,6 +553,8 @@ export function searchMessages(query: string): Promise<SearchHit[]> {
 }
 
 export interface ModelInfo {
+  provider?: string
+  images?: boolean
   id: string
   name: string
   description?: string
@@ -545,8 +563,9 @@ export interface ModelInfo {
   default?: boolean
 }
 
-export function listModels(agent: AgentKind): Promise<ModelInfo[]> {
-  return request<ModelInfo[]>(`/api/agents/${agent}/models`, undefined, SLOW_MS)
+export function listModels(agent: AgentKind, cwd?: string): Promise<ModelInfo[]> {
+  const query = cwd === undefined ? '' : `?${new URLSearchParams({ cwd })}`
+  return request<ModelInfo[]>(`/api/agents/${agent}/models${query}`, undefined, SLOW_MS)
 }
 
 export function setModel(id: string, choice: ModelChoice): Promise<Session> {

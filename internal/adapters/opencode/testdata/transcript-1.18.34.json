@@ -1,0 +1,493 @@
+[
+  {
+    "info": {
+      "role": "user",
+      "time": {
+        "created": 1791375890161
+      },
+      "agent": "build",
+      "model": {
+        "providerID": "openrouter",
+        "modelID": "google/gemini-2.5-flash"
+      },
+      "summary": {
+        "diffs": []
+      },
+      "id": "msg_11652d6f1001x4PAQxJei0306k",
+      "sessionID": "ses_ee9ad2926ffedfWSN15QyOufsb"
+    },
+    "parts": [
+      {
+        "type": "text",
+        "text": "Reply with exactly OPENROUTER_OK. Do not use tools.",
+        "id": "prt_11652d6f50015VLagbh31F2TMP",
+        "sessionID": "ses_ee9ad2926ffedfWSN15QyOufsb",
+        "messageID": "msg_11652d6f1001x4PAQxJei0306k"
+      }
+    ]
+  },
+  {
+    "info": {
+      "parentID": "msg_11652d6f1001x4PAQxJei0306k",
+      "role": "assistant",
+      "mode": "build",
+      "agent": "build",
+      "path": {
+        "cwd": "/test/project",
+        "root": "/test/repository"
+      },
+      "cost": 0.0050349,
+      "tokens": {
+        "total": 16739,
+        "input": 16733,
+        "output": 6,
+        "reasoning": 0,
+        "cache": {
+          "write": 0,
+          "read": 0
+        }
+      },
+      "modelID": "google/gemini-2.5-flash",
+      "providerID": "openrouter",
+      "time": {
+        "created": 1791375890188,
+        "completed": 1791375894163
+      },
+      "finish": "stop",
+      "id": "msg_11652d70c001EuOcpvpDd3xWwk",
+      "sessionID": "ses_ee9ad2926ffedfWSN15QyOufsb"
+    },
+    "parts": [
+      {
+        "snapshot": "fec139b77610a49504e9a12467be8d6fc6df6f79",
+        "type": "step-start",
+        "id": "prt_11652e5bd0013AwBWulL439RK7",
+        "sessionID": "ses_ee9ad2926ffedfWSN15QyOufsb",
+        "messageID": "msg_11652d70c001EuOcpvpDd3xWwk"
+      },
+      {
+        "type": "text",
+        "text": "OPENROUTER_OK.",
+        "time": {
+          "start": 1791375893952,
+          "end": 1791375894069
+        },
+        "id": "prt_11652e5c00016NYJfiX7pxiswN",
+        "sessionID": "ses_ee9ad2926ffedfWSN15QyOufsb",
+        "messageID": "msg_11652d70c001EuOcpvpDd3xWwk"
+      },
+      {
+        "reason": "stop",
+        "snapshot": "fec139b77610a49504e9a12467be8d6fc6df6f79",
+        "type": "step-finish",
+        "tokens": {
+          "total": 16739,
+          "input": 16733,
+          "output": 6,
+          "reasoning": 0,
+          "cache": {
+            "write": 0,
+            "read": 0
+          }
+        },
+        "cost": 0.0050349,
+        "id": "prt_11652e66b001nb6osL7mITftSe",
+        "sessionID": "ses_ee9ad2926ffedfWSN15QyOufsb",
+        "messageID": "msg_11652d70c001EuOcpvpDd3xWwk"
+      }
+    ]
+  },
+  {
+    "info": {
+      "role": "user",
+      "time": {
+        "created": 1791375894249
+      },
+      "agent": "build",
+      "model": {
+        "providerID": "openrouter",
+        "modelID": "google/gemini-2.5-flash"
+      },
+      "summary": {
+        "diffs": []
+      },
+      "id": "msg_11652e6e9001T8nNU6nyA2VQW0",
+      "sessionID": "ses_ee9ad2926ffedfWSN15QyOufsb"
+    },
+    "parts": [
+      {
+        "type": "text",
+        "text": "Read test.txt with the read tool, then use the edit tool to replace before-openrouter with after-openrouter in this test file. Do not use bash or any other tools. Reply EDIT_OK when finished.",
+        "id": "prt_11652e6ea001EJg0jTHsc6BJYP",
+        "sessionID": "ses_ee9ad2926ffedfWSN15QyOufsb",
+        "messageID": "msg_11652e6e9001T8nNU6nyA2VQW0"
+      }
+    ]
+  },
+  {
+    "info": {
+      "parentID": "msg_11652e6e9001T8nNU6nyA2VQW0",
+      "role": "assistant",
+      "mode": "build",
+      "agent": "build",
+      "path": {
+        "cwd": "/test/project",
+        "root": "/test/repository"
+      },
+      "cost": 0.0050705,
+      "tokens": {
+        "total": 16799,
+        "input": 16785,
+        "output": 14,
+        "reasoning": 0,
+        "cache": {
+          "write": 0,
+          "read": 0
+        }
+      },
+      "modelID": "google/gemini-2.5-flash",
+      "providerID": "openrouter",
+      "time": {
+        "created": 1791375894256,
+        "completed": 1791375895685
+      },
+      "finish": "tool-calls",
+      "id": "msg_11652e6f0001jCKn0DJhuIs1WG",
+      "sessionID": "ses_ee9ad2926ffedfWSN15QyOufsb"
+    },
+    "parts": [
+      {
+        "snapshot": "fec139b77610a49504e9a12467be8d6fc6df6f79",
+        "type": "step-start",
+        "id": "prt_11652ec1c0013uagT1nVF1lqrX",
+        "sessionID": "ses_ee9ad2926ffedfWSN15QyOufsb",
+        "messageID": "msg_11652e6f0001jCKn0DJhuIs1WG"
+      },
+      {
+        "type": "tool",
+        "tool": "read",
+        "callID": "tool_read_nJe2UeycnXU9FQNI3h70",
+        "state": {
+          "status": "completed",
+          "input": {
+            "filePath": "test.txt"
+          },
+          "output": "<path>/test/project/test.txt</path>\n<type>file</type>\n<content>\n1: before-openrouter\n\n(End of file - total 1 lines)\n</content>",
+          "metadata": {
+            "preview": "before-openrouter",
+            "truncated": false,
+            "loaded": [],
+            "display": {
+              "type": "file",
+              "path": "/test/project/test.txt",
+              "text": "before-openrouter",
+              "lineStart": 1,
+              "lineEnd": 1,
+              "totalLines": 1,
+              "truncated": false
+            }
+          },
+          "title": "bin/smoke/project/test.txt",
+          "time": {
+            "start": 1791375895589,
+            "end": 1791375895600
+          }
+        },
+        "metadata": {
+          "openrouter": {
+            "reasoning_details": []
+          }
+        },
+        "id": "prt_11652ec1f001ne2TbRqF4c9Hw6",
+        "sessionID": "ses_ee9ad2926ffedfWSN15QyOufsb",
+        "messageID": "msg_11652e6f0001jCKn0DJhuIs1WG"
+      },
+      {
+        "reason": "tool-calls",
+        "snapshot": "fec139b77610a49504e9a12467be8d6fc6df6f79",
+        "type": "step-finish",
+        "tokens": {
+          "total": 16799,
+          "input": 16785,
+          "output": 14,
+          "reasoning": 0,
+          "cache": {
+            "write": 0,
+            "read": 0
+          }
+        },
+        "cost": 0.0050705,
+        "id": "prt_11652ec63001Raq9T1s5quuvh3",
+        "sessionID": "ses_ee9ad2926ffedfWSN15QyOufsb",
+        "messageID": "msg_11652e6f0001jCKn0DJhuIs1WG"
+      }
+    ]
+  },
+  {
+    "info": {
+      "parentID": "msg_11652e6e9001T8nNU6nyA2VQW0",
+      "role": "assistant",
+      "mode": "build",
+      "agent": "build",
+      "path": {
+        "cwd": "/test/project",
+        "root": "/test/repository"
+      },
+      "cost": 0.00067817,
+      "tokens": {
+        "total": 16877,
+        "input": 481,
+        "output": 17,
+        "reasoning": 0,
+        "cache": {
+          "write": 0,
+          "read": 16379
+        }
+      },
+      "modelID": "google/gemini-2.5-flash",
+      "providerID": "openrouter",
+      "time": {
+        "created": 1791375895687,
+        "completed": 1791375897166
+      },
+      "finish": "tool-calls",
+      "id": "msg_11652ec870011lBQ5WW5QJneV1",
+      "sessionID": "ses_ee9ad2926ffedfWSN15QyOufsb"
+    },
+    "parts": [
+      {
+        "snapshot": "fec139b77610a49504e9a12467be8d6fc6df6f79",
+        "type": "step-start",
+        "id": "prt_11652f1e7001z1ZzPBoE34waYX",
+        "sessionID": "ses_ee9ad2926ffedfWSN15QyOufsb",
+        "messageID": "msg_11652ec870011lBQ5WW5QJneV1"
+      },
+      {
+        "type": "tool",
+        "tool": "edit",
+        "callID": "tool_edit_Ncv5K1a1HgSrczvgjwY3",
+        "state": {
+          "status": "completed",
+          "input": {
+            "newString": "after-openrouter",
+            "oldString": "before-openrouter",
+            "filePath": "test.txt"
+          },
+          "output": "Edit applied successfully.",
+          "metadata": {
+            "diagnostics": {},
+            "diff": "Index: /test/project/test.txt\n===================================================================\n--- /test/project/test.txt\n+++ /test/project/test.txt\n@@ -1,1 +1,1 @@\n-before-openrouter\n+after-openrouter\n",
+            "filediff": {
+              "file": "/test/project/test.txt",
+              "patch": "Index: /test/project/test.txt\n===================================================================\n--- /test/project/test.txt\n+++ /test/project/test.txt\n@@ -1,1 +1,1 @@\n-before-openrouter\n+after-openrouter\n",
+              "additions": 1,
+              "deletions": 1
+            },
+            "truncated": false
+          },
+          "title": "bin/smoke/project/test.txt",
+          "time": {
+            "start": 1791375897072,
+            "end": 1791375897082
+          }
+        },
+        "metadata": {
+          "openrouter": {
+            "reasoning_details": []
+          }
+        },
+        "id": "prt_11652f1ec001L356aHpNq5RbqM",
+        "sessionID": "ses_ee9ad2926ffedfWSN15QyOufsb",
+        "messageID": "msg_11652ec870011lBQ5WW5QJneV1"
+      },
+      {
+        "reason": "tool-calls",
+        "snapshot": "fec139b77610a49504e9a12467be8d6fc6df6f79",
+        "type": "step-finish",
+        "tokens": {
+          "total": 16877,
+          "input": 481,
+          "output": 17,
+          "reasoning": 0,
+          "cache": {
+            "write": 0,
+            "read": 16379
+          }
+        },
+        "cost": 0.00067817,
+        "id": "prt_11652f224001ir1fIGNoIg6TQ1",
+        "sessionID": "ses_ee9ad2926ffedfWSN15QyOufsb",
+        "messageID": "msg_11652ec870011lBQ5WW5QJneV1"
+      }
+    ]
+  },
+  {
+    "info": {
+      "parentID": "msg_11652e6e9001T8nNU6nyA2VQW0",
+      "role": "assistant",
+      "mode": "build",
+      "agent": "build",
+      "path": {
+        "cwd": "/test/project",
+        "root": "/test/repository"
+      },
+      "cost": 0.00561297,
+      "tokens": {
+        "total": 34905,
+        "input": 16883,
+        "output": 3,
+        "reasoning": 0,
+        "cache": {
+          "write": 0,
+          "read": 18019
+        }
+      },
+      "modelID": "google/gemini-2.5-flash",
+      "providerID": "openrouter",
+      "time": {
+        "created": 1791375897168,
+        "completed": 1791375898525
+      },
+      "finish": "stop",
+      "id": "msg_11652f250001rGilYqB6lWxANg",
+      "sessionID": "ses_ee9ad2926ffedfWSN15QyOufsb"
+    },
+    "parts": [
+      {
+        "snapshot": "fec139b77610a49504e9a12467be8d6fc6df6f79",
+        "type": "step-start",
+        "id": "prt_11652f6f3001KiVbZ8uVhWxkth",
+        "sessionID": "ses_ee9ad2926ffedfWSN15QyOufsb",
+        "messageID": "msg_11652f250001rGilYqB6lWxANg"
+      },
+      {
+        "type": "text",
+        "text": "EDIT_OK",
+        "time": {
+          "start": 1791375898358,
+          "end": 1791375898427
+        },
+        "id": "prt_11652f6f60017o3nW8P4NAhCuL",
+        "sessionID": "ses_ee9ad2926ffedfWSN15QyOufsb",
+        "messageID": "msg_11652f250001rGilYqB6lWxANg"
+      },
+      {
+        "reason": "stop",
+        "snapshot": "fec139b77610a49504e9a12467be8d6fc6df6f79",
+        "type": "step-finish",
+        "tokens": {
+          "total": 34905,
+          "input": 16883,
+          "output": 3,
+          "reasoning": 0,
+          "cache": {
+            "write": 0,
+            "read": 18019
+          }
+        },
+        "cost": 0.00561297,
+        "id": "prt_11652f76a0015xAxG2SiHDs1f6",
+        "sessionID": "ses_ee9ad2926ffedfWSN15QyOufsb",
+        "messageID": "msg_11652f250001rGilYqB6lWxANg"
+      }
+    ]
+  },
+  {
+    "info": {
+      "role": "user",
+      "time": {
+        "created": 1791375900043
+      },
+      "agent": "build",
+      "model": {
+        "providerID": "openrouter",
+        "modelID": "google/gemini-2.5-flash"
+      },
+      "summary": {
+        "diffs": []
+      },
+      "id": "msg_11652fd8b001bRLdVdbwVzKTpT",
+      "sessionID": "ses_ee9ad2926ffedfWSN15QyOufsb"
+    },
+    "parts": [
+      {
+        "type": "text",
+        "text": "What exact two strings did you replace in test.txt? Answer briefly from our prior conversation, do not use tools.",
+        "id": "prt_11652fd8d001Ua6PCFPqWTxg2T",
+        "sessionID": "ses_ee9ad2926ffedfWSN15QyOufsb",
+        "messageID": "msg_11652fd8b001bRLdVdbwVzKTpT"
+      }
+    ]
+  },
+  {
+    "info": {
+      "parentID": "msg_11652fd8b001bRLdVdbwVzKTpT",
+      "role": "assistant",
+      "mode": "build",
+      "agent": "build",
+      "path": {
+        "cwd": "/test/project",
+        "root": "/test/repository"
+      },
+      "cost": 0.0051227,
+      "tokens": {
+        "total": 16929,
+        "input": 16909,
+        "output": 20,
+        "reasoning": 0,
+        "cache": {
+          "write": 0,
+          "read": 0
+        }
+      },
+      "modelID": "google/gemini-2.5-flash",
+      "providerID": "openrouter",
+      "time": {
+        "created": 1791375900328,
+        "completed": 1791375904756
+      },
+      "finish": "stop",
+      "id": "msg_11652fea800177TZPmKnZXhaGj",
+      "sessionID": "ses_ee9ad2926ffedfWSN15QyOufsb"
+    },
+    "parts": [
+      {
+        "snapshot": "fec139b77610a49504e9a12467be8d6fc6df6f79",
+        "type": "step-start",
+        "id": "prt_116530ef00015GWAJM2THESDDS",
+        "sessionID": "ses_ee9ad2926ffedfWSN15QyOufsb",
+        "messageID": "msg_11652fea800177TZPmKnZXhaGj"
+      },
+      {
+        "type": "text",
+        "text": "I replaced \"before-openrouter\" with \"after-openrouter\" in test.txt.",
+        "time": {
+          "start": 1791375904501,
+          "end": 1791375904657
+        },
+        "id": "prt_116530ef5001UIhwIVhmCW6YuN",
+        "sessionID": "ses_ee9ad2926ffedfWSN15QyOufsb",
+        "messageID": "msg_11652fea800177TZPmKnZXhaGj"
+      },
+      {
+        "reason": "stop",
+        "snapshot": "fec139b77610a49504e9a12467be8d6fc6df6f79",
+        "type": "step-finish",
+        "tokens": {
+          "total": 16929,
+          "input": 16909,
+          "output": 20,
+          "reasoning": 0,
+          "cache": {
+            "write": 0,
+            "read": 0
+          }
+        },
+        "cost": 0.0051227,
+        "id": "prt_116530fce001nzvC1E41hOBn0s",
+        "sessionID": "ses_ee9ad2926ffedfWSN15QyOufsb",
+        "messageID": "msg_11652fea800177TZPmKnZXhaGj"
+      }
+    ]
+  }
+]

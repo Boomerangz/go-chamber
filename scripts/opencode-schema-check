@@ -1,0 +1,116 @@
+#!/usr/bin/env python3
+"""Check consumed HTTP/SSE fields against the installed OpenCode /doc.
+Uses an authenticated throwaway loopback server, without external plugins.
+--schema FILE checks an already captured schema; --record writes the contract.
+"""
+import argparse, base64, json, os, pathlib, re, secrets, subprocess, urllib.request
+
+ROOT = pathlib.Path(__file__).resolve().parent.parent
+CONTRACT = ROOT / 'internal/adapters/opencode/testdata/schema-contract.json'
+FIELDS = {
+ '/session:post': ['id'],
+ '/session/{sessionID}:get': ['id', 'directory', 'parentID'],
+ '/session/{sessionID}/fork:post': ['id'],
+ '/session/{sessionID}/abort:post': [],
+ '/session/{sessionID}/prompt_async:post': [],
+ '/session/{sessionID}/command:post': [],
+ '/session/{sessionID}/message:get': [],
+ '/session/{sessionID}/children:get': [],
+ '/session/status:get': [],
+ '/provider:get': [], '/config:get': [], '/command:get': [], '/global/event:get': [],
+ '/permission:get': [], '/permission/{requestID}/reply:post': [],
+ '/question:get': [], '/question/{requestID}/reply:post': [], '/question/{requestID}/reject:post': [],
+ '/api/permission/request:get': [], '/api/question/request:get': [],
+ '/api/session/{sessionID}/permission/{requestID}/reply:post': [],
+ '/api/session/{sessionID}/question/{requestID}/reply:post': [],
+ '/api/session/{sessionID}/question/{requestID}/reject:post': [],
+}
+SCHEMAS = {
+ 'Session':['id','directory','parentID'],
+ 'Provider':['id','name','models'], 'Config':['model'],
+ 'AssistantMessage':['id','sessionID','role','cost','tokens','error','time','providerID','modelID'],
+ 'TextPart':['id','sessionID','messageID','type','text','time'],
+ 'ReasoningPart':['id','sessionID','messageID','type','text','time'],
+ 'ToolPart':['id','sessionID','messageID','tool','state'],
+ 'ToolStateCompleted':['status','input','output','metadata'],
+ 'ToolStateError':['status','input','error','metadata'],
+ 'Model':['id','name','capabilities','variants'],
+ 'PermissionRequest':['id','sessionID','permission','patterns','always','metadata'],
+ 'PermissionV2Request':['id','sessionID','action','resources','save','metadata'],
+ 'QuestionRequest':['id','sessionID','questions'], 'QuestionV2Request':['id','sessionID','questions'],
+ 'QuestionInfo':['question','header','options','multiple','custom'],
+ 'QuestionV2Info':['question','header','options','multiple','custom'],
+ 'EventMessageUpdated':['type','properties'], 'EventMessagePartUpdated':['type','properties'],
+ 'EventMessagePartDelta':['type','properties'], 'EventSessionStatus':['type','properties'],
+ 'EventSessionCreated':['type','properties'], 'EventSessionError':['type','properties'],
+ 'EventPermissionAsked':['type','properties'], 'EventPermissionReplied':['type','properties'],
+ 'EventPermissionV2Asked':['type','properties'], 'EventPermissionV2Replied':['type','properties'],
+ 'EventQuestionAsked':['type','properties'], 'EventQuestionReplied':['type','properties'], 'EventQuestionRejected':['type','properties'],
+ 'EventQuestionV2Asked':['type','properties'], 'EventQuestionV2Replied':['type','properties'], 'EventQuestionV2Rejected':['type','properties'],
+}
+def slim(v):
+ if isinstance(v, list): return [slim(x) for x in v]
+ if not isinstance(v, dict): return v
+ out = {}
+ for k, value in v.items():
+  if k == 'properties':
+   out[k] = {name: slim(prop) for name, prop in value.items()}
+  elif k in ('type','$ref','enum','items','anyOf','oneOf','allOf','additionalProperties',
+             'required','const','minLength','maxLength','minimum','maximum','pattern'):
+   out[k] = slim(value)
+ return out
+
+def references(value):
+ if isinstance(value, dict):
+  if '$ref' in value: yield value['$ref'].rsplit('/', 1)[-1]
+  for child in value.values(): yield from references(child)
+ elif isinstance(value, list):
+  for child in value: yield from references(child)
+
+def consumed(schema):
+ out={'paths':{},'schemas':{}}
+ for key in FIELDS:
+  path,method=key.rsplit(':',1); op=schema['paths'][path][method]
+  out['paths'][key]={'operationId':op['operationId'],
+   'requestBody':slim(op.get('requestBody',{}).get('content',{}).get('application/json',{}).get('schema',{})),
+   'response':slim(op.get('responses',{}).get('200',{}).get('content',{}).get('application/json',{}).get('schema',{}))}
+ for name,fields in SCHEMAS.items():
+  v=schema['components']['schemas'][name]['properties']
+  out['schemas'][name]={f:slim(v[f]) for f in fields}
+ pending=list(references(out))
+ while pending:
+  name=pending.pop()
+  if name in out['schemas']: continue
+  value=slim(schema['components']['schemas'][name])
+  out['schemas'][name]=value
+  pending.extend(references(value))
+ return out
+def main():
+ parser=argparse.ArgumentParser();parser.add_argument('--schema');parser.add_argument('--record',action='store_true');args=parser.parse_args()
+ if args.schema: schema=json.loads(pathlib.Path(args.schema).read_text())
+ else:
+  password=secrets.token_hex(24);env={**os.environ,'OPENCODE_SERVER_USERNAME':'opencode','OPENCODE_SERVER_PASSWORD':password}
+  proc=subprocess.Popen([os.environ.get('OPENCODE','opencode'),'serve','--pure','--hostname','127.0.0.1','--port','0'],env=env,stdout=subprocess.PIPE,stderr=subprocess.DEVNULL,text=True)
+  try:
+   # Startup stdout is finite; an outer 30-second watchdog also kills hung servers.
+   import threading
+   watchdog=threading.Timer(30,proc.kill);watchdog.start()
+   for line in proc.stdout:
+    match=re.search(r'http://127\.0\.0\.1:\d+',line)
+    if match:break
+   else:raise RuntimeError('OpenCode exited before listening')
+   req=urllib.request.Request(match.group()+'/doc',headers={'Authorization':'Basic '+base64.b64encode(('opencode:'+password).encode()).decode()})
+   schema=json.load(urllib.request.urlopen(req,timeout=15))
+  finally:
+   watchdog.cancel();proc.terminate();proc.wait(timeout=10)
+ actual=consumed(schema)
+ if args.record: CONTRACT.parent.mkdir(exist_ok=True);CONTRACT.write_text(json.dumps(actual,indent=2,sort_keys=True)+'\n')
+ else:
+  expected=json.loads(CONTRACT.read_text())
+  for section,entries in expected.items():
+   for name,value in entries.items():
+    if actual[section].get(name)!=value:raise SystemExit(f'OpenCode consumed schema changed: {section}/{name}. Review adapter and fixtures before --record.')
+ print('OpenCode consumed HTTP/SSE schema matches (baseline 1.18.34).')
+
+if __name__ == "__main__":
+ main()

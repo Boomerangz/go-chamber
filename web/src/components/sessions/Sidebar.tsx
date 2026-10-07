@@ -24,12 +24,12 @@ import './Sidebar.css'
 import type { AgentKind, Session } from '../../lib/api'
 
 const AGENT_KEY = 'gc.lastAgent'
-const AGENTS = ['claude', 'codex'] as const
+const AGENTS = ['claude', 'codex', 'opencode'] as const
 
 function lastAgent(): AgentKind {
   try {
     const v = localStorage.getItem(AGENT_KEY)
-    return v === 'codex' || v === 'claude' ? v : 'claude'
+    return v === 'codex' || v === 'claude' || v === 'opencode' ? v : 'claude'
   } catch {
     return 'claude'
   }
@@ -213,7 +213,7 @@ export default function Sidebar(props: SidebarProps) {
           <kbd aria-hidden="true">n</kbd>
         </button>
         <div className="segmented" role="radiogroup" aria-label="Agent">
-          {AGENTS.map((a) => {
+          {(clis.length ? clis.map((c) => c.agent) : AGENTS).map((a) => {
             const absent = clis.find((c) => c.agent === a && !c.found)
             return (
               <button
@@ -229,7 +229,7 @@ export default function Sidebar(props: SidebarProps) {
                 }}
               >
                 <AgentAvatar agent={a} />
-                {a === 'claude' ? 'Claude' : 'Codex'}
+                {a === 'claude' ? 'Claude' : a === 'opencode' ? 'OpenCode' : 'Codex'}
               </button>
             )
           })}

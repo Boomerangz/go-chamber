@@ -5,6 +5,7 @@ import AccountPanel, { Accounts } from './AccountPanel'
 import { lastError, resetNotices } from '../../stores/notices'
 import * as api from '../../lib/api'
 import { resetStore, useSessionStore } from '../../stores/session'
+import { resetCLIs, useCLIs } from '../../lib/clis'
 import { useAccountChecks } from './checks'
 
 vi.mock('../../lib/api', () => ({ getAccount: vi.fn(), startLogin: vi.fn() }))
@@ -15,6 +16,7 @@ afterEach(() => {
   resetNotices()
   resetStore()
   useAccountChecks.setState({ failed: {} })
+  resetCLIs()
 })
 
 const out = { agent: 'codex', loggedIn: false } as api.AccountInfo
@@ -238,3 +240,21 @@ describe('Accounts', () => {
   })
 })
 
+
+it('shows native OpenCode providers and configuration without a login flow', async () => {
+  vi.mocked(api.getAccount).mockResolvedValue({ agent: 'opencode', loggedIn: true, authMode: 'config', providers: ['openrouter'] })
+  render(<AccountPanel agent="opencode" />)
+  expect(await screen.findByText('Providers: openrouter')).toBeInTheDocument()
+  expect(screen.getByText('opencode auth login')).toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: /Sign in/ })).toBeNull()
+  await userEvent.click(screen.getByRole('button', { name: 'Refresh providers' }))
+  expect(api.getAccount).toHaveBeenCalledTimes(2)
+})
+
+it('reports one failure when all three native accounts are unreachable', async () => {
+  useCLIs.setState({ clis: [{agent:'claude',found:true},{agent:'codex',found:true},{agent:'opencode',found:true}] })
+  vi.mocked(api.getAccount).mockRejectedValue(new Error('down'))
+  render(<Accounts />)
+  expect(await screen.findByRole('alert')).toHaveTextContent("Couldn't reach the accounts")
+  expect(screen.getAllByRole('alert')).toHaveLength(1)
+})

@@ -95,7 +95,7 @@ function ArchivedRow(props: {
     <li className={props.depth > 0 ? 'session-child' : undefined}>
       <button className={active ? 'session active' : 'session'} data-session={s.id} aria-current={active ? 'true' : undefined} onClick={() => props.onSelect(s.id)}>
         <span className={`avatar avatar-sm avatar-${s.agent}`} aria-hidden="true">
-          {s.agent === 'claude' ? 'C' : 'X'}
+          {s.agent === 'claude' ? 'C' : s.agent === 'opencode' ? 'O' : 'X'}
         </span>
         <span className="session-text">
           <span className="session-title" title={title}>

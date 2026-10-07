@@ -578,6 +578,17 @@ func (m *Manager) Models(ctx context.Context, agent domain.AgentKind) ([]ModelIn
 	return m.cfg.Models.Models(ctx, agent)
 }
 
+// ModelsInFolder asks a contextual catalog, retaining legacy catalogs.
+func (m *Manager) ModelsInFolder(ctx context.Context, agent domain.AgentKind, cwd string) ([]ModelInfo, error) {
+	if err := m.checkCLI(agent); err != nil {
+		return nil, err
+	}
+	if catalog, ok := m.cfg.Models.(FolderModelCatalog); ok {
+		return catalog.ModelsInFolder(ctx, agent, cwd)
+	}
+	return m.Models(ctx, agent)
+}
+
 // Interrupt stops the current turn if a runtime is attached.
 func (m *Manager) Interrupt(ctx context.Context, id domain.SessionID) error {
 	if _, err := m.session(ctx, id); err != nil {

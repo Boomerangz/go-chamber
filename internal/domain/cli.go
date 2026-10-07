@@ -27,11 +27,16 @@ func InstallHint(agent AgentKind) string {
 		return "npm install -g @anthropic-ai/claude-code"
 	case AgentCodex:
 		return "npm install -g @openai/codex"
+	case AgentOpenCode:
+		return "npm install -g opencode-ai"
 	}
 	return ""
 }
 
 func cliName(agent AgentKind) string {
+	if agent == AgentOpenCode {
+		return "OpenCode"
+	}
 	if agent == AgentClaude {
 		return "Claude Code"
 	}

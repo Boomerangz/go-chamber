@@ -18,6 +18,9 @@ test('shows startup feedback before JavaScript arrives', async ({ page }) => {
 })
 
 test('loading sessions has visible placeholders, then a direct route to starting', async ({ page }, info) => {
+  // This scenario controls the initial list; sessions created concurrently by
+  // other tests must not replace its skeleton over the live socket.
+  await page.routeWebSocket('**/api/ws', () => {})
   let release!: () => void
   const gate = new Promise<void>((r) => { release = r })
   await page.route('**/api/sessions', async (route) => {

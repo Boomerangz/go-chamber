@@ -1,6 +1,7 @@
 import { Check, Copy } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { getAccount, startLogin, type AccountInfo, type AgentKind, type LoginChallenge } from '../../lib/api'
+import { useCLIs } from '../../lib/clis'
 import { usePending } from '../../lib/pending'
 import { failedTo } from '../../lib/failed'
 import { describeError, fail } from '../../stores/notices'
@@ -15,19 +16,22 @@ const POLL_MS = 3000
 const CODE_TTL_MS = 15 * 60_000
 const COPIED_MS = 1500
 
-const agentName: Record<AgentKind, string> = { claude: 'Claude', codex: 'Codex' }
+const agentName: Record<AgentKind, string> = { claude: 'Claude', codex: 'Codex', opencode: 'OpenCode' }
 
-const agents: AgentKind[] = ['claude', 'codex']
+const legacyAgents: AgentKind[] = ['claude', 'codex']
 
 const installHint: Record<AgentKind, string> = {
   claude: 'npm install -g @anthropic-ai/claude-code',
   codex: 'npm install -g @openai/codex',
+  opencode: 'npm install -g opencode-ai',
 }
 
 // Accounts shows each agent's login on its own line, whichever agent the
 // new-session switch has chosen. Checks that failed are said once, with
 // the quotas when they failed too, and one Retry asks again for all.
 export function Accounts() {
+  const clis = useCLIs((s) => s.clis)
+  const agents = clis.length ? clis.map((c) => c.agent) : legacyAgents
   const failed = useAccountChecks((s) => s.failed)
   const retryAll = useAccountChecks((s) => s.retryAll)
   const quotasDown = useSessionStore((s) => s.quotasStatus === 'error' && s.quotas.length === 0)
@@ -40,6 +44,7 @@ export function Accounts() {
     const reason = reasons.size === 1 ? failed[down[0]!] : down.map((a) => `${agentName[a]}: ${failed[a]}`).join('; ')
     line = failedTo(quotasDown ? 'reach the accounts or quotas' : 'reach the accounts', reason)
   }
+  else if (down.length > 1) line = `Couldn't check the accounts: ${down.map((a) => `${agentName[a]}: ${failed[a]}`).join('; ')}`
   else if (down.length === 1) line = `Couldn't check the ${agentName[down[0]!]} account: ${failed[down[0]!]}${quotasDown ? ' (and the quotas)' : ''}`
   return (
     <div className="accounts">
@@ -55,6 +60,7 @@ export function Accounts() {
       )}
       <AccountPanel agent="claude" quietFailure />
       <AccountPanel agent="codex" quietFailure />
+      {clis.some((c) => c.agent === 'opencode') && <AccountPanel agent="opencode" quietFailure />}
     </div>
   )
 }
@@ -185,6 +191,18 @@ export default function AccountPanel({ agent, quietFailure = false }: { agent: A
       </div>
     )
   }
+
+  if (agent === 'opencode') return (
+    <div className="account opencode-account">
+      <span className="account-agent">OpenCode</span>
+      <span>{account?.providers?.length ? `Providers: ${account.providers.join(', ')}` : 'No connected providers'}</span>
+      <span className="account-hint">
+        Configure providers with <code>opencode auth login</code> and project <code>opencode.json</code>.
+        Permissions and the default agent come from OpenCode.
+      </span>
+      <button className="btn btn-xs" onClick={() => setAttempt((n) => n + 1)}>Refresh providers</button>
+    </div>
+  )
 
   return (
     <div className="account">

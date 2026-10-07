@@ -1,4 +1,4 @@
-import type { ModelInfo, Session } from './api'
+import type { AgentKind, ModelInfo, Session } from './api'
 
 // effortsFor lists the efforts to offer: the chosen model's, or for the
 // default model every effort any model accepts.
@@ -21,4 +21,10 @@ const neverAsks = new Set(['bypassPermissions', 'full-access', 'danger-full-acce
 
 export function isDangerousMode(mode: string | undefined): boolean {
   return mode !== undefined && neverAsks.has(mode)
+}
+
+export function supportsImages(agent: AgentKind, models: ModelInfo[] | undefined, model: string): boolean {
+  if (agent !== 'opencode') return true
+  const selected = models?.find((m) => model ? m.id === model : m.default)
+  return selected?.images === true
 }

@@ -383,7 +383,7 @@ function QuestionCard({ request, position, acting, error, answer }: CardProps) {
               {opt.preview && <pre className="option-preview">{opt.preview}</pre>}
             </label>
           ))}
-          <label className="other">
+          {q.custom !== false && <label className="other">
             <input
               className="field"
               type="text"
@@ -392,7 +392,7 @@ function QuestionCard({ request, position, acting, error, answer }: CardProps) {
               value={other[q.question] ?? ''}
               onChange={(e) => type(q.question, e.target.value, !!q.multiSelect)}
             />
-          </label>
+          </label>}
         </fieldset>
       ))}
       <div className="request-actions">

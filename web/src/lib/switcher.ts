@@ -97,10 +97,11 @@ function rank(e: SwitcherEntry): number {
 // what was archived.
 const section = (e: SwitcherEntry) => (e.archived ? 2 : e.kind === 'new' ? 1 : 0)
 
-const agentName: Record<AgentKind, string> = { claude: 'Claude', codex: 'Codex' }
+const agentName: Record<AgentKind, string> = { claude: 'Claude', codex: 'Codex', opencode: 'OpenCode' }
 
 export interface SwitcherOptions {
   activeId?: string | null
+  agents?: AgentKind[]
 }
 
 // switcherEntries is the quick switcher's list: what needs the owner first,
@@ -113,7 +114,7 @@ export function switcherEntries(
   terminals: Terminal[],
   waitingBySession: Map<string, number>,
   query: string,
-  { activeId = null }: SwitcherOptions = {},
+  { activeId = null, agents = ['claude', 'codex', 'opencode'] }: SwitcherOptions = {},
 ): SwitcherEntry[] {
   const words = query.split(/\s+/).filter(Boolean)
   const names = folderNames([...sessions.map((s) => s.cwd), ...terminals.map((t) => t.cwd)])
@@ -157,7 +158,7 @@ export function switcherEntries(
   const newNames = folderNames(folders)
   for (const cwd of folders) {
     const label = names.get(cwd) ?? newNames.get(cwd) ?? basename(cwd)
-    for (const agent of ['claude', 'codex'] as const) {
+    for (const agent of agents) {
       add({ kind: 'new', id: `${agent}:${cwd}`, title: `New ${agentName[agent]} session in ${label}`, detail: cwd, waiting: 0, status: 'new', agent, cwd }, '')
     }
   }

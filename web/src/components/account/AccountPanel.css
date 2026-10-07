@@ -12,3 +12,5 @@
 .account .account-missing { font-family: var(--font-mono); font-size: var(--t-meta); color: var(--ink); }
 .account .account-hint { display: block; font-size: var(--t-meta); color: var(--ink-3); overflow-wrap: anywhere; }
 .account .account-hint code { font-family: var(--font-mono); font-size: var(--t-label); color: var(--ink-2); }
+.opencode-account { display: flex; flex-wrap: wrap; gap: 4px 8px; }
+.opencode-account .account-hint { flex-basis: 100%; }

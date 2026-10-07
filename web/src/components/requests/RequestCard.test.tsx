@@ -535,3 +535,8 @@ describe('RequestCard details', () => {
     expect(screen.queryByText('Raw input')).toBeNull()
   })
 })
+
+it('honors a native question that disables custom answers', () => {
+  setup({ ...question, payload: { input: { questions: [{ question: 'Native?', custom: false, options: [{ label: 'Yes' }] }] } } })
+  expect(screen.queryByRole('textbox', { name: 'Other Native?' })).toBeNull()
+})
