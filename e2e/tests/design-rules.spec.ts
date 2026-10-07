@@ -233,6 +233,7 @@ test('"No changes" lines up with the CHANGES label', async ({ page, isMobile }) 
   const { execFileSync } = await import('node:child_process')
   execFileSync('git', ['init', '-q', repo])
   await page.goto(`/?token=${token}`)
+  await openNewSession(page)
   await page.getByLabel('Working directory').fill(repo)
   await page.getByRole('button', { name: 'New session', exact: true }).click()
   await expect(page.getByLabel('Message')).toBeVisible()
@@ -285,4 +286,34 @@ test('type keeps to the scale, the session title and the REQUIRES title lead', a
     return [...out]
   }, SCALE)
   expect(off).toEqual([])
+})
+
+// Quiet chrome: the new-session form is one line until asked for, and amber
+// is rationed to what needs the owner: the REQUIRES block and the counts.
+// A waiting session's state word is ink like every other state, and Allow
+// inside the block is ink, so the block holds one hue.
+test('the new-session form folds to a line until n or a click opens it', async ({ page, isMobile }) => {
+  test.skip(isMobile, 'a phone folds it by the same rule; the key is desktop')
+  await page.goto(`/?token=${token}`)
+  const open = page.locator('.new-session-open')
+  await expect(open).toBeVisible()
+  await expect(open).toHaveAttribute('aria-expanded', 'false')
+  await expect(page.getByRole('button', { name: 'New session', exact: true })).toBeHidden()
+  await page.locator('body').press('n')
+  await expect(page.getByLabel('Working directory')).toBeFocused()
+  await expect(page.getByRole('button', { name: 'New session', exact: true })).toBeVisible()
+})
+
+test('amber stays on the REQUIRES block and the counts; waiting and Allow are ink', async ({ page }) => {
+  await newSession(page)
+  await say(page, 'please permission')
+  const card = page.locator('.request.permission')
+  await expect(card).toBeVisible()
+  const color = (l: Locator, prop: 'color' | 'backgroundColor') => l.evaluate((el, p) => getComputedStyle(el)[p], prop)
+  const ink = await page.evaluate(() => getComputedStyle(document.body).color)
+  await expect(page.locator('.chat-header .status-waiting')).toBeVisible()
+  expect(await color(page.locator('.chat-header .status-waiting'), 'color')).toBe(ink)
+  expect(await color(card.getByRole('button', { name: /^Allow/ }).first(), 'backgroundColor')).toBe(ink)
+  const tail = page.locator('.working-tail.waiting')
+  if (await tail.count()) expect(await color(tail, 'color')).not.toBe(await color(card.locator('.request-kw'), 'color'))
 })

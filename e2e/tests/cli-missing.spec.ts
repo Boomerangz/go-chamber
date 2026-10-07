@@ -4,6 +4,7 @@ import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSyn
 import { createServer } from 'node:net'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
+import { openNewSession } from './pane'
 
 // A second go-chamber whose PATH has the Claude CLI but no Codex CLI: the
 // shared server's PATH can't be changed while it runs.
@@ -63,6 +64,7 @@ test('a missing Codex CLI is said plainly, and Codex is not offered', async ({ p
   )
 
   await page.goto(`${base}/?token=${token}`)
+  await openNewSession(page)
   const codex = page.getByRole('radio', { name: 'Codex' })
   await expect(codex).toBeDisabled()
   await expect(codex).toHaveAttribute('title', /Codex CLI not found on PATH/)

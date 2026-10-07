@@ -42,8 +42,10 @@
   background: var(--ink); animation: mark-breathe 2.4s ease-in-out infinite;
 }
 /* waiting for the owner: the needs-you amber, as in the header and the sessions list */
-.working-tail.waiting { color: var(--req); }
-.working-tail.waiting::before { border-color: var(--req-mark); background: var(--req-mark); animation: none; }
+/* the block above says what is needed in amber; the tail only says the turn
+   is held: ink, a mark that holds still */
+.working-tail.waiting { color: var(--ink-2); }
+.working-tail.waiting::before { border-color: currentColor; background: currentColor; animation: none; }
 
 /* "latest ↓ N": rides the bottom edge of the transcript while scrolled up */
 .jump-latest {

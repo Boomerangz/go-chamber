@@ -120,8 +120,8 @@ export default function Sidebar(props: SidebarProps) {
   const [missing, setMissing] = useState<'cwd' | 'branch' | null>(null)
   // noFolder is the server saying the folder isn't there, until it is edited.
   const [noFolder, setNoFolder] = useState<string | null>(null)
-  // composing unfolds the form on phones, where it otherwise folds to one
-  // line so the sessions own the screen. Wider screens always show it.
+  // composing unfolds the form, which otherwise folds to one line so the
+  // sessions own the column; it folds again once a session starts.
   const [composing, setComposing] = useState(false)
   const folderInput = useRef<HTMLInputElement>(null)
   const branchInput = useRef<HTMLInputElement>(null)
@@ -210,6 +210,7 @@ export default function Sidebar(props: SidebarProps) {
         <button type="button" className="new-session-open" aria-expanded={composing} onClick={() => setComposing(!composing)}>
           <ChevronDown {...icon(14)} className="icon chevron" />
           Start a session
+          <kbd aria-hidden="true">n</kbd>
         </button>
         <div className="segmented" role="radiogroup" aria-label="Agent">
           {AGENTS.map((a) => {

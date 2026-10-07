@@ -98,8 +98,10 @@ export default function App() {
           {health === 'online' && <button type="button" className="btn btn-ghost overview-toggle" aria-pressed={mode === 'agents' && pane === 'overview'}
             title={mode === 'agents' && pane === 'overview' ? 'Back to the workspace' : 'Every session at a glance'} onClick={toggleOverview}><Activity {...icon(16)} className="icon bar-icon" /><span className="bar-label">Overview</span></button>}
           {health === 'online' && <AttentionWindow />}
+          {health === 'online' && <span className="bar-rule" aria-hidden="true" />}
           {health === 'online' && <NotifyToggle />}
           {health === 'online' && <SoundToggle />}
+          {health === 'online' && <span className="bar-rule" aria-hidden="true" />}
           {health === 'online' && (
             <button
               type="button"

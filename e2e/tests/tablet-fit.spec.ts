@@ -98,6 +98,8 @@ test.describe('on a touch tablet', () => {
     test.skip(isMobile, 'a phone has these sizes by its width')
     await page.setViewportSize({ width: 1280, height: 900 })
     await newSession(page)
+    // the new-session form folds once a session starts; its controls are measured open
+    await openNewSession(page)
     for (const width of [768, 900, 1024]) {
       await page.setViewportSize({ width, height: 1000 })
       // the sessions list is shown (no dock open)
