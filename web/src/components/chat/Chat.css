@@ -99,6 +99,19 @@
   font-family: var(--font-mono); font-size: 12px; color: var(--ink-2);
 }
 .live-strip .btn { margin-left: auto; }
+/* a fork's left-behind branch: one quiet line above the composer, the merge
+   command cut before the words are */
+.unmerged-note {
+  display: flex; align-items: center; gap: 4px 10px; flex-wrap: wrap;
+  width: calc(100% - 2 * var(--gutter)); max-width: var(--column); margin: 10px auto 0;
+  font-family: var(--font-mono); font-size: 12px; color: var(--ink-2);
+}
+.unmerged-what { min-width: 0; overflow-wrap: anywhere; }
+.unmerged-what code { color: var(--ink); }
+.unmerged-merge { display: flex; align-items: center; gap: 4px; flex: 1 1 16ch; min-width: 0; }
+.unmerged-cmd { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; user-select: all; color: var(--ink-3); }
+.unmerged-merge .btn-icon { flex: none; width: 22px; height: 22px; }
+
 /* a stop sent that the agent hasn't answered: on the strip, not in the composer row */
 .live-note { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink-3); }
 .composer-note { align-self: center; font-family: var(--font-mono); font-size: 12px; color: var(--ink-3); white-space: nowrap; }

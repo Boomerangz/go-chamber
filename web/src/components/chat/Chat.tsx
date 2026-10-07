@@ -8,6 +8,7 @@ import InterruptedBanner from './InterruptedBanner'
 import WorktreeGone from './WorktreeGone'
 import ChatHeader from './ChatHeader'
 import LiveStrip from './LiveStrip'
+import UnmergedNote from './UnmergedNote'
 import RequestCard from '../requests/RequestCard'
 import { lastInput } from '../requests/modality'
 import { LoadFailed, Skeleton } from '../ui/Loading'
@@ -538,6 +539,7 @@ export default function Chat() {
         />
       )}
       <LiveStrip note={stopSent ? 'stop sent · waiting for the agent' : undefined} />
+      {!notFound && session && !gone && <UnmergedNote session={session} />}
       {!notFound && session && gone && <WorktreeGone session={session} worktree={gone} />}
       {!notFound && !gone && (
       <form

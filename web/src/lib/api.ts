@@ -537,6 +537,21 @@ export function getChanges(id: string): Promise<Changes> {
   return request<Changes>(`/api/sessions/${encodeURIComponent(id)}/changes`)
 }
 
+// Unmerged is a worktree branch a fork left behind (its parent's worktree
+// was removed) with commits the repository's branch `into` lacks.
+export interface Unmerged {
+  branch: string
+  into: string
+  ahead: number
+  // merge is the command that merges branch into `into`.
+  merge: string
+}
+
+export async function getUnmerged(id: string): Promise<Unmerged | null> {
+  const body = await request<{ unmerged: Unmerged | null }>(`/api/sessions/${encodeURIComponent(id)}/unmerged`)
+  return body.unmerged
+}
+
 export function getFileDiff(id: string, path: string): Promise<{ diff: string }> {
   return request(`/api/sessions/${encodeURIComponent(id)}/changes/diff?path=${encodeURIComponent(path)}`)
 }
