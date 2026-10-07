@@ -63,7 +63,10 @@ export function isStrayFocus(target: EventTarget | null, clicked: Element | null
 const glyphs: Record<string, string> = { ArrowUp: '↑', ArrowDown: '↓', ArrowLeft: '←', ArrowRight: '→', Enter: '↵', Escape: 'Esc' }
 
 export function formatCombo(combo: Combo, mac = isMac): string {
-  const key = glyphs[combo.key] ?? (combo.key.length === 1 ? combo.key.toUpperCase() : combo.key)
+  // A lone letter prints as typed: a capital would read as Shift. With a
+  // modifier the capital is the platform's own way of writing it (⌘K).
+  const plain = !combo.mod && !combo.alt && !combo.shift
+  const key = glyphs[combo.key] ?? (combo.key.length === 1 && !plain ? combo.key.toUpperCase() : combo.key)
   const parts: string[] = []
   if (combo.mod) parts.push(mac ? '⌘' : 'Ctrl')
   if (combo.alt) parts.push(mac ? '⌥' : 'Alt')

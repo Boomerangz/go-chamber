@@ -91,6 +91,8 @@ describe('formatCombo', () => {
     expect(formatCombo({ key: 'k', mod: true }, true)).toBe('⌘K')
     expect(formatCombo({ key: 'k', mod: true }, false)).toBe('Ctrl+K')
     expect(formatCombo({ key: '?' }, true)).toBe('?')
+    expect(formatCombo({ key: 'n' }, true)).toBe('n')
+    expect(formatCombo({ key: 'n' }, false)).toBe('n')
     expect(formatCombo({ key: 'ArrowDown', alt: true }, true)).toBe('⌥↓')
   })
 })
