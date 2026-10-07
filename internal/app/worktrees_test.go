@@ -132,6 +132,28 @@ func TestCreateWorktreeOutsideARepository(t *testing.T) {
 	}
 }
 
+// A worktree asked for in a folder that isn't there says so, before git
+// is asked anything.
+func TestCreateWorktreeInAMissingFolder(t *testing.T) {
+	m, _, _, _ := newArchiveManager(t)
+	git := &fakeGit{top: "/src/app"}
+	probe := &folderProbe{existing: map[string]bool{"/src/app": true}}
+	w := NewWorktrees(WorktreesConfig{Sessions: m, Git: git, Root: "/data/worktrees", Folders: probe})
+	_, err := w.Create(context.Background(), domain.AgentClaude, "/nonexistent/x", "fix")
+	if !errors.Is(err, domain.ErrFolderGone) || err.Error() != "Folder /nonexistent/x doesn't exist" {
+		t.Fatalf("err = %v", err)
+	}
+	if len(git.added) != 0 {
+		t.Fatalf("added = %v", git.added)
+	}
+	probe.mu.Lock()
+	probe.err = errors.New("stat: permission denied")
+	probe.mu.Unlock()
+	if _, err := w.Create(context.Background(), domain.AgentClaude, "/src/app", "fix"); err == nil || errors.Is(err, domain.ErrFolderGone) {
+		t.Fatalf("err = %v", err)
+	}
+}
+
 func TestCreateWorktreeCleansUpWhenTheSessionFails(t *testing.T) {
 	w, _, git, _ := newTestWorktrees(t)
 	if _, err := w.Create(context.Background(), domain.AgentKind("nope"), "/src/app", "x"); err == nil {

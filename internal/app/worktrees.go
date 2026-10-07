@@ -92,6 +92,8 @@ type WorktreesConfig struct {
 	Git      GitRepo
 	// Root holds created worktrees as <Root>/<repo name>/<slug>.
 	Root string
+	// Folders optionally checks the asked-for folder exists.
+	Folders FolderProbe
 }
 
 // Worktrees creates sessions in their own git worktree and reports what a
@@ -111,6 +113,15 @@ func (w *Worktrees) Create(ctx context.Context, agent domain.AgentKind, dir, nam
 	slug := slugify(name)
 	if slug == "" {
 		return domain.SessionSnapshot{}, fmt.Errorf("%w: use latin letters or digits", ErrInvalidBranch)
+	}
+	if w.cfg.Folders != nil {
+		ok, err := w.cfg.Folders.FolderExists(dir)
+		if err != nil {
+			return domain.SessionSnapshot{}, err
+		}
+		if !ok {
+			return domain.SessionSnapshot{}, domain.NoFolder(dir)
+		}
 	}
 	repo, err := w.cfg.Git.Toplevel(ctx, dir)
 	if err != nil {

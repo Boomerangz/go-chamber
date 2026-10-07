@@ -152,6 +152,7 @@ func run(ctx context.Context, args []string, out io.Writer) error {
 				Sessions: manager,
 				Git:      git.Repo{},
 				Root:     filepath.Join(*dataDir, "worktrees"),
+				Folders:  fsys.Reader{},
 			}),
 			Push:  push,
 			Files: app.NewSessionFiles(store.Sessions(), fsys.Resolver{}),
