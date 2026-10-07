@@ -114,6 +114,21 @@ describe('App', () => {
     expect(layout()).not.toHaveAttribute('data-focus')
   })
 
+  it('toggles the Overview from the top bar, without offering Focus over it', async () => {
+    mockApi()
+    render(<App />)
+    await screen.findByRole('status', { name: 'online' })
+    const overview = within(screen.getByRole('banner')).getByRole('button', { name: 'Overview' })
+    await userEvent.click(overview)
+    expect(overview).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('region', { name: 'Overview' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Focus' })).toBeNull()
+    await userEvent.click(overview)
+    expect(overview).toHaveAttribute('aria-pressed', 'false')
+    expect(screen.queryByRole('region', { name: 'Overview' })).toBeNull()
+    expect(screen.getByRole('button', { name: 'Focus' })).toBeInTheDocument()
+  })
+
   it('marks its landmarks: the top bar, the sessions list, and the chat as main', async () => {
     mockApi()
     render(<App />)

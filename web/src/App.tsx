@@ -14,6 +14,7 @@ import Notices from './components/shell/Notices'
 import Hotkeys from './components/shell/Hotkeys'
 import AttentionWindow, { AttentionPanel } from './components/shell/AttentionWindow'
 import { openShortcuts } from './components/shell/overlay'
+import { toggleOverview } from './lib/overview'
 import { useRouteSync } from './components/shell/routeSync'
 import { LoadingLine } from './components/ui/Loading'
 import TerminalPanel from './components/terminal/TerminalPanel'
@@ -80,7 +81,7 @@ export default function App() {
         {health === 'online' && <ModeSwitch />}
         <div className="topbar-end">
           <HealthStatus health={health} />
-          {health === 'online' && mode === 'agents' && (
+          {health === 'online' && mode === 'agents' && pane !== 'overview' && (
             <button
               type="button"
               className="btn btn-ghost focus-toggle"
@@ -91,10 +92,8 @@ export default function App() {
               Focus
             </button>
           )}
-          {health === 'online' && <button className="btn btn-ghost overview-toggle" aria-pressed={mode === 'agents' && pane === 'overview'} onClick={() => {
-            useSessionStore.getState().setPane('overview')
-            useLayoutStore.getState().setMode('agents')
-          }}>Overview</button>}
+          {health === 'online' && <button type="button" className="btn btn-ghost overview-toggle" aria-pressed={mode === 'agents' && pane === 'overview'}
+            title={mode === 'agents' && pane === 'overview' ? 'Back to the workspace' : 'Every session at a glance'} onClick={toggleOverview}>Overview</button>}
           {health === 'online' && <AttentionWindow />}
           {health === 'online' && <NotifyToggle />}
           {health === 'online' && <SoundToggle />}

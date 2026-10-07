@@ -198,6 +198,19 @@ describe('ModeSwitch', () => {
     expect(useLayoutStore.getState().mode).toBe('agents')
   })
 
+  it('leaves the Overview for the workspace when Agents is chosen', () => {
+    useLayoutStore.setState({ mode: 'agents' })
+    useSessionStore.setState({ pane: 'overview', activeId: 's1' })
+    render(<ModeSwitch />)
+    fireEvent.click(screen.getByRole('radio', { name: 'Agents' }))
+    expect(useSessionStore.getState().pane).toBe('chat')
+    act(() => useSessionStore.setState({ pane: 'overview', activeId: null }))
+    act(() => useLayoutStore.setState({ mode: 'terminal' }))
+    fireEvent.click(screen.getByRole('radio', { name: 'Agents' }))
+    expect(useLayoutStore.getState().mode).toBe('agents')
+    expect(useSessionStore.getState().pane).toBe('sessions')
+  })
+
   it('carries the amber waiting count on the Agents tab while another mode is open', () => {
     useLayoutStore.setState({ mode: 'terminal' })
     useSessionStore.setState({

@@ -9,6 +9,7 @@ import { useSidebarShown } from './sidebarShown'
 import { formatCombo } from '../../lib/hotkeys'
 import { useSessionStore, type Pane } from '../../stores/session'
 import { useTerminalStore } from '../../stores/terminals'
+import { leaveOverview } from '../../lib/overview'
 
 const modes: { id: Mode; label: string }[] = [
   { id: 'agents', label: 'Agents' },
@@ -39,6 +40,11 @@ export function ModeSwitch() {
   const failure = useRequestsFailure()
   const unknown = mode !== 'agents' && failure !== null
   const group = useRef<HTMLDivElement>(null)
+  // Agents is the workspace: choosing it leaves the Overview too.
+  const chooseMode = (id: Mode) => {
+    setMode(id)
+    if (id === 'agents') leaveOverview()
+  }
   return (
     <div
       ref={group}
@@ -49,7 +55,7 @@ export function ModeSwitch() {
         const at = step(e.key, modes.findIndex((m) => m.id === mode), modes.length)
         if (at === null) return
         e.preventDefault()
-        setMode(modes[at]!.id)
+        chooseMode(modes[at]!.id)
         group.current?.querySelectorAll<HTMLElement>('[role="radio"]')[at]?.focus()
       }}
     >
@@ -61,7 +67,7 @@ export function ModeSwitch() {
           aria-checked={mode === m.id}
           tabIndex={mode === m.id ? 0 : -1}
           title={`${m.label} (${i + 1})${m.id === 'agents' && unknown ? ` · requests couldn't load: ${failure}` : m.id === 'agents' && waiting > 0 ? ` · ${waiting} waiting for you` : ''}`}
-          onClick={() => setMode(m.id)}
+          onClick={() => chooseMode(m.id)}
         >
           {m.label}
           {m.id === 'agents' && unknown && (

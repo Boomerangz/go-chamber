@@ -9,6 +9,7 @@ import Keys from '../ui/Keys'
 import { terminalShortcuts } from '../../lib/terminal-keys'
 import { useLayoutStore, type Mode } from '../../stores/layout'
 import { useSessionStore } from '../../stores/session'
+import { inWorkspace } from '../../lib/overview'
 import './shell.css'
 
 // The help lists shortcuts in these groups, in this order.
@@ -78,12 +79,12 @@ function buildShortcuts(setOverlay: SetOverlay): Shortcut[] {
     { combo: { key: '?' }, group: 'Navigate', label: 'Show shortcuts', run: () => setOverlay((o) => (o === 'help' ? null : 'help')) },
     { combo: { key: '/' }, group: 'Navigate', label: 'Search sessions', run: () => focusIn('.session-search input, input[type="search"]', 'sessions') },
     { combo: { key: 'n' }, group: 'Navigate', label: 'New session: choose a folder', run: () => focusIn('.new-session .folder-field input', 'sessions') },
-    { combo: { key: 'j' }, group: 'Navigate', label: 'Next session', run: () => stepSession(1) },
-    { combo: { key: 'k' }, group: 'Navigate', label: 'Previous session', run: () => stepSession(-1) },
+    { combo: { key: 'j' }, group: 'Navigate', label: 'Next session', run: () => inWorkspace(() => stepSession(1), true) },
+    { combo: { key: 'k' }, group: 'Navigate', label: 'Previous session', run: () => inWorkspace(() => stepSession(-1), true) },
     { combo: { key: 'r' }, group: 'Requests', label: 'Next session that needs you', run: nextWaiting },
-    { combo: { key: 'f' }, group: 'Navigate', label: 'Focus mode on or off', run: () => useLayoutStore.getState().toggleFocus() },
-    { combo: { key: 'b', mod: true }, group: 'Navigate', label: 'Sessions list on or off', anywhere: true, run: () => useLayoutStore.getState().toggleSidebar() },
-    { combo: { key: 'd' }, group: 'Navigate', label: 'Changes dock on or off', run: () => useLayoutStore.getState().toggleDock('changes') },
+    { combo: { key: 'f' }, group: 'Navigate', label: 'Focus mode on or off', run: () => inWorkspace(() => useLayoutStore.getState().toggleFocus()) },
+    { combo: { key: 'b', mod: true }, group: 'Navigate', label: 'Sessions list on or off', anywhere: true, run: () => inWorkspace(() => useLayoutStore.getState().toggleSidebar()) },
+    { combo: { key: 'd' }, group: 'Navigate', label: 'Changes dock on or off', run: () => inWorkspace(() => useLayoutStore.getState().toggleDock('changes')) },
     ...modeKeys.map(([key, mode]) => ({
       combo: { key },
       group: 'Navigate' as const,
@@ -91,7 +92,7 @@ function buildShortcuts(setOverlay: SetOverlay): Shortcut[] {
       run: () => useLayoutStore.getState().setMode(mode),
     })),
     { combo: { key: 'c' }, group: 'Chat', label: 'Write to the agent', run: () => focusIn('.composer textarea', 'chat') },
-    { combo: { key: 't' }, group: 'Terminal', label: 'Terminal dock on or off', run: () => useLayoutStore.getState().toggleDock('terminal') },
+    { combo: { key: 't' }, group: 'Terminal', label: 'Terminal dock on or off', run: () => inWorkspace(() => useLayoutStore.getState().toggleDock('terminal')) },
   ]
 }
 
