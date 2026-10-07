@@ -113,8 +113,8 @@ export function useHeaderFold(header: RefObject<HTMLElement | null>): boolean {
       // itself or none at all, never a stub of a few characters.
       if (usage) {
         const left = room - whole
-        if (left < Math.min(usage.scrollWidth, USAGE_MIN)) el.dataset.usage = 'off'
-        else delete el.dataset.usage
+        if (left < Math.min(usage.scrollWidth, USAGE_MIN)) el.setAttribute('data-usage', 'off')
+        else el.removeAttribute('data-usage')
       }
       setFold(fold)
     }
