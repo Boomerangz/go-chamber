@@ -30,6 +30,8 @@
 .switcher-current::before { content: '['; }
 .switcher-current::after { content: ']'; }
 .switcher-empty { padding: 12px 8px; color: var(--ink-3); font-size: 13px; }
+/* the archived sessions a query found, below the rest */
+.switcher-section { margin-top: 6px; padding: 8px 8px 4px; border-top: 1px solid var(--rule); }
 .switcher-foot, .shortcut-note {
   display: flex; gap: 16px; padding: 8px 14px; border-top: 1px solid var(--rule);
   font-family: var(--font-mono); font-size: 11.5px; color: var(--ink-3);
