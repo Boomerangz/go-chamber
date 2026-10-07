@@ -53,8 +53,12 @@ test('approves a permission from the requests tray without opening the session c
   await expect(page.locator('.request-title', { hasText: 'Run command' })).toBeVisible()
 
   const bar = page.getByRole('navigation', { name: 'Views' })
+  const dock = page.getByRole('toolbar', { name: 'Dock' })
+  // Wait for the page to show one of them: a phone's bar is not there yet
+  // right after the load.
+  await expect(bar.or(dock).first()).toBeVisible()
   if (await bar.isVisible()) await bar.getByRole('button', { name: /^Requests/ }).click()
-  else await page.getByRole('toolbar', { name: 'Dock' }).getByRole('button', { name: /^Requests/ }).click()
+  else await dock.getByRole('button', { name: /^Requests/ }).click()
   const line = page.getByRole('complementary', { name: 'Pending requests' }).getByRole('listitem').filter({ hasText: text })
   await line.getByRole('button', { name: 'Allow', exact: true }).click()
   await expect(line).toHaveCount(0)
