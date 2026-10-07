@@ -42,12 +42,13 @@ test('archives, unarchives and deletes a session, live in another tab', async ({
   await expect(archived).toHaveAttribute('open', '')
   const shelved = archived.getByRole('button', { name: new RegExp(`^${name}`) })
   await expect(shelved).toBeVisible()
-  // ...and its row is in sight, not under the account footer.
+  // ...and its row is in sight, not under the account footer (the Undo
+  // notice floats above everything and is left out).
   await expect
     .poll(() =>
       shelved.evaluate((el) => {
         const r = el.getBoundingClientRect()
-        const hit = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2)
+        const hit = document.elementsFromPoint(r.x + r.width / 2, r.y + r.height / 2).find((e) => !e.closest('.notices'))
         return !!hit && el.contains(hit)
       }),
     )
