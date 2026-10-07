@@ -34,10 +34,14 @@ test('shows a message on its way and keeps the draft when it fails', async ({ pa
 test('sends messages typed in quick succession one by one, in order', async ({ page, isMobile }) => {
   test.skip(isMobile, 'on a touch screen Enter is the newline')
   await newSession(page)
-  // A slow network keeps each message on its way while the next is typed.
+  // A held network keeps each message on its way while the next is typed:
+  // nothing goes through until all three are typed. (A fixed delay was
+  // outrun by a busy machine's typing, which let the first one land early.)
+  let release = () => {}
+  const held = new Promise<void>((r) => (release = r))
   for (const path of ['messages', 'steer']) {
     await page.route(`**/api/sessions/*/${path}`, async (route) => {
-      await new Promise((r) => setTimeout(r, 400))
+      await held
       await route.continue()
     })
   }
@@ -48,6 +52,7 @@ test('sends messages typed in quick succession one by one, in order', async ({ p
     await expect(box).toHaveValue('')
   }
   await expect(page.locator('.row-pending')).toHaveCount(3)
+  release()
   const users = page.locator('.row-user_message:not(.row-pending) .user-text')
   await expect(users).toHaveText(['rapid 1', 'rapid 2', 'rapid 3'])
 })
