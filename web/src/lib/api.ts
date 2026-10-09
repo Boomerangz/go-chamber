@@ -101,6 +101,8 @@ export interface Item {
   decision?: 'approved' | 'denied' | 'answered'
   // images are the ids of pictures attached to a user message.
   images?: string[]
+  // origin is set when a message or decision did not come from the owner.
+  origin?: 'mcp'
 }
 
 export interface Delta {

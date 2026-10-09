@@ -33,6 +33,14 @@
 .exit-tag::before { content: '['; }
 .exit-tag::after { content: ']'; }
 .exit-tag.exit-bad { color: var(--bad); }
+/* another agent wrote it, not the owner: the same bracketed tag */
+.origin-tag {
+  font-family: var(--font-mono); font-size: var(--t-label); letter-spacing: 0.04em; text-transform: uppercase;
+  color: var(--ink-3); white-space: nowrap;
+}
+.origin-tag::before { content: '['; }
+.origin-tag::after { content: ']'; }
+.item.user .origin-tag { display: block; margin-bottom: 2px; }
 
 /* folded output: label, then its last line while closed */
 .item-output { grid-column: 1 / -1; margin-top: 4px; }

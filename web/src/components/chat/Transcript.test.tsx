@@ -537,6 +537,19 @@ describe('decision records', () => {
     expect(container.querySelector('.decision-kw')).toHaveTextContent('answered')
     expect(container.querySelector('.decision-name')).toHaveTextContent('Pick a model')
   })
+  it('says when another agent decided, not the owner', () => {
+    const { container } = show(item({ kind: 'decision', decision: 'denied', name: 'Bash', origin: 'mcp' }))
+    expect(container.querySelector('.decision .origin-tag')).toHaveTextContent('via MCP')
+    expect(show(item({ kind: 'decision', decision: 'denied', name: 'Bash' })).container.querySelector('.origin-tag')).toBeNull()
+  })
+})
+
+describe('origin', () => {
+  it('says when another agent wrote the message, not the owner', () => {
+    const { container } = show(item({ kind: 'user_message', text: 'fix it', origin: 'mcp' }))
+    expect(container.querySelector('.item.user .origin-tag')).toHaveTextContent('via MCP')
+    expect(show(item({ kind: 'user_message', text: 'mine' })).container.querySelector('.origin-tag')).toBeNull()
+  })
 })
 
 describe('turn footer', () => {
