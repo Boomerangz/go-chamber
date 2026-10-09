@@ -857,6 +857,7 @@ button.health { border: 0; background: none; padding: 0; }
   field-sizing: content; line-height: 1.45;
 }
 .composer-actions { display: flex; gap: 6px; margin-left: auto; }
+.composer-actions .btn-glyph { display: none; }
 
 /* empty document */
 .chat.empty { display: grid; place-items: center; }
@@ -1270,6 +1271,12 @@ button.health { border: 0; background: none; padding: 0; }
   /* a dropped socket shows as the dashed mark alone: the modes keep their
      room, and the strip above the composer says it in words */
   .topbar-end .health-words { display: none; }
+  /* a working connection is the normal case: nothing drawn, still announced */
+  .topbar-end > .health.health-online {
+    position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); padding: 0; margin: 0; border: 0;
+  }
+  /* an open request's card says it waits; the tail above it would say it twice */
+  .working-tail.waiting { display: none; }
   .mode-switch { grid-column: 1; grid-row: 1; justify-self: start; min-width: 0; overflow-x: auto; scrollbar-width: none; }
   .segmented.mode-switch button { flex: none; padding: 0 10px; }
   .mode-switch { max-width: 100%; }

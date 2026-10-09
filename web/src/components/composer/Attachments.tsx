@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { X } from 'lucide-react'
+import { Paperclip, X } from 'lucide-react'
 import { icon } from '../icon'
 import { imageUrl } from '../../lib/api'
 import type { useAttachments } from './useAttachments'
@@ -35,7 +35,8 @@ export default function Attachments({ state, locked = false }: { state: ReturnTy
         onClick={() => (locked ? setNote(true) : input.current?.click())}
         title={locked ? 'Images go with the next message' : 'Attach images (or paste / drop them)'}
       >
-        Attach
+        <span className="btn-label">Attach</span>
+        <Paperclip {...icon(18)} className="btn-glyph" />
       </button>
       {note && (
         <span className="composer-note attach-note" role="status">
