@@ -460,8 +460,9 @@ func TestMapHookRuns(t *testing.T) {
 	if again[0].Item.ID == hook.ID {
 		t.Fatal("second run reused the first item")
 	}
+	// statusMessage is the hook's label from hooks.json, not something it said.
 	ok := feedCodex(t, m, "hook/completed", hookRun("stop:1:/h", "stop", "completed", "Agent Reflection"))
-	if it := ok[0].Item; it.Outcome != domain.HookSuccess || it.Text != "Agent Reflection" {
+	if it := ok[0].Item; it.Outcome != domain.HookSuccess || it.Text != "" {
 		t.Fatalf("plain completion = %+v", it)
 	}
 

@@ -428,6 +428,25 @@ func emitTaskTurn(enc *json.Encoder, out *bufio.Writer, sessionID, prompt string
 	})
 	started["tool_use_id"] = toolUseID
 	_ = enc.Encode(started)
+	// The subagent runs a command; a PreToolUse hook checks it first. The
+	// real CLI names no tool use on hook events, only the tool.
+	stepID := "msg_" + strconv.Itoa(nextSeq())
+	stepToolID := "toolu_step_" + strconv.Itoa(nextSeq())
+	_ = enc.Encode(map[string]any{
+		"type": "assistant", "session_id": sessionID, "uuid": "k-" + stepID,
+		"parent_tool_use_id": toolUseID,
+		"message": map[string]any{"id": stepID, "role": "assistant", "content": []any{
+			map[string]any{"type": "tool_use", "id": stepToolID, "name": "Bash", "input": map[string]any{"command": "ls"}},
+		}},
+	})
+	if hookEvents {
+		_ = enc.Encode(map[string]any{"type": "system", "subtype": "hook_started", "hook_id": "hook-step",
+			"hook_name": "PreToolUse:Bash", "hook_event": "PreToolUse", "session_id": sessionID})
+		_ = enc.Encode(map[string]any{"type": "system", "subtype": "hook_response", "hook_id": "hook-step",
+			"hook_name": "PreToolUse:Bash", "hook_event": "PreToolUse", "output": "ls is fine\n", "stdout": "ls is fine\n", "stderr": "",
+			"exit_code": 0, "outcome": "success", "session_id": sessionID})
+	}
+	writeToolResult(enc, sessionID, stepToolID, "a.txt", false)
 	_ = out.Flush()
 }
 

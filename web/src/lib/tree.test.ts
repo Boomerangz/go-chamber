@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { isBlank, itemTree, sameNode, shownFrom, withoutAnsweredQuestions } from './tree'
+import { isBlank, itemTree, prune, sameNode, showsItem, shownFrom, withoutAnsweredQuestions } from './tree'
 import type { Item } from './api'
 
 const item = (id: string, parentItemId?: string): Item => ({
@@ -154,5 +154,41 @@ describe('shownFrom', () => {
     expect(shownFrom([...order, 'f'], rows, 'f')).toBeNull()
     expect(shownFrom(order, rows, 'zz')).toBeNull()
     expect(shownFrom(order, rows, null)).toBeNull()
+  })
+})
+
+describe('showsItem', () => {
+  const hook = (over: Partial<Item>): Item => ({ id: 'h', sessionId: 's1', kind: 'hook', name: 'Stop', status: 'completed', outcome: 'success', ...over })
+  const said = hook({ text: 'context' })
+  const silent = hook({})
+  const failed = hook({ outcome: 'error', status: 'failed', text: 'exit 1' })
+  const blocked = hook({ outcome: 'blocked', text: 'no' })
+  const blank: Item = { id: 'm', sessionId: 's1', kind: 'assistant_message', status: 'completed' }
+
+  it('shows hooks that said something by default', () => {
+    expect([said, silent, failed, blocked, blank].map((it) => showsItem(it, 'some'))).toEqual([true, false, true, true, false])
+  })
+
+  it('shows every hook when asked to, but not blank messages', () => {
+    expect([said, silent, failed, blocked, blank].map((it) => showsItem(it, 'all'))).toEqual([true, true, true, true, false])
+  })
+
+  it('keeps only failed hooks when hooks are off', () => {
+    expect([said, silent, failed, blocked, blank].map((it) => showsItem(it, 'off'))).toEqual([false, false, true, false, false])
+  })
+})
+
+describe('prune', () => {
+  it('drops what is not kept, children included', () => {
+    const tree = itemTree(['a', 'b', 'c', 'd'], { a: item('a'), b: item('b', 'a'), c: item('c', 'a'), d: item('d') })
+    const out = prune(tree, (it) => it.id !== 'b' && it.id !== 'd')
+    expect(out.map((n) => n.item.id)).toEqual(['a'])
+    expect(out[0]!.children.map((n) => n.item.id)).toEqual(['c'])
+  })
+
+  it('keeps the same nodes when nothing is dropped', () => {
+    const tree = itemTree(['a', 'b'], { a: item('a'), b: item('b', 'a') })
+    const out = prune(tree, () => true)
+    expect(out[0]).toBe(tree[0])
   })
 })

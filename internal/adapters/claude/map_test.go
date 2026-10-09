@@ -2,6 +2,7 @@ package claude
 
 import (
 	"encoding/json"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -625,6 +626,33 @@ func TestMapHookEvents(t *testing.T) {
 	check("Stop|", domain.HookSuccess, domain.ItemCompleted, 0)
 	check("PreToolUse|rm is not allowed", domain.HookBlocked, domain.ItemCompleted, 2)
 	check("Stop|python: not found", domain.HookError, domain.ItemFailed, 127)
+}
+
+// Hook events name no tool use; a tool hook goes where the latest open call
+// of its tool is, so a subagent's tool hooks land among its steps.
+func TestMapToolHooksFollowTheirTool(t *testing.T) {
+	m := NewMapper("s1")
+	m.SetTurn("t1")
+	feed(t, m,
+		`{"type":"assistant","session_id":"s1","uuid":"a1","parent_tool_use_id":null,"message":{"id":"msg_1","role":"assistant","content":[{"type":"tool_use","id":"toolu_A","name":"Task","input":{"description":"look"}}]}}`,
+		`{"type":"assistant","session_id":"s1","uuid":"a2","parent_tool_use_id":"toolu_A","message":{"id":"msg_2","role":"assistant","content":[{"type":"tool_use","id":"toolu_B","name":"Bash","input":{"command":"ls"}}]}}`,
+		`{"type":"assistant","session_id":"s1","uuid":"a3","parent_tool_use_id":null,"message":{"id":"msg_3","role":"assistant","content":[{"type":"tool_use","id":"toolu_C","name":"Read","input":{"file_path":"/x"}}]}}`,
+	)
+	agent := m.byTool["toolu_A"]
+	evs := feed(t, m,
+		`{"type":"system","subtype":"hook_started","hook_id":"h1","hook_name":"PreToolUse:Bash","hook_event":"PreToolUse","session_id":"s1"}`,
+		`{"type":"system","subtype":"hook_started","hook_id":"h2","hook_name":"PostToolUse:Read","hook_event":"PostToolUse","session_id":"s1"}`,
+		`{"type":"system","subtype":"hook_started","hook_id":"h3","hook_name":"PreToolUse:Task","hook_event":"PreToolUse","session_id":"s1"}`,
+		`{"type":"system","subtype":"hook_started","hook_id":"h4","hook_name":"PreToolUse:Grep","hook_event":"PreToolUse","session_id":"s1"}`,
+		`{"type":"system","subtype":"hook_started","hook_id":"h5","hook_name":"Stop","hook_event":"Stop","session_id":"s1"}`,
+	)
+	var parents []domain.ItemID
+	for _, ev := range evs {
+		parents = append(parents, ev.Item.ParentItemID)
+	}
+	if want := []domain.ItemID{agent, "", "", "", ""}; !slices.Equal(parents, want) {
+		t.Fatalf("parents = %v, want %v", parents, want)
+	}
 }
 
 func TestMapperIsSafeForConcurrentUse(t *testing.T) {

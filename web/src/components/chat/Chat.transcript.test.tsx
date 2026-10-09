@@ -6,6 +6,7 @@ import { saveSeen } from '../../lib/seen'
 import { resetDrafts } from '../../stores/drafts'
 import { useNotices } from '../../stores/notices'
 import { resetStore, useSessionStore } from '../../stores/session'
+import { resetLayout, useLayoutStore } from '../../stores/layout'
 import Chat from './Chat'
 
 // The transcript's hook-ups in Chat: tool groups, retry, edit, turn footers.
@@ -46,6 +47,7 @@ beforeEach(() => {
   resetStore()
   resetDrafts()
   localStorage.clear()
+  resetLayout()
   useNotices.setState({ notices: [] })
   Element.prototype.scrollIntoView = vi.fn()
 })
@@ -78,6 +80,19 @@ describe('transcript hook-ups', () => {
     ]))
     expect(container.querySelector('.tool-group-label')).toHaveTextContent('Read 2 files')
     expect([...container.querySelectorAll('.hook-name')].map((h) => h.textContent)).toEqual(['Stop hook'])
+  })
+
+  it('hides silent hooks among a subagent\'s steps too, and shows them all on request', () => {
+    const { container } = setup(chatOf([
+      item('u', 'user_message'),
+      item('s', 'subagent', { name: 'Task', status: 'streaming', text: undefined }),
+      item('b', 'command', { parentItemId: 's', input: { command: 'ls' }, exitCode: 0 }),
+      item('h', 'hook', { parentItemId: 's', name: 'PreToolUse', outcome: 'success', text: undefined }),
+    ]))
+    expect(container.querySelectorAll('.subagent-items > li')).toHaveLength(1)
+    act(() => useLayoutStore.getState().setHooks('all'))
+    expect(container.querySelectorAll('.subagent-items > li')).toHaveLength(2)
+    expect(container.querySelector('.subagent-items .hook-name')).toHaveTextContent('PreToolUse hook')
   })
 
   it('puts the new-since-last-visit mark on the row after a hidden hook', () => {

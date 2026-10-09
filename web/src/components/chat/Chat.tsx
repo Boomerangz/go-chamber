@@ -39,12 +39,13 @@ import { owesAnswer, shownStatus } from '../../lib/status'
 import { usePending } from '../../lib/pending'
 import { useCLIs } from '../../lib/clis'
 import { useUnseen } from '../../lib/seen'
-import { isBlank, itemTree, shownFrom, withoutAnsweredQuestions } from '../../lib/tree'
+import { itemTree, prune, showsItem, shownFrom, withoutAnsweredQuestions } from '../../lib/tree'
 import { groupTools, lastItemId } from '../../lib/group'
 import { turnNumbers, turnOutline } from '../../lib/turns'
 import TurnOutline from './TurnOutline'
 import { loadDraft, saveDraft } from '../../stores/drafts'
 import { useSessionStore } from '../../stores/session'
+import { useLayoutStore } from '../../stores/layout'
 import { useNotices } from '../../stores/notices'
 import { failedTo } from '../../lib/failed'
 import './Chat.css'
@@ -133,9 +134,10 @@ export default function Chat() {
   const narrow = useMedia('(max-width: 720px)')
   // On a touch screen Enter is the keyboard's newline; Send is a tap away.
   const touch = useMedia('(pointer: coarse)')
+  const hooks = useLayoutStore((s) => s.hooks)
   const nodes = useMemo(
-    () => withoutAnsweredQuestions(itemTree(chat.order, chat.items).filter((node) => !isBlank(node.item))),
-    [chat.order, chat.items],
+    () => withoutAnsweredQuestions(prune(itemTree(chat.order, chat.items), (item) => showsItem(item, hooks))),
+    [chat.order, chat.items, hooks],
   )
   const turns = useMemo(() => turnNumbers(nodes), [nodes])
   const outline = useMemo(() => turnOutline(nodes), [nodes])

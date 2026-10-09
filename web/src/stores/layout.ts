@@ -1,5 +1,6 @@
 import type { CSSProperties } from 'react'
 import { create } from 'zustand'
+import type { Hooks } from '../lib/tree'
 import { useSessionStore } from './session'
 
 // Mode is the workspace: agent sessions, or terminals on their own.
@@ -28,6 +29,8 @@ interface Layout {
   sidebarWidth: number | null
   // sidebar is false while the sessions sidebar is hidden.
   sidebar: boolean
+  // hooks is how many hook runs the transcript shows.
+  hooks: Hooks
 }
 
 interface LayoutStore extends Layout {
@@ -40,6 +43,7 @@ interface LayoutStore extends Layout {
   setDockWidth: (tab: DockTab, px: number | null) => void
   setSidebarWidth: (px: number | null) => void
   toggleSidebar: () => void
+  setHooks: (hooks: Hooks) => void
 }
 
 const KEY = 'gc.layout'
@@ -57,7 +61,7 @@ function readWidths(raw: unknown): Layout['widths'] {
   return widths
 }
 
-const defaults: Layout = { mode: 'agents', dock: null, focus: false, wrap: false, widths: {}, sidebarWidth: null, sidebar: true }
+const defaults: Layout = { mode: 'agents', dock: null, focus: false, wrap: false, widths: {}, sidebarWidth: null, sidebar: true, hooks: 'some' }
 
 export function loadLayout(): Layout {
   try {
@@ -70,6 +74,7 @@ export function loadLayout(): Layout {
       widths: readWidths(raw.widths),
       sidebarWidth: typeof raw.sidebarWidth === 'number' && Number.isFinite(raw.sidebarWidth) ? clamp(raw.sidebarWidth, SIDEBAR_MIN, SIDEBAR_MAX) : null,
       sidebar: raw.sidebar !== false,
+      hooks: raw.hooks === 'off' || raw.hooks === 'all' ? raw.hooks : 'some',
     }
   } catch {
     return { ...defaults }
@@ -77,9 +82,9 @@ export function loadLayout(): Layout {
 }
 
 function save(layout: Layout) {
-  const { mode, dock, focus, wrap, widths, sidebarWidth, sidebar } = layout
+  const { mode, dock, focus, wrap, widths, sidebarWidth, sidebar, hooks } = layout
   try {
-    localStorage.setItem(KEY, JSON.stringify({ mode, dock, focus, wrap, widths, sidebarWidth, sidebar }))
+    localStorage.setItem(KEY, JSON.stringify({ mode, dock, focus, wrap, widths, sidebarWidth, sidebar, hooks }))
   } catch {
     // storage unavailable: the layout lasts for this page only
   }
@@ -129,6 +134,7 @@ export const useLayoutStore = create<LayoutStore>((set, get) => {
       else widths[tab] = clamp(px, DOCK_MIN, DOCK_MAX)
       update({ widths })
     },
+    setHooks: (hooks) => update({ hooks }),
     setSidebarWidth: (px) => update({ sidebarWidth: px === null ? null : clamp(px, SIDEBAR_MIN, SIDEBAR_MAX) }),
     toggleSidebar: () => {
       const layout = get()

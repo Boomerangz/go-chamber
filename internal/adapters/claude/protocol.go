@@ -39,6 +39,7 @@ type rawMessage struct {
 	// system/hook_started and system/hook_response fields
 	// (--include-hook-events).
 	HookID    string `json:"hook_id"`
+	HookName  string `json:"hook_name"`
 	HookEvent string `json:"hook_event"`
 	Output    string `json:"output"`
 	Stdout    string `json:"stdout"`

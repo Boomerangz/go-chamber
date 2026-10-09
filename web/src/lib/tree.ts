@@ -26,6 +26,28 @@ export function itemTree(order: string[], items: Record<string, Item>): ItemNode
   return roots
 }
 
+// prune drops the nodes keep refuses, at every depth; a node whose children
+// all stay is kept as it is.
+export function prune(nodes: ItemNode[], keep: (item: Item) => boolean): ItemNode[] {
+  const out: ItemNode[] = []
+  for (const node of nodes) {
+    if (!keep(node.item)) continue
+    const children = prune(node.children, keep)
+    out.push(children.length === node.children.length ? node : { ...node, children })
+  }
+  return out
+}
+
+// Hooks is how much of the hooks the transcript shows: those that said
+// something (some), every run (all), or only the ones that failed (off).
+export type Hooks = 'off' | 'some' | 'all'
+
+// showsItem says whether the transcript shows an item under the hooks setting.
+export function showsItem(item: Item, hooks: Hooks): boolean {
+  if (item.kind !== 'hook' || hooks === 'some') return !isBlank(item)
+  return hooks === 'all' || item.outcome === 'error' || item.status === 'failed'
+}
+
 import type { Session } from './api'
 
 export interface SessionNode {

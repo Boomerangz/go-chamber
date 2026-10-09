@@ -606,11 +606,10 @@ type hookNotification struct {
 }
 
 type rpcHookRun struct {
-	ID            string `json:"id"`
-	EventName     string `json:"eventName"`
-	Status        string `json:"status"`
-	StatusMessage string `json:"statusMessage"`
-	Entries       []struct {
+	ID        string `json:"id"`
+	EventName string `json:"eventName"`
+	Status    string `json:"status"`
+	Entries   []struct {
 		Kind string `json:"kind"`
 		Text string `json:"text"`
 	} `json:"entries"`
@@ -639,9 +638,6 @@ func (m *Mapper) mapHook(run rpcHookRun, done bool) []domain.Event {
 		}
 	}
 	item.Text = strings.Join(texts, "\n")
-	if item.Text == "" {
-		item.Text = run.StatusMessage
-	}
 	switch run.Status {
 	case "blocked", "stopped":
 		item.Outcome = domain.HookBlocked

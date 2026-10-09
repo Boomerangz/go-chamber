@@ -100,6 +100,16 @@ describe('panel sizes', () => {
     expect(loadLayout().wrap).toBe(true)
   })
 
+  it('shows hooks that said something until told otherwise, and remembers it', () => {
+    expect(store().hooks).toBe('some')
+    store().setHooks('all')
+    expect(loadLayout().hooks).toBe('all')
+    store().setHooks('off')
+    expect(loadLayout().hooks).toBe('off')
+    localStorage.setItem('gc.layout', JSON.stringify({ hooks: 'loud' }))
+    expect(loadLayout().hooks).toBe('some')
+  })
+
   it('remembers a width per dock, clamped, and forgets it on reset', () => {
     store().setDockWidth('terminal', 640)
     store().setDockWidth('changes', 50)
