@@ -52,6 +52,8 @@ type Config struct {
 	Files SessionFiles
 	// Presence learns where the owner is from the event socket when non-nil.
 	Presence PresenceTracker
+	// MCP serves the MCP endpoint at /api/mcp when non-nil.
+	MCP http.Handler
 }
 
 type server struct {
@@ -78,6 +80,9 @@ func NewServer(cfg Config) http.Handler {
 	s.seenRoutes()
 	s.archiveRoutes()
 	s.fileRoutes()
+	if cfg.MCP != nil {
+		s.mux.Handle("/api/mcp", cfg.MCP)
+	}
 	return &auth{token: []byte(cfg.Token), next: s.mux}
 }
 

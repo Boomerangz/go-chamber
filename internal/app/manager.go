@@ -343,7 +343,9 @@ func (m *Manager) SendInput(ctx context.Context, id domain.SessionID, text strin
 		now := m.cfg.Now().UTC()
 		s.Touch(now)
 		// Sending is looking: the owner's own message is never news.
-		_ = s.MarkSeen(message, now)
+		if OriginOf(ctx) == "" {
+			_ = s.MarkSeen(message, now)
+		}
 		if s.Title() == "" {
 			s.Rename(titleFromText(text))
 		}
@@ -366,7 +368,7 @@ func (m *Manager) SendInput(ctx context.Context, id domain.SessionID, text strin
 		m.cfg.Bus.Publish(domain.Event{SessionID: id, Type: domain.EventSessionState, Session: &failed})
 	}()
 	m.cfg.Bus.Publish(domain.Event{SessionID: id, Type: domain.EventTurnStarted, Session: &snap})
-	if err := m.recordUserItem(s, message, turn, text, images...); err != nil {
+	if err := m.recordUserItem(s, message, turn, OriginOf(ctx), text, images...); err != nil {
 		return err
 	}
 	if err := m.cfg.Repo.Save(ctx, snap); err != nil {
@@ -389,12 +391,13 @@ func (m *Manager) SendInput(ctx context.Context, id domain.SessionID, text strin
 	return nil
 }
 
-func (m *Manager) recordUserItem(s *domain.Session, id domain.ItemID, turn domain.TurnID, text string, images ...Image) error {
+func (m *Manager) recordUserItem(s *domain.Session, id domain.ItemID, turn domain.TurnID, origin domain.Origin, text string, images ...Image) error {
 	item, err := domain.NewItem(id, s.ID(), turn, "", domain.ItemUserMessage)
 	if err != nil {
 		return err
 	}
 	item.Text = text
+	item.Origin = origin
 	for _, img := range images {
 		item.Images = append(item.Images, img.ID)
 	}
@@ -419,11 +422,14 @@ func (m *Manager) Steer(ctx context.Context, id domain.SessionID, text string) e
 		return m.SendMessage(ctx, id, text)
 	}
 	message := domain.ItemID(m.cfg.NewID())
-	if err := m.recordUserItem(s, message, "", text); err != nil {
+	if err := m.recordUserItem(s, message, "", OriginOf(ctx), text); err != nil {
 		return err
 	}
 	if err := rt.Steer(ctx, text); err != nil {
 		return err
+	}
+	if OriginOf(ctx) != "" {
+		return nil
 	}
 	// The owner wrote, so they have seen the session; a failed save only
 	// costs the mark.
@@ -1049,19 +1055,22 @@ func (m *Manager) RespondRequest(ctx context.Context, sessionID domain.SessionID
 	m.mu.Unlock()
 	// Answering is looking, from whichever device it came.
 	decision := domain.ItemID(m.cfg.NewID())
-	_, _ = m.MarkSeen(ctx, sessionID, decision)
-	m.recordDecision(req, answer, decision)
+	if OriginOf(ctx) == "" {
+		_, _ = m.MarkSeen(ctx, sessionID, decision)
+	}
+	m.recordDecision(req, answer, decision, OriginOf(ctx))
 	m.cfg.Bus.Publish(domain.Event{SessionID: sessionID, Type: domain.EventRequestResolved, Request: req})
 	return nil
 }
 
 // recordDecision leaves the user's answer in the transcript as a one-line
 // record, so it outlives the request card.
-func (m *Manager) recordDecision(req *domain.Request, answer RequestAnswer, id domain.ItemID) {
+func (m *Manager) recordDecision(req *domain.Request, answer RequestAnswer, id domain.ItemID, origin domain.Origin) {
 	item, err := domain.NewItem(id, req.SessionID, req.TurnID, "", domain.ItemDecision)
 	if err != nil {
 		return
 	}
+	item.Origin = origin
 	item.Name = req.Title
 	item.Decision = domain.DecisionFor(req.Kind, answer.Allow)
 	item.Text = decisionText(answer)

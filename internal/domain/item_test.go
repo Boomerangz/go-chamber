@@ -163,3 +163,19 @@ func TestItemStoppedIsTerminal(t *testing.T) {
 		t.Fatalf("stopped->completed: want ErrInvalidItemTransition, got %v", err)
 	}
 }
+
+func TestItemOriginSurvivesJSON(t *testing.T) {
+	it, err := NewItem("i1", "s1", "t1", "", ItemUserMessage)
+	if err != nil {
+		t.Fatal(err)
+	}
+	it.Origin = OriginMCP
+	raw, err := json.Marshal(it)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var back Item
+	if err := json.Unmarshal(raw, &back); err != nil || back.Origin != OriginMCP || !strings.Contains(string(raw), `"origin":"mcp"`) {
+		t.Fatalf("raw %s, back %+v, %v", raw, back, err)
+	}
+}

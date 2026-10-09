@@ -288,6 +288,7 @@ function UserMessage({ item, onEdit }: { item: Item; onEdit?: (text: string) => 
   const [actions, tap] = useTapActions()
   return (
     <div className={`item user${long && !expanded ? ' folded' : ''}${actions ? ' actions-shown' : ''}`} onClick={tap}>
+      <OriginTag item={item} />
       <div className="user-text">{text}</div>
       {long && (
         <button type="button" className="act-link" aria-expanded={expanded} onClick={() => setExpanded(!expanded)}>
@@ -375,9 +376,15 @@ function DecisionView({ item }: { item: Item }) {
       {!answer && !skipped && (
         <span className={`decision-name${decision === 'denied' ? ' struck' : ''}`}>{item.name || 'Request'}</span>
       )}
+      <OriginTag item={item} />
       {item.text && <span className="decision-text">{item.text}</span>}
     </div>
   )
+}
+
+// OriginTag marks what another agent wrote or decided in the owner's place.
+function OriginTag({ item }: { item: Item }) {
+  return item.origin === 'mcp' ? <span className="origin-tag">via MCP</span> : null
 }
 
 // stepLine says in one line what a subagent's step was.

@@ -25,6 +25,7 @@ import (
 	"github.com/igorzygin/go-chamber/internal/adapters/git"
 	httpapi "github.com/igorzygin/go-chamber/internal/adapters/http"
 	"github.com/igorzygin/go-chamber/internal/adapters/hub"
+	mcpapi "github.com/igorzygin/go-chamber/internal/adapters/mcp"
 	"github.com/igorzygin/go-chamber/internal/adapters/opencode"
 	"github.com/igorzygin/go-chamber/internal/adapters/pty"
 	"github.com/igorzygin/go-chamber/internal/adapters/router"
@@ -56,6 +57,7 @@ func run(ctx context.Context, args []string, out io.Writer) error {
 		iceDefault = `[{"urls":["stun:stun.cloudflare.com:3478"]}]`
 	}
 	iceJSON := fl.String("rtc-ice", iceDefault, "WebRTC ICE servers JSON (STUN/TURN); [] uses host candidates only")
+	mcpApprovals := fl.Bool("mcp-allow-approvals", false, "let MCP clients grant agents' permission requests (they can always deny)")
 	if err := fl.Parse(args); err != nil {
 		return err
 	}
@@ -136,6 +138,21 @@ func run(ctx context.Context, args []string, out io.Writer) error {
 	presence := app.NewPresence()
 	go app.NewNotifications(store.Sessions()).SkipWatched(presence).Watch(ctx, notifySub.Events(), push)
 
+	worktrees := app.NewWorktrees(app.WorktreesConfig{
+		Sessions:  manager,
+		Git:       git.Repo{},
+		Root:      filepath.Join(*dataDir, "worktrees"),
+		Folders:   fsys.Reader{},
+		Terminals: terminals,
+	})
+	mcp := mcpapi.New(mcpapi.Config{
+		Sessions:       manager,
+		Worktrees:      worktrees,
+		Events:         events,
+		AllowApprovals: *mcpApprovals,
+	})
+	mcp.Watch(ctx)
+
 	ln, err := net.Listen("tcp", *addr)
 	if err != nil {
 		return err
@@ -157,16 +174,10 @@ func run(ctx context.Context, args []string, out io.Writer) error {
 				Files:    &fsys.Files{},
 				Commands: runtimes,
 			}),
-			Worktrees: app.NewWorktrees(app.WorktreesConfig{
-				Sessions:  manager,
-				Git:       git.Repo{},
-				Root:      filepath.Join(*dataDir, "worktrees"),
-				Folders:   fsys.Reader{},
-				Terminals: terminals,
-			}),
-			Push:     push,
-			Presence: presence,
-			Files:    app.NewSessionFiles(store.Sessions(), fsys.Resolver{}),
+			Worktrees: worktrees,
+			Push:      push,
+			Presence:  presence,
+			Files:     app.NewSessionFiles(store.Sessions(), fsys.Resolver{}),
 			History: app.NewHistory(app.HistoryConfig{
 				Repo: store.Sessions(),
 				Bus:  events,
@@ -175,6 +186,7 @@ func run(ctx context.Context, args []string, out io.Writer) error {
 					domain.AgentCodex:  codexFactory,
 				},
 			}),
+			MCP: mcp.Handler(),
 		}),
 		ReadHeaderTimeout: 10 * time.Second,
 	}
@@ -182,6 +194,9 @@ func run(ctx context.Context, args []string, out io.Writer) error {
 		return err
 	}
 
+	// MCP clients hold streams and calls open, which Shutdown would wait on;
+	// closed once the listener is, so no new ones arrive.
+	srv.RegisterOnShutdown(mcp.Close)
 	errc := make(chan error, 1)
 	go func() { errc <- srv.Serve(ln) }()
 	select {

@@ -136,7 +136,16 @@ type Item struct {
 	// OutlivesTurn marks work that keeps running after its turn ends (a
 	// background task); its steps inherit it through ParentItemID.
 	OutlivesTurn bool `json:"outlivesTurn,omitempty"`
+	// Origin is set when a user message or decision came from somewhere
+	// other than the owner's own page.
+	Origin Origin `json:"origin,omitempty"`
 }
+
+// Origin names who wrote a message on the owner's behalf.
+type Origin string
+
+// OriginMCP is another agent driving the session through MCP.
+const OriginMCP Origin = "mcp"
 
 // LeftByTurn returns, stopped and sorted by id, the open items a turn left
 // unfinished when it ended; work that outlives the turn keeps running.
