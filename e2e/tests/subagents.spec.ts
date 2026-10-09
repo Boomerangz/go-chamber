@@ -13,6 +13,9 @@ test('stops a background subagent task', async ({ page }) => {
   await page.getByRole('button', { name: 'Send' }).click()
 
   await expect(page.getByText('subagent: Task')).toBeVisible()
+  // A hook on the subagent's command sits among its steps, not in the chat.
+  await expect(page.locator('.subagent-items .item.hook')).toContainText('PreToolUse hook')
+  await expect(page.locator('.items > li > .item.hook')).toHaveCount(0)
   await page.locator('.subagent .stop-task').click()
   await expect(page.locator('.subagent', { hasText: 'stopped by user' })).toBeVisible()
 })

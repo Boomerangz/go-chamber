@@ -26,6 +26,28 @@ export function itemTree(order: string[], items: Record<string, Item>): ItemNode
   return roots
 }
 
+// prune drops the nodes keep refuses, at every depth; a node whose children
+// all stay is kept as it is.
+export function prune(nodes: ItemNode[], keep: (item: Item) => boolean): ItemNode[] {
+  const out: ItemNode[] = []
+  for (const node of nodes) {
+    if (!keep(node.item)) continue
+    const children = prune(node.children, keep)
+    out.push(children.length === node.children.length ? node : { ...node, children })
+  }
+  return out
+}
+
+// Hooks is how much of the hooks the transcript shows: those that said
+// something (some), every run (all), or only the ones that failed (off).
+export type Hooks = 'off' | 'some' | 'all'
+
+// showsItem says whether the transcript shows an item under the hooks setting.
+export function showsItem(item: Item, hooks: Hooks): boolean {
+  if (item.kind !== 'hook' || hooks === 'some') return !isBlank(item)
+  return hooks === 'all' || item.outcome === 'error' || item.status === 'failed'
+}
+
 import type { Session } from './api'
 
 export interface SessionNode {
@@ -58,9 +80,24 @@ export function sameNode(a: ItemNode, b: ItemNode): boolean {
 }
 
 // isBlank hides finished assistant messages without text (Codex sends
-// them, e.g. after a hook continued the turn).
+// them, e.g. after a hook continued the turn) and hooks with nothing to
+// say: a tool hook runs around every tool call, mostly silently.
 export function isBlank(item: Item): boolean {
+  if (item.kind === 'hook') {
+    return !item.text?.trim() && item.outcome !== 'blocked' && item.outcome !== 'error' && item.status !== 'failed'
+  }
   return item.kind === 'assistant_message' && item.status === 'completed' && !item.text?.trim()
+}
+
+// shownFrom is the first row at or after id in order, so a mark set on an
+// item the transcript hides lands on the row that follows it.
+export function shownFrom(order: string[], rows: ItemNode[], id: string | null): string | null {
+  if (!id) return null
+  const shown = new Set(rows.map((row) => row.item.id))
+  for (let i = order.indexOf(id); i >= 0 && i < order.length; i++) {
+    if (shown.has(order[i]!)) return order[i]!
+  }
+  return null
 }
 
 // Tools that ask the owner a question: the request card asks it and the

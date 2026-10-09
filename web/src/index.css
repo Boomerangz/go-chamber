@@ -607,6 +607,7 @@ button.health { border: 0; background: none; padding: 0; }
 /* Sign out lives in the topbar on wide screens; phones hide it there. */
 .sidebar-signout { display: none; }
 .sidebar-signout .btn { width: 100%; }
+.hooks-toggle { justify-self: start; gap: 6px; }
 
 /* phones, and a short window (a phone held sideways, where the form and the
    footer would squeeze the list to nothing): the sidebar itself scrolls,

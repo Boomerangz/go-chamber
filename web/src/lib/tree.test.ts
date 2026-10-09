@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { itemTree, sameNode, withoutAnsweredQuestions } from './tree'
+import { isBlank, itemTree, prune, sameNode, showsItem, shownFrom, withoutAnsweredQuestions } from './tree'
 import type { Item } from './api'
 
 const item = (id: string, parentItemId?: string): Item => ({
@@ -110,5 +110,85 @@ describe('withoutAnsweredQuestions', () => {
   it('returns the same list when nothing is hidden', () => {
     const nodes = [node({ id: 'a', kind: 'assistant_message' })]
     expect(withoutAnsweredQuestions(nodes)).toBe(nodes)
+  })
+})
+
+describe('isBlank', () => {
+  const hook = (over: Partial<Item>): Item => ({ id: 'h', sessionId: 's1', kind: 'hook', name: 'PreToolUse', status: 'completed', outcome: 'success', ...over })
+
+  it('hides a finished assistant message without text', () => {
+    expect(isBlank({ id: 'm', sessionId: 's1', kind: 'assistant_message', status: 'completed', text: ' ' })).toBe(true)
+    expect(isBlank({ id: 'm', sessionId: 's1', kind: 'assistant_message', status: 'streaming' })).toBe(false)
+    expect(isBlank({ id: 'm', sessionId: 's1', kind: 'assistant_message', status: 'completed', text: 'hi' })).toBe(false)
+  })
+
+  it('hides a hook that had nothing to say, running or done', () => {
+    expect(isBlank(hook({}))).toBe(true)
+    expect(isBlank(hook({ text: '\n' }))).toBe(true)
+    expect(isBlank(hook({ status: 'streaming', outcome: undefined }))).toBe(true)
+    expect(isBlank(hook({ status: 'stopped', outcome: undefined }))).toBe(true)
+  })
+
+  it('keeps a hook that said something, blocked the agent or failed', () => {
+    expect(isBlank(hook({ text: 'context added' }))).toBe(false)
+    expect(isBlank(hook({ outcome: 'blocked' }))).toBe(false)
+    expect(isBlank(hook({ outcome: 'error', status: 'failed' }))).toBe(false)
+    expect(isBlank(hook({ outcome: undefined, status: 'failed' }))).toBe(false)
+  })
+})
+
+describe('shownFrom', () => {
+  const rows = ['a', 'c', 'e'].map((id) => ({ item: item(id), children: [] }))
+  const order = ['a', 'b', 'c', 'd', 'e']
+
+  it('keeps an id the transcript shows', () => {
+    expect(shownFrom(order, rows, 'c')).toBe('c')
+  })
+
+  it('moves a hidden id on to the next row shown', () => {
+    expect(shownFrom(order, rows, 'b')).toBe('c')
+    expect(shownFrom(order, rows, 'd')).toBe('e')
+  })
+
+  it('has nothing when no row follows or there is no id', () => {
+    expect(shownFrom([...order, 'f'], rows, 'f')).toBeNull()
+    expect(shownFrom(order, rows, 'zz')).toBeNull()
+    expect(shownFrom(order, rows, null)).toBeNull()
+  })
+})
+
+describe('showsItem', () => {
+  const hook = (over: Partial<Item>): Item => ({ id: 'h', sessionId: 's1', kind: 'hook', name: 'Stop', status: 'completed', outcome: 'success', ...over })
+  const said = hook({ text: 'context' })
+  const silent = hook({})
+  const failed = hook({ outcome: 'error', status: 'failed', text: 'exit 1' })
+  const blocked = hook({ outcome: 'blocked', text: 'no' })
+  const blank: Item = { id: 'm', sessionId: 's1', kind: 'assistant_message', status: 'completed' }
+
+  it('shows hooks that said something by default', () => {
+    expect([said, silent, failed, blocked, blank].map((it) => showsItem(it, 'some'))).toEqual([true, false, true, true, false])
+  })
+
+  it('shows every hook when asked to, but not blank messages', () => {
+    expect([said, silent, failed, blocked, blank].map((it) => showsItem(it, 'all'))).toEqual([true, true, true, true, false])
+  })
+
+  it('keeps only failed hooks when hooks are off', () => {
+    expect([said, silent, failed, blocked, blank].map((it) => showsItem(it, 'off'))).toEqual([false, false, true, false, false])
+  })
+})
+
+describe('prune', () => {
+  it('drops what is not kept, children included', () => {
+    const tree = itemTree(['a', 'b', 'c', 'd'], { a: item('a'), b: item('b', 'a'), c: item('c', 'a'), d: item('d') })
+    const out = prune(tree, (it) => it.id !== 'b' && it.id !== 'd')
+    expect(out.map((n) => n.item.id)).toEqual(['a'])
+    expect(out[0]!.children.map((n) => n.item.id)).toEqual(['c'])
+  })
+
+  it('keeps the same nodes when nothing is dropped', () => {
+    const tree = itemTree(['a', 'b'], { a: item('a'), b: item('b', 'a') })
+    const out = prune(tree, () => true)
+    expect(out[0]).toBe(tree[0])
   })
 })

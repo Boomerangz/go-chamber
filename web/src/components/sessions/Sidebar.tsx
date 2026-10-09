@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { ChevronDown } from 'lucide-react'
 import { icon } from '../icon'
 import { Accounts } from '../account/AccountPanel'
+import HooksToggle from '../chat/HooksToggle'
 import AgentAvatar from '../AgentAvatar'
 import FolderField from '../folders/FolderField'
 import QuotaWidget from '../quota/QuotaWidget'
@@ -351,6 +352,7 @@ export default function Sidebar(props: SidebarProps) {
         )}
         <Accounts />
         <QuotaWidget />
+        <HooksToggle />
         <SignOut className="sidebar-signout" />
       </footer>
     </aside>

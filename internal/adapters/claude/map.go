@@ -49,6 +49,8 @@ type Mapper struct {
 	denied map[string]bool
 	tasks  map[string]domain.ItemID
 	hooks  map[string]domain.ItemID
+	// order lists items as created, for finding a tool hook's call.
+	order []domain.ItemID
 }
 
 func NewMapper(session domain.SessionID) *Mapper {
@@ -220,6 +222,7 @@ func (m *Mapper) create(kind domain.ItemKind, parentToolID string) *domain.Item 
 	m.next++
 	item, _ := domain.NewItem(domain.ItemID(fmt.Sprintf("it-%s-%d", m.itemPrefix, m.next)), m.session, m.turn, parent, kind)
 	m.items[item.ID] = item
+	m.order = append(m.order, item.ID)
 	return item
 }
 
@@ -526,9 +529,38 @@ func (m *Mapper) mapHookStarted(raw *rawMessage) []domain.Event {
 	}
 	item := m.create(domain.ItemHook, "")
 	item.Name = raw.HookEvent
+	item.ParentItemID = m.toolHookParent(raw.HookName)
 	_ = item.SetStatus(domain.ItemStreaming)
 	m.hooks[raw.HookID] = item.ID
 	return m.updated(item)
+}
+
+// toolHookParent places a tool hook ("PreToolUse:Bash") beside the latest
+// open call of its tool, or the latest call at all: hook events name no tool
+// use, and a subagent's tool hooks belong among its steps.
+// ponytail: two subagents running the same tool at once may swap hooks.
+func (m *Mapper) toolHookParent(hookName string) domain.ItemID {
+	_, tool, ok := strings.Cut(hookName, ":")
+	if !ok || tool == "" {
+		return ""
+	}
+	var last *domain.Item
+	for i := len(m.order) - 1; i >= 0; i-- {
+		item := m.items[m.order[i]]
+		if item == nil || item.Kind == domain.ItemHook || item.Name != tool {
+			continue
+		}
+		if !item.Status.Terminal() {
+			return item.ParentItemID
+		}
+		if last == nil {
+			last = item
+		}
+	}
+	if last == nil {
+		return ""
+	}
+	return last.ParentItemID
 }
 
 // mapHookResponse finishes a hook item. Exit code 2 and a "block"

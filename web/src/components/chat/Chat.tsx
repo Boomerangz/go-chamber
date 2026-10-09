@@ -40,12 +40,13 @@ import { owesAnswer, shownStatus } from '../../lib/status'
 import { usePending } from '../../lib/pending'
 import { useCLIs } from '../../lib/clis'
 import { useUnseen } from '../../lib/seen'
-import { isBlank, itemTree, withoutAnsweredQuestions } from '../../lib/tree'
+import { itemTree, prune, showsItem, shownFrom, withoutAnsweredQuestions } from '../../lib/tree'
 import { groupTools, lastItemId } from '../../lib/group'
 import { turnNumbers, turnOutline } from '../../lib/turns'
 import TurnOutline from './TurnOutline'
 import { loadDraft, saveDraft } from '../../stores/drafts'
 import { useSessionStore } from '../../stores/session'
+import { useLayoutStore } from '../../stores/layout'
 import { useNotices } from '../../stores/notices'
 import { failedTo } from '../../lib/failed'
 import './Chat.css'
@@ -134,9 +135,10 @@ export default function Chat() {
   const narrow = useMedia('(max-width: 720px)')
   // On a touch screen Enter is the keyboard's newline; Send is a tap away.
   const touch = useMedia('(pointer: coarse)')
+  const hooks = useLayoutStore((s) => s.hooks)
   const nodes = useMemo(
-    () => withoutAnsweredQuestions(itemTree(chat.order, chat.items).filter((node) => !isBlank(node.item))),
-    [chat.order, chat.items],
+    () => withoutAnsweredQuestions(prune(itemTree(chat.order, chat.items), (item) => showsItem(item, hooks))),
+    [chat.order, chat.items, hooks],
   )
   const turns = useMemo(() => turnNumbers(nodes), [nodes])
   const outline = useMemo(() => turnOutline(nodes), [nodes])
@@ -152,9 +154,10 @@ export default function Chat() {
   const [scrollRef, stick] = useStickToBottom(chat, news)
   // A phone shows one pane at a time: the chat is looked at only in front.
   const inFront = !narrow || pane === 'chat'
-  const unseen = useUnseen({
+  const firstNew = useUnseen({
     sessionId, session, shown: inFront, order: chat.order, items: chat.items, ready: history === 'ready', pinned: stick.pinned, isPinned: stick.isPinned,
   })
+  const unseen = useMemo(() => shownFrom(chat.order, nodes, firstNew), [chat.order, nodes, firstNew])
   const lastItem = chat.order.length ? chat.items[chat.order[chat.order.length - 1]!] : undefined
   const streaming = lastItem?.status === 'streaming'
   // Words on their way speak for themselves; a running tool or subagent
