@@ -26,6 +26,7 @@ import (
 	httpapi "github.com/igorzygin/go-chamber/internal/adapters/http"
 	"github.com/igorzygin/go-chamber/internal/adapters/hub"
 	mcpapi "github.com/igorzygin/go-chamber/internal/adapters/mcp"
+	"github.com/igorzygin/go-chamber/internal/adapters/oauth"
 	"github.com/igorzygin/go-chamber/internal/adapters/opencode"
 	"github.com/igorzygin/go-chamber/internal/adapters/pty"
 	"github.com/igorzygin/go-chamber/internal/adapters/router"
@@ -58,6 +59,7 @@ func run(ctx context.Context, args []string, out io.Writer) error {
 	}
 	iceJSON := fl.String("rtc-ice", iceDefault, "WebRTC ICE servers JSON (STUN/TURN); [] uses host candidates only")
 	mcpApprovals := fl.Bool("mcp-allow-approvals", false, "let MCP clients grant agents' permission requests (they can always deny)")
+	publicURL := fl.String("public-url", "", "public origin OAuth clients reach (https://host); empty follows each request")
 	if err := fl.Parse(args); err != nil {
 		return err
 	}
@@ -152,6 +154,10 @@ func run(ctx context.Context, args []string, out io.Writer) error {
 		AllowApprovals: *mcpApprovals,
 	})
 	mcp.Watch(ctx)
+	auth, err := oauth.New(oauth.Config{StatePath: filepath.Join(*dataDir, "oauth.json"), Base: *publicURL})
+	if err != nil {
+		return err
+	}
 
 	ln, err := net.Listen("tcp", *addr)
 	if err != nil {
@@ -186,7 +192,8 @@ func run(ctx context.Context, args []string, out io.Writer) error {
 					domain.AgentCodex:  codexFactory,
 				},
 			}),
-			MCP: mcp.Handler(),
+			MCP:   mcp.Handler(),
+			OAuth: auth,
 		}),
 		ReadHeaderTimeout: 10 * time.Second,
 	}

@@ -54,6 +54,20 @@ type Config struct {
 	Presence PresenceTracker
 	// MCP serves the MCP endpoint at /api/mcp when non-nil.
 	MCP http.Handler
+	// OAuth lets clients that only speak OAuth reach MCP when non-nil.
+	OAuth OAuth
+}
+
+// OAuth is an authorization server whose tokens open the MCP endpoint only.
+type OAuth interface {
+	// ServeHTTP serves /.well-known/oauth-* and /oauth/*.
+	http.Handler
+	// Public reports whether clients reach path without the owner's login.
+	Public(path string) bool
+	// Valid reports whether r carries a live token for what it asks.
+	Valid(r *http.Request) bool
+	// Challenge is the WWW-Authenticate value pointing at the metadata.
+	Challenge(r *http.Request) string
 }
 
 type server struct {
@@ -83,17 +97,37 @@ func NewServer(cfg Config) http.Handler {
 	if cfg.MCP != nil {
 		s.mux.Handle("/api/mcp", cfg.MCP)
 	}
-	return &auth{token: []byte(cfg.Token), next: s.mux}
+	if cfg.OAuth != nil {
+		s.mux.Handle("/.well-known/", cfg.OAuth)
+		s.mux.Handle("/oauth/", cfg.OAuth)
+	}
+	return &auth{token: []byte(cfg.Token), next: s.mux, oauth: cfg.OAuth}
 }
 
 type auth struct {
 	token []byte
 	next  http.Handler
+	oauth OAuth
 }
 
 func (a *auth) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if q := r.URL.Query(); q.Has("token") {
 		a.login(w, r, q.Get("token"))
+		return
+	}
+	// OAuth clients are servers: they log in with codes and bearers, which a
+	// page elsewhere cannot ride on as it would on the cookie.
+	if a.oauth != nil && a.oauth.Public(r.URL.Path) {
+		a.next.ServeHTTP(w, r)
+		return
+	}
+	if a.oauth != nil && r.URL.Path == "/api/mcp" && !a.authorized(r) {
+		if !a.oauth.Valid(r) {
+			w.Header().Set("WWW-Authenticate", a.oauth.Challenge(r))
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+		a.next.ServeHTTP(w, r)
 		return
 	}
 	if !safeMethod(r.Method) && !sameOrigin(r) {
@@ -114,6 +148,12 @@ func (a *auth) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if !a.authorized(r) {
 		if strings.HasPrefix(r.URL.Path, "/api/") || !safeMethod(r.Method) {
 			http.Error(w, "unauthorized: open the URL with ?token= printed at startup", http.StatusUnauthorized)
+			return
+		}
+		if r.Header.Get("Sec-Fetch-Site") == "cross-site" {
+			// A link from another site carries no Strict cookie: look again
+			// from here, where it does, before asking for the token.
+			lookAgain(w, localPath(r.URL.RequestURI()))
 			return
 		}
 		loginPage(w, localPath(r.URL.RequestURI()), false)
@@ -238,6 +278,16 @@ input:focus{outline:2px solid var(--act-ring);outline-offset:1px;border-color:va
 <button type="submit" class="primary">Sign in</button>
 <p class="note">The token is printed at startup and stored in the data folder.</p>
 </form></body></html>`))
+
+var lookAgainTemplate = template.Must(template.New("again").Parse(`<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta http-equiv="refresh" content="0;url={{.}}"><title>go-chamber</title></head>
+<body><a href="{{.}}">Continue</a></body></html>`))
+
+func lookAgain(w http.ResponseWriter, next string) {
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-store")
+	_ = lookAgainTemplate.Execute(w, next)
+}
 
 func loginPage(w http.ResponseWriter, next string, failed bool) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")

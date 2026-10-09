@@ -21,6 +21,24 @@ export GO_CHAMBER_TOKEN=$(cat ~/.go-chamber/token)
 codex mcp add go-chamber --url http://127.0.0.1:7777/api/mcp --bearer-token-env-var GO_CHAMBER_TOKEN
 ```
 
+### ChatGPT (OAuth)
+
+ChatGPT links only through OAuth and reaches the server from the internet, so go-chamber must be
+served on a public HTTPS origin. go-chamber is its own authorization server for one owner:
+
+- metadata at `/.well-known/oauth-protected-resource` and `/.well-known/oauth-authorization-server`;
+- clients identify by a client metadata document (CIMD) or register (DCR), and may only return to
+  `https://chatgpt.com/`;
+- `/oauth/authorize` is a consent page behind the usual login: the owner signs in with the token
+  and allows or denies the link;
+- authorization code with PKCE (S256); access tokens live an hour, refresh tokens 90 days and
+  rotate; refresh tokens and registered clients are kept in `oauth.json` in the data folder.
+
+The tokens open `/api/mcp` and nothing else. The public origin follows each request (`Host`,
+`X-Forwarded-Proto`, `X-Forwarded-Host`); `-public-url https://host` fixes it when a proxy rewrites
+them. In ChatGPT: Settings → Apps & Connectors (developer mode) → create a connector with
+`https://<host>/api/mcp` and OAuth.
+
 ## Tools
 
 | Tool | What it does |
