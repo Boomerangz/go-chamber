@@ -3,7 +3,7 @@ import { modelCatalogKey } from '../../stores/session'
 import { useCapabilities } from '../../lib/clis'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { AnimatePresence, motion, useReducedMotion, type TargetAndTransition } from 'motion/react'
-import { ArrowDown } from 'lucide-react'
+import { ArrowDown, ArrowUp, Square } from 'lucide-react'
 import ComposerInput from '../composer/ComposerInput'
 import Attachments from '../composer/Attachments'
 import { useAttachments } from '../composer/useAttachments'
@@ -17,6 +17,7 @@ import UnmergedNote from './UnmergedNote'
 import RequestCard from '../requests/RequestCard'
 import { lastInput } from '../requests/modality'
 import Keys from '../ui/Keys'
+import PathText from '../ui/PathText'
 import { LoadFailed, Skeleton } from '../ui/Loading'
 import { icon } from '../icon'
 import { Row } from './Transcript'
@@ -542,7 +543,7 @@ export default function Chat() {
               Send a message to start. The agent runs in <HintWhere session={session} />.
             </p>
             <p className="chat-hint-keys">
-              <Keys keys="@" label="file" /> · <Keys keys="/" label="commands" /> · paste or {touch ? 'attach' : 'drop'} images
+              {touch ? '@ file · / commands' : <><Keys keys="@" label="file" /> · <Keys keys="/" label="commands" /></>} · paste or {touch ? 'attach' : 'drop'} images
             </p>
           </div>
         )}
@@ -616,7 +617,8 @@ export default function Chat() {
               title={`Stop (Esc, ${mod}.)`}
               onClick={() => stopRef.current()}
             >
-              {stopping ? 'Stopping…' : 'Stop'}
+              <span className="btn-label">{stopping ? 'Stopping…' : 'Stop'}</span>
+              <Square {...icon(16)} className="btn-glyph" />
             </button>
           )}
           {lines > LONG_DRAFT_LINES && <span className="composer-note composer-lines">{lines} lines</span>}
@@ -633,7 +635,8 @@ export default function Chat() {
             title={`${busy ? 'Steer' : 'Send'} (${touch ? `${mod}↵` : '↵'})`}
             aria-keyshortcuts={touch ? (isMac() ? 'Meta+Enter' : 'Control+Enter') : 'Enter'}
           >
-            {sendLabel}
+            <span className="btn-label">{sendLabel}</span>
+            <ArrowUp {...icon(18)} className="btn-glyph" />
           </button>
         </div>
       </form>
@@ -646,7 +649,7 @@ export default function Chat() {
 // as the header names it, its repository and branch, the folder on hover.
 function HintWhere({ session }: { session: Session | undefined }) {
   const wt = session?.worktree
-  if (!wt) return <>{session?.cwd ?? 'the session folder'}</>
+  if (!wt) return session?.cwd ? <PathText path={session.cwd} /> : <>the session folder</>
   return (
     <span title={wt.path}>
       {basename(wt.repo)} ⎇ {wt.branch.replace(/^chamber\//, '')}

@@ -51,3 +51,20 @@
 /* a draft of several lines takes the whole width; the actions go beneath it */
 .composer.multiline .composer-input { flex-basis: 100%; }
 .composer.multiline .composer-actions { width: 100%; justify-content: flex-end; }
+
+/* a phone: a one-line draft keeps one row, icons beside the text, and Stop
+   at the row's start, the whole field away from Steer. A longer draft takes
+   the whole width with the actions beneath it, as anywhere. */
+@media (max-width: 720px) {
+  .composer:not(.multiline) { flex-wrap: nowrap; gap: 6px; padding: 4px 4px 4px 12px; }
+  .composer:not(.multiline):has(.stop) { padding-left: 4px; }
+  .composer:not(.multiline) .composer-input { flex: 1 1 0; }
+  .composer:not(.multiline) .composer-actions { display: contents; }
+  .composer-actions .btn-label {
+    position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap;
+  }
+  .composer-actions .btn .btn-glyph { display: block; }
+  .composer-actions .btn:has(.btn-glyph) { width: 44px; padding: 0; display: inline-grid; place-items: center; }
+  /* a running turn only takes text: Attach comes back with the next message */
+  .composer:has(.stop) .attach { display: none; }
+}

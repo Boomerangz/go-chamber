@@ -405,7 +405,7 @@ function QuestionCard({ request, position, acting, error, answer }: CardProps) {
         </button>
         <button
           type="button"
-          className="btn skip-answer"
+          className="btn btn-ghost skip-answer"
           {...busyProps(acting, 'decline')}
           onClick={() => void answer('decline', { behavior: 'deny' })}
         >

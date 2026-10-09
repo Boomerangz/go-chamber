@@ -9,6 +9,7 @@ import ArchivedSessions from './ArchivedSessions'
 import { SignOut } from '../shell/Shell'
 import HistoryPanel from './HistoryPanel'
 import { useListAnchor } from './useListAnchor'
+import { useMedia } from '../chat/useMedia'
 import SessionList from './SessionList'
 import { branchError, branchPreview, continuable, folderError } from '../../lib/branch'
 import { cliMissingText, missingCLIs, useCLIs } from '../../lib/clis'
@@ -190,6 +191,11 @@ export default function Sidebar(props: SidebarProps) {
     void create(agent, cwd.trim(), inWorktree ? branch.trim() : undefined)
   }
 
+  // A phone folds the logins to one line: they are set up once, the
+  // sessions above them are what the pane is for. A failed check still shows.
+  const narrow = useMedia('(max-width: 720px)')
+  const [accountsOpen, setAccountsOpen] = useState(false)
+
   return (
     <aside className="sidebar panel" aria-labelledby="sidebar-heading">
       <h2 id="sidebar-heading" className="sr-only">
@@ -336,7 +342,13 @@ export default function Sidebar(props: SidebarProps) {
         <ArchivedSessions />
         <HistoryPanel />
       </div>
-      <footer className="sidebar-footer">
+      <footer className="sidebar-footer" data-accounts={narrow && !accountsOpen ? 'folded' : undefined}>
+        {narrow && (
+          <button type="button" className="accounts-fold" aria-expanded={accountsOpen} onClick={() => setAccountsOpen(!accountsOpen)}>
+            <ChevronDown {...icon(14)} className="icon chevron" />
+            Accounts
+          </button>
+        )}
         <Accounts />
         <QuotaWidget />
         <SignOut className="sidebar-signout" />
