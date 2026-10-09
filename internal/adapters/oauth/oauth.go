@@ -35,12 +35,51 @@ const (
 	scope      = "mcp"
 )
 
-// allowedRedirect limits who can be linked at all, so a crafted consent link
-// cannot hand a token to anyone else.
+// allowedRedirect limits who can be linked at all to ChatGPT's own OAuth
+// callbacks, matched exactly, so a crafted consent link cannot hand a code
+// to any other page.
 // ponytail: ChatGPT only; widen the list when another OAuth-only client
 // needs to link.
 func allowedRedirect(uri string) bool {
-	return strings.HasPrefix(uri, "https://chatgpt.com/")
+	path, ok := chatgptPath(uri)
+	if !ok {
+		return false
+	}
+	if path == "/connector_platform_oauth_redirect" {
+		return true
+	}
+	id, ok := strings.CutPrefix(path, "/connector/oauth/")
+	return ok && callbackID(id)
+}
+
+// clientDocument reports whether id is the URL of ChatGPT's client metadata
+// document.
+func clientDocument(id string) bool {
+	path, ok := chatgptPath(id)
+	if !ok {
+		return false
+	}
+	if path == "/oauth/client.json" {
+		return true
+	}
+	middle, ok := strings.CutPrefix(path, "/oauth/")
+	middle, ok2 := strings.CutSuffix(middle, "/client.json")
+	return ok && ok2 && callbackID(middle)
+}
+
+// chatgptPath is the path of a plain https://chatgpt.com URL: no user,
+// query, fragment or escapes to hide anything in.
+func chatgptPath(raw string) (string, bool) {
+	u, err := url.Parse(raw)
+	if err != nil || u.Scheme != "https" || u.Host != "chatgpt.com" || u.User != nil ||
+		u.RawQuery != "" || u.ForceQuery || u.Fragment != "" || u.RawPath != "" || strings.Contains(raw, "#") {
+		return "", false
+	}
+	return u.Path, true
+}
+
+func callbackID(s string) bool {
+	return s != "" && strings.Trim(s, "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-") == ""
 }
 
 type Config struct {
@@ -55,13 +94,17 @@ type Config struct {
 
 // Server serves the OAuth endpoints and checks the tokens it issued.
 type Server struct {
-	cfg Config
-	mux *http.ServeMux
+	cfg   Config
+	mux   *http.ServeMux
+	fetch *http.Client
 
-	mu     sync.Mutex
-	state  state
-	codes  map[string]grant
-	access map[string]grant
+	mu    sync.Mutex
+	state state
+	// clients are registered ones; registration is open to anyone, so they
+	// are not written down: a restart only asks a half-done link again.
+	clients map[string]client
+	codes   map[string]grant
+	access  map[string]grant
 }
 
 // grant is what a code or token stands for.
@@ -79,14 +122,17 @@ type client struct {
 	Created      time.Time `json:"created"`
 }
 
-// maxClients bounds registration, which anyone may call: the oldest client
-// gives way; tokens already issued to it keep working.
-const maxClients = 50
+// Registration is open to anyone, so it is bounded: the oldest client gives
+// way (tokens already issued to it keep working), and a client is small.
+const (
+	maxClients   = 50
+	maxName      = 200
+	maxRedirects = 5
+)
 
 // state is what survives a restart; tokens are kept as hashes.
 type state struct {
-	Clients map[string]client `json:"clients"`
-	Refresh map[string]grant  `json:"refresh"`
+	Refresh map[string]grant `json:"refresh"`
 }
 
 func New(cfg Config) (*Server, error) {
@@ -96,16 +142,26 @@ func New(cfg Config) (*Server, error) {
 	if cfg.Now == nil {
 		cfg.Now = time.Now
 	}
-	s := &Server{cfg: cfg, mux: http.NewServeMux(), codes: map[string]grant{}, access: map[string]grant{},
-		state: state{Clients: map[string]client{}, Refresh: map[string]grant{}}}
+	// A client document is fetched from chatgpt.com and nowhere it points.
+	fetch := *cfg.HTTP
+	fetch.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
+	if fetch.Timeout == 0 {
+		fetch.Timeout = 5 * time.Second
+	}
+	s := &Server{cfg: cfg, mux: http.NewServeMux(), fetch: &fetch, clients: map[string]client{}, codes: map[string]grant{}, access: map[string]grant{},
+		state: state{Refresh: map[string]grant{}}}
 	raw, err := os.ReadFile(cfg.StatePath)
 	switch {
 	case errors.Is(err, os.ErrNotExist):
 	case err != nil:
 		return nil, err
 	default:
-		if err := json.Unmarshal(raw, &s.state); err != nil {
-			return nil, fmt.Errorf("oauth state %s: %w", cfg.StatePath, err)
+		if err := json.Unmarshal(raw, &s.state); err != nil || s.state.Refresh == nil {
+			// Losing links is better than not starting: they can be made again.
+			s.state = state{Refresh: map[string]grant{}}
+			if err := os.Rename(cfg.StatePath, cfg.StatePath+".corrupt"); err != nil {
+				return nil, err
+			}
 		}
 	}
 	s.mux.HandleFunc("GET /.well-known/oauth-protected-resource", s.resourceMetadata)
@@ -125,7 +181,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) { s.mux.Serve
 // Public reports whether path is an endpoint clients reach without the
 // owner's login.
 func (s *Server) Public(path string) bool {
-	return strings.HasPrefix(path, "/.well-known/oauth-") || path == "/oauth/register" || path == "/oauth/token"
+	return strings.HasPrefix(path, "/.well-known/") || path == "/oauth/register" || path == "/oauth/token"
 }
 
 // Valid reports whether the request carries a live token issued for the
@@ -144,7 +200,11 @@ func (s *Server) Valid(r *http.Request) bool {
 // Challenge is the WWW-Authenticate value that sends a client to the
 // metadata.
 func (s *Server) Challenge(r *http.Request) string {
-	return fmt.Sprintf(`Bearer resource_metadata="%s/.well-known/oauth-protected-resource%s", scope="%s"`, s.base(r), MCPPath, scope)
+	c := fmt.Sprintf(`resource_metadata="%s/.well-known/oauth-protected-resource%s", scope="%s"`, s.base(r), MCPPath, scope)
+	if r.Header.Get("Authorization") != "" {
+		c += `, error="invalid_token", error_description="the token is unknown, expired or for another resource"`
+	}
+	return c
 }
 
 func (s *Server) base(r *http.Request) string {
@@ -209,8 +269,12 @@ func (s *Server) register(w http.ResponseWriter, r *http.Request) {
 		oauthError(w, http.StatusBadRequest, "invalid_client_metadata", "not JSON")
 		return
 	}
-	if len(req.RedirectURIs) == 0 || slices.ContainsFunc(req.RedirectURIs, func(u string) bool { return !allowedRedirect(u) }) {
+	if len(req.RedirectURIs) == 0 || len(req.RedirectURIs) > maxRedirects || slices.ContainsFunc(req.RedirectURIs, func(u string) bool { return !allowedRedirect(u) }) {
 		oauthError(w, http.StatusBadRequest, "invalid_redirect_uri", "only ChatGPT may link to this server")
+		return
+	}
+	if len(req.Name) > maxName {
+		oauthError(w, http.StatusBadRequest, "invalid_client_metadata", "client_name is too long")
 		return
 	}
 	if req.AuthMethod != "" && req.AuthMethod != "none" {
@@ -219,22 +283,17 @@ func (s *Server) register(w http.ResponseWriter, r *http.Request) {
 	}
 	id := random()
 	s.mu.Lock()
-	for len(s.state.Clients) >= maxClients {
+	for len(s.clients) >= maxClients {
 		oldest := ""
-		for k, c := range s.state.Clients {
-			if oldest == "" || c.Created.Before(s.state.Clients[oldest].Created) {
+		for k, c := range s.clients {
+			if oldest == "" || c.Created.Before(s.clients[oldest].Created) {
 				oldest = k
 			}
 		}
-		delete(s.state.Clients, oldest)
+		delete(s.clients, oldest)
 	}
-	s.state.Clients[id] = client{Name: req.Name, RedirectURIs: req.RedirectURIs, Created: s.cfg.Now()}
-	err := s.saveLocked()
+	s.clients[id] = client{Name: req.Name, RedirectURIs: req.RedirectURIs, Created: s.cfg.Now()}
 	s.mu.Unlock()
-	if err != nil {
-		oauthError(w, http.StatusInternalServerError, "server_error", "could not keep the client")
-		return
-	}
 	writeJSON(w, http.StatusCreated, map[string]any{
 		"client_id": id, "client_name": req.Name, "redirect_uris": req.RedirectURIs,
 		"token_endpoint_auth_method": "none", "client_id_issued_at": s.cfg.Now().Unix(),
@@ -246,26 +305,28 @@ func (s *Server) register(w http.ResponseWriter, r *http.Request) {
 // its metadata document.
 func (s *Server) lookup(ctx context.Context, id string) (client, error) {
 	s.mu.Lock()
-	c, ok := s.state.Clients[id]
+	c, ok := s.clients[id]
 	s.mu.Unlock()
 	if ok {
 		return c, nil
 	}
-	if !strings.HasPrefix(id, "https://") || !allowedRedirect(id) {
+	if !clientDocument(id) {
 		return client{}, errors.New("unknown client")
 	}
+	// What chatgpt.com answered stays here: the page says only that it failed.
+	unavailable := errors.New("the client's metadata document is unavailable")
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, id, nil)
 	if err != nil {
 		return client{}, err
 	}
 	req.Header.Set("Accept", "application/json")
-	resp, err := s.cfg.HTTP.Do(req)
+	resp, err := s.fetch.Do(req)
 	if err != nil {
-		return client{}, fmt.Errorf("client metadata: %w", err)
+		return client{}, unavailable
 	}
 	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
-		return client{}, fmt.Errorf("client metadata: %s", resp.Status)
+		return client{}, unavailable
 	}
 	var doc struct {
 		ID           string   `json:"client_id"`
@@ -273,7 +334,7 @@ func (s *Server) lookup(ctx context.Context, id string) (client, error) {
 		RedirectURIs []string `json:"redirect_uris"`
 	}
 	if err := json.NewDecoder(io.LimitReader(resp.Body, 64<<10)).Decode(&doc); err != nil {
-		return client{}, fmt.Errorf("client metadata: %w", err)
+		return client{}, unavailable
 	}
 	if doc.ID != id {
 		return client{}, errors.New("client metadata names another client")
@@ -302,7 +363,7 @@ func (s *Server) parse(r *http.Request, v url.Values) (req request, redirect boo
 	switch {
 	case v.Get("response_type") != "code":
 		return req, true, errors.New("unsupported_response_type")
-	case req.Challenge == "" || v.Get("code_challenge_method") != "S256":
+	case len(req.Challenge) != 43 || v.Get("code_challenge_method") != "S256":
 		return req, true, errors.New("invalid_request")
 	case req.Resource != "" && req.Resource != s.base(r)+MCPPath:
 		return req, true, errors.New("invalid_target")
@@ -400,14 +461,14 @@ func (s *Server) token(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case !ok || !s.cfg.Now().Before(g.Expires):
 			oauthError(w, http.StatusBadRequest, "invalid_grant", "unknown or expired code")
-		case g.Client != f.Get("client_id") || g.Redirect != f.Get("redirect_uri"):
+		case g.Client != f.Get("client_id") || f.Get("redirect_uri") != "" && g.Redirect != f.Get("redirect_uri"):
 			oauthError(w, http.StatusBadRequest, "invalid_grant", "the code was issued to another client")
 		case !verifies(f.Get("code_verifier"), g.Challenge):
 			oauthError(w, http.StatusBadRequest, "invalid_grant", "code_verifier does not match")
 		case f.Get("resource") != "" && f.Get("resource") != g.Resource:
 			oauthError(w, http.StatusBadRequest, "invalid_grant", "the code was issued for another resource")
 		default:
-			s.issue(w, g)
+			s.issue(w, g, nil)
 		}
 	case "refresh_token":
 		s.mu.Lock()
@@ -425,15 +486,17 @@ func (s *Server) token(w http.ResponseWriter, r *http.Request) {
 		case f.Get("resource") != "" && f.Get("resource") != g.Resource:
 			oauthError(w, http.StatusBadRequest, "invalid_grant", "the token was issued for another resource")
 		default:
-			s.issue(w, g)
+			// A save that fails must not cost the client its link.
+			s.issue(w, g, func() { s.state.Refresh[key] = g })
 		}
 	default:
 		oauthError(w, http.StatusBadRequest, "unsupported_grant_type", "authorization_code or refresh_token")
 	}
 }
 
-// issue hands out a fresh access token and a rotated refresh token.
-func (s *Server) issue(w http.ResponseWriter, g grant) {
+// issue hands out a fresh access token and a rotated refresh token; undo,
+// when set, puts back what was spent if the new token cannot be kept.
+func (s *Server) issue(w http.ResponseWriter, g grant, undo func()) {
 	access, refresh := random(), random()
 	now := s.cfg.Now()
 	s.mu.Lock()
@@ -442,9 +505,16 @@ func (s *Server) issue(w http.ResponseWriter, g grant) {
 			delete(s.access, k)
 		}
 	}
-	s.access[hash(access)] = grant{Client: g.Client, Resource: g.Resource, Expires: now.Add(accessTTL)}
 	s.state.Refresh[hash(refresh)] = grant{Client: g.Client, Resource: g.Resource, Expires: now.Add(refreshTTL)}
 	err := s.saveLocked()
+	if err != nil {
+		delete(s.state.Refresh, hash(refresh))
+		if undo != nil {
+			undo()
+		}
+	} else {
+		s.access[hash(access)] = grant{Client: g.Client, Resource: g.Resource, Expires: now.Add(accessTTL)}
+	}
 	s.mu.Unlock()
 	if err != nil {
 		oauthError(w, http.StatusInternalServerError, "server_error", "could not keep the token")
@@ -469,16 +539,31 @@ func (s *Server) saveLocked() error {
 		return err
 	}
 	tmp := s.cfg.StatePath + ".tmp"
-	if err := os.WriteFile(tmp, raw, 0o600); err != nil {
+	f, err := os.OpenFile(tmp, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600)
+	if err != nil {
+		return err
+	}
+	_, err = f.Write(raw)
+	if err == nil {
+		// On disk before the rename, so a power cut leaves the old file whole.
+		err = f.Sync()
+	}
+	if cerr := f.Close(); err == nil {
+		err = cerr
+	}
+	if err != nil {
 		return err
 	}
 	return os.Rename(tmp, s.cfg.StatePath)
 }
 
 func verifies(verifier, challenge string) bool {
+	if len(verifier) < 43 || len(verifier) > 128 {
+		return false
+	}
 	sum := sha256.Sum256([]byte(verifier))
 	got := base64.RawURLEncoding.EncodeToString(sum[:])
-	return verifier != "" && subtle.ConstantTimeCompare([]byte(got), []byte(challenge)) == 1
+	return subtle.ConstantTimeCompare([]byte(got), []byte(challenge)) == 1
 }
 
 func random() string {

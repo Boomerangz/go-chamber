@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -22,6 +23,7 @@ const (
 	resource = base + "/api/mcp"
 	redirect = "https://chatgpt.com/connector_platform_oauth_redirect"
 	cimdID   = "https://chatgpt.com/oauth/client.json"
+	movedID  = "https://chatgpt.com/oauth/moved/client.json"
 	verifier = "a-long-enough-code-verifier-0123456789-abcdefghijkl"
 )
 
@@ -30,16 +32,21 @@ func challenge(v string) string {
 	return base64.RawURLEncoding.EncodeToString(sum[:])
 }
 
-// documents serves client metadata documents in place of their hosts.
+// documents serves client metadata documents in place of their hosts; a
+// body starting with "->" redirects there.
 type documents map[string]string
 
 func (d documents) RoundTrip(r *http.Request) (*http.Response, error) {
 	body, ok := d[r.URL.String()]
-	code := http.StatusOK
-	if !ok {
-		code = http.StatusNotFound
+	code, header := http.StatusOK, http.Header{"Content-Type": {"application/json"}}
+	switch {
+	case !ok:
+		code, body = http.StatusTeapot, "upstream-secret-status"
+	case strings.HasPrefix(body, "->"):
+		code = http.StatusFound
+		header.Set("Location", strings.TrimPrefix(body, "->"))
 	}
-	return &http.Response{StatusCode: code, Body: io.NopCloser(strings.NewReader(body)), Header: http.Header{"Content-Type": {"application/json"}}, Request: r}, nil
+	return &http.Response{StatusCode: code, Status: fmt.Sprint(code, " ", body), Body: io.NopCloser(strings.NewReader(body)), Header: header, Request: r}, nil
 }
 
 type clock struct{ now time.Time }
@@ -66,7 +73,9 @@ func (f *fixture) open() *oauth.Server {
 		StatePath: f.path,
 		Base:      base,
 		HTTP: &http.Client{Transport: documents{
-			cimdID: `{"client_id":"` + cimdID + `","client_name":"ChatGPT","redirect_uris":["` + redirect + `"],"token_endpoint_auth_method":"none"}`,
+			cimdID:                         `{"client_id":"` + cimdID + `","client_name":"ChatGPT","redirect_uris":["` + redirect + `"],"token_endpoint_auth_method":"none"}`,
+			movedID:                        "->http://127.0.0.1:22/internal",
+			"http://127.0.0.1:22/internal": `{"client_id":"` + movedID + `","redirect_uris":["` + redirect + `"]}`,
 		}},
 		Now: f.clock.Now,
 	})
@@ -234,14 +243,17 @@ func TestRegistrationOnlyForChatGPTRedirects(t *testing.T) {
 func TestAuthorizeRefusesWhatItCannotTrust(t *testing.T) {
 	f := newFixture(t)
 	for name, change := range map[string]func(url.Values){
-		"unknown client":     func(q url.Values) { q.Set("client_id", "nope") },
-		"foreign redirect":   func(q url.Values) { q.Set("redirect_uri", "https://evil.example/cb") },
-		"document not found": func(q url.Values) { q.Set("client_id", "https://chatgpt.com/oauth/other.json") },
-		"foreign document":   func(q url.Values) { q.Set("client_id", "https://evil.example/client.json") },
-		"another resource":   func(q url.Values) { q.Set("resource", "https://elsewhere.dev/api/mcp") },
-		"plain pkce":         func(q url.Values) { q.Set("code_challenge_method", "plain") },
-		"no pkce":            func(q url.Values) { q.Del("code_challenge") },
-		"not the code flow":  func(q url.Values) { q.Set("response_type", "token") },
+		"unknown client":       func(q url.Values) { q.Set("client_id", "nope") },
+		"foreign redirect":     func(q url.Values) { q.Set("redirect_uri", "https://evil.example/cb") },
+		"document not found":   func(q url.Values) { q.Set("client_id", "https://chatgpt.com/oauth/gone/client.json") },
+		"not a document url":   func(q url.Values) { q.Set("client_id", "https://chatgpt.com/share/x.json") },
+		"redirected document":  func(q url.Values) { q.Set("client_id", movedID) },
+		"another chatgpt path": func(q url.Values) { q.Set("redirect_uri", "https://chatgpt.com/share/abc") },
+		"foreign document":     func(q url.Values) { q.Set("client_id", "https://evil.example/client.json") },
+		"another resource":     func(q url.Values) { q.Set("resource", "https://elsewhere.dev/api/mcp") },
+		"plain pkce":           func(q url.Values) { q.Set("code_challenge_method", "plain") },
+		"no pkce":              func(q url.Values) { q.Del("code_challenge") },
+		"not the code flow":    func(q url.Values) { q.Set("response_type", "token") },
 	} {
 		t.Run(name, func(t *testing.T) {
 			q := authorizeQuery(cimdID)
@@ -363,9 +375,8 @@ func TestRegisteredClientsAreCapped(t *testing.T) {
 	if rec := f.do(httptest.NewRequest("GET", "/oauth/authorize?"+q.Encode(), nil)); rec.Code == http.StatusOK {
 		t.Fatal("the oldest client outlived the cap")
 	}
-	raw, _ := os.ReadFile(f.path)
-	if len(raw) > 20_000 {
-		t.Fatalf("state grew to %d bytes", len(raw))
+	if _, err := os.Stat(f.path); !os.IsNotExist(err) {
+		t.Fatalf("registration wrote the state: %v", err)
 	}
 }
 
@@ -378,5 +389,136 @@ func TestPublicEndpoints(t *testing.T) {
 		if got := f.srv.Public(path); got != want {
 			t.Errorf("Public(%s) = %v", path, got)
 		}
+	}
+}
+
+func register(f *fixture, body string) *httptest.ResponseRecorder {
+	return f.do(httptest.NewRequest("POST", "/oauth/register", strings.NewReader(body)))
+}
+
+func TestRedirectMustBeChatGPTsCallback(t *testing.T) {
+	f := newFixture(t)
+	for uri, ok := range map[string]bool{
+		redirect: true,
+		"https://chatgpt.com/connector/oauth/cb_123-AZ":                      true,
+		"https://chatgpt.com/share/abc":                                      false,
+		"https://chatgpt.com/connector/oauth/a/b":                            false,
+		"https://chatgpt.com/connector/oauth/":                               false,
+		"https://chatgpt.com/%zz":                                            false,
+		redirect + "#x":                                                      false,
+		redirect + "?next=https://evil.example":                              false,
+		"https://user@chatgpt.com/connector_platform_oauth_redirect":         false,
+		"http://chatgpt.com/connector_platform_oauth_redirect":               false,
+		"https://chatgpt.com.evil.example/connector_platform_oauth_redirect": false,
+	} {
+		rec := register(f, `{"redirect_uris":["`+uri+`"]}`)
+		if got := rec.Code == http.StatusCreated; got != ok {
+			t.Errorf("%s: %d %s", uri, rec.Code, rec.Body)
+		}
+	}
+}
+
+func TestRegistrationIsBounded(t *testing.T) {
+	f := newFixture(t)
+	if rec := register(f, `{"client_name":"`+strings.Repeat("n", 300)+`","redirect_uris":["`+redirect+`"]}`); rec.Code != http.StatusBadRequest {
+		t.Fatalf("long name = %d", rec.Code)
+	}
+	many := strings.TrimSuffix(strings.Repeat(`"`+redirect+`",`, 6), ",")
+	if rec := register(f, `{"redirect_uris":[`+many+`]}`); rec.Code != http.StatusBadRequest {
+		t.Fatalf("many redirects = %d", rec.Code)
+	}
+}
+
+func TestConsentNamesTheWholeRedirectAndRefusesFrames(t *testing.T) {
+	f := newFixture(t)
+	rec := f.do(httptest.NewRequest("GET", "/oauth/authorize?"+authorizeQuery(cimdID).Encode(), nil))
+	if !strings.Contains(rec.Body.String(), redirect) || rec.Header().Get("X-Frame-Options") != "DENY" {
+		t.Fatalf("consent = %s %v", rec.Body, rec.Header())
+	}
+}
+
+func TestMetadataFetchFailureStaysVague(t *testing.T) {
+	f := newFixture(t)
+	q := authorizeQuery("https://chatgpt.com/oauth/gone/client.json")
+	rec := f.do(httptest.NewRequest("GET", "/oauth/authorize?"+q.Encode(), nil))
+	if rec.Code != http.StatusBadRequest || strings.Contains(rec.Body.String(), "upstream-secret-status") {
+		t.Fatalf("refusal = %d %s", rec.Code, rec.Body)
+	}
+}
+
+func TestCorruptStateIsSetAside(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "oauth.json")
+	if err := os.WriteFile(path, []byte("{"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := oauth.New(oauth.Config{StatePath: path, Base: base}); err != nil {
+		t.Fatalf("a broken state stopped the server: %v", err)
+	}
+	if raw, err := os.ReadFile(path + ".corrupt"); err != nil || string(raw) != "{" {
+		t.Fatalf("broken state not kept aside: %q %v", raw, err)
+	}
+}
+
+func TestRefreshTokenOutlivesAFailedSave(t *testing.T) {
+	f := newFixture(t)
+	tok := f.exchange(cimdID, f.approve(cimdID))
+	dir := filepath.Dir(f.path)
+	if err := os.Chmod(dir, 0o500); err != nil {
+		t.Fatal(err)
+	}
+	refresh := url.Values{"grant_type": {"refresh_token"}, "refresh_token": {tok["refresh_token"].(string)}, "client_id": {cimdID}}
+	status, _ := f.token(refresh)
+	_ = os.Chmod(dir, 0o700)
+	if status != http.StatusInternalServerError {
+		t.Fatalf("refresh with an unwritable state = %d", status)
+	}
+	if status, _ := f.token(refresh); status != http.StatusOK {
+		t.Fatalf("refresh token lost: %d", status)
+	}
+}
+
+func TestTokenRequestMayOmitTheRedirect(t *testing.T) {
+	f := newFixture(t)
+	status, out := f.token(url.Values{"grant_type": {"authorization_code"}, "code": {f.approve(cimdID)}, "client_id": {cimdID}, "code_verifier": {verifier}})
+	if status != http.StatusOK {
+		t.Fatalf("token = %d %v", status, out)
+	}
+}
+
+func TestShortVerifierIsRefused(t *testing.T) {
+	f := newFixture(t)
+	q := authorizeQuery(cimdID)
+	q.Set("code_challenge", challenge("short"))
+	form := url.Values{"decision": {"allow"}}
+	for k, v := range q {
+		form[k] = v
+	}
+	req := httptest.NewRequest("POST", "/oauth/authorize", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	to, _ := url.Parse(f.do(req).Header().Get("Location"))
+	if status, _ := f.token(url.Values{"grant_type": {"authorization_code"}, "code": {to.Query().Get("code")}, "client_id": {cimdID}, "code_verifier": {"short"}}); status != http.StatusBadRequest {
+		t.Fatalf("short verifier = %d", status)
+	}
+}
+
+func TestUnknownWellKnownIsNotFound(t *testing.T) {
+	f := newFixture(t)
+	if !f.srv.Public("/.well-known/openid-configuration") {
+		t.Fatal("well-known paths need no login")
+	}
+	if rec := f.do(httptest.NewRequest("GET", "/.well-known/openid-configuration", nil)); rec.Code != http.StatusNotFound {
+		t.Fatalf("openid-configuration = %d", rec.Code)
+	}
+}
+
+func TestChallengeSaysWhenTheTokenIsBad(t *testing.T) {
+	f := newFixture(t)
+	req := httptest.NewRequest("POST", "/api/mcp", nil)
+	if strings.Contains(f.srv.Challenge(req), "invalid_token") {
+		t.Fatal("no token is no bad token")
+	}
+	req.Header.Set("Authorization", "Bearer stale")
+	if !strings.Contains(f.srv.Challenge(req), `error="invalid_token"`) {
+		t.Fatalf("challenge = %s", f.srv.Challenge(req))
 	}
 }

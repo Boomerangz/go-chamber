@@ -150,6 +150,12 @@ func (a *auth) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "unauthorized: open the URL with ?token= printed at startup", http.StatusUnauthorized)
 			return
 		}
+		if r.Header.Get("Sec-Fetch-Site") == "cross-site" {
+			// A link from another site carries no Strict cookie: look again
+			// from here, where it does, before asking for the token.
+			lookAgain(w, localPath(r.URL.RequestURI()))
+			return
+		}
 		loginPage(w, localPath(r.URL.RequestURI()), false)
 		return
 	}
@@ -272,6 +278,16 @@ input:focus{outline:2px solid var(--act-ring);outline-offset:1px;border-color:va
 <button type="submit" class="primary">Sign in</button>
 <p class="note">The token is printed at startup and stored in the data folder.</p>
 </form></body></html>`))
+
+var lookAgainTemplate = template.Must(template.New("again").Parse(`<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta http-equiv="refresh" content="0;url={{.}}"><title>go-chamber</title></head>
+<body><a href="{{.}}">Continue</a></body></html>`))
+
+func lookAgain(w http.ResponseWriter, next string) {
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-store")
+	_ = lookAgainTemplate.Execute(w, next)
+}
 
 func loginPage(w http.ResponseWriter, next string, failed bool) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")

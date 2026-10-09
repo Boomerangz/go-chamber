@@ -95,3 +95,20 @@ func TestConsentPageIsTheOwnersOnly(t *testing.T) {
 		t.Fatalf("owner consent = %d, served %v", rec.Code, o.served)
 	}
 }
+
+// A link from another site (ChatGPT sending the owner to consent) carries no
+// Strict cookie; the page looks again from here, where it does.
+func TestPageOpenedFromAnotherSiteLooksAgainFromHere(t *testing.T) {
+	srv, _ := newOAuthServer()
+	req := httptest.NewRequest("GET", "/oauth/authorize?client_id=x&state=y", nil)
+	req.Header.Set("Sec-Fetch-Site", "cross-site")
+	rec := do(srv, req)
+	body := rec.Body.String()
+	if rec.Code != http.StatusOK || !strings.Contains(body, `http-equiv="refresh"`) || !strings.Contains(body, "/oauth/authorize?client_id=x&amp;state=y") || strings.Contains(body, `name="token"`) {
+		t.Fatalf("cross-site open = %d %s", rec.Code, body)
+	}
+	req.Header.Set("Sec-Fetch-Site", "same-origin")
+	if rec := do(srv, req); rec.Code != http.StatusUnauthorized || !strings.Contains(rec.Body.String(), `name="token"`) {
+		t.Fatalf("second look without a cookie = %d", rec.Code)
+	}
+}
