@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   createSession,
+  forkSession,
   fetchEvents,
   fetchHealth,
   getAccount,
@@ -402,5 +403,17 @@ describe('requestRaw', () => {
   it('aborts at once with a caller signal already aborted', async () => {
     hang()
     await expect(requestRaw('/api/x', { signal: AbortSignal.abort() })).rejects.toBeDefined()
+  })
+})
+
+describe('forkSession', () => {
+  it('sends a selected agent as JSON and keeps an empty request for native forks', async () => {
+    const fn = stubFetch(async () => json({ id: 'fork' }))
+    await forkSession('a b', 'codex')
+    expect(fn).toHaveBeenLastCalledWith('/api/sessions/a%20b/fork', expect.objectContaining({
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ agent: 'codex' }),
+    }))
+    await forkSession('a b')
+    expect(fn.mock.calls.at(-1)?.[1]?.body).toBeUndefined()
   })
 })

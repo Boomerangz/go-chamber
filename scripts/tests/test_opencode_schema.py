@@ -28,14 +28,14 @@ class SchemaContractTest(unittest.TestCase):
             "ModelRef": {"properties": {"providerID": {
                 "$ref": "#/components/schemas/Identifier"}}},
             "Identifier": {"type": "string", "minLength": 1}}}}
-        old_fields, old_schemas = module.FIELDS, module.SCHEMAS
+        old_paths, old_schemas = module.PATHS, module.SCHEMAS
         try:
-            module.FIELDS = {}
+            module.PATHS = []
             module.SCHEMAS = {"ModelRef": ["providerID"]}
             self.assertEqual(module.consumed(schema)["schemas"]["Identifier"],
                              {"type": "string", "minLength": 1})
         finally:
-            module.FIELDS, module.SCHEMAS = old_fields, old_schemas
+            module.PATHS, module.SCHEMAS = old_paths, old_schemas
 
 
 if __name__ == "__main__":

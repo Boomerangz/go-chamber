@@ -208,3 +208,16 @@
 /* the install command of a missing CLI: mono, on one line, copied whole */
 .cli-install { display: flex; align-items: center; gap: 4px; flex: 1 1 100%; min-width: 0; max-width: 100%; }
 .cli-install code { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--font-mono); font-size: var(--t-meta); color: var(--ink); }
+
+.fork-dialog {
+  width: min(380px, calc(100vw - 28px)); padding: 20px;
+  border: 1px solid var(--ink); border-radius: var(--r);
+  background: var(--paper); color: var(--ink);
+}
+.fork-dialog::backdrop { background: color-mix(in srgb, var(--paper) 55%, transparent); }
+.fork-dialog form { display: grid; gap: 14px; }
+.fork-dialog h3, .fork-dialog p { margin: 0; }
+.fork-dialog p { color: var(--ink-2); font-size: var(--t-read); }
+.fork-dialog label { display: grid; gap: 6px; }
+.fork-dialog .field { width: 100%; font-size: var(--t-input); }
+.fork-dialog-actions { display: flex; gap: 8px; justify-content: flex-end; }

@@ -17,9 +17,11 @@ import (
 
 // ManagerConfig wires the manager's dependencies.
 type ManagerConfig struct {
-	Repo     SessionRepo
-	Runtimes RuntimeFactory
-	Bus      EventBus
+	// Transcripts writes persistent handoff files for forks to another agent.
+	Transcripts TranscriptFiles
+	Repo        SessionRepo
+	Runtimes    RuntimeFactory
+	Bus         EventBus
 	// Accounts optionally reports and starts agent logins.
 	Accounts AccountManager
 	// Quotas optionally caches quota snapshots; QuotaProvider fetches them.

@@ -568,6 +568,7 @@ describe('header', () => {
     setup()
     fns.forkSession.mockImplementationOnce(() => new Promise(() => {}))
     await userEvent.click(screen.getByRole('button', { name: 'Fork' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Create fork' }))
     const button = screen.getByRole('button', { name: 'Forking…' })
     expect(button).toHaveAttribute('aria-busy', 'true')
     await userEvent.click(button)
@@ -1162,4 +1163,18 @@ describe('stop when the agent is quiet', () => {
     expect(document.querySelector('.live-strip')).toHaveTextContent('stop sent · waiting for the agent')
     expect(document.querySelector('.composer .composer-note')).toBeNull()
   })
+})
+
+it('forks with a different agent selected in session details', async () => {
+ setup()
+ await userEvent.click(screen.getByRole('button', { name: 'Fork' }))
+ await userEvent.selectOptions(screen.getByLabelText('Fork agent'), 'codex')
+ await userEvent.click(screen.getByRole('button', { name: 'Create fork' }))
+ expect(fns.forkSession).toHaveBeenCalledWith('s1', 'codex')
+})
+it('disables missing agents in the fork selector', async () => {
+ useCLIs.setState({ clis: [{ agent: 'opencode', found: false }] })
+ setup()
+ await userEvent.click(screen.getByRole('button', { name: 'Fork' }))
+ expect(screen.getByRole('option', { name: 'OpenCode' })).toBeDisabled()
 })

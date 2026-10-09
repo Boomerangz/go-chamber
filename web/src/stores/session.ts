@@ -93,7 +93,7 @@ export interface SessionStore {
   interrupt: () => Promise<boolean>
   continueSession: () => Promise<boolean>
   setAutoContinue: (sessionId: string, on: boolean) => Promise<boolean>
-  forkSession: (sessionId: string) => Promise<boolean>
+  forkSession: (sessionId: string, agent?: api.AgentKind) => Promise<boolean>
   importHistory: (agent: api.AgentKind, nativeId: string) => Promise<boolean>
   stopTask: (sessionId: string, taskId: string) => Promise<boolean>
   setApprovalReviewer: (sessionId: string, reviewer: api.ApprovalReviewer) => Promise<boolean>
@@ -609,9 +609,9 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     }
   },
 
-  async forkSession(sessionId) {
+  async forkSession(sessionId, agent) {
     try {
-      const fork = await api.forkSession(sessionId)
+      const fork = await api.forkSession(sessionId, agent)
       set({ sessions: replaceSession(get().sessions, fork) })
       await get().selectSession(fork.id)
       return true

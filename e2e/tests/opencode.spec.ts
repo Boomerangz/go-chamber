@@ -45,6 +45,7 @@ test('OpenCode models, tools, requests, fork and reload', async ({ page }) => {
   await showSessionDetails(page)
   const previous = page.url()
   await page.getByRole('button', { name: 'Fork', exact: true }).click()
+  await page.getByRole('button', { name: 'Create fork', exact: true }).click()
   await expect(page).not.toHaveURL(previous)
   await expect(page.getByRole('heading', { name: 'tools (fork)', exact: true })).toBeVisible()
   await expect(page.getByLabel('Message')).toHaveValue('')

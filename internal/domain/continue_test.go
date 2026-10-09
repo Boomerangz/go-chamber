@@ -98,3 +98,21 @@ func TestForkCopiesTheParentSettings(t *testing.T) {
 		t.Fatal("restore lost the fork link")
 	}
 }
+
+func TestForkToAnotherAgentResetsProviderSettings(t *testing.T) {
+	p, _ := NewSession("p", AgentClaude, "/p")
+	_ = p.RuntimeAttached("native")
+	_ = p.SetModel("opus", "max")
+	_ = p.SetPermissionMode("bypassPermissions")
+	f, err := NewForkSession("f", p, AgentCodex)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := f.Snapshot()
+	if s.Agent != AgentCodex || s.Model != "" || s.Effort != "" || s.PermissionMode != "" || s.ApprovalReviewer != "" || s.ForkOf != "p" {
+		t.Fatalf("fork=%+v", s)
+	}
+	if _, err := NewForkSession("bad", p, AgentKind("unknown")); err == nil {
+		t.Fatal("invalid agent accepted")
+	}
+}

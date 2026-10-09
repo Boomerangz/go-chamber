@@ -55,3 +55,11 @@ describe('continue and fork', () => {
     expect(lastError()).toBe('fork before the first turn')
   })
 })
+
+it('passes the selected agent to fork and opens the new session', async () => {
+ ;(api.forkSession as Mock).mockResolvedValue({ id: 'f', agent: 'codex', cwd: '/p', status: 'running', forkOf: 'a' })
+ await store().forkSession('a', 'codex')
+ expect(api.forkSession).toHaveBeenCalledWith('a', 'codex')
+ expect(store().activeId).toBe('f')
+ expect(store().sessions[0].agent).toBe('codex')
+})

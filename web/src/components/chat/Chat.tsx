@@ -29,7 +29,7 @@ import { useTypingMark } from './useTypingMark'
 import { SENT_HOLD_MS, untilBack, useLiveDropped } from './useLiveDropped'
 import { beginAgentView, endAgentView, recordAgentCommit } from '../../lib/diagnostics'
 import { SessionFiles, SessionFolder } from '../../lib/files'
-import type { RequestAnswerInput, Session, SessionRequest, SessionStatus, TurnResult } from '../../lib/api'
+import type { AgentKind, RequestAnswerInput, Session, SessionRequest, SessionStatus, TurnResult } from '../../lib/api'
 import { browsedTo } from '../../lib/browse'
 import { forgetCommands } from '../../lib/complete'
 import { basename, displayStatus } from '../../lib/format'
@@ -434,7 +434,7 @@ export default function Chat() {
     wasDropped.current = dropped
   }, [dropped])
 
-  const [fork, forking] = usePending(() => forkSession(sessionId!), { holdOnSuccess: true })
+  const [fork, forking] = usePending((agent?: AgentKind) => agent ? forkSession(sessionId!, agent) : forkSession(sessionId!), { holdOnSuccess: true })
   // A session whose worktree folder is gone takes no more turns.
   const gone = session?.worktree?.removed ? session.worktree : undefined
   // Nor does one whose folder isn't there any more.
@@ -482,7 +482,7 @@ export default function Chat() {
         loading={!session && sessionsStatus === 'loading'}
         notFound={notFound}
         forking={forking}
-        onFork={() => void fork()}
+        onFork={(agent) => void fork(agent)}
       />
       <div className="sr-only chat-announce" role="status" aria-live="polite">
         <span key={announcement.n}>{announcement.text}</span>

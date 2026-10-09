@@ -112,6 +112,7 @@ func run(ctx context.Context, args []string, out io.Writer) error {
 	defer terminals.CloseAll()
 	manager := app.NewManager(app.ManagerConfig{
 		Repo:          store.Sessions(),
+		Transcripts:   fsys.TranscriptFiles{Root: *dataDir},
 		Runtimes:      runtimes,
 		Accounts:      runtimes,
 		Quotas:        store.Quotas(),

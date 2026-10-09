@@ -176,7 +176,7 @@ func NewChildSession(id SessionID, agent AgentKind, cwd string, parent SessionID
 // conversation on a branch of its own; the agent assigns the native id. A
 // fork of a live worktree session shares that worktree; a session whose
 // worktree is gone forks into the repository it came from.
-func NewForkSession(id SessionID, parent *Session) (*Session, error) {
+func NewForkSession(id SessionID, parent *Session, target ...AgentKind) (*Session, error) {
 	if parent.nativeID == "" {
 		return nil, fmt.Errorf("%w: fork before the first turn", ErrInvalidTransition)
 	}
@@ -184,7 +184,11 @@ func NewForkSession(id SessionID, parent *Session) (*Session, error) {
 	if parent.WorktreeRemoved() {
 		cwd = parent.worktree.Repo
 	}
-	s, err := NewSession(id, parent.agent, cwd)
+	agent := parent.agent
+	if len(target) > 0 && target[0] != "" {
+		agent = target[0]
+	}
+	s, err := NewSession(id, agent, cwd)
 	if err != nil {
 		return nil, err
 	}
@@ -193,7 +197,9 @@ func NewForkSession(id SessionID, parent *Session) (*Session, error) {
 	}
 	s.forkOf = parent.id
 	s.title = strings.TrimSpace(parent.title + " (fork)")
-	s.model, s.effort, s.reviewer, s.mode = parent.model, parent.effort, parent.reviewer, parent.mode
+	if agent == parent.agent {
+		s.model, s.effort, s.reviewer, s.mode = parent.model, parent.effort, parent.reviewer, parent.mode
+	}
 	return s, nil
 }
 

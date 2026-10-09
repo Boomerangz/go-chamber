@@ -364,8 +364,8 @@ export function setAutoContinue(id: string, on: boolean): Promise<Session> {
   return request<Session>(`/api/sessions/${encodeURIComponent(id)}/auto-continue`, { method: 'POST', ...json({ on }) })
 }
 
-export function forkSession(id: string): Promise<Session> {
-  return request<Session>(`/api/sessions/${encodeURIComponent(id)}/fork`, { method: 'POST' }, SLOW_MS)
+export function forkSession(id: string, agent?: AgentKind): Promise<Session> {
+  return request<Session>(`/api/sessions/${encodeURIComponent(id)}/fork`, agent ? json({ agent }) : { method: 'POST' }, SLOW_MS)
 }
 
 export function fetchEvents(id: string, since = 0, signal?: AbortSignal): Promise<SessionEvent[]> {

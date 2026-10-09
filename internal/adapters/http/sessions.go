@@ -23,6 +23,7 @@ type Sessions interface {
 	Continue(ctx context.Context, id domain.SessionID) error
 	SetAutoContinue(ctx context.Context, id domain.SessionID, on bool) (domain.SessionSnapshot, error)
 	Fork(ctx context.Context, id domain.SessionID) (domain.SessionSnapshot, error)
+	ForkTo(ctx context.Context, id domain.SessionID, agent domain.AgentKind) (domain.SessionSnapshot, error)
 	StopTask(ctx context.Context, id domain.SessionID, taskID string) error
 	SetApprovalReviewer(ctx context.Context, id domain.SessionID, r domain.ApprovalReviewer) (domain.SessionSnapshot, error)
 	RespondRequest(ctx context.Context, id domain.SessionID, requestID domain.RequestID, answer app.RequestAnswer) error
@@ -274,7 +275,13 @@ func (s *server) setAutoContinue(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *server) fork(w http.ResponseWriter, r *http.Request) {
-	snap, err := s.cfg.Sessions.Fork(r.Context(), sessionID(r))
+	var body struct {
+		Agent domain.AgentKind `json:"agent"`
+	}
+	if r.ContentLength != 0 && !decode(w, r, &body) {
+		return
+	}
+	snap, err := s.cfg.Sessions.ForkTo(r.Context(), sessionID(r), body.Agent)
 	if err != nil {
 		s.fail(w, err)
 		return

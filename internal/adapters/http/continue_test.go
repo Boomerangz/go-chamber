@@ -71,3 +71,20 @@ func TestForkEndpoint(t *testing.T) {
 		t.Fatalf("code = %d", rec.Code)
 	}
 }
+
+func (f *fakeSessions) ForkTo(ctx context.Context, id domain.SessionID, agent domain.AgentKind) (domain.SessionSnapshot, error) {
+	snap, err := f.Fork(ctx, id)
+	snap.Agent = agent
+	return snap, err
+}
+func TestForkEndpointSelectsAgent(t *testing.T) {
+	rec := do(newSessionsServer(&fakeSessions{}, nil), authed("POST", "/api/sessions/a/fork", `{"agent":"codex"}`))
+	var got domain.SessionSnapshot
+	if rec.Code != http.StatusCreated || json.Unmarshal(rec.Body.Bytes(), &got) != nil || got.Agent != domain.AgentCodex {
+		t.Fatalf("code=%d body=%s", rec.Code, rec.Body)
+	}
+	rec = do(newSessionsServer(&fakeSessions{}, nil), authed("POST", "/api/sessions/a/fork", `{`))
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("code=%d", rec.Code)
+	}
+}

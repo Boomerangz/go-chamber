@@ -41,6 +41,8 @@ var reviewers = map[string]string{}
 // real server, turn/start overrides stick to the thread. Policy "never"
 // runs commands without asking.
 var policies = map[string][2]string{}
+var failedHandoffs = map[string]bool{}
+
 var histories = map[string][]map[string]any{}
 
 func setPolicy(threadID string, params json.RawMessage) {
@@ -204,6 +206,12 @@ func main() {
 						text += "[image " + strconv.FormatInt(st.Size(), 10) + " bytes] "
 					}
 				}
+			}
+			if strings.HasPrefix(text, "Continue the work from session ") && strings.Contains(text, "gc-fork-send-error-") && !failedHandoffs[p.ThreadID] {
+				failedHandoffs[p.ThreadID] = true
+				_ = enc.Encode(map[string]any{"jsonrpc": "2.0", "id": m.ID, "error": map[string]any{"code": -32000, "message": "injected bootstrap delivery failure"}})
+				_ = out.Flush()
+				continue
 			}
 			turnID := nextID("turn")
 			histories[p.ThreadID] = append(histories[p.ThreadID], map[string]any{"id": turnID, "items": []any{map[string]any{"id": nextID("user"), "type": "userMessage", "content": []any{map[string]any{"type": "text", "text": text}}}}})

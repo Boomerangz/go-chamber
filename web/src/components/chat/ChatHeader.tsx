@@ -2,12 +2,13 @@ import { useCapabilities } from '../../lib/clis'
 import { useId, useRef, useState } from 'react'
 import { Copy, MoreHorizontal } from 'lucide-react'
 import AgentAvatar from '../AgentAvatar'
+import ForkDialog from './ForkDialog'
 import ModelPicker from '../models/ModelPicker'
 import PermissionModeSelect from '../models/PermissionModeSelect'
 import EditableTitle from '../title/EditableTitle'
 import PathText from '../ui/PathText'
 import { icon } from '../icon'
-import type { ApprovalReviewer, Session, Worktree } from '../../lib/api'
+import type { AgentKind, ApprovalReviewer, Session, Worktree } from '../../lib/api'
 import { statusWord, type ShownStatus } from '../../lib/status'
 import { isDangerousMode } from '../../lib/models'
 import { sessionTitle } from '../../lib/sessions'
@@ -142,7 +143,7 @@ interface Props {
   loading: boolean
   notFound: boolean
   forking: boolean
-  onFork: () => void
+  onFork: (agent?: AgentKind) => void
 }
 
 // ChatHeader names the open session and holds its settings. On a phone it
@@ -153,6 +154,12 @@ export default function ChatHeader({ session, status, unsettled, loading, notFou
   const renameSession = useSessionStore((s) => s.renameSession)
   const [open, setOpen] = useState(false)
   const toolsId = useId()
+  const [forkOpen, setForkOpen] = useState(false)
+  const forkButton = useRef<HTMLButtonElement>(null)
+  const closeFork = () => {
+    setForkOpen(false)
+    forkButton.current?.focus()
+  }
   const unguarded = isDangerousMode(session?.permissionMode)
   const header = useRef<HTMLElement>(null)
   const fold = useHeaderFold(header)
@@ -215,13 +222,14 @@ export default function ChatHeader({ session, status, unsettled, loading, notFou
             <ApprovalReviewerSelect session={session} />
             {/* A fork starts in the session's folder: none once it's gone. */}
             {session.nativeId && !session.folderGone && (
-              <button disabled={!caps.fork} type="button" className="btn btn-ghost chat-fork" aria-busy={forking} onClick={onFork}>
+              <button ref={forkButton} disabled={forking} type="button" className="btn btn-ghost chat-fork" aria-busy={forking} aria-haspopup="dialog" onClick={() => setForkOpen(true)}>
                 {forking ? 'Forking…' : 'Fork'}
               </button>
             )}
           </div>
         )}
       </div>
+      {session && forkOpen && <ForkDialog key={session.id} session={session} onFork={onFork} onClose={closeFork} />}
     </header>
   )
 }

@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -192,5 +193,158 @@ func TestForkStartFailureKeepsNoSession(t *testing.T) {
 	}
 	if all, _ := repo.List(context.Background()); len(all) != 1 {
 		t.Fatalf("sessions = %+v", all)
+	}
+}
+
+type fakeTranscriptFiles struct {
+	text string
+	err  error
+}
+
+func (f *fakeTranscriptFiles) WriteTranscript(_ context.Context, _ domain.SessionID, text string) (string, error) {
+	f.text = text
+	return "/data/transcript.md", f.err
+}
+func TestForkToAnotherAgentUsesATranscriptAndFreshRuntime(t *testing.T) {
+	for _, agent := range []domain.AgentKind{domain.AgentCodex, domain.AgentOpenCode, domain.AgentClaude} {
+		t.Run(string(agent), func(t *testing.T) {
+			m, _, bus, factory, _ := newTestManager(t)
+			t.Cleanup(m.Close)
+			source := domain.AgentClaude
+			if agent == source {
+				source = domain.AgentCodex
+			}
+			parent, err := m.CreateSession(context.Background(), source, "/project")
+			if err != nil {
+				t.Fatal(err)
+			}
+			rt := newFakeRuntime("source-native")
+			startWith(t, m, factory, parent.ID, rt)
+			endTurn(t, m, rt, parent.ID)
+			files := &fakeTranscriptFiles{}
+			m.cfg.Transcripts = files
+			m.cfg.History = forkHistory{bus}
+			child := newFakeRuntime("target-native")
+			factory.next = child
+			fork, err := m.ForkTo(context.Background(), parent.ID, agent)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if fork.Agent != agent || fork.ForkOf != parent.ID || fork.Cwd != parent.Cwd || fork.NativeID != "target-native" {
+				t.Fatalf("fork = %+v", fork)
+			}
+			reqs := factory.requests()
+			req := reqs[len(reqs)-1]
+			if req.Fork || req.NativeID != "" || req.Agent != agent || req.Model != "" || req.PermissionMode != "" {
+				t.Fatalf("request = %+v", req)
+			}
+			if !strings.Contains(files.text, "hi") || !strings.Contains(files.text, string(parent.ID)) {
+				t.Fatalf("transcript = %s", files.text)
+			}
+			texts := sentTexts(child)
+			if len(texts) != 1 || !strings.Contains(texts[0], "/data/transcript.md") || strings.Contains(texts[0], "user_message") {
+				t.Fatalf("prompt = %v", texts)
+			}
+		})
+	}
+}
+func TestForkToTranscriptFailureDoesNotStartOrSaveAChild(t *testing.T) {
+	m, repo, _, factory, _ := newTestManager(t)
+	t.Cleanup(m.Close)
+	parent := createClaude(t, m)
+	rt := newFakeRuntime("n")
+	startWith(t, m, factory, parent.ID, rt)
+	m.cfg.Transcripts = &fakeTranscriptFiles{err: errors.New("disk full")}
+	m.cfg.History = forkHistory{newFakeBus()}
+	if _, err := m.ForkTo(context.Background(), parent.ID, domain.AgentCodex); err == nil {
+		t.Fatal("expected failure")
+	}
+	all, _ := repo.List(context.Background())
+	if len(all) != 1 || len(factory.requests()) != 1 {
+		t.Fatalf("sessions=%v starts=%v", all, factory.requests())
+	}
+}
+
+type forkHistory struct{ bus *fakeBus }
+
+func (h forkHistory) History(id domain.SessionID, _ domain.Seq) []domain.Event {
+	var out []domain.Event
+	for _, ev := range h.bus.snapshot() {
+		if ev.SessionID == id {
+			out = append(out, ev)
+		}
+	}
+	return out
+}
+func (h forkHistory) Requests(domain.SessionID) []domain.Event { return nil }
+func TestForkTranscriptFoldsStreamingAndKeepsToolDetails(t *testing.T) {
+	events := []domain.Event{
+		{Type: domain.EventItemUpdated, Item: &domain.Item{ID: "a", Kind: domain.ItemAssistantMessage, Text: "first"}},
+		{Type: domain.EventTextDelta, Delta: &domain.Delta{ItemID: "a", Text: " fragment"}},
+		{Type: domain.EventItemUpdated, Item: &domain.Item{ID: "b", Kind: domain.ItemCommand, Text: "output", Input: []byte(`{"cmd":"pwd"}`)}},
+	}
+	text := forkTranscript(domain.SessionSnapshot{ID: "p", Agent: domain.AgentClaude, Cwd: "/p"}, events)
+	for _, want := range []string{"first fragment", "pwd", "output", "claude", "/p"} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("missing %q in %s", want, text)
+		}
+	}
+}
+
+func TestForkToBootstrapFailureKeepsARetryableChild(t *testing.T) {
+	for _, failure := range []error{errors.New("transport unavailable"), context.Canceled} {
+		t.Run(failure.Error(), func(t *testing.T) {
+			m, repo, bus, factory, _ := newTestManager(t)
+			t.Cleanup(m.Close)
+			parent := createClaude(t, m)
+			rt := newFakeRuntime("source")
+			startWith(t, m, factory, parent.ID, rt)
+			endTurn(t, m, rt, parent.ID)
+			m.cfg.Transcripts = &fakeTranscriptFiles{}
+			m.cfg.History = forkHistory{bus}
+			child := newFakeRuntime("child")
+			child.sendErr = failure
+			factory.next = child
+			fork, err := m.ForkTo(context.Background(), parent.ID, domain.AgentCodex)
+			if err != nil {
+				t.Fatalf("creation succeeded; bootstrap must be shown in child: %v", err)
+			}
+			if fork.ID == "" || fork.ForkOf != parent.ID || fork.Status != domain.StatusIdle {
+				t.Fatalf("fork=%+v", fork)
+			}
+			all, _ := repo.List(context.Background())
+			if len(all) != 2 {
+				t.Fatalf("sessions=%+v", all)
+			}
+			saved, _ := repo.Get(context.Background(), fork.ID)
+			if saved.Status != fork.Status || saved.EndedAt.IsZero() {
+				t.Fatalf("saved=%+v", saved)
+			}
+			var prompt string
+			var failed bool
+			for _, ev := range bus.snapshot() {
+				if ev.SessionID != fork.ID {
+					continue
+				}
+				if ev.Item != nil && ev.Item.Kind == domain.ItemUserMessage {
+					prompt = ev.Item.Text
+				}
+				if ev.Type == domain.EventTurnEnded && ev.Result != nil && ev.Result.IsError && strings.Contains(ev.Result.Error, failure.Error()) {
+					failed = true
+				}
+			}
+			if !failed || !strings.Contains(prompt, "/data/transcript.md") {
+				t.Fatalf("failed=%v prompt=%q", failed, prompt)
+			}
+			child.mu.Lock()
+			child.sendErr = nil
+			child.mu.Unlock()
+			if err := m.SendMessage(context.Background(), fork.ID, prompt); err != nil {
+				t.Fatal(err)
+			}
+			if !sent(child, prompt) || len(factory.requests()) != 2 {
+				t.Fatal("retry created a new child or lost bootstrap")
+			}
+		})
 	}
 }
