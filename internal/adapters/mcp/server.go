@@ -11,6 +11,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 
@@ -96,6 +97,8 @@ func (s *Server) Handler() http.Handler {
 		// host (tailscale serve, caddy) sends its own Host, which the SDK's
 		// DNS-rebinding check would refuse.
 		DisableLocalhostProtection: true,
+		// A client killed without saying goodbye leaves its session behind.
+		SessionTimeout: 24 * time.Hour,
 	})
 }
 
@@ -206,16 +209,16 @@ type startOut struct {
 	SinceSeq *domain.Seq `json:"since_seq,omitempty"`
 }
 
-// askingModes are the permission modes in which the agent still asks before
-// acting; empty leaves it to the agent's own configuration.
-var askingModes = map[string]bool{"": true, "default": true, "plan": true, "read-only": true, "auto": true}
-
 func (s *Server) startSession(ctx context.Context, _ *sdk.CallToolRequest, in startIn) (*sdk.CallToolResult, startOut, error) {
-	if !askingModes[in.PermissionMode] && !s.cfg.AllowApprovals {
-		return nil, startOut{}, fmt.Errorf("permission mode %q would let the agent act without asking; MCP may set it only with -mcp-allow-approvals", in.PermissionMode)
+	agent := domain.AgentKind(in.Agent)
+	// Checked before anything is created, so a refusal leaves nothing behind.
+	if !domain.AcceptsPermissionMode(agent, in.PermissionMode) {
+		return nil, startOut{}, fmt.Errorf("%w: %q for %s", domain.ErrInvalidPermissionMode, in.PermissionMode, agent)
+	}
+	if domain.UnboundedPermissionMode(in.PermissionMode) && !s.cfg.AllowApprovals {
+		return nil, startOut{}, fmt.Errorf("permission mode %q lets the agent act unchecked; MCP may set it only with -mcp-allow-approvals", in.PermissionMode)
 	}
 	ctx = mcpOrigin(ctx)
-	agent := domain.AgentKind(in.Agent)
 	var snap domain.SessionSnapshot
 	var err error
 	switch {
@@ -270,8 +273,15 @@ func (s *Server) sendMessage(ctx context.Context, _ *sdk.CallToolRequest, in sen
 // send delivers text and returns the seq of the message it left in the
 // transcript: what the turn does after it comes later.
 func (s *Server) send(ctx context.Context, id domain.SessionID, text string) (domain.Seq, error) {
+	snap, err := s.cfg.Sessions.GetSession(ctx, id)
+	if err != nil {
+		return 0, err
+	}
+	if domain.UnboundedPermissionMode(snap.PermissionMode) && !s.cfg.AllowApprovals {
+		return 0, fmt.Errorf("session %s runs in %q, unchecked; MCP may drive it only with -mcp-allow-approvals", id, snap.PermissionMode)
+	}
 	// Too early a seq only repeats old lines; too late a one loses the turn.
-	before := lastSeq(s.cfg.Events.History(id, 0), 0)
+	before := s.cfg.Events.LastSeq(id)
 	sub := s.cfg.Events.Subscribe()
 	defer sub.Close()
 	if err := s.cfg.Sessions.Steer(ctx, id, text); err != nil {
@@ -385,7 +395,7 @@ func (s *Server) diff(ctx context.Context, id domain.SessionID, path string) (ap
 	}
 	if path != "" {
 		d, err := s.cfg.Worktrees.FileDiff(ctx, id, path)
-		return changes, d, err
+		return changes, capDiff(d), err
 	}
 	var b strings.Builder
 	for _, f := range changes.Files {
@@ -398,7 +408,21 @@ func (s *Server) diff(ctx context.Context, id domain.SessionID, path string) (ap
 			b.WriteByte('\n')
 		}
 	}
-	return changes, b.String(), nil
+	return changes, capDiff(b.String()), nil
+}
+
+// diffLimit keeps a lockfile or generated code out of the client's context.
+const diffLimit = 100_000
+
+func capDiff(d string) string {
+	if len(d) <= diffLimit {
+		return d
+	}
+	cut := diffLimit
+	for cut > 0 && !utf8.RuneStart(d[cut]) {
+		cut--
+	}
+	return d[:cut] + fmt.Sprintf("\n[diff cut at %d of %d bytes: ask for one path]\n", cut, len(d))
 }
 
 // Close ends every client session and the calls they have in flight, so

@@ -57,3 +57,32 @@ func TestPermissionModeSurvivesRestoreAndFork(t *testing.T) {
 		t.Fatalf("fork mode = %q", f.PermissionMode())
 	}
 }
+
+func TestAcceptsPermissionModeMatchesTheSession(t *testing.T) {
+	for _, tc := range []struct {
+		agent AgentKind
+		mode  string
+		ok    bool
+	}{
+		{AgentClaude, "plan", true},
+		{AgentClaude, "", true},
+		{AgentCodex, "plan", false},
+		{AgentOpenCode, "plan", false},
+		{AgentOpenCode, "", true},
+	} {
+		if got := AcceptsPermissionMode(tc.agent, tc.mode); got != tc.ok {
+			t.Errorf("AcceptsPermissionMode(%s, %q) = %v", tc.agent, tc.mode, got)
+		}
+	}
+}
+
+func TestOnlyModesWithoutAnyCheckAreUnbounded(t *testing.T) {
+	for mode, want := range map[string]bool{
+		"bypassPermissions": true, "full-access": true,
+		"": false, "default": false, "plan": false, "acceptEdits": false, "read-only": false, "auto": false,
+	} {
+		if got := UnboundedPermissionMode(mode); got != want {
+			t.Errorf("UnboundedPermissionMode(%q) = %v", mode, got)
+		}
+	}
+}

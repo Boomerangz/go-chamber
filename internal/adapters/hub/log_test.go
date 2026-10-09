@@ -216,3 +216,14 @@ func TestLoggedHubBuffersOnlyEventsTheLogLost(t *testing.T) {
 		t.Fatalf("stored events buffered = %d", n)
 	}
 }
+
+func TestLastSeqReadsTheLogBeforeAnyPublish(t *testing.T) {
+	log := &memLog{}
+	first := NewLogged(log, nil)
+	for range 4 {
+		first.Publish(domain.Event{SessionID: "a", Type: domain.EventTurnStarted})
+	}
+	if got := NewLogged(log, nil).LastSeq("a"); got != 4 {
+		t.Fatalf("after restart = %d", got)
+	}
+}

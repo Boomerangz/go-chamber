@@ -75,8 +75,20 @@ func (s *Server) readDiff(ctx context.Context, req *sdk.ReadResourceRequest) (*s
 	return textResource(uri, "text/x-diff", diff), nil
 }
 
-func (s *Server) subscribe(_ context.Context, req *sdk.SubscribeRequest) error {
-	if uri := req.Params.URI; uri != sessionsURI && !strings.HasPrefix(uri, sessionsURI+"/") {
+// subscribe takes only URIs Watch sends updates for: they must match it
+// exactly.
+func (s *Server) subscribe(ctx context.Context, req *sdk.SubscribeRequest) error {
+	uri := req.Params.URI
+	if uri == sessionsURI {
+		return nil
+	}
+	id, sub := sessionOf(uri)
+	ok := strings.HasPrefix(uri, sessionsURI+"/") && id != "" && (sub == "" || sub == "diff" && s.cfg.Worktrees != nil)
+	if ok {
+		_, err := s.cfg.Sessions.GetSession(ctx, id)
+		ok = err == nil
+	}
+	if !ok {
 		return fmt.Errorf("no such resource: %s", uri)
 	}
 	return nil

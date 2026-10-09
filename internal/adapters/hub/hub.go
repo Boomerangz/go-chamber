@@ -209,6 +209,19 @@ func (h *Hub) buffered(session domain.SessionID, since domain.Seq, skip map[doma
 	return out
 }
 
+// LastSeq is the session's last assigned seq, 0 when it has none.
+func (h *Hub) LastSeq(session domain.SessionID) domain.Seq {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	last := h.seq[session]
+	if h.log != nil && !h.loaded[session] {
+		stored, err := h.log.LastSeq(context.Background(), session)
+		h.fail(err)
+		last = max(last, stored)
+	}
+	return last
+}
+
 // Subscribe returns a subscriber that receives newly published events.
 func (h *Hub) Subscribe() *Subscriber {
 	s := &Subscriber{hub: h, ch: make(chan domain.Event, 256), done: make(chan struct{})}

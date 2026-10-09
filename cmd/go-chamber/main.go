@@ -194,6 +194,9 @@ func run(ctx context.Context, args []string, out io.Writer) error {
 		return err
 	}
 
+	// MCP clients hold streams and calls open, which Shutdown would wait on;
+	// closed once the listener is, so no new ones arrive.
+	srv.RegisterOnShutdown(mcp.Close)
 	errc := make(chan error, 1)
 	go func() { errc <- srv.Serve(ln) }()
 	select {
@@ -201,8 +204,6 @@ func run(ctx context.Context, args []string, out io.Writer) error {
 		return err
 	case <-ctx.Done():
 		terminals.CloseAll()
-		// MCP clients hold streams and calls open, which Shutdown would wait on.
-		mcp.Close()
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		if err := srv.Shutdown(shutdownCtx); err != nil {

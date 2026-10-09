@@ -54,12 +54,12 @@ func (s *Server) wait(ctx context.Context, req *sdk.CallToolRequest, in waitIn) 
 	defer recheck.Stop()
 	p := &progress{req: req}
 	for {
-		out, done, err := s.check(ctx, id, in.SinceSeq)
+		out, done, err := s.check(ctx, id, in.SinceSeq, false)
 		if err != nil || done {
 			return nil, out, err
 		}
 		if !s.sleep(ctx, sub, id, deadline.C, recheck.C, p) {
-			out, _, err := s.check(ctx, id, in.SinceSeq)
+			out, _, err := s.check(ctx, id, in.SinceSeq, true)
 			return nil, out, err
 		}
 	}
@@ -83,16 +83,18 @@ func (s *Server) sleep(ctx context.Context, sub *hub.Subscriber, id domain.Sessi
 			}
 			p.report(ctx, ev)
 			switch ev.Type {
-			case domain.EventTurnEnded, domain.EventRequestOpened, domain.EventSessionState, domain.EventSessionRemoved:
+			case domain.EventTurnEnded, domain.EventRequestOpened, domain.EventRequestResolved, domain.EventSessionState, domain.EventSessionRemoved:
 				return true
 			}
 		}
 	}
 }
 
-// check reads the session as it is now: done when it waits for an answer or
-// no longer runs.
-func (s *Server) check(ctx context.Context, id domain.SessionID, since domain.Seq) (waitOut, bool, error) {
+// check reads the session as it is now: done when it asks something new
+// since since, or no longer runs. A request already reported is waited out,
+// so a client that may not answer it does not spin; the last look names it
+// again.
+func (s *Server) check(ctx context.Context, id domain.SessionID, since domain.Seq, last bool) (waitOut, bool, error) {
 	snap, err := s.cfg.Sessions.GetSession(ctx, id)
 	if err != nil {
 		return waitOut{}, true, err
@@ -102,7 +104,7 @@ func (s *Server) check(ctx context.Context, id domain.SessionID, since domain.Se
 	events := s.cfg.Events.History(id, since)
 	t := fold(events)
 	out := waitOut{Status: string(snap.Status), Seq: lastSeq(events, since), Activity: t.activity(20)}
-	if reqs := s.pending(ctx, id); len(reqs) > 0 {
+	if reqs := s.pending(ctx, id); len(reqs) > 0 && (last || openedIn(events, reqs)) {
 		out.Status = "needs_answer"
 		for _, r := range reqs {
 			out.Requests = append(out.Requests, requestOf(r))
@@ -120,6 +122,21 @@ func (s *Server) check(ctx context.Context, id domain.SessionID, since domain.Se
 		out.Error = cmp.Or(out.Error, string(snap.Interruption.Reason))
 	}
 	return out, true, nil
+}
+
+// openedIn reports whether one of reqs opened within events.
+func openedIn(events []domain.Event, reqs []domain.Request) bool {
+	for _, ev := range events {
+		if ev.Type != domain.EventRequestOpened || ev.Request == nil {
+			continue
+		}
+		for _, r := range reqs {
+			if r.ID == ev.Request.ID {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func requestOf(r domain.Request) requestView {

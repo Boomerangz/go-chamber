@@ -102,3 +102,17 @@ func TestSubscribersCount(t *testing.T) {
 		t.Fatalf("subscribers after close = %d", h.Subscribers())
 	}
 }
+
+func TestLastSeq(t *testing.T) {
+	h := New()
+	if got := h.LastSeq("a"); got != 0 {
+		t.Fatalf("empty = %d", got)
+	}
+	for range 3 {
+		h.Publish(domain.Event{SessionID: "a", Type: domain.EventTurnStarted})
+	}
+	h.Publish(domain.Event{SessionID: "b", Type: domain.EventTurnStarted})
+	if got := h.LastSeq("a"); got != 3 {
+		t.Fatalf("a = %d", got)
+	}
+}

@@ -17,11 +17,23 @@ var permissionModes = map[AgentKind][]string{
 	AgentCodex:  {"read-only", "auto", "full-access"},
 }
 
+// AcceptsPermissionMode reports whether the agent takes mode; every agent
+// takes the empty one.
+func AcceptsPermissionMode(agent AgentKind, mode string) bool {
+	return mode == "" || slices.Contains(permissionModes[agent], mode)
+}
+
+// UnboundedPermissionMode reports whether mode lets the agent act with no
+// check at all: no question, no sandbox.
+func UnboundedPermissionMode(mode string) bool {
+	return mode == "bypassPermissions" || mode == "full-access"
+}
+
 func (s *Session) PermissionMode() string { return s.mode }
 
 // SetPermissionMode chooses how the agent asks before acting from now on.
 func (s *Session) SetPermissionMode(mode string) error {
-	if mode != "" && !slices.Contains(permissionModes[s.agent], mode) {
+	if !AcceptsPermissionMode(s.agent, mode) {
 		return fmt.Errorf("%w: %q for %s", ErrInvalidPermissionMode, mode, s.agent)
 	}
 	s.mode = mode

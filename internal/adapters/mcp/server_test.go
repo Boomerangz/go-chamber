@@ -695,11 +695,11 @@ func TestCloseEndsABlockedWait(t *testing.T) {
 	}
 }
 
-func TestStartSessionCannotWidenRightsByDefault(t *testing.T) {
-	for _, mode := range []string{"bypassPermissions", "acceptEdits", "full-access"} {
-		t.Run(mode, func(t *testing.T) {
+func TestStartSessionRefusesUnboundedModesByDefault(t *testing.T) {
+	for _, c := range []struct{ agent, mode string }{{"claude", "bypassPermissions"}, {"codex", "full-access"}} {
+		t.Run(c.mode, func(t *testing.T) {
 			f := newFixture(t, mcpapi.Config{}, nil)
-			res, _ := f.call(t, "start_session", map[string]any{"agent": "claude", "cwd": "/repo", "permission_mode": mode})
+			res, _ := f.call(t, "start_session", map[string]any{"agent": c.agent, "cwd": "/repo", "permission_mode": c.mode})
 			if !res.IsError || !strings.Contains(text(res), "mcp-allow-approvals") {
 				t.Fatalf("res = %s", text(res))
 			}
@@ -708,10 +708,108 @@ func TestStartSessionCannotWidenRightsByDefault(t *testing.T) {
 			}
 		})
 	}
-	f := newFixture(t, mcpapi.Config{}, nil)
-	f.mustCall(t, "start_session", map[string]any{"agent": "claude", "cwd": "/repo", "permission_mode": "plan"})
-	f = newFixture(t, mcpapi.Config{AllowApprovals: true}, nil)
+	for _, c := range []struct{ agent, mode string }{{"claude", "acceptEdits"}, {"claude", "plan"}, {"codex", "auto"}, {"codex", "read-only"}} {
+		f := newFixture(t, mcpapi.Config{}, nil)
+		f.mustCall(t, "start_session", map[string]any{"agent": c.agent, "cwd": "/repo", "permission_mode": c.mode})
+	}
+	f := newFixture(t, mcpapi.Config{AllowApprovals: true}, nil)
 	f.mustCall(t, "start_session", map[string]any{"agent": "claude", "cwd": "/repo", "permission_mode": "bypassPermissions"})
+}
+
+func TestStartSessionRefusesAModeTheAgentLacksBeforeCreating(t *testing.T) {
+	f := newFixture(t, mcpapi.Config{}, nil)
+	res, _ := f.call(t, "start_session", map[string]any{"agent": "opencode", "cwd": "/repo", "permission_mode": "plan", "branch": "x"})
+	if !res.IsError || len(f.sessions.recorded()) != 0 {
+		t.Fatalf("res = %s, calls %q", text(res), f.sessions.recorded())
+	}
+}
+
+func TestSendMessageRefusesAnUnboundedSessionByDefault(t *testing.T) {
+	open := idle("a")
+	open.PermissionMode = "bypassPermissions"
+	f := newFixture(t, mcpapi.Config{}, nil)
+	f.sessions.add(open)
+	res, _ := f.call(t, "send_message", map[string]any{"session_id": "a", "text": "rm -rf"})
+	if !res.IsError || !strings.Contains(text(res), "mcp-allow-approvals") || len(f.sessions.recorded()) != 0 {
+		t.Fatalf("res = %s, calls %q", text(res), f.sessions.recorded())
+	}
+	f = newFixture(t, mcpapi.Config{AllowApprovals: true}, nil)
+	f.sessions.add(open)
+	f.mustCall(t, "send_message", map[string]any{"session_id": "a", "text": "go"})
+}
+
+func TestWaitBlocksOnARequestItAlreadyReported(t *testing.T) {
+	f := newFixture(t, mcpapi.Config{}, nil)
+	running := idle("a")
+	running.Status = domain.StatusRunning
+	f.sessions.add(running)
+	req := domain.Request{ID: "p1", SessionID: "a", Kind: domain.RequestPermission, State: domain.RequestPending}
+	f.sessions.pending = []domain.Request{req}
+	f.hub.Publish(domain.Event{SessionID: "a", Type: domain.EventRequestOpened, Request: &req})
+
+	first := f.mustCall(t, "wait", map[string]any{"session_id": "a", "timeout_seconds": 5})
+	if first["status"] != "needs_answer" {
+		t.Fatalf("first = %v", first)
+	}
+	// The owner answers a while later; the client waits for that, not spins.
+	go func() {
+		time.Sleep(150 * time.Millisecond)
+		f.sessions.mu.Lock()
+		f.sessions.pending = nil
+		f.sessions.mu.Unlock()
+		f.hub.Publish(domain.Event{SessionID: "a", Type: domain.EventRequestResolved, Request: &req})
+		f.endTurn("a", domain.TurnResult{Text: "done"})
+	}()
+	start := time.Now()
+	out := f.mustCall(t, "wait", map[string]any{"session_id": "a", "since_seq": first["seq"], "timeout_seconds": 5})
+	if out["status"] != "idle" || time.Since(start) < 100*time.Millisecond {
+		t.Fatalf("out = %v after %v", out, time.Since(start))
+	}
+}
+
+func TestWaitStillNamesAnOpenRequestAtTheTimeout(t *testing.T) {
+	f := newFixture(t, mcpapi.Config{}, nil)
+	running := idle("a")
+	running.Status = domain.StatusRunning
+	f.sessions.add(running)
+	req := domain.Request{ID: "p1", SessionID: "a", Kind: domain.RequestPermission, State: domain.RequestPending}
+	f.sessions.pending = []domain.Request{req}
+	opened := f.hub.Publish(domain.Event{SessionID: "a", Type: domain.EventRequestOpened, Request: &req})
+
+	start := time.Now()
+	out := f.mustCall(t, "wait", map[string]any{"session_id": "a", "since_seq": opened.Seq, "timeout_seconds": 1})
+	if out["status"] != "needs_answer" || time.Since(start) < 900*time.Millisecond {
+		t.Fatalf("out = %v after %v", out, time.Since(start))
+	}
+}
+
+func TestDiffIsCapped(t *testing.T) {
+	f := newFixture(t, mcpapi.Config{}, nil)
+	f.sessions.add(idle("a"))
+	f.wt.changes = app.Changes{Repository: true, Files: []app.FileChange{{Path: "lock.json"}}}
+	f.wt.diffs["lock.json"] = strings.Repeat("+line\n", 50_000)
+	res, _ := f.call(t, "get_diff", map[string]any{"session_id": "a"})
+	if got := text(res); len(got) > 110_000 || !strings.Contains(got, "cut") {
+		t.Fatalf("diff of %d bytes", len(got))
+	}
+	if got := readResource(t, f, "chamber://sessions/a/diff"); len(got) > 110_000 {
+		t.Fatalf("resource of %d bytes", len(got))
+	}
+}
+
+func TestSubscribeOnlyToResourcesThatGetUpdates(t *testing.T) {
+	f := newFixture(t, mcpapi.Config{}, nil)
+	f.sessions.add(idle("a"))
+	for _, uri := range []string{"chamber://sessions", "chamber://sessions/a", "chamber://sessions/a/diff"} {
+		if err := f.client.Subscribe(context.Background(), &sdk.SubscribeParams{URI: uri}); err != nil {
+			t.Errorf("%s: %v", uri, err)
+		}
+	}
+	for _, uri := range []string{"chamber://sessions/", "chamber://sessions/nope", "chamber://sessions/a/x", "chamber://other"} {
+		if err := f.client.Subscribe(context.Background(), &sdk.SubscribeParams{URI: uri}); err == nil {
+			t.Errorf("%s: subscribed", uri)
+		}
+	}
 }
 
 func TestReadSessionTakesANonPositiveLimitAsTheDefault(t *testing.T) {
