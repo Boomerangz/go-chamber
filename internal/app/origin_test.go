@@ -68,10 +68,14 @@ func TestDecisionFromMCPIsMarked(t *testing.T) {
 	rt.events <- requestEvent(snap.ID, "r1")
 	eventually(t, "pending", func() bool { return len(m.PendingRequests(ctx)) == 1 })
 
+	before, _ := m.GetSession(ctx, snap.ID)
 	if err := m.RespondRequest(WithOrigin(ctx, domain.OriginMCP), snap.ID, "r1", RequestAnswer{Message: "no"}); err != nil {
 		t.Fatal(err)
 	}
 	if items := userItems(bus, domain.ItemDecision); len(items) != 1 || items[0].Origin != domain.OriginMCP {
 		t.Fatalf("decisions = %+v", items)
+	}
+	if got, _ := m.GetSession(ctx, snap.ID); got.Seen != before.Seen {
+		t.Fatalf("an MCP answer marked the session seen: %+v", got.Seen)
 	}
 }

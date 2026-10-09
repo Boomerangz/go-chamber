@@ -91,7 +91,12 @@ func New(cfg Config) *Server {
 
 // Handler serves MCP over streamable HTTP; authentication is the caller's.
 func (s *Server) Handler() http.Handler {
-	return sdk.NewStreamableHTTPHandler(func(*http.Request) *sdk.Server { return s.mcp }, nil)
+	return sdk.NewStreamableHTTPHandler(func(*http.Request) *sdk.Server { return s.mcp }, &sdk.StreamableHTTPOptions{
+		// The token guards the endpoint, and a reverse proxy on the same
+		// host (tailscale serve, caddy) sends its own Host, which the SDK's
+		// DNS-rebinding check would refuse.
+		DisableLocalhostProtection: true,
+	})
 }
 
 // mcpOrigin labels everything a client sends as not the owner's own.
@@ -201,7 +206,14 @@ type startOut struct {
 	SinceSeq *domain.Seq `json:"since_seq,omitempty"`
 }
 
+// askingModes are the permission modes in which the agent still asks before
+// acting; empty leaves it to the agent's own configuration.
+var askingModes = map[string]bool{"": true, "default": true, "plan": true, "read-only": true, "auto": true}
+
 func (s *Server) startSession(ctx context.Context, _ *sdk.CallToolRequest, in startIn) (*sdk.CallToolResult, startOut, error) {
+	if !askingModes[in.PermissionMode] && !s.cfg.AllowApprovals {
+		return nil, startOut{}, fmt.Errorf("permission mode %q would let the agent act without asking; MCP may set it only with -mcp-allow-approvals", in.PermissionMode)
+	}
 	ctx = mcpOrigin(ctx)
 	agent := domain.AgentKind(in.Agent)
 	var snap domain.SessionSnapshot
@@ -258,21 +270,23 @@ func (s *Server) sendMessage(ctx context.Context, _ *sdk.CallToolRequest, in sen
 // send delivers text and returns the seq of the message it left in the
 // transcript: what the turn does after it comes later.
 func (s *Server) send(ctx context.Context, id domain.SessionID, text string) (domain.Seq, error) {
+	// Too early a seq only repeats old lines; too late a one loses the turn.
+	before := lastSeq(s.cfg.Events.History(id, 0), 0)
 	sub := s.cfg.Events.Subscribe()
 	defer sub.Close()
 	if err := s.cfg.Sessions.Steer(ctx, id, text); err != nil {
 		return 0, err
 	}
-	timeout := time.After(time.Second)
+	// Publishing is synchronous: the message is in the channel by now,
+	// unless the hub dropped it for a full one.
 	for {
 		select {
 		case ev := <-sub.Events():
 			if ev.SessionID == id && ev.Type == domain.EventItemUpdated && ev.Item != nil && ev.Item.Kind == domain.ItemUserMessage {
 				return ev.Seq, nil
 			}
-		case <-timeout:
-			// The message event was dropped: everything so far is before it.
-			return lastSeq(s.cfg.Events.History(id, 0), 0), nil
+		default:
+			return before, nil
 		}
 	}
 }
@@ -309,7 +323,9 @@ func (s *Server) answerRequest(ctx context.Context, _ *sdk.CallToolRequest, in a
 	if req == nil {
 		return nil, okOut{}, fmt.Errorf("%w: %s", app.ErrRequestNotFound, rid)
 	}
-	if req.Kind == domain.RequestPermission && in.Allow && !s.cfg.AllowApprovals {
+	// Only a question is safe to accept: Codex asks to approve MCP tool
+	// calls as elicitations, so anything else may grant a right.
+	if req.Kind != domain.RequestQuestion && in.Allow && !s.cfg.AllowApprovals {
 		return nil, okOut{}, errors.New("granting permissions over MCP is off (start go-chamber with -mcp-allow-approvals); deny it, or leave it to the owner")
 	}
 	answer := app.RequestAnswer{Allow: in.Allow, Message: in.Message, AllowForSession: in.AllowForSession, Answers: in.Answers}

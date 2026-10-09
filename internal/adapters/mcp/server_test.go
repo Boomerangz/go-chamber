@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"net/http"
 	"net/http/httptest"
 	"slices"
 	"strings"
@@ -29,6 +30,11 @@ type fakeSessions struct {
 	calls    []string
 	answers  []app.RequestAnswer
 	next     int
+	// noise is how many events of another session Steer publishes before
+	// the message, enough to overflow a subscriber that is not reading.
+	noise int
+	// reply ends the turn inside Steer with this answer when set.
+	reply string
 }
 
 func newFakeSessions(h *hub.Hub) *fakeSessions {
@@ -99,6 +105,9 @@ func (f *fakeSessions) Steer(ctx context.Context, id domain.SessionID, text stri
 		return err
 	}
 	f.record(ctx, "steer "+string(id)+" "+text)
+	for i := 0; i < f.noise; i++ {
+		f.hub.Publish(domain.Event{SessionID: "noisy", Type: domain.EventTextDelta, Delta: &domain.Delta{ItemID: "x", Text: "."}})
+	}
 	if s.Status != domain.StatusRunning {
 		f.setStatus(id, domain.StatusRunning)
 		f.hub.Publish(domain.Event{SessionID: id, Type: domain.EventTurnStarted})
@@ -107,6 +116,14 @@ func (f *fakeSessions) Steer(ctx context.Context, id domain.SessionID, text stri
 	item.Text = text
 	item.Status = domain.ItemCompleted
 	f.hub.Publish(domain.Event{SessionID: id, Type: domain.EventItemUpdated, Item: item})
+	if f.reply != "" {
+		answer, _ := domain.NewItem("m-"+domain.ItemID(text), id, "t1", "", domain.ItemAssistantMessage)
+		answer.Text = f.reply
+		answer.Status = domain.ItemCompleted
+		f.hub.Publish(domain.Event{SessionID: id, Type: domain.EventItemUpdated, Item: answer})
+		f.setStatus(id, domain.StatusIdle)
+		f.hub.Publish(domain.Event{SessionID: id, Type: domain.EventTurnEnded, Result: &domain.TurnResult{Text: f.reply}})
+	}
 	return nil
 }
 
@@ -305,10 +322,10 @@ func TestStartSessionConfiguresAndSendsTheFirstMessage(t *testing.T) {
 	f := newFixture(t, mcpapi.Config{}, nil)
 	out := f.mustCall(t, "start_session", map[string]any{
 		"agent": "claude", "cwd": "/repo", "model": "opus", "effort": "high",
-		"permission_mode": "acceptEdits", "message": "go",
+		"permission_mode": "plan", "message": "go",
 	})
 	s := out["session"].(map[string]any)
-	if s["id"] != "new1" || s["model"] != "opus" || s["permission_mode"] != "acceptEdits" {
+	if s["id"] != "new1" || s["model"] != "opus" || s["permission_mode"] != "plan" {
 		t.Fatalf("session = %v", s)
 	}
 	if out["since_seq"].(float64) < 1 {
@@ -317,7 +334,7 @@ func TestStartSessionConfiguresAndSendsTheFirstMessage(t *testing.T) {
 	want := []string{
 		"create claude /repo origin=mcp",
 		"model new1 opus high origin=mcp",
-		"mode new1 acceptEdits origin=mcp",
+		"mode new1 plan origin=mcp",
 		"steer new1 go origin=mcp",
 	}
 	if got := f.sessions.recorded(); !slices.Equal(got, want) {
@@ -529,6 +546,7 @@ func TestReadSessionKeepsTheTail(t *testing.T) {
 func TestAnswerRequest(t *testing.T) {
 	permission := domain.Request{ID: "p1", SessionID: "a", Kind: domain.RequestPermission, State: domain.RequestPending}
 	question := domain.Request{ID: "q1", SessionID: "a", Kind: domain.RequestQuestion, State: domain.RequestPending}
+	elicitation := domain.Request{ID: "e1", SessionID: "a", Kind: domain.RequestElicitation, State: domain.RequestPending}
 	cases := []struct {
 		name    string
 		allowed bool
@@ -541,12 +559,16 @@ func TestAnswerRequest(t *testing.T) {
 		{"permission grant when allowed", true, map[string]any{"request_id": "p1", "allow": true, "allow_for_session": true}, "", app.RequestAnswer{Allow: true, AllowForSession: true}},
 		{"question answers", false, map[string]any{"request_id": "q1", "allow": true, "answers": map[string]any{"Which?": []string{"A"}}}, "", app.RequestAnswer{Allow: true, Answers: map[string][]string{"Which?": {"A"}}}},
 		{"unknown request", false, map[string]any{"request_id": "zz", "allow": false}, "request not found", app.RequestAnswer{}},
+		// Codex asks to approve an MCP tool call as an elicitation.
+		{"elicitation accept is refused by default", false, map[string]any{"request_id": "e1", "allow": true}, "mcp-allow-approvals", app.RequestAnswer{}},
+		{"elicitation decline is fine", false, map[string]any{"request_id": "e1", "allow": false}, "", app.RequestAnswer{}},
+		{"elicitation accept when allowed", true, map[string]any{"request_id": "e1", "allow": true}, "", app.RequestAnswer{Allow: true}},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			f := newFixture(t, mcpapi.Config{AllowApprovals: c.allowed}, nil)
 			f.sessions.add(idle("a"))
-			f.sessions.pending = []domain.Request{permission, question}
+			f.sessions.pending = []domain.Request{permission, question, elicitation}
 			c.args["session_id"] = "a"
 			res, _ := f.call(t, "answer_request", c.args)
 			if c.err != "" {
@@ -670,5 +692,77 @@ func TestCloseEndsABlockedWait(t *testing.T) {
 	case <-done:
 	case <-time.After(3 * time.Second):
 		t.Fatal("wait outlived Close")
+	}
+}
+
+func TestStartSessionCannotWidenRightsByDefault(t *testing.T) {
+	for _, mode := range []string{"bypassPermissions", "acceptEdits", "full-access"} {
+		t.Run(mode, func(t *testing.T) {
+			f := newFixture(t, mcpapi.Config{}, nil)
+			res, _ := f.call(t, "start_session", map[string]any{"agent": "claude", "cwd": "/repo", "permission_mode": mode})
+			if !res.IsError || !strings.Contains(text(res), "mcp-allow-approvals") {
+				t.Fatalf("res = %s", text(res))
+			}
+			if got := f.sessions.recorded(); len(got) != 0 {
+				t.Fatalf("acted anyway: %q", got)
+			}
+		})
+	}
+	f := newFixture(t, mcpapi.Config{}, nil)
+	f.mustCall(t, "start_session", map[string]any{"agent": "claude", "cwd": "/repo", "permission_mode": "plan"})
+	f = newFixture(t, mcpapi.Config{AllowApprovals: true}, nil)
+	f.mustCall(t, "start_session", map[string]any{"agent": "claude", "cwd": "/repo", "permission_mode": "bypassPermissions"})
+}
+
+func TestReadSessionTakesANonPositiveLimitAsTheDefault(t *testing.T) {
+	f := newFixture(t, mcpapi.Config{}, nil)
+	f.sessions.add(idle("a"))
+	f.publishItem("a", domain.Item{ID: "m1", Kind: domain.ItemAssistantMessage, Status: domain.ItemCompleted, Text: "hello there"})
+	res, _ := f.call(t, "read_session", map[string]any{"session_id": "a", "max_chars": -5})
+	if res.IsError || !strings.Contains(text(res), "hello there") {
+		t.Fatalf("res = %s", text(res))
+	}
+}
+
+func TestSendMessageSurvivesADroppedMessageEvent(t *testing.T) {
+	f := newFixture(t, mcpapi.Config{}, nil)
+	f.sessions.add(idle("a"))
+	f.sessions.noise, f.sessions.reply = 400, "quick answer"
+
+	since := f.mustCall(t, "send_message", map[string]any{"session_id": "a", "text": "hi"})["since_seq"]
+	out := f.mustCall(t, "wait", map[string]any{"session_id": "a", "since_seq": since, "timeout_seconds": 2})
+	if out["status"] != "idle" || out["final"] != "quick answer" {
+		t.Fatalf("since %v, out = %v", since, out)
+	}
+}
+
+func TestReadSessionSkipsFragmentsOfItemsItHasNotSeen(t *testing.T) {
+	f := newFixture(t, mcpapi.Config{}, nil)
+	f.sessions.add(idle("a"))
+	start := f.publishItem("a", domain.Item{ID: "c1", Kind: domain.ItemCommand, Status: domain.ItemStreaming, Name: "Bash"})
+	f.hub.Publish(domain.Event{SessionID: "a", Type: domain.EventTextDelta, Delta: &domain.Delta{ItemID: "c1", Text: "build output"}})
+
+	res, _ := f.call(t, "read_session", map[string]any{"session_id": "a", "since_seq": start.Seq})
+	if strings.Contains(text(res), "assistant") {
+		t.Fatalf("command output read as the assistant:\n%s", text(res))
+	}
+}
+
+func TestMCPWorksBehindALocalReverseProxy(t *testing.T) {
+	f := newFixture(t, mcpapi.Config{}, nil)
+	srv := httptest.NewServer(f.server.Handler())
+	t.Cleanup(srv.Close)
+	body := `{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"t","version":"1"}}}`
+	req, _ := http.NewRequest("POST", srv.URL, strings.NewReader(body))
+	req.Host = "box.tailnet.ts.net"
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "application/json, text/event-stream")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("code = %d", resp.StatusCode)
 	}
 }

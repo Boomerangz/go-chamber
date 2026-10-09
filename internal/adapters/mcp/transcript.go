@@ -28,12 +28,12 @@ func fold(events []domain.Event) *transcript {
 		case ev.Type == domain.EventItemUpdated && ev.Item != nil:
 			t.put(*ev.Item)
 		case ev.Type == domain.EventTextDelta && ev.Delta != nil:
-			it, ok := t.items[ev.Delta.ItemID]
-			if !ok {
-				it = domain.Item{ID: ev.Delta.ItemID, Kind: domain.ItemAssistantMessage, Status: domain.ItemStreaming}
+			// A fragment of an item that began before since: its kind is
+			// unknown, and its finished version brings the whole text.
+			if it, ok := t.items[ev.Delta.ItemID]; ok {
+				it.Text += ev.Delta.Text
+				t.put(it)
 			}
-			it.Text += ev.Delta.Text
-			t.put(it)
 		case ev.Type == domain.EventTurnEnded:
 			t.result = ev.Result
 		}
@@ -203,7 +203,11 @@ func (s *Server) readSession(ctx context.Context, _ *sdk.CallToolRequest, in rea
 		return nil, readOut{}, err
 	}
 	events := s.cfg.Events.History(id, in.SinceSeq)
-	text := fold(events).render(cmp.Or(in.MaxChars, 20000))
+	limit := in.MaxChars
+	if limit <= 0 {
+		limit = 20000
+	}
+	text := fold(events).render(limit)
 	if text == "" {
 		text = "nothing yet"
 	}

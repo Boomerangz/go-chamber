@@ -50,8 +50,10 @@ opens or closes, or an item finishes.
 
 ## Safety
 
-- MCP clients can **deny** permission requests but not grant them, so one agent cannot widen
-  another's rights. `-mcp-allow-approvals` lifts that.
+- Without `-mcp-allow-approvals`, MCP clients cannot widen an agent's rights: they may decline any
+  request but accept only questions (Codex asks to approve MCP tool calls as elicitations, which
+  count as grants), and `start_session` takes only asking permission modes (`default`, `plan`,
+  `read-only`, `auto`).
 - Messages and decisions sent over MCP are tagged `via MCP` in the transcript and do not mark the
   session as seen.
 - A session that waits on itself is not stopped: its `wait` returns `running` at the timeout.
