@@ -1,21 +1,22 @@
 package oauth_test
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/igorzygin/go-chamber/internal/adapters/oauth"
+	"github.com/igorzygin/go-chamber/internal/app"
 )
 
 const (
@@ -53,25 +54,68 @@ type clock struct{ now time.Time }
 
 func (c *clock) Now() time.Time { return c.now }
 
+// tokens keeps tokens in memory, so reopening the server over the same
+// tokens is a restart; fail makes every write fail.
+type tokens struct {
+	m    map[string]app.OAuthGrant
+	fail bool
+	// onPut runs once, inside the next write.
+	onPut func()
+}
+
+func newTokens() *tokens { return &tokens{m: map[string]app.OAuthGrant{}} }
+
+func (s *tokens) PutToken(_ context.Context, key string, g app.OAuthGrant) error {
+	if s.fail {
+		return errors.New("disk full")
+	}
+	if f := s.onPut; f != nil {
+		s.onPut = nil
+		f()
+	}
+	s.m[key] = g
+	return nil
+}
+
+func (s *tokens) Token(_ context.Context, key string) (app.OAuthGrant, bool, error) {
+	g, ok := s.m[key]
+	return g, ok, nil
+}
+
+func (s *tokens) TakeToken(_ context.Context, key string) (app.OAuthGrant, bool, error) {
+	g, ok := s.m[key]
+	delete(s.m, key)
+	return g, ok, nil
+}
+
+func (s *tokens) DeleteTokensExpiredBy(_ context.Context, t time.Time) error {
+	for k, g := range s.m {
+		if !t.Before(g.Expires) {
+			delete(s.m, k)
+		}
+	}
+	return nil
+}
+
 type fixture struct {
-	t     *testing.T
-	srv   *oauth.Server
-	path  string
-	clock *clock
+	t      *testing.T
+	srv    *oauth.Server
+	tokens *tokens
+	clock  *clock
 }
 
 func newFixture(t *testing.T) *fixture {
 	t.Helper()
-	f := &fixture{t: t, path: filepath.Join(t.TempDir(), "oauth.json"), clock: &clock{now: time.Date(2026, 10, 9, 12, 0, 0, 0, time.UTC)}}
+	f := &fixture{t: t, tokens: newTokens(), clock: &clock{now: time.Date(2026, 10, 9, 12, 0, 0, 0, time.UTC)}}
 	f.srv = f.open()
 	return f
 }
 
 func (f *fixture) open() *oauth.Server {
 	f.t.Helper()
-	srv, err := oauth.New(oauth.Config{
-		StatePath: f.path,
-		Base:      base,
+	return oauth.New(oauth.Config{
+		Tokens: f.tokens,
+		Base:   base,
 		HTTP: &http.Client{Transport: documents{
 			cimdID:                         `{"client_id":"` + cimdID + `","client_name":"ChatGPT","redirect_uris":["` + redirect + `"],"token_endpoint_auth_method":"none"}`,
 			movedID:                        "->http://127.0.0.1:22/internal",
@@ -79,10 +123,6 @@ func (f *fixture) open() *oauth.Server {
 		}},
 		Now: f.clock.Now,
 	})
-	if err != nil {
-		f.t.Fatal(err)
-	}
-	return srv
 }
 
 func (f *fixture) do(req *http.Request) *httptest.ResponseRecorder {
@@ -187,10 +227,7 @@ func TestMetadata(t *testing.T) {
 }
 
 func TestBaseFollowsTheRequestWhenNotSet(t *testing.T) {
-	srv, err := oauth.New(oauth.Config{StatePath: filepath.Join(t.TempDir(), "o.json")})
-	if err != nil {
-		t.Fatal(err)
-	}
+	srv := oauth.New(oauth.Config{Tokens: newTokens()})
 	req := httptest.NewRequest("GET", "/.well-known/oauth-protected-resource", nil)
 	req.Host = "chamber.zygin.dev"
 	req.Header.Set("X-Forwarded-Proto", "https")
@@ -339,10 +376,13 @@ func TestAccessExpiresAndRefreshRotates(t *testing.T) {
 	}
 }
 
-func TestRefreshSurvivesARestartAndAccessDoesNotNeedTo(t *testing.T) {
+func TestTokensSurviveARestart(t *testing.T) {
 	f := newFixture(t)
 	tok := f.exchange(cimdID, f.approve(cimdID))
 	f.srv = f.open()
+	if !f.valid(tok["access_token"].(string)) {
+		t.Fatal("a restart dropped the access token")
+	}
 	status, next := f.token(url.Values{"grant_type": {"refresh_token"}, "refresh_token": {tok["refresh_token"].(string)}, "client_id": {cimdID}, "resource": {resource}})
 	if status != http.StatusOK || !f.valid(next["access_token"].(string)) {
 		t.Fatalf("refresh after restart = %d %v", status, next)
@@ -375,8 +415,8 @@ func TestRegisteredClientsAreCapped(t *testing.T) {
 	if rec := f.do(httptest.NewRequest("GET", "/oauth/authorize?"+q.Encode(), nil)); rec.Code == http.StatusOK {
 		t.Fatal("the oldest client outlived the cap")
 	}
-	if _, err := os.Stat(f.path); !os.IsNotExist(err) {
-		t.Fatalf("registration wrote the state: %v", err)
+	if len(f.tokens.m) != 0 {
+		t.Fatalf("registration wrote tokens: %v", f.tokens.m)
 	}
 }
 
@@ -446,31 +486,15 @@ func TestMetadataFetchFailureStaysVague(t *testing.T) {
 	}
 }
 
-func TestCorruptStateIsSetAside(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "oauth.json")
-	if err := os.WriteFile(path, []byte("{"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := oauth.New(oauth.Config{StatePath: path, Base: base}); err != nil {
-		t.Fatalf("a broken state stopped the server: %v", err)
-	}
-	if raw, err := os.ReadFile(path + ".corrupt"); err != nil || string(raw) != "{" {
-		t.Fatalf("broken state not kept aside: %q %v", raw, err)
-	}
-}
-
 func TestRefreshTokenOutlivesAFailedSave(t *testing.T) {
 	f := newFixture(t)
 	tok := f.exchange(cimdID, f.approve(cimdID))
-	dir := filepath.Dir(f.path)
-	if err := os.Chmod(dir, 0o500); err != nil {
-		t.Fatal(err)
-	}
+	f.tokens.fail = true
 	refresh := url.Values{"grant_type": {"refresh_token"}, "refresh_token": {tok["refresh_token"].(string)}, "client_id": {cimdID}}
 	status, _ := f.token(refresh)
-	_ = os.Chmod(dir, 0o700)
+	f.tokens.fail = false
 	if status != http.StatusInternalServerError {
-		t.Fatalf("refresh with an unwritable state = %d", status)
+		t.Fatalf("refresh with failing writes = %d", status)
 	}
 	if status, _ := f.token(refresh); status != http.StatusOK {
 		t.Fatalf("refresh token lost: %d", status)
@@ -520,5 +544,23 @@ func TestChallengeSaysWhenTheTokenIsBad(t *testing.T) {
 	req.Header.Set("Authorization", "Bearer stale")
 	if !strings.Contains(f.srv.Challenge(req), `error="invalid_token"`) {
 		t.Fatalf("challenge = %s", f.srv.Challenge(req))
+	}
+}
+
+func TestARefreshTokenSpentTwiceAtOnceWorksOnce(t *testing.T) {
+	f := newFixture(t)
+	tok := f.exchange(cimdID, f.approve(cimdID))
+	refresh := url.Values{"grant_type": {"refresh_token"}, "refresh_token": {tok["refresh_token"].(string)}, "client_id": {cimdID}}
+	var inner int
+	f.tokens.onPut = func() { inner, _ = f.token(refresh) }
+	outer, lost := f.token(refresh)
+	if inner != http.StatusOK || outer != http.StatusBadRequest {
+		t.Fatalf("inner %d, outer %d", inner, outer)
+	}
+	if lost["access_token"] != nil {
+		t.Fatalf("the losing refresh got tokens: %v", lost)
+	}
+	if len(f.tokens.m) != 3 {
+		t.Fatalf("the losing refresh left tokens behind: %d kept", len(f.tokens.m))
 	}
 }

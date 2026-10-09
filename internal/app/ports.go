@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"time"
 
 	"github.com/igorzygin/go-chamber/internal/domain"
 )
@@ -35,6 +36,23 @@ type LoginChallenge struct {
 	LoginID  string `json:"loginId"`
 	UserCode string `json:"userCode"`
 	URL      string `json:"url"`
+}
+
+// OAuthGrant is what an issued OAuth token stands for.
+type OAuthGrant struct {
+	Client   string
+	Resource string
+	Expires  time.Time
+}
+
+// OAuthTokens keeps issued OAuth tokens across restarts, under a key made
+// from the token's hash, never the token itself.
+type OAuthTokens interface {
+	PutToken(ctx context.Context, key string, g OAuthGrant) error
+	Token(ctx context.Context, key string) (OAuthGrant, bool, error)
+	// TakeToken removes the token and returns what it stood for.
+	TakeToken(ctx context.Context, key string) (OAuthGrant, bool, error)
+	DeleteTokensExpiredBy(ctx context.Context, t time.Time) error
 }
 
 // QuotaRepo caches the latest quota snapshot per agent.

@@ -32,7 +32,8 @@ served on a public HTTPS origin. go-chamber is its own authorization server for 
 - `/oauth/authorize` is a consent page behind the usual login: the owner signs in with the token
   and allows or denies the link;
 - authorization code with PKCE (S256); access tokens live an hour, refresh tokens 90 days and
-  rotate; refresh tokens and registered clients are kept in `oauth.json` in the data folder.
+  rotate; both are kept, as hashes, in the database, so a restart keeps every link working.
+  Registered clients live in memory: a restart only asks a half-done link again.
 
 The tokens open `/api/mcp` and nothing else. The public origin follows each request (`Host`,
 `X-Forwarded-Proto`, `X-Forwarded-Host`); `-public-url https://host` fixes it when a proxy rewrites

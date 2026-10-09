@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 	"testing/fstest"
+	"time"
 
 	"github.com/igorzygin/go-chamber/internal/app"
 	"github.com/igorzygin/go-chamber/internal/app/apptest"
@@ -181,5 +182,47 @@ func TestOpenUsesNormalSynchronous(t *testing.T) {
 	}
 	if mode != 1 {
 		t.Fatalf("synchronous = %d, want 1 (NORMAL)", mode)
+	}
+}
+
+func TestOAuthTokensAreKeptTakenAndExpired(t *testing.T) {
+	ctx := context.Background()
+	repo := openTest(t).OAuthTokens()
+	at := time.Date(2026, 10, 9, 12, 0, 0, 0, time.UTC)
+	g := app.OAuthGrant{Client: "https://chatgpt.com/oauth/client.json", Resource: "https://x/api/mcp", Expires: at.Add(time.Hour)}
+	if _, ok, err := repo.Token(ctx, "access:a"); ok || err != nil {
+		t.Fatalf("empty = %v %v", ok, err)
+	}
+	if err := repo.PutToken(ctx, "access:a", g); err != nil {
+		t.Fatal(err)
+	}
+	if got, ok, err := repo.Token(ctx, "access:a"); !ok || err != nil || got.Client != g.Client || got.Resource != g.Resource || !got.Expires.Equal(g.Expires) {
+		t.Fatalf("token = %+v %v %v", got, ok, err)
+	}
+	if got, ok, err := repo.TakeToken(ctx, "access:a"); !ok || err != nil || got.Client != g.Client {
+		t.Fatalf("take = %+v %v %v", got, ok, err)
+	}
+	if _, ok, _ := repo.TakeToken(ctx, "access:a"); ok {
+		t.Fatal("a token was taken twice")
+	}
+
+	old := g
+	old.Expires = at.Add(-time.Second)
+	// Later by half a second, which a text comparison would put earlier.
+	half := g
+	half.Expires = at.Add(500 * time.Millisecond)
+	_ = repo.PutToken(ctx, "refresh:half", half)
+	_ = repo.PutToken(ctx, "refresh:old", old)
+	_ = repo.PutToken(ctx, "refresh:live", g)
+	if err := repo.DeleteTokensExpiredBy(ctx, at); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok, _ := repo.Token(ctx, "refresh:old"); ok {
+		t.Fatal("expired token kept")
+	}
+	for _, key := range []string{"refresh:live", "refresh:half"} {
+		if _, ok, _ := repo.Token(ctx, key); !ok {
+			t.Fatalf("%s deleted", key)
+		}
 	}
 }

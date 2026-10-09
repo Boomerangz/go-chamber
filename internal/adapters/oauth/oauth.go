@@ -19,11 +19,12 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"os"
 	"slices"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/igorzygin/go-chamber/internal/app"
 )
 
 const (
@@ -82,9 +83,17 @@ func callbackID(s string) bool {
 	return s != "" && strings.Trim(s, "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-") == ""
 }
 
+// Tokens keeps the issued tokens across restarts.
+type Tokens interface {
+	PutToken(ctx context.Context, key string, g app.OAuthGrant) error
+	Token(ctx context.Context, key string) (app.OAuthGrant, bool, error)
+	TakeToken(ctx context.Context, key string) (app.OAuthGrant, bool, error)
+	DeleteTokensExpiredBy(ctx context.Context, t time.Time) error
+}
+
 type Config struct {
-	// StatePath keeps registered clients and refresh tokens across restarts.
-	StatePath string
+	// Tokens keeps access and refresh tokens; required.
+	Tokens Tokens
 	// Base is the public origin (https://host); empty follows the request.
 	Base string
 	// HTTP fetches client metadata documents; http.DefaultClient when nil.
@@ -98,13 +107,11 @@ type Server struct {
 	mux   *http.ServeMux
 	fetch *http.Client
 
-	mu    sync.Mutex
-	state state
+	mu sync.Mutex
 	// clients are registered ones; registration is open to anyone, so they
 	// are not written down: a restart only asks a half-done link again.
 	clients map[string]client
 	codes   map[string]grant
-	access  map[string]grant
 }
 
 // grant is what a code or token stands for.
@@ -130,12 +137,7 @@ const (
 	maxRedirects = 5
 )
 
-// state is what survives a restart; tokens are kept as hashes.
-type state struct {
-	Refresh map[string]grant `json:"refresh"`
-}
-
-func New(cfg Config) (*Server, error) {
+func New(cfg Config) *Server {
 	if cfg.HTTP == nil {
 		cfg.HTTP = http.DefaultClient
 	}
@@ -148,22 +150,7 @@ func New(cfg Config) (*Server, error) {
 	if fetch.Timeout == 0 {
 		fetch.Timeout = 5 * time.Second
 	}
-	s := &Server{cfg: cfg, mux: http.NewServeMux(), fetch: &fetch, clients: map[string]client{}, codes: map[string]grant{}, access: map[string]grant{},
-		state: state{Refresh: map[string]grant{}}}
-	raw, err := os.ReadFile(cfg.StatePath)
-	switch {
-	case errors.Is(err, os.ErrNotExist):
-	case err != nil:
-		return nil, err
-	default:
-		if err := json.Unmarshal(raw, &s.state); err != nil || s.state.Refresh == nil {
-			// Losing links is better than not starting: they can be made again.
-			s.state = state{Refresh: map[string]grant{}}
-			if err := os.Rename(cfg.StatePath, cfg.StatePath+".corrupt"); err != nil {
-				return nil, err
-			}
-		}
-	}
+	s := &Server{cfg: cfg, mux: http.NewServeMux(), fetch: &fetch, clients: map[string]client{}, codes: map[string]grant{}}
 	s.mux.HandleFunc("GET /.well-known/oauth-protected-resource", s.resourceMetadata)
 	s.mux.HandleFunc("GET /.well-known/oauth-protected-resource"+MCPPath, s.resourceMetadata)
 	s.mux.HandleFunc("GET /.well-known/oauth-authorization-server", s.serverMetadata)
@@ -171,7 +158,7 @@ func New(cfg Config) (*Server, error) {
 	s.mux.HandleFunc("GET /oauth/authorize", s.consent)
 	s.mux.HandleFunc("POST /oauth/authorize", s.decide)
 	s.mux.HandleFunc("POST /oauth/token", s.token)
-	return s, nil
+	return s
 }
 
 // ServeHTTP serves the metadata and /oauth/ endpoints. /oauth/authorize
@@ -191,10 +178,8 @@ func (s *Server) Valid(r *http.Request) bool {
 	if !ok || raw == "" {
 		return false
 	}
-	s.mu.Lock()
-	g, ok := s.access[hash(raw)]
-	s.mu.Unlock()
-	return ok && s.cfg.Now().Before(g.Expires) && g.Resource == s.base(r)+r.URL.Path
+	g, ok, err := s.cfg.Tokens.Token(r.Context(), accessKey+hash(raw))
+	return err == nil && ok && s.cfg.Now().Before(g.Expires) && g.Resource == s.base(r)+r.URL.Path
 }
 
 // Challenge is the WWW-Authenticate value that sends a client to the
@@ -468,17 +453,14 @@ func (s *Server) token(w http.ResponseWriter, r *http.Request) {
 		case f.Get("resource") != "" && f.Get("resource") != g.Resource:
 			oauthError(w, http.StatusBadRequest, "invalid_grant", "the code was issued for another resource")
 		default:
-			s.issue(w, g, nil)
+			s.issue(w, r, app.OAuthGrant{Client: g.Client, Resource: g.Resource}, "")
 		}
 	case "refresh_token":
-		s.mu.Lock()
-		key := hash(f.Get("refresh_token"))
-		g, ok := s.state.Refresh[key]
-		if ok {
-			delete(s.state.Refresh, key)
-		}
-		s.mu.Unlock()
+		key := refreshKey + hash(f.Get("refresh_token"))
+		g, ok, err := s.cfg.Tokens.Token(r.Context(), key)
 		switch {
+		case err != nil:
+			oauthError(w, http.StatusInternalServerError, "server_error", "could not read the token")
 		case !ok || !s.cfg.Now().Before(g.Expires):
 			oauthError(w, http.StatusBadRequest, "invalid_grant", "unknown or expired refresh token")
 		case g.Client != f.Get("client_id"):
@@ -486,75 +468,54 @@ func (s *Server) token(w http.ResponseWriter, r *http.Request) {
 		case f.Get("resource") != "" && f.Get("resource") != g.Resource:
 			oauthError(w, http.StatusBadRequest, "invalid_grant", "the token was issued for another resource")
 		default:
-			// A save that fails must not cost the client its link.
-			s.issue(w, g, func() { s.state.Refresh[key] = g })
+			s.issue(w, r, g, key)
 		}
 	default:
 		oauthError(w, http.StatusBadRequest, "unsupported_grant_type", "authorization_code or refresh_token")
 	}
 }
 
-// issue hands out a fresh access token and a rotated refresh token; undo,
-// when set, puts back what was spent if the new token cannot be kept.
-func (s *Server) issue(w http.ResponseWriter, g grant, undo func()) {
+// Tokens are kept under these prefixes and their hash, so neither kind
+// passes for the other.
+const (
+	accessKey  = "access:"
+	refreshKey = "refresh:"
+)
+
+// issue hands out a fresh access token and a rotated refresh token. The
+// refresh token being spent, when set, goes only once the new ones are
+// kept, so a failed save does not cost the client its link; if it was
+// spent meanwhile, the new ones go too.
+func (s *Server) issue(w http.ResponseWriter, r *http.Request, g app.OAuthGrant, spent string) {
+	ctx := context.WithoutCancel(r.Context())
 	access, refresh := random(), random()
 	now := s.cfg.Now()
-	s.mu.Lock()
-	for k, old := range s.access {
-		if !now.Before(old.Expires) {
-			delete(s.access, k)
-		}
+	_ = s.cfg.Tokens.DeleteTokensExpiredBy(ctx, now)
+	newRefresh, newAccess := refreshKey+hash(refresh), accessKey+hash(access)
+	drop := func() {
+		_, _, _ = s.cfg.Tokens.TakeToken(ctx, newRefresh)
+		_, _, _ = s.cfg.Tokens.TakeToken(ctx, newAccess)
 	}
-	s.state.Refresh[hash(refresh)] = grant{Client: g.Client, Resource: g.Resource, Expires: now.Add(refreshTTL)}
-	err := s.saveLocked()
-	if err != nil {
-		delete(s.state.Refresh, hash(refresh))
-		if undo != nil {
-			undo()
-		}
-	} else {
-		s.access[hash(access)] = grant{Client: g.Client, Resource: g.Resource, Expires: now.Add(accessTTL)}
+	err := s.cfg.Tokens.PutToken(ctx, newRefresh, app.OAuthGrant{Client: g.Client, Resource: g.Resource, Expires: now.Add(refreshTTL)})
+	if err == nil {
+		err = s.cfg.Tokens.PutToken(ctx, newAccess, app.OAuthGrant{Client: g.Client, Resource: g.Resource, Expires: now.Add(accessTTL)})
 	}
-	s.mu.Unlock()
 	if err != nil {
+		drop()
 		oauthError(w, http.StatusInternalServerError, "server_error", "could not keep the token")
 		return
+	}
+	if spent != "" {
+		if _, ok, err := s.cfg.Tokens.TakeToken(ctx, spent); err != nil || !ok {
+			drop()
+			oauthError(w, http.StatusBadRequest, "invalid_grant", "unknown or expired refresh token")
+			return
+		}
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
 		"access_token": access, "token_type": "Bearer", "expires_in": int(accessTTL.Seconds()),
 		"refresh_token": refresh, "scope": scope,
 	})
-}
-
-// saveLocked writes the state; callers hold s.mu.
-func (s *Server) saveLocked() error {
-	now := s.cfg.Now()
-	for k, g := range s.state.Refresh {
-		if !now.Before(g.Expires) {
-			delete(s.state.Refresh, k)
-		}
-	}
-	raw, err := json.Marshal(s.state)
-	if err != nil {
-		return err
-	}
-	tmp := s.cfg.StatePath + ".tmp"
-	f, err := os.OpenFile(tmp, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600)
-	if err != nil {
-		return err
-	}
-	_, err = f.Write(raw)
-	if err == nil {
-		// On disk before the rename, so a power cut leaves the old file whole.
-		err = f.Sync()
-	}
-	if cerr := f.Close(); err == nil {
-		err = cerr
-	}
-	if err != nil {
-		return err
-	}
-	return os.Rename(tmp, s.cfg.StatePath)
 }
 
 func verifies(verifier, challenge string) bool {

@@ -154,10 +154,7 @@ func run(ctx context.Context, args []string, out io.Writer) error {
 		AllowApprovals: *mcpApprovals,
 	})
 	mcp.Watch(ctx)
-	auth, err := oauth.New(oauth.Config{StatePath: filepath.Join(*dataDir, "oauth.json"), Base: *publicURL})
-	if err != nil {
-		return err
-	}
+	auth := oauth.New(oauth.Config{Tokens: store.OAuthTokens(), Base: *publicURL})
 
 	ln, err := net.Listen("tcp", *addr)
 	if err != nil {
