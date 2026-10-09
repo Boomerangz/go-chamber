@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"html/template"
+	"io"
 	"io/fs"
 	"net/http"
 	"net/url"
@@ -56,6 +57,8 @@ type Config struct {
 	MCP http.Handler
 	// OAuth lets clients that only speak OAuth reach MCP when non-nil.
 	OAuth OAuth
+	// RequestLog receives a line per MCP and OAuth request when non-nil.
+	RequestLog io.Writer
 }
 
 // OAuth is an authorization server whose tokens open the MCP endpoint only.
@@ -101,7 +104,11 @@ func NewServer(cfg Config) http.Handler {
 		s.mux.Handle("/.well-known/", cfg.OAuth)
 		s.mux.Handle("/oauth/", cfg.OAuth)
 	}
-	return &auth{token: []byte(cfg.Token), next: s.mux, oauth: cfg.OAuth}
+	var h http.Handler = &auth{token: []byte(cfg.Token), next: s.mux, oauth: cfg.OAuth}
+	if cfg.RequestLog != nil {
+		h = &requestLog{out: cfg.RequestLog, next: h}
+	}
+	return h
 }
 
 type auth struct {
