@@ -496,9 +496,17 @@ func emitTextTurn(enc *json.Encoder, out *bufio.Writer, sessionID, text string) 
 	_ = enc.Encode(result(sessionID, text))
 }
 
-// emitHookTurn answers, then a Stop hook blocks and feeds back a reason, as
-// the real CLI does with a user Stop hook; the agent answers again.
+// emitHookTurn runs a silent UserPromptSubmit hook and answers, then a Stop
+// hook blocks and feeds back a reason, as the real CLI does with a user Stop
+// hook; the agent answers again.
 func emitHookTurn(enc *json.Encoder, out *bufio.Writer, sessionID string) {
+	if hookEvents {
+		_ = enc.Encode(map[string]any{"type": "system", "subtype": "hook_started", "hook_id": "hook-0",
+			"hook_name": "UserPromptSubmit", "hook_event": "UserPromptSubmit", "session_id": sessionID})
+		_ = enc.Encode(map[string]any{"type": "system", "subtype": "hook_response", "hook_id": "hook-0",
+			"hook_name": "UserPromptSubmit", "hook_event": "UserPromptSubmit", "output": "", "stdout": "", "stderr": "",
+			"exit_code": 0, "outcome": "success", "session_id": sessionID})
+	}
 	emitText(enc, out, sessionID, "first answer")
 	reason := "Check your work first."
 	if hookEvents {

@@ -339,10 +339,16 @@ func startTurn(mode, threadID, turnID, text string, pending map[string]func(json
 	}
 }
 
-// hookTurn answers, then a user Stop hook blocks with feedback (as with a
-// real ~/.codex/hooks.json) and the agent answers again.
+// hookTurn runs a silent userPromptSubmit hook and answers, then a user Stop
+// hook blocks with feedback (as with a real ~/.codex/hooks.json) and the
+// agent answers again.
 func hookTurn(threadID, turnID string) {
 	turnStarted(threadID, turnID)
+	notify("hook/completed", map[string]any{"threadId": threadID, "turnId": turnID, "run": map[string]any{
+		"id": "userPromptSubmit:0:/fake/hooks.json", "eventName": "userPromptSubmit", "handlerType": "command", "executionMode": "sync",
+		"scope": "turn", "sourcePath": "/fake/hooks.json", "source": "user", "displayOrder": 0,
+		"status": "completed", "startedAt": 1, "entries": []any{},
+	}})
 	message := func(text string) string {
 		id := nextID("msg")
 		notify("item/completed", map[string]any{"threadId": threadID, "turnId": turnID,

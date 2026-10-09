@@ -2,6 +2,7 @@ import { act, fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import * as api from '../../lib/api'
 import { initialChat, TURN_FAILED, type ChatState } from '../../lib/events'
+import { saveSeen } from '../../lib/seen'
 import { resetDrafts } from '../../stores/drafts'
 import { useNotices } from '../../stores/notices'
 import { resetStore, useSessionStore } from '../../stores/session'
@@ -60,6 +61,34 @@ describe('transcript hook-ups', () => {
     ]))
     expect(container.querySelector('.tool-group-label')).toHaveTextContent('Read 2 files · ran 1 command')
     expect(container.querySelectorAll('.items > li.row')).toHaveLength(3)
+  })
+
+  it('hides silent hooks, so the tool runs they sit between still fold', () => {
+    const silent = (id: string, name: string) => item(id, 'hook', { name, outcome: 'success', text: undefined })
+    const { container } = setup(chatOf([
+      item('u', 'user_message'),
+      silent('h0', 'UserPromptSubmit'),
+      item('a', 'tool_call', { name: 'Read', input: { file_path: '/a' } }),
+      silent('h1', 'PostToolUse'),
+      silent('h2', 'PreToolUse'),
+      item('b', 'tool_call', { name: 'Read', input: { file_path: '/b' } }),
+      silent('h3', 'PostToolUse'),
+      item('h4', 'hook', { name: 'Stop', outcome: 'blocked', text: 'Check your work.' }),
+      item('m', 'assistant_message'),
+    ]))
+    expect(container.querySelector('.tool-group-label')).toHaveTextContent('Read 2 files')
+    expect([...container.querySelectorAll('.hook-name')].map((h) => h.textContent)).toEqual(['Stop hook'])
+  })
+
+  it('puts the new-since-last-visit mark on the row after a hidden hook', () => {
+    saveSeen('s1', 'm1')
+    const { container } = setup(chatOf([
+      item('m1', 'assistant_message'),
+      item('h', 'hook', { name: 'PostToolUse', outcome: 'success', text: undefined }),
+      item('m2', 'assistant_message'),
+    ]))
+    const mark = container.querySelector('.unseen-mark')
+    expect(mark?.nextElementSibling).toHaveTextContent('m2')
   })
 
   it('leaves an answered question to its record, without the raw tool line', () => {

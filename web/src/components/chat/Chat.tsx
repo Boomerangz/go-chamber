@@ -39,7 +39,7 @@ import { owesAnswer, shownStatus } from '../../lib/status'
 import { usePending } from '../../lib/pending'
 import { useCLIs } from '../../lib/clis'
 import { useUnseen } from '../../lib/seen'
-import { isBlank, itemTree, withoutAnsweredQuestions } from '../../lib/tree'
+import { isBlank, itemTree, shownFrom, withoutAnsweredQuestions } from '../../lib/tree'
 import { groupTools, lastItemId } from '../../lib/group'
 import { turnNumbers, turnOutline } from '../../lib/turns'
 import TurnOutline from './TurnOutline'
@@ -151,9 +151,10 @@ export default function Chat() {
   const [scrollRef, stick] = useStickToBottom(chat, news)
   // A phone shows one pane at a time: the chat is looked at only in front.
   const inFront = !narrow || pane === 'chat'
-  const unseen = useUnseen({
+  const firstNew = useUnseen({
     sessionId, session, shown: inFront, order: chat.order, items: chat.items, ready: history === 'ready', pinned: stick.pinned, isPinned: stick.isPinned,
   })
+  const unseen = useMemo(() => shownFrom(chat.order, nodes, firstNew), [chat.order, nodes, firstNew])
   const lastItem = chat.order.length ? chat.items[chat.order[chat.order.length - 1]!] : undefined
   const streaming = lastItem?.status === 'streaming'
   // Words on their way speak for themselves; a running tool or subagent

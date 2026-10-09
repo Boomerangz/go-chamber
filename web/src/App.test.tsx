@@ -557,31 +557,30 @@ describe('App', () => {
     await vi.waitFor(() => expect(api.createSession).toHaveBeenCalledWith('claude', '/w/alpha', undefined))
   })
 
-  it('shows hook runs with their outcome and text', async () => {
+  it('shows hook runs that had something to say, with their outcome and text', async () => {
     mockApi()
     useSessionStore.setState({
       activeId: 's1',
       chat: {
         ...initialChat('idle'),
-        order: ['h1', 'h2', 'h3', 'h4'],
+        order: ['h1', 'h2', 'h3', 'h4', 'h5'],
         items: {
           h1: { id: 'h1', sessionId: 's1', kind: 'hook', status: 'completed', name: 'Stop', outcome: 'blocked', text: 'Check your work.' },
           h2: { id: 'h2', sessionId: 's1', kind: 'hook', status: 'streaming', name: 'UserPromptSubmit' },
           h3: { id: 'h3', sessionId: 's1', kind: 'hook', status: 'failed', name: 'PreToolUse', outcome: 'error', text: 'exit 1' },
           h4: { id: 'h4', sessionId: 's1', kind: 'hook', status: 'completed', name: 'Stop', outcome: 'success' },
+          h5: { id: 'h5', sessionId: 's1', kind: 'hook', status: 'completed', name: 'SessionStart', outcome: 'success', text: 'context' },
         },
       },
     })
     render(<App />)
     const hooks = await screen.findAllByText(/hook$/)
-    expect(hooks.map((h) => h.textContent)).toEqual(['Stop hook', 'UserPromptSubmit hook', 'PreToolUse hook', 'Stop hook'])
+    expect(hooks.map((h) => h.textContent)).toEqual(['Stop hook', 'PreToolUse hook', 'SessionStart hook'])
     const items = document.querySelectorAll('.item.hook')
     expect(items[0].textContent).toContain('blocked')
     expect(items[0].textContent).toContain('Check your work.')
-    expect(items[1].textContent).toContain('running')
-    expect(items[2].textContent).toContain('error')
-    expect(items[3].textContent).toContain('ok')
-    expect(items[3].tagName).toBe('DIV')
+    expect(items[1].textContent).toContain('error')
+    expect(items[2].textContent).toContain('ok')
     expect(items[0].tagName).toBe('DETAILS')
   })
 
