@@ -54,6 +54,20 @@ type Config struct {
 	Presence PresenceTracker
 	// MCP serves the MCP endpoint at /api/mcp when non-nil.
 	MCP http.Handler
+	// OAuth lets clients that only speak OAuth reach MCP when non-nil.
+	OAuth OAuth
+}
+
+// OAuth is an authorization server whose tokens open the MCP endpoint only.
+type OAuth interface {
+	// ServeHTTP serves /.well-known/oauth-* and /oauth/*.
+	http.Handler
+	// Public reports whether clients reach path without the owner's login.
+	Public(path string) bool
+	// Valid reports whether r carries a live token for what it asks.
+	Valid(r *http.Request) bool
+	// Challenge is the WWW-Authenticate value pointing at the metadata.
+	Challenge(r *http.Request) string
 }
 
 type server struct {
@@ -83,17 +97,37 @@ func NewServer(cfg Config) http.Handler {
 	if cfg.MCP != nil {
 		s.mux.Handle("/api/mcp", cfg.MCP)
 	}
-	return &auth{token: []byte(cfg.Token), next: s.mux}
+	if cfg.OAuth != nil {
+		s.mux.Handle("/.well-known/", cfg.OAuth)
+		s.mux.Handle("/oauth/", cfg.OAuth)
+	}
+	return &auth{token: []byte(cfg.Token), next: s.mux, oauth: cfg.OAuth}
 }
 
 type auth struct {
 	token []byte
 	next  http.Handler
+	oauth OAuth
 }
 
 func (a *auth) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if q := r.URL.Query(); q.Has("token") {
 		a.login(w, r, q.Get("token"))
+		return
+	}
+	// OAuth clients are servers: they log in with codes and bearers, which a
+	// page elsewhere cannot ride on as it would on the cookie.
+	if a.oauth != nil && a.oauth.Public(r.URL.Path) {
+		a.next.ServeHTTP(w, r)
+		return
+	}
+	if a.oauth != nil && r.URL.Path == "/api/mcp" && !a.authorized(r) {
+		if !a.oauth.Valid(r) {
+			w.Header().Set("WWW-Authenticate", a.oauth.Challenge(r))
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+		a.next.ServeHTTP(w, r)
 		return
 	}
 	if !safeMethod(r.Method) && !sameOrigin(r) {
