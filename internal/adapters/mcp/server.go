@@ -92,7 +92,8 @@ func New(cfg Config) *Server {
 
 // Handler serves MCP over streamable HTTP; authentication is the caller's.
 func (s *Server) Handler() http.Handler {
-	return sdk.NewStreamableHTTPHandler(func(*http.Request) *sdk.Server { return s.mcp }, &sdk.StreamableHTTPOptions{
+	server := func(*http.Request) *sdk.Server { return s.mcp }
+	sessions := sdk.NewStreamableHTTPHandler(server, &sdk.StreamableHTTPOptions{
 		// The token guards the endpoint, and a reverse proxy on the same
 		// host (tailscale serve, caddy) sends its own Host, which the SDK's
 		// DNS-rebinding check would refuse.
@@ -100,7 +101,19 @@ func (s *Server) Handler() http.Handler {
 		// A client killed without saying goodbye leaves its session behind.
 		SessionTimeout: 24 * time.Hour,
 	})
+	// The SDK speaks 2026-07-28, which ChatGPT insists on, only without
+	// sessions; older clients keep theirs.
+	stateless := sdk.NewStreamableHTTPHandler(server, &sdk.StreamableHTTPOptions{DisableLocalhostProtection: true, Stateless: true})
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Mcp-Protocol-Version") >= statelessProtocol {
+			stateless.ServeHTTP(w, r)
+			return
+		}
+		sessions.ServeHTTP(w, r)
+	})
 }
+
+const statelessProtocol = "2026-07-28"
 
 // mcpOrigin labels everything a client sends as not the owner's own.
 func mcpOrigin(ctx context.Context) context.Context {

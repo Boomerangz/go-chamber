@@ -201,6 +201,7 @@ type fixture struct {
 	wt       *fakeWorktrees
 	client   *sdk.ClientSession
 	server   *mcpapi.Server
+	url      string
 }
 
 func newFixture(t *testing.T, cfg mcpapi.Config, opts *sdk.ClientOptions) *fixture {
@@ -218,6 +219,7 @@ func newFixture(t *testing.T, cfg mcpapi.Config, opts *sdk.ClientOptions) *fixtu
 	f.server.Watch(ctx)
 	srv := httptest.NewServer(f.server.Handler())
 	t.Cleanup(srv.Close)
+	f.url = srv.URL
 	client := sdk.NewClient(&sdk.Implementation{Name: "test", Version: "1"}, opts)
 	cs, err := client.Connect(ctx, &sdk.StreamableClientTransport{Endpoint: srv.URL}, nil)
 	if err != nil {
@@ -805,8 +807,16 @@ func TestSubscribeOnlyToResourcesThatGetUpdates(t *testing.T) {
 			t.Errorf("%s: %v", uri, err)
 		}
 	}
+	// The SDK client drops a refused subscriptions/listen, so the session
+	// protocol shows the refusals.
+	legacy, err := sdk.NewClient(&sdk.Implementation{Name: "test", Version: "1"}, nil).
+		Connect(context.Background(), &sdk.StreamableClientTransport{Endpoint: f.url}, &sdk.ClientSessionOptions{ProtocolVersion: "2025-11-25"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = legacy.Close() })
 	for _, uri := range []string{"chamber://sessions/", "chamber://sessions/nope", "chamber://sessions/a/x", "chamber://other"} {
-		if err := f.client.Subscribe(context.Background(), &sdk.SubscribeParams{URI: uri}); err == nil {
+		if err := legacy.Subscribe(context.Background(), &sdk.SubscribeParams{URI: uri}); err == nil {
 			t.Errorf("%s: subscribed", uri)
 		}
 	}
