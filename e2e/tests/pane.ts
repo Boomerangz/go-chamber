@@ -44,3 +44,10 @@ export async function openNewSession(page: Page) {
   await open.waitFor({ state: 'attached' })
   if ((await open.isVisible()) && (await open.getAttribute('aria-expanded')) === 'false') await open.click()
 }
+
+// showAccounts unfolds the logins on a phone, where they fold to one line
+// under the sessions; elsewhere it is a no-op.
+export async function showAccounts(page: Page) {
+  const fold = page.locator('.accounts-fold')
+  if ((await fold.isVisible()) && (await fold.getAttribute('aria-expanded')) === 'false') await fold.click()
+}

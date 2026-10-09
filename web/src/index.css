@@ -1277,6 +1277,20 @@ button.health { border: 0; background: none; padding: 0; }
   }
   /* an open request's card says it waits; the tail above it would say it twice */
   .working-tail.waiting { display: none; }
+  /* the keyboard is up for the chat: the modes wait above, the transcript has their room */
+  html[data-typing='chat'] .topbar { display: none; }
+  /* the agents side by side, however many there are */
+  .new-session .segmented { grid-template-columns: none; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); }
+  /* the search field is the whole row's height, a finger's target */
+  .session-search { height: 44px; }
+  .session-search input { align-self: stretch; }
+  .accounts-fold {
+    display: flex; align-items: center; gap: 8px; height: 40px; padding: 0 2px; margin: -10px 0 -4px;
+    border: 0; background: none; font-family: var(--font-mono); font-size: var(--t-meta); color: var(--ink-2);
+  }
+  .accounts-fold .chevron { transform: rotate(-90deg); transition: transform var(--dur-fast) var(--ease-out); }
+  .accounts-fold[aria-expanded='true'] .chevron { transform: none; }
+  .sidebar-footer[data-accounts='folded'] .account { display: none; }
   .mode-switch { grid-column: 1; grid-row: 1; justify-self: start; min-width: 0; overflow-x: auto; scrollbar-width: none; }
   .segmented.mode-switch button { flex: none; padding: 0 10px; }
   .mode-switch { max-width: 100%; }

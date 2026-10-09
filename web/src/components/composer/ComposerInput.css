@@ -65,4 +65,6 @@
   }
   .composer-actions .btn .btn-glyph { display: block; }
   .composer-actions .btn:has(.btn-glyph) { width: 44px; padding: 0; display: inline-grid; place-items: center; }
+  /* a running turn only takes text: Attach comes back with the next message */
+  .composer:has(.stop) .attach { display: none; }
 }

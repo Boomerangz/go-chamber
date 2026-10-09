@@ -101,7 +101,8 @@ test.describe('reduced motion', () => {
   })
 })
 
-test('the health mark stands apart from the toggles after it', async ({ page }) => {
+test('the health mark stands apart from the toggles after it', async ({ page, isMobile }) => {
+  test.skip(isMobile, 'a phone draws no mark for a working connection (phone-room.spec)')
   await page.goto(`/?token=${token}`)
   const health = page.locator('.topbar-end > .health')
   await expect(health).toBeVisible()

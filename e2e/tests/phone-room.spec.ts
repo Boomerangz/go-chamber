@@ -63,3 +63,71 @@ test("a question's Skip is quieter than its Submit", async ({ page }) => {
   const border = await card.getByRole('button', { name: 'Skip' }).evaluate((el) => getComputedStyle(el).borderTopColor)
   expect(border).toBe('rgba(0, 0, 0, 0)')
 })
+
+test("a phone's top bar steps aside while the owner types in the chat", async ({ page, isMobile }) => {
+  test.skip(!isMobile, 'the on-screen keyboard is a phone matter')
+  await newSession(page)
+  const modes = page.getByRole('radiogroup', { name: 'Mode' })
+  await expect(modes).toBeVisible()
+  await message(page).focus()
+  await expect(page.locator('html')).toHaveAttribute('data-typing', 'chat')
+  await expect(modes).toBeHidden()
+  await message(page).blur()
+  await expect(modes).toBeVisible()
+})
+
+test('a phone hides Attach while a turn runs: images wait for the next message', async ({ page, isMobile }) => {
+  test.skip(!isMobile, 'the phone composer')
+  await newSession(page)
+  const attach = page.getByRole('button', { name: 'Attach', exact: true })
+  await expect(attach).toBeVisible()
+  await say(page, 'please permission')
+  await expect(page.locator('.request.permission')).toBeVisible()
+  await expect(attach).toBeHidden()
+})
+
+test('a phone folds the accounts to one line under the sessions', async ({ page, isMobile }) => {
+  test.skip(!isMobile, 'the phone sidebar')
+  await page.goto(`/?token=${token}`)
+  const fold = page.getByRole('button', { name: 'Accounts' })
+  await expect(fold).toHaveAttribute('aria-expanded', 'false')
+  await expect(page.locator('.accounts .account').first()).toBeHidden()
+  await fold.click()
+  await expect(page.locator('.accounts .account').first()).toBeVisible()
+})
+
+test('a phone picks the agent from one row', async ({ page, isMobile }) => {
+  test.skip(!isMobile, 'the phone sidebar')
+  await page.goto(`/?token=${token}`)
+  await openNewSession(page)
+  const tops = await page.getByRole('radiogroup', { name: 'Agent' }).getByRole('radio').evaluateAll((els) => els.map((el) => Math.round(el.getBoundingClientRect().top)))
+  expect(tops.length).toBeGreaterThan(2)
+  expect(new Set(tops).size).toBe(1)
+})
+
+test('the first-message hint keeps a long folder to one line', async ({ page }) => {
+  await newSession(page)
+  const where = page.locator('.chat-hint-where .path-text')
+  await expect(where).toBeVisible()
+  expect(await where.evaluate((el) => el.getClientRects().length)).toBe(1)
+})
+
+test('a phone writes the hint without keyboard keys', async ({ page, isMobile }) => {
+  test.skip(!isMobile, 'no keyboard on a phone')
+  await newSession(page)
+  await expect(page.locator('.chat-hint-keys')).toContainText('@ file')
+  await expect(page.locator('.chat-hint-keys kbd')).toHaveCount(0)
+})
+
+test("a phone's search field and a question's Other field are a finger's size and don't zoom", async ({ page, isMobile }) => {
+  test.skip(!isMobile, 'the phone layout')
+  await newSession(page)
+  await say(page, 'ask me something')
+  const other = page.locator('.request.question').getByPlaceholder('Other…').first()
+  await expect(other).toBeVisible()
+  expect(parseFloat(await other.evaluate((el) => getComputedStyle(el).fontSize))).toBeGreaterThanOrEqual(16)
+  await page.getByRole('navigation', { name: 'Views' }).getByRole('button', { name: /^Sessions/ }).click()
+  const search = page.getByRole('searchbox', { name: /search sessions/i })
+  await expect(search).toBeVisible()
+  expect((await search.boundingBox())!.height).toBeGreaterThanOrEqual(40)
+})

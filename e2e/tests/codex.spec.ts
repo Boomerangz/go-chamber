@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test'
 import { mkdirSync } from 'node:fs'
 import { token } from '../playwright.config'
-import { openNewSession, showSessionDetails } from './pane'
+import { openNewSession, showAccounts, showSessionDetails } from './pane'
 
 async function newCodexSession(page: import('@playwright/test').Page, cwd = '/tmp') {
   await page.goto(`/?token=${token}`)
@@ -63,6 +63,7 @@ test('starts a codex device-code login', async ({ page }) => {
   await page.goto(`/?token=${token}`)
   await openNewSession(page)
   await page.getByRole('radio', { name: 'Codex' }).click()
+  await showAccounts(page)
   await expect(page.getByRole('button', { name: 'Sign in to Codex' })).toBeVisible()
   await page.getByRole('button', { name: 'Sign in to Codex' }).click()
   await expect(page.getByText('ABCD-EFGH')).toBeVisible()

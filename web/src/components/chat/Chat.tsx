@@ -17,6 +17,7 @@ import UnmergedNote from './UnmergedNote'
 import RequestCard from '../requests/RequestCard'
 import { lastInput } from '../requests/modality'
 import Keys from '../ui/Keys'
+import PathText from '../ui/PathText'
 import { LoadFailed, Skeleton } from '../ui/Loading'
 import { icon } from '../icon'
 import { Row } from './Transcript'
@@ -542,7 +543,7 @@ export default function Chat() {
               Send a message to start. The agent runs in <HintWhere session={session} />.
             </p>
             <p className="chat-hint-keys">
-              <Keys keys="@" label="file" /> · <Keys keys="/" label="commands" /> · paste or {touch ? 'attach' : 'drop'} images
+              {touch ? '@ file · / commands' : <><Keys keys="@" label="file" /> · <Keys keys="/" label="commands" /></>} · paste or {touch ? 'attach' : 'drop'} images
             </p>
           </div>
         )}
@@ -648,7 +649,7 @@ export default function Chat() {
 // as the header names it, its repository and branch, the folder on hover.
 function HintWhere({ session }: { session: Session | undefined }) {
   const wt = session?.worktree
-  if (!wt) return <>{session?.cwd ?? 'the session folder'}</>
+  if (!wt) return session?.cwd ? <PathText path={session.cwd} /> : <>the session folder</>
   return (
     <span title={wt.path}>
       {basename(wt.repo)} ⎇ {wt.branch.replace(/^chamber\//, '')}

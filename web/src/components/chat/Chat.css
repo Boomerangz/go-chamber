@@ -26,7 +26,7 @@
 .worktree-gone-actions .btn { min-width: 0; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* the first-message hint names the folder, which may be one long word */
-.chat-hint-where { overflow-wrap: anywhere; }
+.chat-hint-where { min-width: 0; overflow-wrap: anywhere; }
 
 /* transcript loading / failed: in the text column */
 .chat-loading { max-width: var(--column); margin: 0 auto; padding-left: 56px; }
