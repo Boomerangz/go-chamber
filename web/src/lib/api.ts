@@ -332,7 +332,7 @@ export function getSession(id: string): Promise<Session> {
 }
 
 export function sendMessage(id: string, text: string, images?: string[]): Promise<void> {
-  return request<void>(`/api/sessions/${encodeURIComponent(id)}/messages`, json(images?.length ? { text, images } : { text }))
+  return request<void>(`/api/sessions/${encodeURIComponent(id)}/messages`, json(images?.length ? { text, images } : { text }), SLOW_MS)
 }
 
 export interface UploadedImage {
