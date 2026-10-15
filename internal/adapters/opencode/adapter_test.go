@@ -699,3 +699,15 @@ func TestReconcileDropsATurnThatEndedWhileFetchingHistory(t *testing.T) {
 	collect(t, rt, domain.EventTurnStarted)
 	collect(t, rt, domain.EventTurnEnded)
 }
+
+// The first prompt in a project boots it, loads plugins and reads AGENTS.md:
+// 39s was measured on a real opencode v2.0.15.
+func TestCallsOutlastAColdPrompt(t *testing.T) {
+	s, err := factory(t, "").ensure(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s.client.Timeout < time.Minute {
+		t.Fatalf("call timeout %v cuts off a cold first prompt", s.client.Timeout)
+	}
+}

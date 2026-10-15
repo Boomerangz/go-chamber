@@ -69,7 +69,7 @@ func (f *Factory) ensure(ctx context.Context) (*server, error) {
 	if _, err := rand.Read(b); err != nil {
 		return nil, err
 	}
-	s := &server{password: hex.EncodeToString(b), client: &http.Client{Timeout: 15 * time.Second}, runtimes: map[string]*Runtime{}, orphans: map[string][]event{}, processDone: make(chan struct{})}
+	s := &server{password: hex.EncodeToString(b), client: &http.Client{Timeout: 2 * time.Minute}, runtimes: map[string]*Runtime{}, orphans: map[string][]event{}, processDone: make(chan struct{})}
 	s.ctx, s.cancel = context.WithCancel(context.Background())
 	s.cmd = exec.Command(binary, append([]string{"serve", "--hostname", "127.0.0.1", "--port", "0"}, f.Args...)...)
 	s.cmd.Env = append(append(os.Environ(), f.Env...), "OPENCODE_SERVER_USERNAME=opencode", "OPENCODE_SERVER_PASSWORD="+s.password)

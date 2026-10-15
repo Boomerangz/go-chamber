@@ -289,10 +289,22 @@ describe('request timeouts', () => {
   it('gives up on a request go-chamber never answers', async () => {
     vi.useFakeTimers()
     hang()
-    const sent = sendMessage('a', 'hi')
-    const outcome = expect(sent).rejects.toSatisfy((err) => describeError(err) === "go-chamber didn't answer")
+    const asked = getSession('a')
+    const outcome = expect(asked).rejects.toSatisfy((err) => describeError(err) === "go-chamber didn't answer")
     await vi.advanceTimersByTimeAsync(TIMEOUT_MS)
     await outcome
+  })
+
+  it('waits longer for a message, which may start the agent', async () => {
+    vi.useFakeTimers()
+    hang()
+    let settled = false
+    const sent = sendMessage('a', 'hi').finally(() => (settled = true))
+    sent.catch(() => {})
+    await vi.advanceTimersByTimeAsync(60_000)
+    expect(settled).toBe(false)
+    await vi.advanceTimersByTimeAsync(60_000)
+    expect(settled).toBe(true)
   })
 
   it('waits longer for a worktree to be created', async () => {
