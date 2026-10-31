@@ -21,6 +21,7 @@ import (
 
 	"github.com/igorzygin/go-chamber/internal/adapters/claude"
 	"github.com/igorzygin/go-chamber/internal/adapters/codex"
+	"github.com/igorzygin/go-chamber/internal/adapters/command"
 	"github.com/igorzygin/go-chamber/internal/adapters/fsys"
 	"github.com/igorzygin/go-chamber/internal/adapters/git"
 	httpapi "github.com/igorzygin/go-chamber/internal/adapters/http"
@@ -62,6 +63,7 @@ func run(ctx context.Context, args []string, out io.Writer) error {
 	iceJSON := fl.String("rtc-ice", iceDefault, "WebRTC ICE servers JSON (STUN/TURN); [] uses host candidates only")
 	rtcInterface := fl.String("rtc-interface", "", "bind WebRTC UDP to this network interface; empty follows OS routing")
 	mcpApprovals := fl.Bool("mcp-allow-approvals", false, "let MCP clients grant agents' permission requests (they can always deny)")
+	mcpCommands := fl.Bool("mcp-allow-commands", false, "let authenticated MCP clients run bounded commands as the go-chamber server user (unsafe; off by default)")
 	publicURL := fl.String("public-url", "", "public origin OAuth clients reach (https://host); empty follows each request")
 	if err := fl.Parse(args); err != nil {
 		return err
@@ -159,6 +161,8 @@ func run(ctx context.Context, args []string, out io.Writer) error {
 	mcp := mcpapi.New(mcpapi.Config{
 		Sessions:       manager,
 		Worktrees:      worktrees,
+		Commands:       command.Runner{},
+		AllowCommands:  *mcpCommands,
 		Events:         events,
 		AllowApprovals: *mcpApprovals,
 	})

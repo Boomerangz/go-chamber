@@ -45,7 +45,10 @@ type Config struct {
 	Sessions Sessions
 	// Worktrees enables sessions in new worktrees and diffs when non-nil.
 	Worktrees Worktrees
-	Events    *hub.Hub
+	// Commands is exposed only when AllowCommands is true. It executes on the server host.
+	Commands      app.CommandRunner
+	AllowCommands bool
+	Events        *hub.Hub
 	// AllowApprovals lets clients grant permission requests. Off, they may
 	// only deny them, so one agent cannot widen another's rights.
 	AllowApprovals bool
@@ -172,6 +175,9 @@ func (s *Server) tools() {
 	sdk.AddTool(s.mcp, &sdk.Tool{Name: "answer_request", Description: "Answer a session's open request: a question (answers maps question text to chosen labels) or a permission (allow; granting may be disabled)."}, s.answerRequest)
 	sdk.AddTool(s.mcp, &sdk.Tool{Name: "interrupt", Description: "Stop the session's running turn."}, s.interrupt)
 	sdk.AddTool(s.mcp, &sdk.Tool{Name: "get_diff", Description: "Show what the session's folder changed against its base: the file list and the diff, of one path or all.", Annotations: readOnly}, s.getDiff)
+	if s.cfg.AllowCommands && s.cfg.Commands != nil {
+		sdk.AddTool(s.mcp, &sdk.Tool{Name: "run_command", Description: "Run one program with arguments on the go-chamber host in an absolute working directory; no implicit shell. Output is capped at 64 KiB per stream and execution at 60 seconds."}, s.runCommand)
+	}
 }
 
 type listIn struct {

@@ -57,6 +57,7 @@ them. In ChatGPT: Settings → Apps & Connectors (developer mode) → create a c
 | `answer_request` | Answers a question (`answers`: question text → labels) or a permission (`allow`) |
 | `interrupt` | Stops the running turn |
 | `get_diff` | Changed files against the base and their diff, of one `path` or all |
+| `run_command` | **Opt-in only:** run a program with arguments in an absolute `cwd` on the go-chamber host; return exit code, bounded stdout/stderr and truncation flags |
 
 The loop is `send_message` → `wait(since_seq)`, repeated with the `seq` each `wait` returns while
 it says `running`. A request is reported as `needs_answer` once; a `wait` from after it blocks
@@ -79,6 +80,15 @@ All three accept `resources/subscribe`:
 - a diff, when a turn ends or a file edit finishes.
 
 ## Safety
+
+`run_command` is absent by default. Starting the server with `-mcp-allow-commands` exposes it to
+**every currently authorized MCP client**, including clients linked before the flag was enabled.
+It runs as the go-chamber OS user, with that user's file and network access. There is no shell
+unless the client explicitly asks to run one (for example `/bin/sh` with `-c`); no command
+allowlist or per-command owner approval. Use this flag only when you trust every linked client
+and the server's authentication boundary. Each invocation requires an absolute working directory,
+is limited to 60 seconds (15 by default), and returns at most 64 KiB per output stream. These
+limits do **not** make an arbitrary command safe or sandbox it.
 
 Without `-mcp-allow-approvals`, MCP clients cannot give an agent free rein:
 

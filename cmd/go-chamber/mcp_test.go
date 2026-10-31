@@ -25,7 +25,7 @@ func TestRunServesMCP(t *testing.T) {
 	out := &syncBuf{}
 	done := make(chan error, 1)
 	go func() {
-		done <- run(ctx, []string{"-addr", "127.0.0.1:0", "-data", t.TempDir(), "-mcp-allow-approvals", "-public-url", "https://chamber.test"}, out)
+		done <- run(ctx, []string{"-addr", "127.0.0.1:0", "-data", t.TempDir(), "-mcp-allow-approvals", "-mcp-allow-commands", "-public-url", "https://chamber.test"}, out)
 	}()
 	re := regexp.MustCompile(`http://(\S+)/\?token=(\w+)`)
 	var m []string
@@ -48,6 +48,12 @@ func TestRunServesMCP(t *testing.T) {
 	res, err := cs.CallTool(ctx, &sdk.CallToolParams{Name: "list_sessions", Arguments: map[string]any{}})
 	if err != nil || res.IsError {
 		t.Fatalf("list_sessions: %v %+v", err, res)
+	}
+	result, err := cs.CallTool(ctx, &sdk.CallToolParams{Name: "run_command", Arguments: map[string]any{
+		"program": "/bin/pwd", "cwd": t.TempDir(),
+	}})
+	if err != nil || result.IsError {
+		t.Fatalf("run_command: %v %+v", err, result)
 	}
 
 	// OAuth clients find their way in without the token.
