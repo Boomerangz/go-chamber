@@ -170,6 +170,16 @@ func (f *fakeSessions) SetPermissionMode(ctx context.Context, id domain.SessionI
 	return s, nil
 }
 
+func (f *fakeSessions) SetApprovalReviewer(ctx context.Context, id domain.SessionID, reviewer domain.ApprovalReviewer) (domain.SessionSnapshot, error) {
+	f.record(ctx, "reviewer "+string(id)+" "+string(reviewer))
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	s := f.sessions[id]
+	s.ApprovalReviewer = reviewer
+	f.sessions[id] = s
+	return s, nil
+}
+
 type fakeWorktrees struct {
 	sessions *fakeSessions
 	changes  app.Changes

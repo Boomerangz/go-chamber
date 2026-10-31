@@ -32,6 +32,7 @@ type Sessions interface {
 	PendingRequests(ctx context.Context) []domain.Request
 	SetModel(ctx context.Context, id domain.SessionID, model, effort string) (domain.SessionSnapshot, error)
 	SetPermissionMode(ctx context.Context, id domain.SessionID, mode string) (domain.SessionSnapshot, error)
+	SetApprovalReviewer(ctx context.Context, id domain.SessionID, reviewer domain.ApprovalReviewer) (domain.SessionSnapshot, error)
 }
 
 // Worktrees creates worktree sessions and reports a session folder's changes.
@@ -48,7 +49,10 @@ type Config struct {
 	// Commands is exposed only when AllowCommands is true. It executes on the server host.
 	Commands      app.CommandRunner
 	AllowCommands bool
-	Events        *hub.Hub
+	// AllowAutoReviewer lets MCP-created Codex sessions delegate permission
+	// requests to Codex's reviewer instead of asking the owner. Off by default.
+	AllowAutoReviewer bool
+	Events            *hub.Hub
 	// AllowApprovals lets clients grant permission requests. Off, they may
 	// only deny them, so one agent cannot widen another's rights.
 	AllowApprovals bool
@@ -124,24 +128,25 @@ func mcpOrigin(ctx context.Context) context.Context {
 }
 
 type sessionView struct {
-	ID              string `json:"id"`
-	Agent           string `json:"agent"`
-	Cwd             string `json:"cwd"`
-	Status          string `json:"status"`
-	Title           string `json:"title,omitempty"`
-	Model           string `json:"model,omitempty"`
-	Effort          string `json:"effort,omitempty"`
-	PermissionMode  string `json:"permission_mode,omitempty"`
-	ParentID        string `json:"parent_id,omitempty"`
-	Branch          string `json:"branch,omitempty"`
-	Archived        bool   `json:"archived,omitempty"`
-	PendingRequests int    `json:"pending_requests,omitempty"`
+	ID               string `json:"id"`
+	Agent            string `json:"agent"`
+	Cwd              string `json:"cwd"`
+	Status           string `json:"status"`
+	Title            string `json:"title,omitempty"`
+	Model            string `json:"model,omitempty"`
+	Effort           string `json:"effort,omitempty"`
+	PermissionMode   string `json:"permission_mode,omitempty"`
+	ApprovalReviewer string `json:"approval_reviewer,omitempty"`
+	ParentID         string `json:"parent_id,omitempty"`
+	Branch           string `json:"branch,omitempty"`
+	Archived         bool   `json:"archived,omitempty"`
+	PendingRequests  int    `json:"pending_requests,omitempty"`
 }
 
 func view(s domain.SessionSnapshot, pending []domain.Request) sessionView {
 	v := sessionView{
 		ID: string(s.ID), Agent: string(s.Agent), Cwd: s.Cwd, Status: string(s.Status), Title: s.Title,
-		Model: s.Model, Effort: s.Effort, PermissionMode: s.PermissionMode, ParentID: string(s.ParentID),
+		Model: s.Model, Effort: s.Effort, PermissionMode: s.PermissionMode, ApprovalReviewer: string(s.ApprovalReviewer), ParentID: string(s.ParentID),
 		Archived: !s.ArchivedAt.IsZero(),
 	}
 	if s.Worktree != nil {
@@ -214,13 +219,14 @@ func within(path, folder string) bool {
 }
 
 type startIn struct {
-	Agent          string `json:"agent" jsonschema:"claude, codex or opencode"`
-	Cwd            string `json:"cwd" jsonschema:"absolute folder the agent works in"`
-	Branch         string `json:"branch,omitempty" jsonschema:"create a git worktree on this new branch and work there"`
-	Model          string `json:"model,omitempty"`
-	Effort         string `json:"effort,omitempty"`
-	PermissionMode string `json:"permission_mode,omitempty"`
-	Message        string `json:"message,omitempty" jsonschema:"first message to send"`
+	Agent            string `json:"agent" jsonschema:"claude, codex or opencode"`
+	Cwd              string `json:"cwd" jsonschema:"absolute folder the agent works in"`
+	Branch           string `json:"branch,omitempty" jsonschema:"create a git worktree on this new branch and work there"`
+	Model            string `json:"model,omitempty"`
+	Effort           string `json:"effort,omitempty"`
+	PermissionMode   string `json:"permission_mode,omitempty"`
+	ApprovalReviewer string `json:"approval_reviewer,omitempty" jsonschema:"Codex reviewer: user or auto_review; auto_review requires server opt-in"`
+	Message          string `json:"message,omitempty" jsonschema:"first message to send"`
 }
 
 type startOut struct {
@@ -236,6 +242,15 @@ func (s *Server) startSession(ctx context.Context, _ *sdk.CallToolRequest, in st
 	}
 	if domain.UnboundedPermissionMode(in.PermissionMode) && !s.cfg.AllowApprovals {
 		return nil, startOut{}, fmt.Errorf("permission mode %q lets the agent act unchecked; MCP may set it only with -mcp-allow-approvals", in.PermissionMode)
+	}
+	reviewer := domain.ApprovalReviewer(in.ApprovalReviewer)
+	if reviewer != domain.ReviewerDefault {
+		if agent != domain.AgentCodex || !reviewer.Valid() {
+			return nil, startOut{}, fmt.Errorf("invalid approval reviewer %q for %s", reviewer, agent)
+		}
+		if reviewer == domain.ReviewerAuto && !s.cfg.AllowAutoReviewer {
+			return nil, startOut{}, errors.New("auto_review over MCP is off (start go-chamber with -mcp-allow-auto-review)")
+		}
 	}
 	ctx = mcpOrigin(ctx)
 	var snap domain.SessionSnapshot
@@ -258,6 +273,11 @@ func (s *Server) startSession(ctx context.Context, _ *sdk.CallToolRequest, in st
 	}
 	if in.PermissionMode != "" {
 		if snap, err = s.cfg.Sessions.SetPermissionMode(ctx, snap.ID, in.PermissionMode); err != nil {
+			return nil, startOut{}, err
+		}
+	}
+	if reviewer != domain.ReviewerDefault {
+		if snap, err = s.cfg.Sessions.SetApprovalReviewer(ctx, snap.ID, reviewer); err != nil {
 			return nil, startOut{}, err
 		}
 	}

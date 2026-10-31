@@ -50,7 +50,7 @@ them. In ChatGPT: Settings → Apps & Connectors (developer mode) → create a c
 | Tool | What it does |
 |---|---|
 | `list_sessions` | Sessions with status and open requests; `folder`, `include_archived` filter |
-| `start_session` | `agent` in `cwd`, optionally on a new worktree `branch`, with `model`, `effort`, `permission_mode` and a first `message` |
+| `start_session` | `agent` in `cwd`, optionally on a new worktree `branch`, with `model`, `effort`, `permission_mode`, Codex `approval_reviewer`, and a first `message` |
 | `send_message` | Starts a turn or adds to the running one; returns `since_seq` |
 | `wait` | Blocks until the turn ends (`idle`, `interrupted`), the agent asks (`needs_answer`), or `timeout_seconds` (`running`) |
 | `read_session` | Transcript since `since_seq`: messages whole, tools one line each, the tail kept under `max_chars` |
@@ -80,6 +80,15 @@ All three accept `resources/subscribe`:
 - a diff, when a turn ends or a file edit finishes.
 
 ## Safety
+
+For Codex sessions started over MCP, `approval_reviewer: "auto_review"` is accepted only with
+`-mcp-allow-auto-review`. Without that flag, `approval_reviewer: "user"` explicitly selects
+owner review; omitting the field leaves the agent's configured review policy unchanged (which
+could itself be `auto_review`). Auto-review is **not** full access: the agent's
+reviewer may approve sandbox escapes and network/MCP requests, so enabling it delegates
+security decisions for *all* MCP clients. Specify the reviewer when starting a session, before
+its first message; it does not retroactively answer requests already pending. A failed reviewer
+update can leave a newly created, empty session (as with other post-creation settings).
 
 `run_command` is absent by default. Starting the server with `-mcp-allow-commands` exposes it to
 **every currently authorized MCP client**, including clients linked before the flag was enabled.

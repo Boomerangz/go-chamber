@@ -64,6 +64,7 @@ func run(ctx context.Context, args []string, out io.Writer) error {
 	rtcInterface := fl.String("rtc-interface", "", "bind WebRTC UDP to this network interface; empty follows OS routing")
 	mcpApprovals := fl.Bool("mcp-allow-approvals", false, "let MCP clients grant agents' permission requests (they can always deny)")
 	mcpCommands := fl.Bool("mcp-allow-commands", false, "let authenticated MCP clients run bounded commands as the go-chamber server user (unsafe; off by default)")
+	mcpAutoReview := fl.Bool("mcp-allow-auto-review", false, "let MCP clients delegate Codex approval requests to its reviewer agent (off by default)")
 	publicURL := fl.String("public-url", "", "public origin OAuth clients reach (https://host); empty follows each request")
 	if err := fl.Parse(args); err != nil {
 		return err
@@ -159,12 +160,13 @@ func run(ctx context.Context, args []string, out io.Writer) error {
 		Terminals: terminals,
 	})
 	mcp := mcpapi.New(mcpapi.Config{
-		Sessions:       manager,
-		Worktrees:      worktrees,
-		Commands:       command.Runner{},
-		AllowCommands:  *mcpCommands,
-		Events:         events,
-		AllowApprovals: *mcpApprovals,
+		Sessions:          manager,
+		Worktrees:         worktrees,
+		Commands:          command.Runner{},
+		AllowCommands:     *mcpCommands,
+		AllowAutoReviewer: *mcpAutoReview,
+		Events:            events,
+		AllowApprovals:    *mcpApprovals,
 	})
 	mcp.Watch(ctx)
 	auth := oauth.New(oauth.Config{Tokens: store.OAuthTokens(), Base: *publicURL})
