@@ -17,9 +17,11 @@ import (
 	"fmt"
 	"html/template"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -36,51 +38,39 @@ const (
 	scope      = "mcp"
 )
 
-// allowedRedirect limits who can be linked at all to ChatGPT's own OAuth
-// callbacks, matched exactly, so a crafted consent link cannot hand a code
-// to any other page.
-// ponytail: ChatGPT only; widen the list when another OAuth-only client
-// needs to link.
+// allowedRedirect accepts HTTPS callbacks and native-app loopback HTTP callbacks.
+// The requested URI must still match a registered/documented URI exactly.
 func allowedRedirect(uri string) bool {
-	path, ok := chatgptPath(uri)
-	if !ok {
+	u, err := url.Parse(uri)
+	if err != nil || u.User != nil || u.Fragment != "" || u.RawFragment != "" || strings.Contains(uri, "#") || u.Hostname() == "" {
 		return false
 	}
-	if path == "/connector_platform_oauth_redirect" {
-		return true
+	switch u.Scheme {
+	case "https":
+		return strings.Contains(u.Hostname(), ".")
+	case "http":
+		if u.Hostname() != "localhost" && u.Hostname() != "127.0.0.1" && u.Hostname() != "::1" {
+			return false
+		}
+		port, err := strconv.Atoi(u.Port())
+		return err == nil && port > 0 && port <= 65535
+	default:
+		return false
 	}
-	id, ok := strings.CutPrefix(path, "/connector/oauth/")
-	return ok && callbackID(id)
 }
 
-// clientDocument reports whether id is the URL of ChatGPT's client metadata
-// document.
+// clientDocument permits any public HTTPS client metadata document. Fetches
+// must also use public-network-only dialing (see metadataHTTPClient).
 func clientDocument(id string) bool {
-	path, ok := chatgptPath(id)
-	if !ok {
+	u, err := url.Parse(id)
+	if err != nil || u.Scheme != "https" || u.User != nil || u.Hostname() == "" ||
+		u.Path == "" || u.Path == "/" || u.RawQuery != "" || u.ForceQuery ||
+		u.Fragment != "" || u.RawFragment != "" || strings.Contains(id, "#") {
 		return false
 	}
-	if path == "/oauth/client.json" {
-		return true
-	}
-	middle, ok := strings.CutPrefix(path, "/oauth/")
-	middle, ok2 := strings.CutSuffix(middle, "/client.json")
-	return ok && ok2 && callbackID(middle)
-}
-
-// chatgptPath is the path of a plain https://chatgpt.com URL: no user,
-// query, fragment or escapes to hide anything in.
-func chatgptPath(raw string) (string, bool) {
-	u, err := url.Parse(raw)
-	if err != nil || u.Scheme != "https" || u.Host != "chatgpt.com" || u.User != nil ||
-		u.RawQuery != "" || u.ForceQuery || u.Fragment != "" || u.RawPath != "" || strings.Contains(raw, "#") {
-		return "", false
-	}
-	return u.Path, true
-}
-
-func callbackID(s string) bool {
-	return s != "" && strings.Trim(s, "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-") == ""
+	host := strings.ToLower(u.Hostname())
+	return strings.Contains(host, ".") && !strings.HasSuffix(host, ".localhost") &&
+		host != "localhost" && net.ParseIP(host) == nil
 }
 
 // Tokens keeps the issued tokens across restarts.
@@ -96,7 +86,7 @@ type Config struct {
 	Tokens Tokens
 	// Base is the public origin (https://host); empty follows the request.
 	Base string
-	// HTTP fetches client metadata documents; http.DefaultClient when nil.
+	// HTTP fetches client metadata documents; a public-network-only client when nil.
 	HTTP *http.Client
 	Now  func() time.Time
 }
@@ -139,12 +129,13 @@ const (
 
 func New(cfg Config) *Server {
 	if cfg.HTTP == nil {
-		cfg.HTTP = http.DefaultClient
+		cfg.HTTP = metadataHTTPClient()
 	}
 	if cfg.Now == nil {
 		cfg.Now = time.Now
 	}
-	// A client document is fetched from chatgpt.com and nowhere it points.
+	// Metadata fetches may target arbitrary public HTTPS hosts but never follow
+	// redirects (including to loopback or a private network).
 	fetch := *cfg.HTTP
 	fetch.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
 	if fetch.Timeout == 0 {
@@ -255,7 +246,8 @@ func (s *Server) register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if len(req.RedirectURIs) == 0 || len(req.RedirectURIs) > maxRedirects || slices.ContainsFunc(req.RedirectURIs, func(u string) bool { return !allowedRedirect(u) }) {
-		oauthError(w, http.StatusBadRequest, "invalid_redirect_uri", "only ChatGPT may link to this server")
+		// Only HTTPS or native loopback callbacks can receive authorization codes.
+		oauthError(w, http.StatusBadRequest, "invalid_redirect_uri", "expected HTTPS or a loopback HTTP callback")
 		return
 	}
 	if len(req.Name) > maxName {

@@ -21,20 +21,25 @@ export GO_CHAMBER_TOKEN=$(cat ~/.go-chamber/token)
 codex mcp add go-chamber --url http://127.0.0.1:7777/api/mcp --bearer-token-env-var GO_CHAMBER_TOKEN
 ```
 
-### ChatGPT (OAuth)
+### Remote MCP clients (OAuth)
 
-ChatGPT links only through OAuth and reaches the server from the internet, so go-chamber must be
-served on a public HTTPS origin. go-chamber is its own authorization server for one owner:
+A remote MCP client connects to `https://<host>/api/mcp` with OAuth. go-chamber is a
+single-owner authorization server: the owner signs in to the usual web UI and explicitly
+allows each link on `/oauth/authorize`. Client ID Metadata Documents (CIMD) on public HTTPS
+hosts and dynamic client registration (DCR) are supported. Redirect URIs must be HTTPS or
+HTTP on `localhost`, `127.0.0.1`, or `[::1]` with an explicit port, and must match the client
+metadata or registration exactly. The metadata fetch refuses private/reserved IP addresses,
+does not use a proxy or follow redirects, and pins the validated DNS result when connecting.
 
-- metadata at `/.well-known/oauth-protected-resource` and `/.well-known/oauth-authorization-server`;
-- clients identify by a client metadata document (CIMD) or register (DCR), and may only return to
-  `https://chatgpt.com/`;
-- `/oauth/authorize` is a consent page behind the usual login: the owner signs in with the token
-  and allows or denies the link;
-- authorization code with PKCE (S256); access tokens live an hour, refresh tokens 90 days and
-  rotate; both are kept, as hashes, in the database, so a restart keeps every link working.
-  Registered clients live in memory: a restart only asks a half-done link again.
+Hermes Agent, for example, can connect with:
 
+```sh
+hermes mcp add go-chamber --url https://<host>/api/mcp --auth oauth
+```
+
+An OAuth code uses PKCE (S256). Access tokens last an hour; refresh tokens last 90 days and
+rotate. Both are stored as hashes in the database and survive restarts. Dynamically registered
+client IDs live in memory: a restart may require a new authorization for a half-done link.
 The tokens open `/api/mcp` and nothing else. The public origin follows each request (`Host`,
 `X-Forwarded-Proto`, `X-Forwarded-Host`); `-public-url https://host` fixes it when a proxy rewrites
 them. In ChatGPT: Settings → Apps & Connectors (developer mode) → create a connector with

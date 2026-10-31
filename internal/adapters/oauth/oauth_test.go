@@ -20,12 +20,14 @@ import (
 )
 
 const (
-	base     = "https://chamber.example.dev"
-	resource = base + "/api/mcp"
-	redirect = "https://chatgpt.com/connector_platform_oauth_redirect"
-	cimdID   = "https://chatgpt.com/oauth/client.json"
-	movedID  = "https://chatgpt.com/oauth/moved/client.json"
-	verifier = "a-long-enough-code-verifier-0123456789-abcdefghijkl"
+	base          = "https://chamber.example.dev"
+	resource      = base + "/api/mcp"
+	redirect      = "https://chatgpt.com/connector_platform_oauth_redirect"
+	cimdID        = "https://chatgpt.com/oauth/client.json"
+	otherID       = "https://agent.example.org/oauth/client.json"
+	localRedirect = "http://127.0.0.1:27890/callback"
+	movedID       = "https://chatgpt.com/oauth/moved/client.json"
+	verifier      = "a-long-enough-code-verifier-0123456789-abcdefghijkl"
 )
 
 func challenge(v string) string {
@@ -118,6 +120,7 @@ func (f *fixture) open() *oauth.Server {
 		Base:   base,
 		HTTP: &http.Client{Transport: documents{
 			cimdID:                         `{"client_id":"` + cimdID + `","client_name":"ChatGPT","redirect_uris":["` + redirect + `"],"token_endpoint_auth_method":"none"}`,
+			otherID:                        `{"client_id":"` + otherID + `","client_name":"Another Agent","redirect_uris":["` + localRedirect + `"],"token_endpoint_auth_method":"none"}`,
 			movedID:                        "->http://127.0.0.1:22/internal",
 			"http://127.0.0.1:22/internal": `{"client_id":"` + movedID + `","redirect_uris":["` + redirect + `"]}`,
 		}},
@@ -252,6 +255,40 @@ func TestClientMetadataDocumentFlow(t *testing.T) {
 	}
 }
 
+func TestOtherClientMetadataDocumentCanLinkViaLoopback(t *testing.T) {
+	f := newFixture(t)
+	q := authorizeQuery(otherID)
+	q.Set("redirect_uri", localRedirect)
+	page := f.do(httptest.NewRequest("GET", "/oauth/authorize?"+q.Encode(), nil))
+	if page.Code != http.StatusOK || !strings.Contains(page.Body.String(), "Another Agent") {
+		t.Fatalf("consent page = %d %s", page.Code, page.Body)
+	}
+	q.Set("decision", "allow")
+	req := httptest.NewRequest("POST", "/oauth/authorize", strings.NewReader(q.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	rec := f.do(req)
+	to, _ := url.Parse(rec.Header().Get("Location"))
+	if rec.Code != http.StatusFound || to.Scheme != "http" || to.Host != "127.0.0.1:27890" || to.Query().Get("code") == "" {
+		t.Fatalf("redirect = %d %s", rec.Code, to)
+	}
+	status, token := f.token(url.Values{
+		"grant_type": {"authorization_code"}, "code": {to.Query().Get("code")},
+		"redirect_uri": {localRedirect}, "client_id": {otherID},
+		"code_verifier": {verifier}, "resource": {resource},
+	})
+	if status != http.StatusOK || !f.valid(token["access_token"].(string)) {
+		t.Fatalf("token = %d %v", status, token)
+	}
+}
+
+func TestOtherClientMayRegisterAnHTTPSCallback(t *testing.T) {
+	f := newFixture(t)
+	rec := register(f, `{"client_name":"Another Agent","redirect_uris":["https://agent.example.org/callback"]}`)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("register = %d %s", rec.Code, rec.Body)
+	}
+}
+
 func TestRegisteredClientFlow(t *testing.T) {
 	f := newFixture(t)
 	req := httptest.NewRequest("POST", "/oauth/register", strings.NewReader(`{"client_name":"ChatGPT","redirect_uris":["`+redirect+`"],"token_endpoint_auth_method":"none"}`))
@@ -266,14 +303,6 @@ func TestRegisteredClientFlow(t *testing.T) {
 	tok := f.exchange(client, f.approve(client))
 	if !f.valid(tok["access_token"].(string)) {
 		t.Fatal("access token not accepted")
-	}
-}
-
-func TestRegistrationOnlyForChatGPTRedirects(t *testing.T) {
-	f := newFixture(t)
-	req := httptest.NewRequest("POST", "/oauth/register", strings.NewReader(`{"redirect_uris":["https://evil.example/cb"]}`))
-	if rec := f.do(req); rec.Code != http.StatusBadRequest {
-		t.Fatalf("register = %d %s", rec.Code, rec.Body)
 	}
 }
 
@@ -436,20 +465,28 @@ func register(f *fixture, body string) *httptest.ResponseRecorder {
 	return f.do(httptest.NewRequest("POST", "/oauth/register", strings.NewReader(body)))
 }
 
-func TestRedirectMustBeChatGPTsCallback(t *testing.T) {
+func TestRedirectRequiresHTTPSOrNativeLoopback(t *testing.T) {
 	f := newFixture(t)
 	for uri, ok := range map[string]bool{
 		redirect: true,
-		"https://chatgpt.com/connector/oauth/cb_123-AZ":                      true,
-		"https://chatgpt.com/share/abc":                                      false,
-		"https://chatgpt.com/connector/oauth/a/b":                            false,
-		"https://chatgpt.com/connector/oauth/":                               false,
-		"https://chatgpt.com/%zz":                                            false,
-		redirect + "#x":                                                      false,
-		redirect + "?next=https://evil.example":                              false,
-		"https://user@chatgpt.com/connector_platform_oauth_redirect":         false,
-		"http://chatgpt.com/connector_platform_oauth_redirect":               false,
-		"https://chatgpt.com.evil.example/connector_platform_oauth_redirect": false,
+		"https://chatgpt.com/connector/oauth/cb_123-AZ":              true,
+		"https://agent.example.org/callback":                         true,
+		"https://chatgpt.com/share/abc":                              true,
+		"https://chatgpt.com/connector/oauth/a/b":                    true,
+		"https://chatgpt.com/connector/oauth/":                       true,
+		redirect + "?next=https://evil.example":                      true,
+		localRedirect:                                                true,
+		"http://localhost:5001/oauth/callback":                       true,
+		"http://[::1]:5001/oauth/callback":                           true,
+		"http://192.168.1.1:27890/callback":                          false,
+		"http://localhost.evil.example:27890/callback":               false,
+		"http://0.0.0.0:27890/callback":                              false,
+		"http://localhost:0/callback":                                false,
+		"http://localhost:65536/callback":                            false,
+		"http://agent.example.org/callback":                          false,
+		"https://chatgpt.com/%zz":                                    false,
+		redirect + "#x":                                              false,
+		"https://user@chatgpt.com/connector_platform_oauth_redirect": false,
 	} {
 		rec := register(f, `{"redirect_uris":["`+uri+`"]}`)
 		if got := rec.Code == http.StatusCreated; got != ok {
