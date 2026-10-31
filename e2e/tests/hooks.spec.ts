@@ -14,7 +14,7 @@ for (const agent of ['Claude', 'Codex'] as const) {
     await page.getByLabel('Working directory').fill('/tmp')
     await page.getByRole('button', { name: 'New session', exact: true }).click()
     await page.getByLabel('Message').fill('run the hook')
-    await page.getByRole('button', { name: 'Send' }).click()
+    await page.getByRole('button', { name: 'Send', exact: true }).click()
 
     const hook = page.locator('.item.hook', { hasText: 'Stop hook' })
     await expect(hook).toContainText('blocked')

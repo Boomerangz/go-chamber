@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
 import { token } from '../playwright.config'
-import { openNewSession } from './pane'
+import { openNewSession, showPane } from './pane'
 
 // A phone keeps its height for the transcript: the composer stays one row of
 // icons, a request card isn't announced twice, and a working connection
@@ -24,7 +24,7 @@ async function say(page: Page, text: string) {
 test('a phone composer is one row: the text beside Attach and Send as icons', async ({ page, isMobile }) => {
   test.skip(!isMobile, 'the phone layout')
   await newSession(page)
-  const send = page.getByRole('button', { name: 'Send' })
+  const send = page.getByRole('button', { name: 'Send', exact: true })
   const attach = page.getByRole('button', { name: 'Attach', exact: true })
   for (const b of [send, attach]) {
     await expect(b.locator('svg')).toBeVisible()
@@ -86,14 +86,24 @@ test('a phone hides Attach while a turn runs: images wait for the next message',
   await expect(attach).toBeHidden()
 })
 
-test('a phone folds the accounts to one line under the sessions', async ({ page, isMobile }) => {
-  test.skip(!isMobile, 'the phone sidebar')
+test('account logins and OpenCode providers are folded by default on every screen', async ({ page }) => {
+  await page.route('**/api/account?*', (route) => {
+    const agent = new URL(route.request().url()).searchParams.get('agent')
+    return route.fulfill({ json: { agent, loggedIn: true, authMode: 'cli', email: agent === 'codex' ? 'dev@example.com' : undefined, providers: ['openrouter'] } })
+  })
   await page.goto(`/?token=${token}`)
+  await showPane(page, 'Sessions')
   const fold = page.getByRole('button', { name: 'Accounts' })
   await expect(fold).toHaveAttribute('aria-expanded', 'false')
-  await expect(page.locator('.accounts .account').first()).toBeHidden()
+  await expect(page.getByText(/Signed in as dev@example.com/)).toBeHidden()
+  await expect(page.getByText(/Signed in with the CLI login/)).toBeHidden()
+  await expect(page.getByText('Providers: openrouter')).toBeHidden()
   await fold.click()
-  await expect(page.locator('.accounts .account').first()).toBeVisible()
+  await expect(page.getByText(/Signed in as dev@example.com/)).toBeVisible()
+  await expect(page.getByText(/Signed in with the CLI login/)).toBeVisible()
+  await expect(page.getByText('Providers: openrouter')).toBeVisible()
+  await fold.click()
+  await expect(page.getByText('Providers: openrouter')).toBeHidden()
 })
 
 test('a phone picks the agent from one row', async ({ page, isMobile }) => {

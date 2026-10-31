@@ -79,13 +79,17 @@ type termEnv struct {
 	ts      *httptest.Server
 }
 
-func newTermEnv(t *testing.T) termEnv {
+func newTermEnv(t *testing.T, mods ...func(*app.TerminalsConfig)) termEnv {
 	t.Helper()
 	factory := &pipeFactory{}
-	terms := app.NewTerminals(app.TerminalsConfig{
+	cfg := app.TerminalsConfig{
 		PTYs: factory, Home: "/home/me", Shell: "/bin/sh",
 		Sessions: sessionsByID{"s1": {ID: "s1", Cwd: "/work"}},
-	})
+	}
+	for _, mod := range mods {
+		mod(&cfg)
+	}
+	terms := app.NewTerminals(cfg)
 	t.Cleanup(terms.CloseAll)
 	ts := httptest.NewServer(NewServer(Config{
 		Token: testToken, Static: fstest.MapFS{"index.html": {Data: []byte("app")}},

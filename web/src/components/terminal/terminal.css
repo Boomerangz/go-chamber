@@ -13,6 +13,13 @@
 
 /* the screen, with "new output" over its lower edge while scrolled up */
 .term-screen { position: relative; flex: 1; display: flex; min-width: 0; min-height: 0; }
+.terminal-screen { position: relative; }
+.term-restore-image { position: absolute; inset: 0; z-index: 3; pointer-events: none; overflow: hidden; background: var(--paper); }
+.term-prediction { position: absolute; z-index: 2; white-space: pre; pointer-events: none; background: var(--paper); color: var(--ink); opacity: .7; }
+.term-prediction[hidden] { display: none; }
+.term-history { display: flex; flex-direction: column; flex: 0 1 45%; min-height: 100px; overflow: hidden; gap: 5px; }
+.term-history .field { flex: 1; min-width: 80px; }
+.term-history-lines { overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; min-height: 40px; padding: 8px; margin: 0; font-family: var(--font-mono); font-size: var(--t-meta); }
 .term-new-output {
   position: absolute; right: 14px; bottom: 10px; z-index: 2; gap: 4px;
   background: var(--paper); text-transform: lowercase;

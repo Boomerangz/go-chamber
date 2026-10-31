@@ -8,7 +8,7 @@ export interface ServerDiagnostics {
   goroutines: number
   heapBytes: number
   events: { published: number; persistCalls: number; persistErrors: number; persistMeanMs: number; persistMaxMs: number; lockWaitMeanMs: number; lockWaitMaxMs: number }
-  terminals: { id: string; clients: number; queuedBytes: number; outputBytes: number; laggedClients: number }[]
+  terminals: { id: string; clients: number; queuedBytes: number; outputBytes: number; laggedClients: number; unackedOutputBytes?: number }[]
   clis?: CLIStatus[]
 }
 

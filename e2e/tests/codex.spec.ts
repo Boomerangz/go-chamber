@@ -15,14 +15,14 @@ async function newCodexSession(page: import('@playwright/test').Page, cwd = '/tm
 test('streams a codex app-server reply', async ({ page }) => {
   await newCodexSession(page)
   await page.getByLabel('Message').fill('hello codex')
-  await page.getByRole('button', { name: 'Send' }).click()
+  await page.getByRole('button', { name: 'Send', exact: true }).click()
   await expect(page.locator('.item.assistant', { hasText: 'echo: hello codex' })).toBeVisible()
 })
 
 test('approves a codex command execution', async ({ page }) => {
   await newCodexSession(page)
   await page.getByLabel('Message').fill('please permission')
-  await page.getByRole('button', { name: 'Send' }).click()
+  await page.getByRole('button', { name: 'Send', exact: true }).click()
 
   await expect(page.locator('.request-title', { hasText: 'please permission' })).toBeVisible()
   await page.getByRole('button', { name: 'Allow', exact: true }).click()
@@ -34,7 +34,7 @@ test('approves a codex command execution', async ({ page }) => {
 test('stops a codex turn that waits for an approval', async ({ page }) => {
   await newCodexSession(page)
   await page.getByLabel('Message').fill('please permission to stop')
-  await page.getByRole('button', { name: 'Send' }).click()
+  await page.getByRole('button', { name: 'Send', exact: true }).click()
   await expect(page.locator('.request-title', { hasText: 'please permission to stop' })).toBeVisible()
   const composer = page.locator('form.composer')
   await composer.getByRole('button', { name: 'Stop' }).click()
@@ -44,14 +44,14 @@ test('stops a codex turn that waits for an approval', async ({ page }) => {
   await expect(page.locator('.item .stop-tag').first()).toHaveText('stopped')
   // The next turn starts clean, with its own reply.
   await page.getByLabel('Message').fill('hello again')
-  await page.getByRole('button', { name: 'Send' }).click()
+  await page.getByRole('button', { name: 'Send', exact: true }).click()
   await expect(page.locator('.item.assistant', { hasText: 'echo: hello again' })).toBeVisible()
 })
 
 test('answers a codex requestUserInput question', async ({ page }) => {
   await newCodexSession(page)
   await page.getByLabel('Message').fill('ask me')
-  await page.getByRole('button', { name: 'Send' }).click()
+  await page.getByRole('button', { name: 'Send', exact: true }).click()
 
   await expect(page.locator('legend', { hasText: 'Which option should we use?' })).toBeVisible()
   await page.getByRole('radio', { name: /Alpha/ }).click()
@@ -80,13 +80,13 @@ test('switches who reviews codex approvals', async ({ page }, info) => {
 
   await reviewer.selectOption('auto_review')
   await page.getByLabel('Message').fill('auto permission run')
-  await page.getByRole('button', { name: 'Send' }).click()
+  await page.getByRole('button', { name: 'Send', exact: true }).click()
   await expect(page.locator('.item.assistant', { hasText: 'auto-approved: auto permission run' })).toBeVisible()
   await expect(page.locator('.request-title', { hasText: 'auto permission run' })).toHaveCount(0)
 
   await reviewer.selectOption('user')
   await page.getByLabel('Message').fill('manual permission run')
-  await page.getByRole('button', { name: 'Send' }).click()
+  await page.getByRole('button', { name: 'Send', exact: true }).click()
   await expect(page.locator('.request-title', { hasText: 'manual permission run' })).toBeVisible()
   await page.getByRole('button', { name: 'Allow', exact: true }).click()
   await expect(page.locator('.item.assistant', { hasText: 'approved: manual permission run' }).last()).toBeVisible()

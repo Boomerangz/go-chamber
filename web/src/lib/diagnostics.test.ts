@@ -1,8 +1,19 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
+import { recordTerminalInput, beginTerminalRecovery, completeTerminalRecovery } from './diagnostics'
 import { diagnostics, recordSample, recordAgentEvent, recordAgentBatch, beginAgentView, endAgentView, markAgentUpdate, recordAgentCommit, recordTerminalOutput, completeTerminalOutput, recordTerminalReconnect, resetDiagnostics, forgetTerminal, monitorBrowser, recordTerminalTransport, recordTerminalRTT } from './diagnostics'
 
 beforeEach(() => { resetDiagnostics(); for (const terminal of diagnostics().terminals) forgetTerminal(terminal.id) })
 afterEach(() => { endAgentView('s1'); vi.restoreAllMocks(); vi.unstubAllGlobals(); vi.useRealTimers() })
+
+it('reports recovery, processed-output age and pending input as counters only', () => {
+  const now = vi.spyOn(performance, 'now').mockReturnValue(10)
+  beginTerminalRecovery('v2')
+  recordTerminalInput('v2', 65536)
+  recordTerminalOutput('v2', 20)
+  now.mockReturnValue(25); completeTerminalOutput('v2', 20, 5)
+  now.mockReturnValue(40); completeTerminalRecovery('v2')
+  expect(diagnostics().terminals.find((t) => t.id === 'v2')).toMatchObject({ recoveryMs: 30, processedAgeMs: 15, pendingInputBytes: 65536 })
+})
 
 it('records route classifications and resets RTC timings without losing the active connection', () => {
  recordTerminalTransport('rtc', 'webrtc', 'direct', 'udp')

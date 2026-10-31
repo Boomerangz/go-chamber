@@ -23,7 +23,7 @@ async function startSession(page: Page) {
 async function expectUsableChat(page: Page) {
   const chat = (await page.locator('.layout > .chat').boundingBox())!
   expect(chat.width).toBeGreaterThanOrEqual(CHAT_MIN - 1)
-  const send = page.getByRole('button', { name: 'Send' })
+  const send = page.getByRole('button', { name: 'Send', exact: true })
   const hit = await send.evaluate((el) => {
     const r = el.getBoundingClientRect()
     const at = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2)

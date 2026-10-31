@@ -43,9 +43,10 @@ type PTY interface {
 }
 
 type PTYSpec struct {
-	Cwd        string
-	Shell      string
-	Cols, Rows uint16
+	PromptHooks bool
+	Cwd         string
+	Shell       string
+	Cols, Rows  uint16
 }
 
 // PTYFactory starts shells in pseudo-terminals.
@@ -59,7 +60,10 @@ type SessionLookup interface {
 }
 
 type TerminalsConfig struct {
-	PTYs     PTYFactory
+	PTYs PTYFactory
+	// Screens enables authoritative screen attachments for protocol v2.
+	// Keep nil until the emulator's xterm compatibility gate passes.
+	Screens  TerminalScreenFactory
 	Sessions SessionLookup
 	// Home is the directory of terminals opened without a cwd.
 	Home string
@@ -110,6 +114,13 @@ func NewTerminals(cfg TerminalsConfig) *Terminals {
 	return &Terminals{cfg: cfg, terms: map[domain.TerminalID]*runningTerminal{}}
 }
 
+func (t *Terminals) TerminalProtocol() int {
+	if t.cfg.Screens != nil {
+		return 2
+	}
+	return 1
+}
+
 // checkFolder refuses a shell in a folder that is not there; a session's
 // folder is one that went away.
 func (t *Terminals) checkFolder(cwd string, session bool) error {
@@ -158,7 +169,7 @@ func (t *Terminals) Open(ctx context.Context, req OpenTerminal) (domain.Terminal
 	if cols == 0 || rows == 0 {
 		cols, rows = defaultCols, defaultRows
 	}
-	pty, err := t.cfg.PTYs.Start(PTYSpec{Cwd: cwd, Shell: term.Shell, Cols: cols, Rows: rows})
+	pty, err := t.cfg.PTYs.Start(PTYSpec{Cwd: cwd, Shell: term.Shell, Cols: cols, Rows: rows, PromptHooks: t.cfg.Screens != nil})
 	if err != nil {
 		return domain.Terminal{}, fmt.Errorf("start shell: %w", err)
 	}
@@ -168,10 +179,16 @@ func (t *Terminals) Open(ctx context.Context, req OpenTerminal) (domain.Terminal
 		subs:     map[*subscriber]struct{}{},
 		lagBytes: t.cfg.LagBytes,
 	}
+	if t.cfg.Screens != nil {
+		rt.screen = t.cfg.Screens.New(cols, rows)
+	}
 	t.mu.Lock()
 	if t.closed {
 		t.mu.Unlock()
 		_ = pty.Close()
+		if rt.screen != nil {
+			rt.screen.Close()
+		}
 		return domain.Terminal{}, ErrTerminalsClosed
 	}
 	taken := make([]string, 0, len(t.terms))
@@ -227,6 +244,11 @@ func (t *Terminals) Get(id domain.TerminalID) (domain.Terminal, error) {
 type TerminalOutput struct {
 	Data   []byte
 	Resync bool
+	// Position is the PTY byte offset immediately following this delivery.
+	Position            uint64
+	Cols, Rows          uint16
+	PromptID, CommandID uint64
+	Prompt              bool
 }
 
 // TerminalAttachment is one client's view of a terminal: the buffered
@@ -235,9 +257,12 @@ type TerminalOutput struct {
 // behind gets a Resync frame instead of its backlog. Output is closed when
 // the terminal exits or is closed, or on Detach.
 type TerminalAttachment struct {
-	Scrollback []byte
-	Output     <-chan TerminalOutput
-	detach     func()
+	Scrollback        []byte
+	Screen            TerminalScreenSnapshot
+	ResyncPending     func() bool
+	ReportOutstanding func(int)
+	Output            <-chan TerminalOutput
+	detach            func()
 }
 
 func (a *TerminalAttachment) Detach() {
@@ -251,7 +276,18 @@ func (t *Terminals) Attach(id domain.TerminalID) (*TerminalAttachment, error) {
 	if err != nil {
 		return nil, err
 	}
-	return rt.attach(), nil
+	return rt.attach(false), nil
+}
+
+func (t *Terminals) AttachScreen(id domain.TerminalID) (*TerminalAttachment, error) {
+	rt, err := t.find(id)
+	if err != nil {
+		return nil, err
+	}
+	if rt.screen == nil {
+		return nil, errors.New("terminal screen is not enabled")
+	}
+	return rt.attach(true), nil
 }
 
 func (t *Terminals) Write(id domain.TerminalID, p []byte) error {
@@ -259,6 +295,8 @@ func (t *Terminals) Write(id domain.TerminalID, p []byte) error {
 	if err != nil {
 		return err
 	}
+	rt.inputMu.Lock()
+	defer rt.inputMu.Unlock()
 	_, err = rt.pty.Write(p)
 	return err
 }
@@ -271,7 +309,30 @@ func (t *Terminals) Resize(id domain.TerminalID, cols, rows uint16) error {
 	if err != nil {
 		return err
 	}
-	return rt.pty.Resize(cols, rows)
+	rt.inputMu.Lock()
+	defer rt.inputMu.Unlock()
+	return rt.resize(cols, rows)
+}
+
+// resize is called with inputMu held, for both legacy and owned clients.
+func (rt *runningTerminal) resize(cols, rows uint16) error {
+	// Hold the display lock across the PTY resize too: SIGWINCH output must
+	// not be interpreted using the old grid before the display is resized.
+	rt.mu.Lock()
+	if err := rt.pty.Resize(cols, rows); err != nil {
+		rt.mu.Unlock()
+		return err
+	}
+	var replies []byte
+	if rt.screen != nil {
+		replies = rt.screen.Resize(cols, rows)
+	}
+	rt.mu.Unlock()
+	if len(replies) > 0 {
+		_, err := rt.pty.Write(replies)
+		return err
+	}
+	return nil
 }
 
 // Close kills the shell and forgets the terminal.
@@ -356,10 +417,11 @@ func (t *Terminals) running(id domain.TerminalID) (*runningTerminal, error) {
 // subscriber queues output for one client. publish appends to pending; the
 // forward goroutine hands it to out in coalesced frames.
 type subscriber struct {
-	out  chan TerminalOutput
-	wake chan struct{}
-	done chan struct{}
-	once sync.Once
+	unacked int
+	out     chan TerminalOutput
+	wake    chan struct{}
+	done    chan struct{}
+	once    sync.Once
 	// guarded by runningTerminal.mu
 	pending []byte
 	held    int // bytes of the frame forward is delivering
@@ -367,6 +429,7 @@ type subscriber struct {
 	// resync: the backlog was dropped; forward sends the scrollback next,
 	// which also holds whatever is published meanwhile.
 	resync bool
+	screen bool
 }
 
 func (s *subscriber) notify() {
@@ -424,21 +487,46 @@ func (rt *runningTerminal) nextFrame(s *subscriber) TerminalOutput {
 		// The scrollback is bounded on its own; only what queues after it
 		// counts towards the client's lag.
 		s.held = 0
-		return TerminalOutput{Data: rt.scroll.Bytes(), Resync: true}
+		data := rt.scroll.Bytes()
+		var cols, rows uint16
+		if s.screen {
+			snap := rt.screen.Snapshot()
+			data, cols, rows = snap.Data, snap.Cols, snap.Rows
+		}
+		out := TerminalOutput{Data: data, Resync: true, Position: rt.outputBytes, Cols: cols, Rows: rows}
+		rt.promptState(&out)
+		return out
 	}
 	frame := s.pending
-	if len(frame) > maxOutputFrame {
-		frame = slices.Clone(frame[:maxOutputFrame])
-		s.pending = s.pending[maxOutputFrame:]
+	limit := maxOutputFrame
+	if s.screen {
+		limit = (16 << 10) - 9
+	}
+	if len(frame) > limit {
+		frame = slices.Clone(frame[:limit])
+		s.pending = s.pending[limit:]
 	} else {
 		s.pending = nil
 	}
 	s.held = len(frame)
-	return TerminalOutput{Data: frame}
+	out := TerminalOutput{Data: frame, Position: rt.outputBytes - uint64(len(s.pending))}
+	if len(s.pending) == 0 {
+		rt.promptState(&out)
+	}
+	return out
+}
+
+func (rt *runningTerminal) promptState(out *TerminalOutput) {
+	if screen, ok := rt.screen.(interface{ PromptState() (uint64, uint64, bool) }); ok {
+		out.PromptID, out.CommandID, out.Prompt = screen.PromptState()
+	}
 }
 
 type runningTerminal struct {
-	pty PTY
+	pty        PTY
+	inputMu    sync.Mutex
+	screen     TerminalScreen
+	inputState terminalClients
 
 	mu            sync.Mutex
 	term          domain.Terminal
@@ -462,7 +550,12 @@ func (rt *runningTerminal) pump() {
 	for {
 		n, err := rt.pty.Read(buf)
 		if n > 0 {
-			rt.publish(slices.Clone(buf[:n]))
+			replies := rt.publish(slices.Clone(buf[:n]))
+			if len(replies) > 0 {
+				rt.inputMu.Lock()
+				_, _ = rt.pty.Write(replies)
+				rt.inputMu.Unlock()
+			}
 		}
 		if err != nil {
 			break
@@ -477,6 +570,9 @@ func (rt *runningTerminal) pump() {
 	_ = rt.pty.Close()
 	rt.mu.Lock()
 	defer rt.mu.Unlock()
+	if rt.screen != nil {
+		rt.screen.Close()
+	}
 	_ = rt.term.Exit(code)
 	for s := range rt.subs {
 		s.end()
@@ -484,9 +580,13 @@ func (rt *runningTerminal) pump() {
 	clear(rt.subs)
 }
 
-func (rt *runningTerminal) publish(chunk []byte) {
+func (rt *runningTerminal) publish(chunk []byte) []byte {
 	rt.mu.Lock()
 	defer rt.mu.Unlock()
+	var replies []byte
+	if rt.screen != nil {
+		replies = rt.screen.Feed(chunk)
+	}
 	rt.outputBytes += uint64(len(chunk))
 	rt.scroll.Write(chunk)
 	for s := range rt.subs {
@@ -503,10 +603,11 @@ func (rt *runningTerminal) publish(chunk []byte) {
 		s.pending = append(s.pending, chunk...)
 		s.notify()
 	}
+	return replies
 }
 
-func (rt *runningTerminal) attach() *TerminalAttachment {
-	s := &subscriber{out: make(chan TerminalOutput), wake: make(chan struct{}, 1), done: make(chan struct{})}
+func (rt *runningTerminal) attach(screen bool) *TerminalAttachment {
+	s := &subscriber{out: make(chan TerminalOutput), wake: make(chan struct{}, 1), done: make(chan struct{}), screen: screen}
 	go rt.forward(s)
 	rt.mu.Lock()
 	defer rt.mu.Unlock()
@@ -515,9 +616,11 @@ func (rt *runningTerminal) attach() *TerminalAttachment {
 	} else {
 		rt.subs[s] = struct{}{}
 	}
-	return &TerminalAttachment{
-		Scrollback: rt.scroll.Bytes(),
-		Output:     s.out,
+	a := &TerminalAttachment{
+		ReportOutstanding: func(n int) { rt.mu.Lock(); s.unacked = max(0, n); rt.mu.Unlock() },
+		ResyncPending:     func() bool { rt.mu.Lock(); defer rt.mu.Unlock(); return s.resync },
+		Scrollback:        rt.scroll.Bytes(),
+		Output:            s.out,
 		detach: func() {
 			rt.mu.Lock()
 			delete(rt.subs, s)
@@ -525,16 +628,23 @@ func (rt *runningTerminal) attach() *TerminalAttachment {
 			s.detach()
 		},
 	}
+	if screen {
+		a.Screen = rt.screen.Snapshot()
+		a.Screen.Position = rt.outputBytes
+		a.Scrollback = nil
+	}
+	return a
 }
 
 // TerminalDiagnostic contains counters only, never shell input or output.
 // LaggedClients counts resyncs of clients that fell too far behind.
 type TerminalDiagnostic struct {
-	ID            domain.TerminalID `json:"id"`
-	Clients       int               `json:"clients"`
-	QueuedBytes   int               `json:"queuedBytes"`
-	OutputBytes   uint64            `json:"outputBytes"`
-	LaggedClients uint64            `json:"laggedClients"`
+	UnackedOutputBytes int               `json:"unackedOutputBytes,omitempty"`
+	ID                 domain.TerminalID `json:"id"`
+	Clients            int               `json:"clients"`
+	QueuedBytes        int               `json:"queuedBytes"`
+	OutputBytes        uint64            `json:"outputBytes"`
+	LaggedClients      uint64            `json:"laggedClients"`
 }
 
 func (t *Terminals) Diagnostics() []TerminalDiagnostic {
@@ -545,6 +655,7 @@ func (t *Terminals) Diagnostics() []TerminalDiagnostic {
 		rt.mu.Lock()
 		report := TerminalDiagnostic{ID: id, Clients: len(rt.subs), OutputBytes: rt.outputBytes, LaggedClients: rt.laggedClients}
 		for sub := range rt.subs {
+			report.UnackedOutputBytes += sub.unacked
 			report.QueuedBytes += len(sub.pending) + sub.held
 		}
 		rt.mu.Unlock()

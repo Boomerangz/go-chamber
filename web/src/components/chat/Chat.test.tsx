@@ -19,6 +19,18 @@ vi.mock('../../lib/api', async (orig) => ({
 
 const session: api.Session = { id: 's1', agent: 'claude', cwd: '/home/me/project', status: 'idle', nativeId: 'n1' }
 
+it('offers older messages above the loaded tail and shows retryable pagination errors', async () => {
+  const loadOlder = vi.fn(async () => {})
+  useSessionStore.setState({ sessions: [session], activeId: session.id, history: 'ready', chat: chatOf([item('tail', 'assistant_message')]), olderBefore: 50, loadOlder })
+  render(<Chat />)
+  await userEvent.click(screen.getByRole('button', { name: 'Load older messages' }))
+  expect(loadOlder).toHaveBeenCalledTimes(1)
+  act(() => useSessionStore.setState({ olderError: 'offline' }))
+  expect(screen.getByText(/offline/)).toBeVisible()
+  act(() => useSessionStore.setState({ olderBefore: null, olderError: null }))
+  expect(screen.queryByRole('button', { name: 'Load older messages' })).not.toBeInTheDocument()
+})
+
 const item = (id: string, kind: api.ItemKind, extra: Partial<api.Item> = {}): api.Item => ({
   id,
   sessionId: 's1',
@@ -774,6 +786,14 @@ describe('answering requests', () => {
 
 describe('pending message', () => {
   const pendingRow = () => document.querySelector('.row-pending')
+
+  it('does not mistake backfilled user messages for the echo of an outgoing message', async () => {
+    setup()
+    await userEvent.type(box(), 'a new message')
+    await userEvent.click(screen.getByRole('button', { name: 'Send' }))
+    act(() => useSessionStore.setState({ chat: chatOf([item('old', 'user_message')], { historicalItems: new Set(['old']) }) }))
+    expect(pendingRow()).toHaveTextContent('a new message')
+  })
 
   it('shows what was sent at once, until the agent records it', async () => {
     let accept: (ok: boolean) => void = () => {}

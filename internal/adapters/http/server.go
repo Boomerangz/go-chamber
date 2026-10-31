@@ -25,6 +25,8 @@ type Config struct {
 	// Lifecycle closes direct peer connections when the application shuts down.
 	Lifecycle  context.Context
 	ICEServers []ICEServer
+	// RTCInterface optionally pins discovery and peer UDP to one network link.
+	RTCInterface string
 	// Token is the single-user access token; required.
 	Token string
 	// Static is the built web UI (index.html at the root).
@@ -78,6 +80,7 @@ type server struct {
 	mux      *http.ServeMux
 	started  time.Time
 	rtcSlots chan struct{}
+	rtcStats rtcDiagnostics
 }
 
 func NewServer(cfg Config) http.Handler {
@@ -88,6 +91,7 @@ func NewServer(cfg Config) http.Handler {
 	s.routes()
 	s.diagnosticsRoutes()
 	s.rtcRoutes()
+	s.terminalHistoryRoutes()
 	s.completeRoutes()
 	s.imageRoutes()
 	s.worktreeRoutes()

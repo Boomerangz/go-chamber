@@ -40,7 +40,7 @@ test('chimes when the agent asks for a decision once sounds are on', async ({ pa
   await expect(page).toHaveURL(/\/s\/[^/?]+/)
   mine = new URL(page.url()).pathname.split('/s/')[1]!
   await page.getByLabel('Message').fill(`sound ${info.project.name} ${Date.now()}: please permission`)
-  await page.getByRole('button', { name: 'Send' }).click()
+  await page.getByRole('button', { name: 'Send', exact: true }).click()
   await expect(page.locator('.request-title', { hasText: 'Run command' })).toBeVisible()
   await expect.poll(() => page.evaluate(() => (window as unknown as { tones: number }).tones)).toBeGreaterThanOrEqual(3)
 

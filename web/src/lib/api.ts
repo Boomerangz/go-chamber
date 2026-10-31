@@ -372,6 +372,17 @@ export function fetchEvents(id: string, since = 0, signal?: AbortSignal): Promis
   return request<SessionEvent[]>(`/api/sessions/${encodeURIComponent(id)}/events?since=${since}`, signal ? { signal } : undefined)
 }
 
+export interface HistoryPage {
+  events: SessionEvent[]
+  before: number
+  hasMore: boolean
+  lastSeq: number
+}
+
+export function fetchHistoryPage(id: string, before = 0, signal?: AbortSignal): Promise<HistoryPage> {
+  return request<HistoryPage>(`/api/sessions/${encodeURIComponent(id)}/events?limit=200${before ? `&before=${before}` : ''}`, signal ? { signal } : undefined)
+}
+
 export function listRequests(): Promise<SessionRequest[]> {
   return request<SessionRequest[]>('/api/requests')
 }

@@ -12,7 +12,7 @@ async function newSession(page: Page) {
 
 async function say(page: Page, text: string) {
   await page.getByLabel('Message').fill(text)
-  await page.getByRole('button', { name: 'Send' }).click()
+  await page.getByRole('button', { name: 'Send', exact: true }).click()
 }
 
 test('folds a run of reads and draws an edit as a diff', async ({ page }) => {

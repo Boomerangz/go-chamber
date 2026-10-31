@@ -29,10 +29,12 @@ export default function TerminalView({ id, autoFocus, focusKey = 0, onExit, onDi
     // A connection that gave up while hidden tries again when shown.
     if (useTerminalStore.getState().conn[id]?.state === 'disconnected') live.conn.reconnect()
     const resize = () => {
+      if (useTerminalStore.getState().conn[id]?.client?.owner === false) return
       if (!live.opened || el.clientWidth === 0) return
       live.fit.fit()
       const { cols, rows } = live.xterm
       if (live.size?.cols === cols && live.size?.rows === rows) return
+      live.resetPredictions?.()
       live.size = { cols, rows }
       live.conn.resize(cols, rows)
     }

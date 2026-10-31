@@ -219,6 +219,11 @@ describe('TerminalView', () => {
     expect(open).toHaveBeenCalledWith('https://example.com', '_blank', 'noopener,noreferrer')
     const [code, osc] = xterms[0].parser.registerOscHandler.mock.calls[0] as [number, (data: string) => boolean]
     expect(code).toBe(52)
+    expect(osc('c;' + btoa('history'))).toBe(true)
+    expect(writeText).not.toHaveBeenCalled()
+    handlers().onReady()
+    const complete = xterms[0].write.mock.calls.at(-1)![1] as () => void
+    complete()
     expect(osc('c;' + btoa('copied'))).toBe(true)
     expect(writeText).toHaveBeenCalledWith('copied')
   })

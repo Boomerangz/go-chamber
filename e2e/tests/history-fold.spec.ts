@@ -40,9 +40,15 @@ test('History’s heading shows at the foot of a long session list at 1280x800',
   expect(await seen()).toBe(true)
   await body.evaluate((el) => (el.scrollTop = el.scrollHeight))
   expect(await seen()).toBe(true)
-  const archived = await page.locator('.history.archived > summary').boundingBox()
-  const history = await summary.boundingBox()
-  expect(history!.y).toBeGreaterThanOrEqual(archived!.y + archived!.height)
+  // Other scenarios add sessions to this shared server. Scroll and measure
+  // both headings in one browser task so live rows cannot move the list
+  // between two boundingBox round trips.
+  await expect.poll(() => body.evaluate((el) => {
+    el.scrollTop = el.scrollHeight
+    const archived = el.querySelector('.history.archived > summary')!.getBoundingClientRect()
+    const history = el.querySelector('.history:not(.archived) > summary')!.getBoundingClientRect()
+    return history.top - archived.bottom
+  })).toBeGreaterThanOrEqual(0)
 
   // Opened, it reads as before: the list of CLI sessions under its heading.
   await summary.click()

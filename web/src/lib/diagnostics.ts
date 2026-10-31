@@ -15,8 +15,9 @@ export interface RTCAttempt {
  localCandidates: { host: number; srflx: number; relay: number }
  remoteCandidates: { host: number; srflx: number; relay: number }
  iceErrorCodes: number[]
+ candidatePairs?: { total: number; succeeded: number; requestsSent: number; responsesReceived: number; requestsReceived: number; responsesSent: number }
 }
-interface TerminalMetrics { id: string; receivedBytes: number; pendingBytes: number; peakPendingBytes: number; reconnects: number; transport?: 'websocket' | 'webrtc'; route?: 'direct' | 'relay' | 'unknown'; protocol?: string; rtcRTTMs?: number; rtcAttempt?: RTCAttempt }
+interface TerminalMetrics { id: string; receivedBytes: number; pendingBytes: number; peakPendingBytes: number; reconnects: number; transport?: 'websocket' | 'webrtc'; route?: 'direct' | 'relay' | 'unknown'; protocol?: string; rtcRTTMs?: number; rtcAttempt?: RTCAttempt; pendingInputBytes?: number; recoveryMs?: number; processedAt?: number; recoveryStarted?: number }
 let samples = freshSamples()
 let agent = { events: 0, batches: 0, batchSize: 0 }
 let terminals = new Map<string, TerminalMetrics>()
@@ -49,7 +50,7 @@ export function diagnostics() {
     startedAt,
     metrics: Object.fromEntries(keys.map((key) => [key, summarize(samples[key])])) as Record<MetricKey, MetricSummary>,
     agent: { ...agent },
-    terminals: [...terminals.values()].map((terminal) => ({ ...terminal })),
+    terminals: [...terminals.values()].map(({ processedAt, recoveryStarted: _recovering, ...terminal }) => ({ ...terminal, ...(processedAt === undefined ? {} : { processedAgeMs: Math.max(0, performance.now() - processedAt) }) })),
     browser: { longTasks, longTaskSupport },
   }
 }
@@ -106,8 +107,14 @@ export function recordTerminalOutput(id: string, bytes: number) {
 }
 export function completeTerminalOutput(id: string, bytes: number, ms: number) {
   const value = terminals.get(id)
-  if (value) value.pendingBytes = Math.max(0, value.pendingBytes - bytes)
+  if (value) { value.pendingBytes = Math.max(0, value.pendingBytes - bytes); value.processedAt = performance.now() }
   recordSample('terminalParse', ms)
+}
+export function recordTerminalInput(id: string, bytes: number) { terminal(id).pendingInputBytes = Math.max(0, bytes) }
+export function beginTerminalRecovery(id: string) { const value = terminal(id); value.recoveryStarted ??= performance.now() }
+export function completeTerminalRecovery(id: string) {
+  const value = terminals.get(id)
+  if (value?.recoveryStarted !== undefined) { value.recoveryMs = performance.now() - value.recoveryStarted; delete value.recoveryStarted }
 }
 export function recordTerminalReconnect(id: string) { terminal(id).reconnects++ }
 export function recordTerminalTransport(id: string, transport: 'websocket' | 'webrtc', route: 'direct' | 'relay' | 'unknown' = 'unknown', protocol = 'unknown') {

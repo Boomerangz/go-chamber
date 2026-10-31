@@ -45,8 +45,9 @@ export default function QuotaWidget() {
     <details className="quotas-details">
       <summary>
         {quotas.map((q) => {
-          // The fullest window is the one that limits: name it and its reset.
-          const fullest = q.windows.reduce<(typeof q.windows)[number] | undefined>((a, w) => (!a || w.usedPct > a.usedPct ? w : a), undefined)
+          // Usage from an expired window cannot describe the new period.
+          const current = q.windows.filter((w) => !hasReset(w.resetsAt, new Date(now)))
+          const fullest = current.reduce<(typeof q.windows)[number] | undefined>((a, w) => (!a || w.usedPct > a.usedPct ? w : a), undefined)
           const top = Math.max(0, Math.min(100, fullest?.usedPct ?? 0))
           const reset = fullest ? resetLabel(fullest.resetsAt, new Date(now)) : null
           return (
@@ -56,15 +57,16 @@ export default function QuotaWidget() {
               <AgentAvatar agent={q.agent} />
               <span className="sr-only">{agentName[q.agent] ?? q.agent}</span>
               <span className={`bar bar-${level(top)}`} aria-hidden="true">
-                <span className="fill" style={{ transform: `scaleX(${top / 100})` }} />
+                {fullest && <span className="fill" style={{ transform: `scaleX(${top / 100})` }} />}
               </span>
-              <Pct value={top} stale={fullest !== undefined && hasReset(fullest.resetsAt, new Date(now))} />
+              <Pct value={top} stale={!fullest} />
               {fullest && (
                 <span className="quota-when">
                   {windowLabel(fullest).replace(/ window$/, '')}
                   {reset && ` · ${reset}`}
                 </span>
               )}
+              {!fullest && <span className="quota-when">awaiting update</span>}
             </span>
           )
         })}
@@ -84,18 +86,19 @@ export default function QuotaWidget() {
                 <RefreshButton agents={[q.agent]} label={`Refresh ${agentName[q.agent] ?? q.agent} quotas`} onError={setError} />
               </header>
               {q.windows.map((w) => {
+                const stale = hasReset(w.resetsAt, new Date(now))
                 const pct = Math.min(100, Math.max(0, w.usedPct))
                 const reset = resetLabel(w.resetsAt, new Date(now))
                 return (
                   <div key={w.name} className="window">
                     <div className="window-line">
                       <span>{windowLabel(w)}</span>
-                      <Pct value={w.usedPct} stale={hasReset(w.resetsAt, new Date(now))} />
+                      <Pct value={w.usedPct} stale={stale} />
                     </div>
-                    <div className={`bar bar-${level(pct)}`}>
-                      <div className="fill" style={{ transform: `scaleX(${pct / 100})` }} />
+                    <div className={`bar bar-${level(stale ? 0 : pct)}`}>
+                      {!stale && <div className="fill" style={{ transform: `scaleX(${pct / 100})` }} />}
                     </div>
-                    {reset && <small>{reset}</small>}
+                    {reset && <small>{reset}{stale && ' · awaiting update'}</small>}
                   </div>
                 )
               })}
@@ -109,11 +112,11 @@ export default function QuotaWidget() {
 }
 
 // Pct prints a window's usage; after its reset the number is old, so it is
-// shown in the unsettled form until fresh numbers arrive.
+// unknown until fresh numbers arrive.
 function Pct({ value, stale }: { value: number; stale: boolean }) {
   return (
-    <span className="pct" data-stale={stale || undefined} title={stale ? 'Usage from before the reset; refresh for new numbers' : undefined}>
-      {Math.round(value)}%
+    <span className="pct" data-stale={stale || undefined} title={stale ? 'Usage from before the reset; awaiting a new report' : undefined}>
+      {stale ? '—' : `${Math.round(value)}%`}
     </span>
   )
 }

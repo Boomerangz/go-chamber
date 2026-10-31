@@ -1,10 +1,11 @@
+import * as api from '../lib/api'
 import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest'
 
 vi.mock('../lib/api', () => ({
   listSessions: vi.fn(async () => []),
   listRequests: vi.fn(async () => []),
   getQuotas: vi.fn(async () => []),
-  fetchEvents: vi.fn(async () => []),
+  fetchHistoryPage: vi.fn(async (id: string, _before: number, signal?: AbortSignal) => ({ events: await api.fetchEvents(id, 0, signal), before: 0, hasMore: false, lastSeq: 0 })), fetchEvents: vi.fn(async () => []),
   getSession: vi.fn(async () => ({ id: 'a', agent: 'claude', cwd: '/p', status: 'idle' })),
 }))
 

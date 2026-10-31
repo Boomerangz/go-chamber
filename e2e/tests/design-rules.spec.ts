@@ -20,7 +20,7 @@ async function newSession(page: Page) {
 
 async function say(page: Page, text: string) {
   await page.getByLabel('Message').fill(text)
-  await page.getByRole('button', { name: 'Send' }).click()
+  await page.getByRole('button', { name: 'Send', exact: true }).click()
 }
 
 const box = (l: Locator) => l.evaluate((el) => el.getBoundingClientRect().toJSON() as DOMRect)
@@ -377,7 +377,7 @@ test('an arriving request draws its rule; an open one does not', async ({ page }
   await page.getByLabel('Working directory').fill(dir)
   await page.getByRole('button', { name: 'New session', exact: true }).click()
   await page.getByLabel('Message').fill('please permission')
-  await page.getByRole('button', { name: 'Send' }).click()
+  await page.getByRole('button', { name: 'Send', exact: true }).click()
   const slot = page.locator('.request-slot').first()
   await expect(slot).toHaveAttribute('data-arriving')
   const rule = () => slot.locator('.request').evaluate((el) => getComputedStyle(el, '::before').animationName)

@@ -31,7 +31,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
 // TerminalList is the server's shells; run names the server run they belong
 // to (shells don't outlive it), when the server says.
-export type TerminalList = Terminal[] & { run?: string }
+export type TerminalList = Terminal[] & { run?: string; protocol?: 1 | 2 }
 
 export async function listTerminals(): Promise<TerminalList> {
   const res = await fetch('/api/terminals', { credentials: 'same-origin' })
@@ -41,6 +41,7 @@ export async function listTerminals(): Promise<TerminalList> {
   }
   const list = JSON.parse(text) as TerminalList
   const run = res.headers.get('X-Go-Chamber-Run')
+  Object.defineProperty(list, 'protocol', { value: res.headers.get('X-Go-Chamber-Terminal-Protocol') === '2' ? 2 : 1 })
   if (run) Object.defineProperty(list, 'run', { value: run })
   return list
 }
@@ -78,7 +79,12 @@ export function terminalURL(
 export type TerminalState = 'connecting' | 'live' | 'reconnecting' | 'disconnected' | 'exited'
 
 export interface TerminalHandlers {
-  onOutput: (data: Uint8Array) => void
+  onOutput: (data: Uint8Array, processed?: () => void) => void
+  onSnapshot?: (cols: number, rows: number) => void
+  onProtocol?: (protocol: 1 | 2) => void
+  onClientState?: (state: TerminalClientState) => void
+  onRTT?: (ms: number) => void
+  onPrompt?: (id: number, active: boolean, command: number) => void
   onExit: (code: number) => void
   // onReady marks the end of the scrollback replay. Replayed output may hold
   // terminal queries (cursor position, device attributes) whose answers must
@@ -97,6 +103,7 @@ export interface TerminalHandlers {
 }
 
 export interface TerminalConnection {
+  takeControl?: () => void
   // send reports whether the input went to an open connection.
   send: (text: string) => boolean
   resize: (cols: number, rows: number) => void
@@ -119,6 +126,7 @@ const NORMAL_CLOSURE = 1000
 const hidden = () => typeof document !== 'undefined' && document.visibilityState === 'hidden'
 
 export interface ConnectOptions {
+  protocol?: 1 | 2
   reconnectDelayMs?: number
   maxDelayMs?: number
   maxAttempts?: number
@@ -138,6 +146,7 @@ export function connectTerminal(
   handlers: TerminalHandlers,
   options: ConnectOptions = {},
 ): TerminalConnection {
+  if (options.protocol === 2) return connectTerminalV2(id, handlers, options)
   let socket: SocketConnection
   let peer: RTCConnection | undefined
   let active: 'websocket' | 'webrtc' = 'websocket'
@@ -334,3 +343,10 @@ function connectWebSocketTerminal(
 import { connectRTC, type RTCConnection } from './rtc'
 import { recordTerminalTransport } from './diagnostics'
 import { onRTCChange, rtcEnabled } from './transport'
+import { connectTerminalV2 } from './terminal-v2'
+
+export interface TerminalClientState {
+  owner: boolean; epoch: number; written: number; uncertain: boolean
+  pendingBytes: number; problem?: string
+  paused?: boolean
+}

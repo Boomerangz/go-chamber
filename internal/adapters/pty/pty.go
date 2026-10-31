@@ -23,26 +23,33 @@ type Factory struct {
 }
 
 func (fa Factory) Start(spec app.PTYSpec) (app.PTY, error) {
-	cmd := exec.Command(spec.Shell, "-l")
+	args, env, cleanup, err := shellHooks(spec)
+	if err != nil {
+		return nil, err
+	}
+	cmd := exec.Command(spec.Shell, args...)
 	cmd.Dir = spec.Cwd
 	// For duplicate keys exec uses the last value, so these override ours.
-	cmd.Env = append(os.Environ(), "TERM=xterm-256color", "COLORTERM=truecolor")
+	cmd.Env = append(os.Environ(), append(env, "TERM=xterm-256color", "COLORTERM=truecolor")...)
 	f, err := pty.StartWithSize(cmd, &pty.Winsize{Cols: spec.Cols, Rows: spec.Rows})
 	if err != nil {
+		cleanup()
 		return nil, err
 	}
 	killAfter := fa.KillAfter
 	if killAfter == 0 {
 		killAfter = 2 * time.Second
 	}
-	return &shell{f: f, cmd: cmd, killAfter: killAfter, members: sessionMembers, exited: make(chan struct{})}, nil
+	return &shell{f: f, cmd: cmd, killAfter: killAfter, members: sessionMembers, exited: make(chan struct{}), cleanup: cleanup}, nil
 }
 
 type shell struct {
-	f         *os.File
-	cmd       *exec.Cmd
-	killAfter time.Duration
-	members   func(sid int) ([]int, error)
+	cleanup     func()
+	cleanupOnce sync.Once
+	f           *os.File
+	cmd         *exec.Cmd
+	killAfter   time.Duration
+	members     func(sid int) ([]int, error)
 
 	exited    chan struct{}
 	exitOnce  sync.Once
@@ -59,6 +66,7 @@ func (s *shell) Resize(cols, rows uint16) error {
 
 func (s *shell) Wait() (int, error) {
 	err := s.cmd.Wait()
+	s.cleanHooks()
 	s.exitOnce.Do(func() { close(s.exited) })
 	var exit *exec.ExitError
 	if errors.As(err, &exit) {
@@ -68,6 +76,14 @@ func (s *shell) Wait() (int, error) {
 		return -1, err
 	}
 	return 0, nil
+}
+
+func (s *shell) cleanHooks() {
+	s.cleanupOnce.Do(func() {
+		if s.cleanup != nil {
+			s.cleanup()
+		}
+	})
 }
 
 // Close releases the terminal. Closing a live terminal hangs up its whole
@@ -89,6 +105,7 @@ func (s *shell) Close() error {
 			case <-time.After(s.killAfter):
 				_ = s.cmd.Process.Kill()
 			}
+			s.cleanHooks()
 		}()
 	})
 	return s.closeErr

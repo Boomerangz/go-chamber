@@ -9,7 +9,7 @@ test('a reload keeps the open session and terminal, Back returns', async ({ page
   await page.getByLabel('Working directory').fill('/tmp')
   await page.getByRole('button', { name: 'New session', exact: true }).click()
   await page.getByLabel('Message').fill(text)
-  await page.getByRole('button', { name: 'Send' }).click()
+  await page.getByRole('button', { name: 'Send', exact: true }).click()
   await expect(page.getByText(`echo: ${text}`)).toBeVisible()
   await expect(page).toHaveURL(/\/s\/[^/]+$/)
   const sessionURL = page.url()

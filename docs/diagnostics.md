@@ -36,13 +36,26 @@ The WebRTC attempt column retains the last negotiation stage and failure categor
 including an HTTP status when signaling fails. Reports also include elapsed time,
 ICE/connection states, numeric ICE error codes and counts of local and remote
 `host`, `srflx` and `relay` candidates. No addresses or error text are exported.
-Browser gathering has a four-second budget: signaling then sends the candidates
-already available rather than waiting indefinitely for every interface/STUN request.
+V2 gives browser gathering up to eight seconds, answer signaling up to fifteen
+seconds, and ICE/DataChannel establishment a separate twenty-second budget.
+The server permits forty seconds of initial ICE checking and bounds unopened
+peers to forty-five seconds. WebSocket stays interactive during negotiation.
+Legacy v1 retains its four-second browser gathering budget. At the gathering
+limit, signaling sends candidates already available rather than waiting
+indefinitely for every interface/STUN request.
 A `gathering` timeout means the browser never reached offer signaling; a
 `connecting` failure means an answer was obtained but the channel did not open.
 Only host candidates may work on a shared LAN but often cannot cross NAT.
 Reload the page to start a fresh attempt after changing the network or ICE config.
 Reset browser samples preserves the last attempt so the fallback reason is not lost.
+V2 reports also count candidate pairs and ICE check requests/responses in both
+directions. Zero successful pairs with no replies points to an unreachable
+direct path; a successful pair with unopened channels calls for investigating
+DTLS/SCTP instead. These counters do not include addresses or packet contents.
+The authenticated server report includes `server.rtc` with matching check
+counters and connection/ICE states. Up to 64 closed terminal attempts are
+retained so a browser timeout can be compared with the server's last result.
+Native Pion stats are filtered; candidate addresses and credentials are absent.
 
 ## Direct terminal connections
 
@@ -82,3 +95,11 @@ addresses. `-rtc-ice '[]'` uses only host candidates, useful for local tests.
 Only the terminal stream uses this transport; chat event delivery stays on its
 existing server connection. Actual latency improvement depends on the selected
 network route; compare WebRTC RTT with WebSocket RTT on Diagnostics.
+
+On a split-VPN or multihomed server, STUN discovery and peer UDP may follow
+different routes. `-rtc-interface en12` pins RTC UDP sockets and candidate
+gathering to that interface. On macOS this sets IP_BOUND_IF/IPV6_BOUND_IF;
+on Linux it uses SO_BINDTODEVICE (which may require network capabilities).
+An unavailable interface fails RTC signaling and leaves WebSocket usable.
+The default empty setting follows OS routing. Choose the physical interface
+for a direct path; this setting applies only to WebRTC UDP sockets.

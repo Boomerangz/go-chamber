@@ -14,16 +14,16 @@ async function sessionWith(page: Page, text: string): Promise<string> {
   return id
 }
 
-// Opening a chat used to download its whole transcript twice (the socket's
-// catch-up threw the selection's answer away), and every revisit downloaded
-// it again behind a skeleton.
+// Opening downloads one tail page, shared with the socket's catch-up. A
+// revisit keeps that page and asks only for events beyond its checkpoint.
 test('a chat downloads its transcript once and a revisit renders from memory', async ({ page }) => {
   const a = await sessionWith(page, 'hello fetch A')
   const b = await sessionWith(page, 'hello fetch B')
   const since: Record<string, string[]> = { [a]: [], [b]: [] }
   page.on('request', (req) => {
-    const m = /\/api\/sessions\/([^/]+)\/events\?since=(\d+)/.exec(req.url())
-    if (m && since[m[1]!]) since[m[1]!]!.push(m[2]!)
+    const url = new URL(req.url())
+    const m = /\/api\/sessions\/([^/]+)\/events$/.exec(url.pathname)
+    if (m && since[m[1]!]) since[m[1]!]!.push(url.searchParams.has('limit') ? 'tail' : url.searchParams.get('since')!)
   })
   await page.goto(`/s/${a}?token=${token}`)
   await expect(page.getByText('echo: hello fetch A')).toBeVisible()
@@ -31,7 +31,8 @@ test('a chat downloads its transcript once and a revisit renders from memory', a
   await expect.poll(() => since[a]!.length).toBeGreaterThan(0)
   // Give the socket's catch-up time to (wrongly) download it again.
   await page.waitForTimeout(500)
-  expect(since[a]!.filter((s) => s === '0')).toHaveLength(1)
+  expect(since[a]!.filter((s) => s === 'tail')).toHaveLength(1)
+  expect(since[a]!.filter((s) => s === '0')).toHaveLength(0)
 
   await showPane(page, 'Sessions')
   await page.locator(`button[data-session="${b}"]`).click()
@@ -41,6 +42,6 @@ test('a chat downloads its transcript once and a revisit renders from memory', a
   // From memory: shown before any download could answer.
   await expect(page.getByText('echo: hello fetch A')).toBeVisible({ timeout: 300 })
   await page.waitForTimeout(500)
-  expect(since[a]!.filter((s) => s === '0')).toHaveLength(1)
+  expect(since[a]!.filter((s) => s === 'tail')).toHaveLength(1)
   expect(since[a]!.length).toBeGreaterThan(1)
 })

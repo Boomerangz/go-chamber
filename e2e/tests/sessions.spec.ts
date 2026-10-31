@@ -18,7 +18,7 @@ test('groups sessions by project and finds them by title', async ({ page }, info
     // the new session's empty chat, not the previous one still on screen
     await expect(page.locator('.chat-hint')).toBeVisible()
     await page.getByLabel('Message').fill(text)
-    await page.getByRole('button', { name: 'Send' }).click()
+    await page.getByRole('button', { name: 'Send', exact: true }).click()
     await expect(page.locator('.item.assistant', { hasText: `echo: ${text}` })).toBeVisible()
   }
   await expect(page.locator('.chat-header h2')).toHaveText('second topic')
@@ -26,7 +26,7 @@ test('groups sessions by project and finds them by title', async ({ page }, info
   // unique per project: the search below drops the last 3 characters
   const word = `quasar${info.project.name}${Date.now()}`
   await page.getByLabel('Message').fill(`mention ${word} here`)
-  await page.getByRole('button', { name: 'Send' }).click()
+  await page.getByRole('button', { name: 'Send', exact: true }).click()
   await expect(page.locator('.item.assistant', { hasText: word })).toBeVisible()
 
   await showPane(page, 'Sessions')

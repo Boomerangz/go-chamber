@@ -4,7 +4,7 @@ import { Unicode11Addon } from '@xterm/addon-unicode11'
 import { WebLinksAddon } from '@xterm/addon-web-links'
 import { Terminal as XTerm } from '@xterm/xterm'
 import '@xterm/xterm/css/xterm.css'
-import { recordTerminalOutput, completeTerminalOutput, recordTerminalReconnect, forgetTerminal } from '../../lib/diagnostics'
+import { recordTerminalOutput, completeTerminalOutput, recordTerminalReconnect, forgetTerminal, beginTerminalRecovery, completeTerminalRecovery } from '../../lib/diagnostics'
 import { answerVersionQuery } from '../../lib/xtversion'
 import { connectTerminal, type TerminalConnection } from '../../lib/terminal'
 import { ctrlChar, InputQueue, parseOsc52 } from '../../lib/terminal-input'
@@ -15,6 +15,7 @@ import { isMac } from '../../lib/hotkeys'
 import { searchDecorations, terminalTheme } from '../../lib/theme'
 import { useTerminalStore } from '../../stores/terminals'
 import { stepTerminal } from './steps'
+import { TerminalPrediction } from '../../lib/terminal-prediction'
 
 export interface Callbacks {
   onExit: (code: number) => void
@@ -31,7 +32,7 @@ export interface Live {
   fit: FitAddon
   search: SearchAddon
   conn: TerminalConnection
-  input: InputQueue
+  input: Pick<InputQueue, 'push' | 'setReady' | 'clear'>
   callbacks: Callbacks
   // opened: xterm is attached to el (it waits for the font).
   opened: boolean
@@ -41,6 +42,7 @@ export interface Live {
   // sent as its control code.
   ctrl: { release: () => void } | null
   refit: (() => void) | null
+  resetPredictions?: () => void
   open: () => void
   dispose: () => void
 }
@@ -100,6 +102,7 @@ export function liveFor(id: string, host: HTMLElement, callbacks: Callbacks): Li
     return found
   }
   const el = document.createElement('div')
+  const v2 = useTerminalStore.getState().protocol === 2
   el.className = 'terminal-screen'
   host.appendChild(el)
   const scheme = window.matchMedia('(prefers-color-scheme: dark)')
@@ -127,7 +130,7 @@ export function liveFor(id: string, host: HTMLElement, callbacks: Callbacks): Li
   // refused: output must never be able to pull the clipboard.
   const clipboard = xterm.parser.registerOscHandler(52, (data) => {
     const text = parseOsc52(data)
-    if (text !== null) void navigator.clipboard?.writeText(text).catch(() => {})
+    if (ready && text !== null) void navigator.clipboard?.writeText(text).catch(() => {})
     return true
   })
   if (useTerminalStore.getState().terminals.find((t) => t.id === id)?.status === 'exited') stopTyping(xterm)
@@ -138,6 +141,34 @@ export function liveFor(id: string, host: HTMLElement, callbacks: Callbacks): Li
   let ready = false
   let replayGeneration = 0
   let disposed = false
+  let oldImage: HTMLElement | undefined
+  const predictionLayer = document.createElement('span')
+  predictionLayer.className = 'term-prediction'
+  predictionLayer.dataset.testid = 'terminal-prediction'
+  predictionLayer.setAttribute('aria-hidden', 'true')
+  predictionLayer.hidden = true
+  if (v2) el.appendChild(predictionLayer)
+  const echoDecoder = new TextDecoder()
+  const prediction = v2 ? new TerminalPrediction(() => {
+    const view = prediction!.view()
+    const screen = xterm.element?.querySelector('.xterm-screen')
+    predictionLayer.hidden = !view.text || !screen
+    predictionLayer.textContent = view.text
+    if (screen) {
+      const bounds = screen.getBoundingClientRect(), hostBounds = el.getBoundingClientRect()
+      const cellWidth = bounds.width / xterm.cols, cellHeight = bounds.height / xterm.rows
+      predictionLayer.style.left = `${bounds.left - hostBounds.left + (xterm.buffer.active.cursorX + view.offset) * cellWidth}px`
+      predictionLayer.style.top = `${bounds.top - hostBounds.top + xterm.buffer.active.cursorY * cellHeight}px`
+      predictionLayer.style.fontFamily = FONT
+      predictionLayer.style.fontSize = `${xterm.options.fontSize}px`
+      predictionLayer.style.lineHeight = `${cellHeight}px`
+    }
+  }) : undefined
+  const queryHandlers = v2 ? [
+    ...['', '?', '>'].flatMap((prefix) => ['c', 'n', 't'].map((final) => xterm.parser.registerCsiHandler({prefix, final}, () => true))),
+    ...['', '?'].map((prefix) => xterm.parser.registerCsiHandler({prefix, intermediates: '$', final: 'p'}, () => true)),
+    ...[4,10,11,12].map((command) => xterm.parser.registerOscHandler(command, (data) => data.includes('?'))),
+  ] : []
   const live: Live = {
     el, xterm, fit, search, callbacks,
     conn: undefined as unknown as TerminalConnection,
@@ -146,6 +177,10 @@ export function liveFor(id: string, host: HTMLElement, callbacks: Callbacks): Li
     open: () => {},
     dispose: () => {},
   }
+  if (v2) live.input = {
+    push: (data: string) => { if (live.conn.send(data)) prediction?.input(data); else prediction?.reset() }, setReady: () => {}, clear: () => { prediction?.reset() },
+  }
+  live.resetPredictions = () => prediction?.reset()
   const openNow = () => {
     if (disposed || live.opened) return
     // A view that went away meanwhile opens it on its next attach.
@@ -163,10 +198,14 @@ export function liveFor(id: string, host: HTMLElement, callbacks: Callbacks): Li
   document.fonts?.addEventListener?.('loadingdone', onFonts)
 
   live.conn = connectTerminal(id, {
-    onOutput: (data) => {
+    onOutput: (data, processed) => {
+      const mine = replayGeneration
       const start = performance.now()
       recordTerminalOutput(id, data.byteLength)
       xterm.write(data, () => {
+        if (disposed) return
+        if (mine === replayGeneration) prediction?.output(echoDecoder.decode(data, { stream: true }))
+        processed?.()
         completeTerminalOutput(id, data.byteLength, performance.now() - start)
         // Output landed below while the owner reads further up.
         if (!atBottom(xterm)) useTerminalStore.getState().setUnseen(id, true)
@@ -177,20 +216,45 @@ export function liveFor(id: string, host: HTMLElement, callbacks: Callbacks): Li
       xterm.write('', () => {
         if (mine !== replayGeneration) return
         ready = true
+        completeTerminalRecovery(id)
         live.input.setReady(true)
+        oldImage?.remove(); oldImage = undefined
+        if (v2) { live.size = null; live.refit?.() }
       })
     },
     onReset: (reason) => {
+      beginTerminalRecovery(id)
+      prediction?.reset(); echoDecoder.decode()
       if (reason !== 'upgrade' && reason !== 'resync') recordTerminalReconnect(id)
       ready = false
       live.input.setReady(false)
       const mine = ++replayGeneration
+      if (v2 && !oldImage && xterm.element) {
+        oldImage = document.createElement('div')
+        oldImage.className = 'term-restore-image'
+        oldImage.setAttribute('aria-hidden', 'true')
+        const clone = xterm.element.cloneNode(true) as HTMLElement
+        const canvases = xterm.element.querySelectorAll('canvas')
+        clone.querySelectorAll('canvas').forEach((canvas, i) => canvas.getContext('2d')?.drawImage(canvases[i], 0, 0))
+        oldImage.appendChild(clone); el.appendChild(oldImage)
+      }
       // reset doesn't discard queued writes: clear the screen after old
       // output is parsed, before the next connection's replay is parsed.
       xterm.write('', () => {
         if (mine === replayGeneration) xterm.reset()
       })
     },
+    onSnapshot: (cols, rows) => { const mine = replayGeneration; xterm.write('', () => { if (mine === replayGeneration) xterm.resize(cols, rows) }) },
+    onClientState: (state) => {
+      const previous = useTerminalStore.getState().conn[id]?.client
+      const wasOwner = previous?.owner
+      if (wasOwner !== state.owner || previous?.epoch !== state.epoch || state.uncertain) prediction?.reset()
+      xterm.options.disableStdin = !state.owner || state.uncertain || state.paused === true || state.pendingBytes >= 65536
+      useTerminalStore.getState().setClientState(id, state)
+      if (state.owner && !wasOwner) { live.size = null; if (ready) live.refit?.() }
+    },
+    onRTT: (ms) => prediction?.rtt(ms),
+    onPrompt: (id, active, command) => { const mine = replayGeneration; xterm.write('', () => { if (mine === replayGeneration) prediction?.prompt(id, active, command) }) },
     onExit: (code) => {
       xterm.write(`\r\n[process exited with code ${code}]\r\n`)
       stopTyping(xterm)
@@ -199,10 +263,12 @@ export function liveFor(id: string, host: HTMLElement, callbacks: Callbacks): Li
     },
     onGiveUp: () => live.callbacks.onDisconnect(),
     onState: (state, attempt) => {
+      if (state === 'connecting' || state === 'reconnecting') beginTerminalRecovery(id)
+      if (state !== 'live') prediction?.reset()
       useTerminalStore.getState().setConnState(id, state, attempt)
       if (state === 'reconnecting' && attempt && attempt % RECHECK_EVERY === 0) live.callbacks.onDisconnect()
     },
-  })
+  }, { protocol: v2 ? 2 : 1 })
   const input = xterm.onData((data) => {
     if (live.ctrl && data.length === 1) {
       const code = ctrlChar(data)
@@ -213,7 +279,7 @@ export function liveFor(id: string, host: HTMLElement, callbacks: Callbacks): Li
     }
     live.input.push(data)
   })
-  const version = answerVersionQuery(xterm, () => ready, (data) => live.conn.send(data))
+  const version = answerVersionQuery(xterm, () => ready && !v2, (data) => live.conn.send(data))
   const scrolled = xterm.onScroll(() => {
     if (atBottom(xterm)) useTerminalStore.getState().setUnseen(id, false)
   })
@@ -244,6 +310,7 @@ export function liveFor(id: string, host: HTMLElement, callbacks: Callbacks): Li
     input.dispose()
     version.dispose()
     clipboard.dispose()
+    for (const handler of queryHandlers) handler.dispose()
     live.conn.close()
     xterm.dispose()
     el.remove()

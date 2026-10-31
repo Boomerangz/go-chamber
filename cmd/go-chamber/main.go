@@ -31,6 +31,7 @@ import (
 	"github.com/igorzygin/go-chamber/internal/adapters/pty"
 	"github.com/igorzygin/go-chamber/internal/adapters/router"
 	"github.com/igorzygin/go-chamber/internal/adapters/sqlite"
+	"github.com/igorzygin/go-chamber/internal/adapters/terminalscreen"
 	"github.com/igorzygin/go-chamber/internal/adapters/webpush"
 	"github.com/igorzygin/go-chamber/internal/app"
 	"github.com/igorzygin/go-chamber/internal/domain"
@@ -50,6 +51,7 @@ func main() {
 func run(ctx context.Context, args []string, out io.Writer) error {
 	fl := flag.NewFlagSet("go-chamber", flag.ContinueOnError)
 	addr := fl.String("addr", "127.0.0.1:7777", "listen address")
+	terminalV2 := fl.Bool("terminal-v2", false, "enable experimental resumable terminal protocol v2")
 	home, _ := os.UserHomeDir()
 	dataDir := fl.String("data", filepath.Join(home, ".go-chamber"), "data directory")
 	idle := fl.Duration("idle-timeout", 15*time.Minute, "close idle Claude processes after this long (0 keeps them)")
@@ -58,6 +60,7 @@ func run(ctx context.Context, args []string, out io.Writer) error {
 		iceDefault = `[{"urls":["stun:stun.cloudflare.com:3478"]}]`
 	}
 	iceJSON := fl.String("rtc-ice", iceDefault, "WebRTC ICE servers JSON (STUN/TURN); [] uses host candidates only")
+	rtcInterface := fl.String("rtc-interface", "", "bind WebRTC UDP to this network interface; empty follows OS routing")
 	mcpApprovals := fl.Bool("mcp-allow-approvals", false, "let MCP clients grant agents' permission requests (they can always deny)")
 	publicURL := fl.String("public-url", "", "public origin OAuth clients reach (https://host); empty follows each request")
 	if err := fl.Parse(args); err != nil {
@@ -101,7 +104,12 @@ func run(ctx context.Context, args []string, out io.Writer) error {
 		Accounts: codexFactory,
 		Quotas:   codexFactory,
 	}
+	var screens app.TerminalScreenFactory
+	if *terminalV2 {
+		screens = terminalscreen.Factory{}
+	}
 	terminals := app.NewTerminals(app.TerminalsConfig{
+		Screens:  screens,
 		PTYs:     pty.Factory{},
 		Sessions: store.Sessions(),
 		Home:     home,
@@ -163,16 +171,17 @@ func run(ctx context.Context, args []string, out io.Writer) error {
 	}
 	srv := &http.Server{
 		Handler: httpapi.NewServer(httpapi.Config{
-			Lifecycle:  ctx,
-			ICEServers: iceServers,
-			Token:      token,
-			Static:     web.Dist(),
-			Sessions:   manager,
-			Events:     events,
-			Terminals:  terminals,
-			Folders:    app.NewFolders(app.FoldersConfig{Reader: fsys.Reader{}, Home: home}),
-			Search:     eventLog,
-			ImagesDir:  filepath.Join(*dataDir, "images"),
+			Lifecycle:    ctx,
+			ICEServers:   iceServers,
+			RTCInterface: *rtcInterface,
+			Token:        token,
+			Static:       web.Dist(),
+			Sessions:     manager,
+			Events:       events,
+			Terminals:    terminals,
+			Folders:      app.NewFolders(app.FoldersConfig{Reader: fsys.Reader{}, Home: home}),
+			Search:       eventLog,
+			ImagesDir:    filepath.Join(*dataDir, "images"),
 			Complete: app.NewCompleter(app.CompleterConfig{
 				Sessions: store.Sessions(),
 				Files:    &fsys.Files{},

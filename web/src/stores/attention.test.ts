@@ -3,7 +3,7 @@ import { useAttention, elapsed, brief, actionLabel } from './attention'
 import type { SessionEvent } from '../lib/api'
 import * as api from '../lib/api'
 
-vi.mock('../lib/api', () => ({ fetchEvents: vi.fn() }))
+vi.mock('../lib/api', () => ({ fetchHistoryPage: vi.fn(async (id: string, _before: number, signal?: AbortSignal) => ({ events: await api.fetchEvents(id, 0, signal), before: 0, hasMore: false, lastSeq: 0 })), fetchEvents: vi.fn() }))
 const send = (ev: Partial<SessionEvent>, at?: number) => useAttention.getState().ingest({ sessionId: 's', seq: 1, type: 'turn.started', ...ev }, at)
 beforeEach(() => { useAttention.getState().reset(); vi.clearAllMocks() })
 

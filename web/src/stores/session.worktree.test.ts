@@ -5,7 +5,7 @@ vi.mock('../lib/api', () => ({
   listSessions: vi.fn(),
   listRequests: vi.fn(),
   getQuotas: vi.fn(),
-  fetchEvents: vi.fn(),
+  fetchHistoryPage: vi.fn(async (id: string, _before: number, signal?: AbortSignal) => ({ events: await api.fetchEvents(id, 0, signal), before: 0, hasMore: false, lastSeq: 0 })), fetchEvents: vi.fn(),
   createSession: vi.fn(),
   createWorktreeSession: vi.fn(),
   deleteSession: vi.fn(),

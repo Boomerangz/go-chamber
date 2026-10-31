@@ -23,7 +23,7 @@ async function pick(page: Page, group: 'model' | 'effort', name: RegExp | string
 
 async function ask(page: Page, expected: string) {
   await page.getByLabel('Message').fill('which model?')
-  await page.getByRole('button', { name: 'Send' }).click()
+  await page.getByRole('button', { name: 'Send', exact: true }).click()
   await expect(page.locator('.item.assistant', { hasText: expected }).last()).toBeVisible()
 }
 

@@ -13,7 +13,7 @@ async function newSession(page: import('@playwright/test').Page) {
 test('approves a permission prompt from the fake agent', async ({ page }) => {
   await newSession(page)
   await page.getByLabel('Message').fill('please permission')
-  await page.getByRole('button', { name: 'Send' }).click()
+  await page.getByRole('button', { name: 'Send', exact: true }).click()
 
   await expect(page.locator('.request-title', { hasText: 'Run command' })).toBeVisible()
   await page.getByRole('button', { name: 'Allow', exact: true }).click()
@@ -24,7 +24,7 @@ test('approves a permission prompt from the fake agent', async ({ page }) => {
 test('denies a permission prompt from the fake agent', async ({ page }) => {
   await newSession(page)
   await page.getByLabel('Message').fill('please permission')
-  await page.getByRole('button', { name: 'Send' }).click()
+  await page.getByRole('button', { name: 'Send', exact: true }).click()
 
   await expect(page.locator('.request-title', { hasText: 'Run command' })).toBeVisible()
   await page.getByRole('button', { name: 'Deny', exact: true }).click()
@@ -36,7 +36,7 @@ test('denies a permission prompt from the fake agent', async ({ page }) => {
 test('answers an AskUserQuestion from the fake agent', async ({ page }) => {
   await newSession(page)
   await page.getByLabel('Message').fill('ask me something')
-  await page.getByRole('button', { name: 'Send' }).click()
+  await page.getByRole('button', { name: 'Send', exact: true }).click()
 
   await expect(page.locator('legend', { hasText: 'Which option should we use?' })).toBeVisible()
   await page.getByRole('radio', { name: /Alpha/ }).click()
@@ -49,7 +49,7 @@ test('approves a permission from the requests tray without opening the session c
   const text = `tray ${info.project.name} ${info.repeatEachIndex} ${Date.now()}: please permission`
   await newSession(page)
   await page.getByLabel('Message').fill(text)
-  await page.getByRole('button', { name: 'Send' }).click()
+  await page.getByRole('button', { name: 'Send', exact: true }).click()
   await expect(page.locator('.request-title', { hasText: 'Run command' })).toBeVisible()
 
   const bar = page.getByRole('navigation', { name: 'Views' })
@@ -72,7 +72,7 @@ test('approves a permission from the requests tray with the keyboard', async ({ 
   const text = `tray key ${info.project.name} ${info.repeatEachIndex} ${Date.now()}: please permission`
   await newSession(page)
   await page.getByLabel('Message').fill(text)
-  await page.getByRole('button', { name: 'Send' }).click()
+  await page.getByRole('button', { name: 'Send', exact: true }).click()
   await expect(page.locator('.request-title', { hasText: 'Run command' })).toBeVisible()
 
   const bar = page.getByRole('navigation', { name: 'Views' })
@@ -136,7 +136,7 @@ test('a tray answer on its way names itself', async ({ page }, info) => {
   const text = `tray busy ${info.project.name} ${info.repeatEachIndex} ${Date.now()}: please permission`
   await newSession(page)
   await page.getByLabel('Message').fill(text)
-  await page.getByRole('button', { name: 'Send' }).click()
+  await page.getByRole('button', { name: 'Send', exact: true }).click()
   await expect(page.locator('.request-title', { hasText: 'Run command' })).toBeVisible()
 
   let release: () => void = () => {}
@@ -160,7 +160,7 @@ test('a turn cut off with a permission open still waits in the inbox', async ({ 
   const text = `cut ${info.project.name} ${Date.now()}: crash while asking`
   await newSession(page)
   await page.getByLabel('Message').fill(text)
-  await page.getByRole('button', { name: 'Send' }).click()
+  await page.getByRole('button', { name: 'Send', exact: true }).click()
   await expect(page.locator('.banner', { hasText: 'Turn interrupted' })).toContainText('waiting for your answer')
   await expect(page.locator('.chat-meta .status')).toHaveText(/waiting for you/)
   // Nothing of the cut-off turn still reads as running.

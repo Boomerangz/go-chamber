@@ -58,7 +58,7 @@ test('on a phone, two-digit turn numbers keep the messages aligned', async ({ pa
   await page.getByRole('button', { name: 'New session', exact: true }).click()
   for (let n = 1; n <= 10; n++) {
     await page.getByLabel('Message').fill(`align ${n}`)
-    await page.getByRole('button', { name: 'Send' }).click()
+    await page.getByRole('button', { name: 'Send', exact: true }).click()
     await expect(page.locator('.item.assistant', { hasText: `echo: align ${n}` })).toBeVisible()
   }
   const left = (n: number) =>

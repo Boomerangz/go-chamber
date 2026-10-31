@@ -91,7 +91,7 @@ test('a quota window that reset says when, and the footer still fits', async ({ 
   await page.goto(`/?token=${token}`)
   await showPane(page, 'Sessions')
   const summary = page.locator('.quotas-details summary')
-  await expect(summary).toContainText('reset 16d ago')
+  await expect(summary).toContainText('awaiting update')
   await expect(summary.locator('.quota-when').filter({ hasText: /reset$/ })).toHaveCount(0)
   const s = await box(summary)
   for (const mini of await summary.locator('.quota-mini').all()) {
@@ -110,7 +110,7 @@ test('a waiting worktree row keeps "waiting for you" on one line; the branch yie
   await page.getByLabel('Branch name').fill(`add-the-quarterly-billing-export-${info.project.name}-${Date.now()}`)
   await page.getByRole('button', { name: 'New session', exact: true }).click()
   await page.getByLabel('Message').fill('ask me something')
-  await page.getByRole('button', { name: 'Send' }).click()
+  await page.getByRole('button', { name: 'Send', exact: true }).click()
   await expect(page.locator('legend', { hasText: 'Which option should we use?' })).toBeVisible()
 
   await showPane(page, 'Sessions')
@@ -124,6 +124,25 @@ test('a waiting worktree row keeps "waiting for you" on one line; the branch yie
   const branch = row.locator('.session-branch')
   expect(await branch.evaluate((e) => e.scrollWidth > e.clientWidth)).toBe(true)
   expect(t.x + t.width).toBeLessThanOrEqual(r.x + r.width)
+})
+
+test('an unread interrupted request keeps its status, count, new mark and age inside a narrow row', async ({ page, isMobile }) => {
+  test.skip(isMobile, 'desktop sidebar')
+  const headers = { Authorization: `Bearer ${token}` }
+  const dir = realpathSync(mkdtempSync(path.join(tmpdir(), 'gc-unread-row-')))
+  await page.setViewportSize({ width: 900, height: 800 })
+  await page.goto(`/?token=${token}`)
+  const created = await page.request.post('/api/sessions', { headers, data: { agent: 'claude', cwd: dir } })
+  const { id } = await created.json() as { id: string }
+  await page.request.post(`/api/sessions/${id}/messages`, { headers, data: { text: 'crash while asking' } })
+  const row = page.locator(`[data-session="${id}"]`)
+  await expect(row.locator('.session-status-waiting')).toBeVisible()
+  await expect(row.locator('.badge')).toBeVisible()
+  await expect(row.locator('.session-unseen')).toBeVisible()
+  await expect.poll(() => row.evaluate((el) => {
+    const edge = el.getBoundingClientRect().right - 6
+    return [...el.querySelectorAll('.session-meta > *')].every((child) => child.getBoundingClientRect().right <= edge)
+  })).toBe(true)
 })
 
 test('at 900 and 1024px, waiting rows (archived too) and the footer stay inside the sidebar', async ({ page }) => {
@@ -144,7 +163,7 @@ test('at 900 and 1024px, waiting rows (archived too) and the footer stay inside 
     const { id } = (await (await page.request.post('/api/sessions', { headers, data: { agent: 'claude', cwd: dir } })).json()) as { id: string }
     await page.goto(`/s/${id}`)
     await page.getByLabel('Message').fill('ask me something')
-    await page.getByRole('button', { name: 'Send' }).click()
+    await page.getByRole('button', { name: 'Send', exact: true }).click()
     await expect(page.locator('legend', { hasText: 'Which option should we use?' })).toBeVisible()
     return id
   }

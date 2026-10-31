@@ -2,6 +2,7 @@ import { afterEach, expect, it, vi } from 'vitest'
 import { onRTCChange, rtcEnabled, setRTCEnabled } from './transport'
 
 afterEach(() => {
+  vi.unstubAllGlobals()
   localStorage.clear()
   vi.restoreAllMocks()
 })
@@ -26,8 +27,9 @@ it('tells subscribers about changes until they unsubscribe', () => {
 })
 
 it('keeps the choice for this page when storage is unavailable', () => {
-  vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => { throw new Error('blocked') })
-  vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => { throw new Error('blocked') })
+  setRTCEnabled(true)
+  const blocked = () => { throw new Error('blocked') }
+  vi.stubGlobal('localStorage', { getItem: blocked, setItem: blocked })
   expect(rtcEnabled()).toBe(true)
   setRTCEnabled(false)
   expect(rtcEnabled()).toBe(false)

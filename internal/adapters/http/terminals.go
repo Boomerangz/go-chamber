@@ -28,6 +28,7 @@ type Terminals interface {
 // listTerminals names the server run in a header: shells don't outlive it,
 // so a client that knew shells of another run knows they ended with it.
 func (s *server) listTerminals(w http.ResponseWriter, _ *http.Request) {
+	w.Header().Set("X-Go-Chamber-Terminal-Protocol", strconv.Itoa(s.terminalProtocol()))
 	w.Header().Set("X-Go-Chamber-Run", strconv.FormatInt(s.started.UnixNano(), 36))
 	writeJSON(w, http.StatusOK, s.cfg.Terminals.List())
 }
@@ -81,6 +82,14 @@ type terminalExit struct {
 // text frame (clear the screen), the scrollback, then "ready" again. Input
 // is read on its own goroutine, so it never waits behind output.
 func (s *server) terminalPTY(w http.ResponseWriter, r *http.Request) {
+	if r.URL.Query().Get("v") == "2" {
+		s.terminalPTYV2(w, r)
+		return
+	}
+	if s.terminalProtocol() == 2 {
+		http.Error(w, "terminal protocol v2 required", http.StatusUpgradeRequired)
+		return
+	}
 	id := domain.TerminalID(r.PathValue("id"))
 	att, err := s.cfg.Terminals.Attach(id)
 	if err != nil {

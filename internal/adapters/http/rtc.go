@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"sync/atomic"
 	"time"
@@ -62,6 +63,11 @@ func (s *server) rtcRoutes() {
 }
 
 func (s *server) terminalRTC(w http.ResponseWriter, r *http.Request) {
+	v2 := r.URL.Query().Get("v") == "2" && s.terminalProtocol() == 2
+	if s.terminalProtocol() == 2 && !v2 {
+		http.Error(w, "terminal protocol v2 required", http.StatusUpgradeRequired)
+		return
+	}
 	id := domain.TerminalID(r.PathValue("id"))
 	if _, err := s.cfg.Terminals.Get(id); err != nil {
 		s.fail(w, err)
@@ -91,8 +97,23 @@ func (s *server) terminalRTC(w http.ResponseWriter, r *http.Request) {
 		config.ICEServers = append(config.ICEServers, webrtc.ICEServer{URLs: server.URLs, Username: server.Username, Credential: server.Credential})
 	}
 	settings := webrtc.SettingEngine{}
-	settings.SetSTUNGatherTimeout(3 * time.Second)
-	settings.SetICETimeouts(3*time.Second, 6*time.Second, time.Second)
+	if name := s.cfg.RTCInterface; name != "" {
+		network, err := newRTCInterfaceNet(name)
+		if err != nil {
+			cancel()
+			<-s.rtcSlots
+			writeJSON(w, http.StatusServiceUnavailable, errorBody{Error: "RTC interface is unavailable"})
+			return
+		}
+		settings.SetNet(network)
+		settings.SetInterfaceFilter(func(candidate string) bool { return candidate == name })
+		settings.SetIncludeLoopbackCandidate(network.iface.Flags&net.FlagLoopback != 0)
+	}
+	settings.SetSTUNGatherTimeout(8 * time.Second)
+	// Pion also uses disconnected+failed as its INITIAL checking deadline.
+	// Keep it longer than answer gathering/delivery plus the browser's 20s
+	// connection budget; background negotiation never blocks WebSocket input.
+	settings.SetICETimeouts(5*time.Second, 35*time.Second, 2*time.Second)
 	pc, err := webrtc.NewAPI(webrtc.WithSettingEngine(settings)).NewPeerConnection(config)
 	if err != nil {
 		cancel()
@@ -101,13 +122,19 @@ func (s *server) terminalRTC(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	opened := make(chan struct{})
+	finishDiagnostics := s.rtcStats.attach(id, pc)
 	var claimed atomic.Bool
+	v2Peer := &rtcV2Peer{s: s, ctx: ctx, cancel: cancel, id: id, client: r.URL.Query().Get("client"), opened: opened}
 	pc.OnConnectionStateChange(func(state webrtc.PeerConnectionState) {
 		if state == webrtc.PeerConnectionStateFailed || state == webrtc.PeerConnectionStateClosed {
 			cancel()
 		}
 	})
 	pc.OnDataChannel(func(dc *webrtc.DataChannel) {
+		if v2 {
+			v2Peer.channel(dc)
+			return
+		}
 		if dc.Label() != "terminal" || !dc.Ordered() || dc.MaxPacketLifeTime() != nil || dc.MaxRetransmits() != nil || claimed.Swap(true) {
 			cancel()
 			return
@@ -156,8 +183,8 @@ func (s *server) terminalRTC(w http.ResponseWriter, r *http.Request) {
 	// Peers outlive the signaling request, but never an unopened handshake or
 	// application shutdown. Close outside Pion callbacks to avoid deadlocks.
 	go func() {
-		defer func() { _ = pc.Close(); <-s.rtcSlots }()
-		timer := time.NewTimer(15 * time.Second)
+		defer func() { finishDiagnostics(); _ = pc.Close(); <-s.rtcSlots }()
+		timer := time.NewTimer(45 * time.Second)
 		defer timer.Stop()
 		select {
 		case <-ctx.Done():

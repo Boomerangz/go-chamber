@@ -12,14 +12,17 @@ import {
   type Terminal,
   type TerminalList,
   type TerminalState,
+  type TerminalClientState,
 } from '../lib/terminal'
 
 export interface ConnState {
+  client?: TerminalClientState
   state: TerminalState
   attempt?: number
 }
 
 interface TerminalStoreState {
+  protocol: 1 | 2
   terminals: Terminal[]
   // loaded is set once a list arrived; until then the list is loading, not
   // empty.
@@ -63,12 +66,14 @@ interface TerminalStoreState {
   rename: (id: string, title: string) => Promise<boolean>
   markExited: (id: string, code: number) => void
   setConnState: (id: string, state: TerminalState, attempt?: number) => void
+  setClientState: (id: string, client: TerminalClientState) => void
   setFontSize: (px: number | null) => void
   setFinding: (id: string, on: boolean) => void
   setUnseen: (id: string, on: boolean) => void
 }
 
 const initial = {
+  protocol: 1 as 1 | 2,
   terminals: [] as Terminal[],
   loaded: false,
   loadError: null as string | null,
@@ -197,9 +202,11 @@ export const useTerminalStore = create<TerminalStoreState>((set, get) => {
     load: async () => {
       try {
         let run: string | undefined
+        let protocol = get().protocol
         const terminals = await terminalLists.load(async () => {
           const list: TerminalList = await listTerminals()
           run = list.run
+          protocol = list.protocol ?? 1
           return list
         })
         if (!terminals) return
@@ -213,6 +220,7 @@ export const useTerminalStore = create<TerminalStoreState>((set, get) => {
         const current = requested ?? remembered()
         const found = exists(terminals, current)
         set({
+          protocol,
           ended,
           terminals,
           activeId: found ? current : null,
@@ -347,7 +355,8 @@ export const useTerminalStore = create<TerminalStoreState>((set, get) => {
           return exited
         }),
       })),
-    setConnState: (id, state, attempt) => set((s) => ({ conn: { ...s.conn, [id]: { state, attempt } } })),
+    setConnState: (id, state, attempt) => set((s) => ({ conn: { ...s.conn, [id]: { ...s.conn[id], state, attempt } } })),
+    setClientState: (id, client) => set((s) => ({ conn: { ...s.conn, [id]: { ...s.conn[id], state: s.conn[id]?.state ?? 'connecting', client } } })),
     setFontSize: (px) => {
       const fontSize = px === null ? FONT_DEFAULT : clampFont(px)
       set({ fontSize })

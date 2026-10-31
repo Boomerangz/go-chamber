@@ -24,6 +24,7 @@ import { Row } from './Transcript'
 import { isMac, matches, useMedia } from './useMedia'
 import { useAnnouncement } from './useAnnouncement'
 import { useStickToBottom } from './useStickToBottom'
+import { useOlderHistory } from './useOlderHistory'
 import { useReadingPlace } from './useReadingPlace'
 import { useTypingMark } from './useTypingMark'
 import { SENT_HOLD_MS, untilBack, useLiveDropped } from './useLiveDropped'
@@ -96,6 +97,10 @@ export default function Chat() {
   const chat = useSessionStore((s) => s.chat)
   const history = useSessionStore((s) => s.history)
   const historyReason = useSessionStore((s) => s.historyError?.reason)
+  const olderBefore = useSessionStore((s) => s.olderBefore)
+  const olderLoading = useSessionStore((s) => s.olderLoading)
+  const olderError = useSessionStore((s) => s.olderError)
+  const loadOlder = useSessionStore((s) => s.loadOlder)
   const session = useSessionStore((s) => s.sessions.find((x) => x.id === s.activeId))
   const pane = useSessionStore((s) => s.pane)
   const sessionsStatus = useSessionStore((s) => s.sessionsStatus)
@@ -146,12 +151,13 @@ export default function Chat() {
   const news = useMemo(() => {
     const keys = chat.order.filter((id) => {
       const item = chat.items[id]
-      return item?.kind === 'assistant_message' && !item.parentItemId
+      return item?.kind === 'assistant_message' && !item.parentItemId && !chat.historicalItems?.has(id)
     })
     for (const id of Object.keys(chat.requests)) keys.push(`request:${id}`)
     return keys
-  }, [chat.order, chat.items, chat.requests])
+  }, [chat.order, chat.items, chat.requests, chat.historicalItems])
   const [scrollRef, stick] = useStickToBottom(chat, news)
+  const moreHistory = useOlderHistory(scrollRef, stick.unpin, { before: history === 'ready' ? olderBefore : null, loading: olderLoading, error: olderError, load: loadOlder }, chat)
   // A phone shows one pane at a time: the chat is looked at only in front.
   const inFront = !narrow || pane === 'chat'
   const firstNew = useUnseen({
@@ -175,10 +181,12 @@ export default function Chat() {
 
   // A message shows as on its way from submit until the agent records it.
   const [pendingSends, setPendingSends] = useState<PendingSend[]>([])
-  const [recorded, setRecorded] = useState(sent.length)
-  if (recorded !== sent.length) {
-    setRecorded(sent.length)
-    if (sent.length > recorded && pendingSends.length) setPendingSends(pendingSends.slice(sent.length - recorded))
+  const backfilledInputs = Array.from(chat.historicalItems ?? []).filter((id) => chat.items[id]?.kind === 'user_message' && !chat.items[id]?.parentItemId).length
+  const sentCount = sent.length - backfilledInputs
+  const [recorded, setRecorded] = useState(sentCount)
+  if (recorded !== sentCount) {
+    setRecorded(sentCount)
+    if (sentCount > recorded && pendingSends.length) setPendingSends(pendingSends.slice(sentCount - recorded))
   }
   const dropSend = useCallback((key: number) => setPendingSends((list) => list.filter((p) => p.key !== key)), [])
 
@@ -490,6 +498,15 @@ export default function Chat() {
       {/* Focusable: a keyboard answer leaves focus here, where arrows scroll. */}
       <div className="scroll" ref={scrollRef} tabIndex={-1}>
         {!notFound && <TurnOutline entries={outline} scrollRef={scrollRef} reduced={reduced} />}
+        {!notFound && history === 'ready' && olderBefore !== null && (
+          <div className="older-history">
+            {olderError ? <LoadFailed onRetry={moreHistory}>{failedTo('load older messages', olderError)}</LoadFailed> : (
+              <button type="button" className="btn" disabled={olderLoading} onClick={moreHistory}>
+                {olderLoading ? 'Loading older messages…' : 'Load older messages'}
+              </button>
+            )}
+          </div>
+        )}
         {notFound ? null : history === 'loading' && chat.order.length === 0 ? (
           <div className="chat-loading">
             <Skeleton rows={4} label="Loading transcript" />
@@ -505,7 +522,7 @@ export default function Chat() {
                     turn={turns.get(node.item.id)}
                     unseen={node.item.id === unseen}
                     reduced={reduced}
-                    animateIn={listedFor === sessionId}
+                    animateIn={listedFor === sessionId && !chat.historicalItems?.has(node.item.id)}
                     onStopTask={stopTask}
                     onRetry={i === rows.length - 1 && node.item.kind === 'error' && !busy ? retry : undefined}
                     onEdit={editMessage}

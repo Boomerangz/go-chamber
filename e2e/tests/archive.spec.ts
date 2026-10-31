@@ -61,7 +61,7 @@ test('archives, unarchives and deletes a session, live in another tab', async ({
   // Still works when opened: a message goes through.
   await showPane(page, 'Chat')
   await page.getByLabel('Message').fill('still here')
-  await page.getByRole('button', { name: 'Send' }).click()
+  await page.getByRole('button', { name: 'Send', exact: true }).click()
   await expect(page.getByText('echo: still here')).toBeVisible()
 
   await (await menuFor(page, name)).getByRole('menuitem', { name: 'Unarchive' }).click()
@@ -104,7 +104,7 @@ test('archiving a session that waits for you keeps the request in sight, with an
   await page.getByRole('textbox', { name: 'Session name' }).fill(name)
   await page.keyboard.press('Enter')
   await page.getByLabel('message').fill('please permission')
-  await page.getByRole('button', { name: 'Send' }).click()
+  await page.getByRole('button', { name: 'Send', exact: true }).click()
   await expect(page.locator('.request-title', { hasText: 'Run command' })).toBeVisible()
 
   await (await menuFor(page, name)).getByRole('menuitem', { name: 'Archive' }).click()

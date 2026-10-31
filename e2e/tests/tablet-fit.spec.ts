@@ -12,7 +12,7 @@ async function newSession(page: Page) {
   await page.getByLabel('Working directory').fill('/tmp')
   await page.getByRole('button', { name: 'New session', exact: true }).click()
   await page.getByLabel('Message').fill('hello tablet')
-  await page.getByRole('button', { name: 'Send' }).click()
+  await page.getByRole('button', { name: 'Send', exact: true }).click()
   await expect(page.locator('.item.assistant', { hasText: 'echo: hello tablet' })).toBeVisible()
 }
 

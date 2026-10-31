@@ -29,7 +29,7 @@ beforeEach(() => {
 afterEach(() => vi.useRealTimers())
 
 describe('QuotaWidget', () => {
-  it('says a window whose reset time passed has reset, and marks its percentage as old', () => {
+  it('replaces usage from before the reset with an unknown value', () => {
     useSessionStore.setState({
       quotasStatus: 'ready',
       quotas: [{ ...snapshot(), windows: [{ name: 'primary', usedPct: 30, status: '300m', resetsAt: '2020-01-01T00:00:00Z' } as api.QuotaWindow] }],
@@ -40,9 +40,43 @@ describe('QuotaWidget', () => {
     for (const pct of pcts) {
       expect(pct).toHaveAttribute('data-stale')
       expect(pct).toHaveAttribute('title', expect.stringContaining('before the reset'))
+      expect(pct).toHaveTextContent('—')
     }
+    expect(screen.queryByText('30%')).toBeNull()
+    expect(document.querySelectorAll('.fill')).toHaveLength(0)
+    expect(document.querySelector('summary')).toHaveTextContent('awaiting update')
     // it says when, so it doesn't read like a Reset command
-    expect(screen.getAllByText(/· reset \d+d ago$|^reset \d+d ago$/).length).toBe(2)
+    expect(screen.getByText(/^reset \d+d ago · awaiting update$/)).toBeInTheDocument()
+  })
+
+  it('uses a current window in the summary instead of an expired weekly limit', () => {
+    useSessionStore.setState({ quotas: [{ agent: 'claude', windows: [
+      { name: 'seven_day', usedPct: 99, resetsAt: '2020-01-01T00:00:00Z' },
+      { name: 'five_hour', usedPct: 12 },
+    ] }] })
+    render(<QuotaWidget />)
+    expect(document.querySelector('summary')).toHaveTextContent('12%5h')
+    expect(document.querySelector('summary')).not.toHaveTextContent('7d')
+    expect(screen.queryByText('99%')).toBeNull()
+    expect(document.querySelectorAll('.fill')).toHaveLength(2)
+  })
+
+  it('expires usage while mounted and shows a fresh weekly report when it arrives', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    vi.setSystemTime(new Date('2026-10-13T12:00:00Z'))
+    useSessionStore.setState({ quotas: [{ agent: 'claude', windows: [
+      { name: 'seven_day', usedPct: 99, resetsAt: '2026-10-13T12:00:30Z' },
+    ] }] })
+    render(<QuotaWidget />)
+    expect(document.querySelector('summary')).toHaveTextContent('99%')
+    await act(async () => { await vi.advanceTimersByTimeAsync(60_000) })
+    expect(screen.queryByText('99%')).toBeNull()
+    expect(document.querySelector('summary')).toHaveTextContent('awaiting update')
+    act(() => useSessionStore.getState().applyIncoming({ seq: 1, sessionId: 's', type: 'quota', quota: {
+      agent: 'claude', windows: [{ name: 'seven_day', usedPct: 2, resetsAt: '2026-10-20T12:00:30Z' }],
+    } }))
+    expect(document.querySelector('summary')).toHaveTextContent('2%')
+    expect(screen.queryByText(/awaiting update/)).toBeNull()
   })
 
   it('keeps its line while no quotas are known', () => {

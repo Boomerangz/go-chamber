@@ -1,8 +1,10 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import Markdown from './Markdown'
 import { resetCodeWrap } from './wrap'
 import { SessionFiles } from '../../lib/files'
+
+afterEach(() => vi.unstubAllGlobals())
 
 describe('Markdown', () => {
   it('renders lists, emphasis and tables', () => {
@@ -101,15 +103,13 @@ describe('code block controls', () => {
   })
 
   it('keeps the choice for the page when storage is blocked', () => {
-    const set = vi.spyOn(localStorage, 'setItem').mockImplementation(() => { throw new Error('blocked') })
-    const get = vi.spyOn(localStorage, 'getItem').mockImplementation(() => { throw new Error('blocked') })
+    const blocked = () => { throw new Error('blocked') }
+    vi.stubGlobal('localStorage', { getItem: blocked, setItem: blocked })
     const { container } = render(<Markdown text={'```\na\n```'} />)
     fireEvent.click(screen.getByRole('button', { name: 'Wrap' }))
     expect(container.querySelector('pre.md-code-wrap')).not.toBeNull()
     act(() => resetCodeWrap())
     expect(container.querySelector('pre.md-code-wrap')).toBeNull()
-    set.mockRestore()
-    get.mockRestore()
   })
 
   it('offers to show all of a clipped block', () => {

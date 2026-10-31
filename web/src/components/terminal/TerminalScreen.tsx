@@ -6,6 +6,8 @@ import TerminalKeys from './TerminalKeys'
 import TerminalView from './TerminalView'
 import { endFind, findInTerminal, onFindResults, reconnectTerminal, scrollToBottom, type FindResult } from './live'
 import { markOf } from './marks'
+import { lives } from './live'
+import TerminalHistory from './TerminalHistory'
 import './terminal.css'
 
 // TerminalScreen attaches the active terminal. Only one is mounted at a
@@ -16,12 +18,15 @@ export default function TerminalScreen({ id }: { id: string }) {
   const load = useTerminalStore((s) => s.load)
   const markExited = useTerminalStore((s) => s.markExited)
   const finding = useTerminalStore((s) => s.finding === id)
+  const v2 = useTerminalStore((s) => s.protocol === 2)
+  const setFinding = useTerminalStore((s) => s.setFinding)
   const unseen = useTerminalStore((s) => Boolean(s.unseen[id]))
   const exited = useTerminalStore((s) => s.terminals.find((t) => t.id === id)?.status === 'exited')
   return (
     <div className="terminal-panel" id="terminal-panel" role="tabpanel" aria-labelledby={`terminal-tab-${id}`}>
       <ConnectionLine id={id} />
-      {finding && <FindBar id={id} />}
+      {v2 && !finding && <div className="term-strip"><button type="button" className="btn btn-xs" onClick={() => setFinding(id, true)}>Read terminal history</button></div>}
+      {finding && (v2 ? <TerminalHistory id={id} onClose={() => { setFinding(id, false); endFind(id) }} /> : <FindBar id={id} />)}
       {!exited && <TerminalKeys id={id} />}
       <div className="term-screen">
         <TerminalView
@@ -142,6 +147,7 @@ export function ConnectionLine({ id }: { id: string }) {
   const close = useTerminalStore((s) => s.close)
   const closing = useTerminalStore((s) => Boolean(s.closing[id]))
   if (!terminal) return null
+  const client = conn?.client
   const { form } = markOf(terminal, conn)
   let line: React.ReactNode = null
   if (terminal.status === 'exited') {
@@ -185,6 +191,11 @@ export function ConnectionLine({ id }: { id: string }) {
       </>
     )
   }
+  if (client && (!client.owner || client.problem)) line = <>
+    {line}
+    <span>{client.problem ?? 'observing · another tab has control'}</span>
+    {(!client.owner || client.uncertain) && <button type="button" className="btn btn-xs" onClick={() => lives.get(id)?.conn.takeControl?.()}>Take control</button>}
+  </>
   if (!line) return null
   return (
     <div className="term-strip" role="status" aria-live="polite">

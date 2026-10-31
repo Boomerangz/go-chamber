@@ -23,7 +23,7 @@ test('what waits for the owner shows on the Agents tab in another mode', async (
   const { id } = (await (await page.request.post('/api/sessions', { headers, data: { agent: 'claude', cwd: dir } })).json()) as { id: string }
   await page.goto(`/s/${id}?token=${token}`)
   await page.getByLabel('Message').fill('ask me something')
-  await page.getByRole('button', { name: 'Send' }).click()
+  await page.getByRole('button', { name: 'Send', exact: true }).click()
   await expect(page.locator('legend', { hasText: 'Which option should we use?' })).toBeVisible()
   const agents = page.getByRole('radio', { name: 'Agents', exact: true })
   await expect(agents.locator('.badge')).toHaveCount(0)

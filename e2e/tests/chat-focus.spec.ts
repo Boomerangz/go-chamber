@@ -36,7 +36,7 @@ test('typing on a phone makes room for the transcript', async ({ page, isMobile 
   const header = page.locator('.chat-header')
   const tall = (await header.boundingBox())!.height
   await page.getByLabel('Message').fill('ask me something')
-  await page.getByRole('button', { name: 'Send' }).click()
+  await page.getByRole('button', { name: 'Send', exact: true }).click()
   const card = page.locator('.request.question')
   await expect(card).toBeVisible()
   // Arrival focuses nothing on touch: no ring before the owner taps.
@@ -74,7 +74,7 @@ test('one tap on Send sends from a phone, and Submit takes a typed answer', asyn
   const box = page.getByLabel('Message')
   await box.tap()
   await box.fill('ask me something')
-  await page.getByRole('button', { name: 'Send' }).tap()
+  await page.getByRole('button', { name: 'Send', exact: true }).tap()
   await expect(box).toHaveValue('')
   const card = page.locator('.request.question')
   await expect(card).toBeVisible()

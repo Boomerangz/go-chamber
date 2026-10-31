@@ -56,7 +56,8 @@ func (s *server) diagnostics(w http.ResponseWriter, _ *http.Request) {
 		Events        hub.Stats                `json:"events"`
 		Terminals     []app.TerminalDiagnostic `json:"terminals"`
 		CLIs          []app.CLIStatus          `json:"clis"`
-	}{time.Since(s.started).Seconds(), runtime.NumGoroutine(), memory.HeapAlloc, events, terminals, s.clis()})
+		RTC           []rtcDiagnostic          `json:"rtc,omitempty"`
+	}{time.Since(s.started).Seconds(), runtime.NumGoroutine(), memory.HeapAlloc, events, terminals, s.clis(), s.rtcStats.snapshot()})
 }
 
 // A separate bounded echo channel measures round trips with the browser's

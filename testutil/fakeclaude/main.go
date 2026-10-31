@@ -723,7 +723,7 @@ func writeInit(enc *json.Encoder, out *bufio.Writer, sessionID string) {
 	_ = enc.Encode(map[string]any{
 		"type": "rate_limit_event", "session_id": sessionID,
 		"rate_limit_info": map[string]any{
-			"status": "allowed", "resetsAt": 1790000000, "rateLimitType": "five_hour", "utilization": 0.3,
+			"status": "allowed", "resetsAt": time.Now().Add(5 * time.Hour).Unix(), "rateLimitType": "five_hour", "utilization": 0.3,
 		},
 	})
 	_ = out.Flush()

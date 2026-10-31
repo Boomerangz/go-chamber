@@ -13,7 +13,7 @@ async function newSession(page: Page) {
 
 async function say(page: Page, text: string) {
   await page.getByLabel('Message').fill(text)
-  await page.getByRole('button', { name: 'Send' }).click()
+  await page.getByRole('button', { name: 'Send', exact: true }).click()
   await expect(page.locator('.item.assistant', { hasText: `echo: ${text}` })).toBeVisible()
   await expect(page.locator('.chat-meta .status', { hasText: 'idle' })).toBeVisible()
 }
@@ -25,7 +25,7 @@ test('shows a message on its way and keeps the draft when it fails', async ({ pa
     await route.fulfill({ status: 500, body: 'agent unavailable' })
   })
   await page.getByLabel('Message').fill('will not arrive')
-  await page.getByRole('button', { name: 'Send' }).click()
+  await page.getByRole('button', { name: 'Send', exact: true }).click()
   await expect(page.locator('.row-pending', { hasText: 'will not arrive' })).toContainText('sending…')
   await expect(page.locator('.row-pending')).toHaveCount(0)
   await expect(page.getByLabel('Message')).toHaveValue('will not arrive')
@@ -64,7 +64,7 @@ test('the header and the sessions list show one status', async ({ page, isMobile
   await expect(page.locator('.chat-meta .status')).toHaveText('idle')
   await expect(page.locator('.session.active .session-status-detached')).toHaveCount(0)
   await page.getByLabel('Message').fill('please permission')
-  await page.getByRole('button', { name: 'Send' }).click()
+  await page.getByRole('button', { name: 'Send', exact: true }).click()
   await expect(page.locator('.chat-meta .status')).toHaveText('waiting for you')
   await expect(page.locator('.chat-meta .status')).toHaveClass(/status-waiting/)
   await expect(page.locator('.session.active .session-status-waiting')).toHaveText('waiting for you')
@@ -95,7 +95,7 @@ test('cuts a long command to one line', async ({ page }) => {
   await newSession(page)
   const long = `bash ${'some/rather/long/path/segment '.repeat(12)}`.trim()
   await page.getByLabel('Message').fill(long)
-  await page.getByRole('button', { name: 'Send' }).click()
+  await page.getByRole('button', { name: 'Send', exact: true }).click()
   const code = page.locator('.item.command .item-line > code')
   await expect(code).toHaveAttribute('title', `echo ${long}`)
   const box = (await code.boundingBox())!
@@ -107,7 +107,7 @@ test('keeps Copy off the output on a touch screen', async ({ page, isMobile }) =
   test.skip(!isMobile, 'touch screens only')
   await newSession(page)
   await page.getByLabel('Message').fill('bash it')
-  await page.getByRole('button', { name: 'Send' }).click()
+  await page.getByRole('button', { name: 'Send', exact: true }).click()
   const fold = page.locator('.item.command details.item-output')
   await fold.locator('summary').click()
   const copy = (await fold.locator('.item-output-copy').boundingBox())!
@@ -118,7 +118,7 @@ test('keeps Copy off the output on a touch screen', async ({ page, isMobile }) =
 test('a plan tool line says "plan", the plan itself is in the card', async ({ page }) => {
   await newSession(page)
   await page.getByLabel('Message').fill('make a plan')
-  await page.getByRole('button', { name: 'Send' }).click()
+  await page.getByRole('button', { name: 'Send', exact: true }).click()
   await expect(page.locator('.request-title', { hasText: 'Ready to code?' })).toBeVisible()
   await expect(page.locator('.item.tool .item-summary')).toHaveText('plan')
 })
@@ -146,7 +146,7 @@ test('sends with Enter and breaks lines with Shift+Enter', async ({ page, isMobi
   await box.press('Shift+Enter')
   await box.pressSequentially('lines')
   await expect(box).toHaveValue('two\nlines')
-  await expect(page.getByRole('button', { name: 'Send' })).toHaveAttribute('title', 'Send (↵)')
+  await expect(page.getByRole('button', { name: 'Send', exact: true })).toHaveAttribute('title', 'Send (↵)')
   await box.press('Enter')
   await expect(page.locator('.item.user', { hasText: 'lines' })).toBeVisible()
   await expect(box).toHaveValue('')
@@ -166,7 +166,7 @@ test('moves focus on after a request is answered', async ({ page, isMobile }) =>
   test.skip(isMobile, 'a phone keeps the keyboard down')
   await newSession(page)
   await page.getByLabel('Message').fill('please permission')
-  await page.getByRole('button', { name: 'Send' }).click()
+  await page.getByRole('button', { name: 'Send', exact: true }).click()
   await expect(page.locator('.request-title', { hasText: 'Run command' })).toBeVisible()
   await page.getByRole('button', { name: 'Allow', exact: true }).click()
   await expect(page.locator('.item.assistant', { hasText: /approved: run/ })).toBeVisible()
@@ -250,7 +250,7 @@ test('a stop sent while offline says so above the composer, not in its row', asy
   })
   await newSession(page)
   await page.getByLabel('Message').fill('run a subagent')
-  await page.getByRole('button', { name: 'Send' }).click()
+  await page.getByRole('button', { name: 'Send', exact: true }).click()
   await expect(page.locator('.subagent')).toBeVisible()
   const composer = page.locator('form.composer')
   const height = (await composer.boundingBox())!.height
@@ -264,7 +264,7 @@ test('a stop sent while offline says so above the composer, not in its row', asy
 test('a running turn keeps its clock across a reload', async ({ page }) => {
   await newSession(page)
   await page.getByLabel('Message').fill('run a subagent')
-  await page.getByRole('button', { name: 'Send' }).click()
+  await page.getByRole('button', { name: 'Send', exact: true }).click()
   await expect(page.locator('.working-tail')).toContainText(/0:0[3-9]/, { timeout: 6000 })
   await page.reload()
   await expect(page.locator('.working-tail')).toContainText(/0:0[3-9]/)
@@ -290,7 +290,7 @@ test('a message sent while the connection is down waits for it', async ({ page }
   await expect(page.locator('.live-strip')).toContainText('live updates paused')
   await expect(page.locator('.chat-meta .status')).toHaveClass(/unsettled/)
   await page.getByLabel('Message').fill('during the outage')
-  await page.getByRole('button', { name: 'Send' }).click()
+  await page.getByRole('button', { name: 'Send', exact: true }).click()
   await expect(page.locator('.row-pending', { hasText: 'during the outage' })).toContainText('waits for go-chamber')
   await expect(page.locator('.toast-error')).toHaveCount(0)
   // The server takes the socket again; the page's own health probe finds it

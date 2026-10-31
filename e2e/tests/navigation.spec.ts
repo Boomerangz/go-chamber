@@ -16,7 +16,7 @@ async function startIn(page: Page, cwd: string, text: string, { fail = false } =
   await expect(page.locator('.chat-path', { hasText: cwd })).toBeAttached()
   if (fail) await page.route('**/api/sessions/*/messages', (route) => route.fulfill({ status: 500, body: 'agent unavailable' }))
   await page.getByLabel('Message').fill(text)
-  await page.getByRole('button', { name: 'Send' }).click()
+  await page.getByRole('button', { name: 'Send', exact: true }).click()
 }
 
 test('the top bar stays quiet while online and asks before signing out', async ({ page, isMobile }) => {

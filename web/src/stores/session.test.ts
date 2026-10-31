@@ -8,7 +8,7 @@ vi.mock('../lib/api', () => ({
   refreshQuota: vi.fn(),
   createSession: vi.fn(),
   createWorktreeSession: vi.fn(),
-  fetchEvents: vi.fn(),
+  fetchHistoryPage: vi.fn(async (id: string, _before: number, signal?: AbortSignal) => ({ events: await api.fetchEvents(id, 0, signal), before: 0, hasMore: false, lastSeq: 0 })), fetchEvents: vi.fn(),
   sendMessage: vi.fn(),
   steer: vi.fn(),
   stopTask: vi.fn(),
@@ -782,6 +782,8 @@ describe('session store', () => {
     ws.onopen?.()
     expect(store().connection).toBe('online')
     await pending
+    // The socket's resync can supersede the selection while sharing its download.
+    await vi.waitFor(() => expect(store().history).toBe('ready'))
     ws.onmessage?.({ data: JSON.stringify(event({ seq: 1 })) })
     expect(store().chat.order).toEqual(['i1'])
     ws.onmessage?.({ data: 'not json' })

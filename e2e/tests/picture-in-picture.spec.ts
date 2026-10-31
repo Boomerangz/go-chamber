@@ -11,7 +11,7 @@ test('floating panel approves a live request and can be reopened', async ({ page
   await page.getByLabel('Working directory').fill('/tmp')
   await page.getByRole('button', { name: 'New session', exact: true }).click()
   await page.getByLabel('Message').fill('pip prototype: please permission')
-  await page.getByRole('button', { name: 'Send' }).click()
+  await page.getByRole('button', { name: 'Send', exact: true }).click()
   await expect(page.locator('.request-title', { hasText: 'Run command' })).toBeVisible()
   const childOpened = context.waitForEvent('page')
   await open.click()

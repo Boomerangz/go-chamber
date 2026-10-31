@@ -10,7 +10,7 @@ vi.mock('../../lib/api', async (orig) => ({
   listHistory: vi.fn(),
   importHistory: vi.fn(),
   getSession: vi.fn(),
-  fetchEvents: vi.fn(),
+  fetchHistoryPage: vi.fn(async (id: string, _before: number, signal?: AbortSignal) => ({ events: await api.fetchEvents(id, 0, signal), before: 0, hasMore: false, lastSeq: 0 })), fetchEvents: vi.fn(),
 }))
 
 const external: api.ExternalSession[] = [

@@ -290,6 +290,30 @@ func (s *server) fork(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *server) sessionEvents(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+	if q.Has("limit") {
+		limit, err := strconv.Atoi(q.Get("limit"))
+		before := int64(0)
+		if raw := q.Get("before"); raw != "" {
+			before, err = strconv.ParseInt(raw, 10, 64)
+		}
+		if err != nil || limit < 1 || limit > 1000 || before < 0 || q.Has("since") {
+			writeJSON(w, http.StatusBadRequest, errorBody{Error: "invalid history page"})
+			return
+		}
+		page, err := s.cfg.Events.HistoryPage(r.Context(), sessionID(r), domain.Seq(before), limit)
+		if err != nil {
+			s.fail(w, err)
+			return
+		}
+		page.Events = replay(page.Events)
+		writeJSON(w, http.StatusOK, page)
+		return
+	}
+	if q.Has("before") {
+		writeJSON(w, http.StatusBadRequest, errorBody{Error: "before requires limit"})
+		return
+	}
 	since := domain.Seq(0)
 	if raw := r.URL.Query().Get("since"); raw != "" {
 		n, err := strconv.ParseInt(raw, 10, 64)

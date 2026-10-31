@@ -23,11 +23,11 @@ for (const width of [1440, 1920]) {
     await page.setViewportSize({ width, height: 900 })
     await newSession(page)
     await page.getByLabel('Message').fill('first words')
-    await page.getByRole('button', { name: 'Send' }).click()
+    await page.getByRole('button', { name: 'Send', exact: true }).click()
     await expect(page.locator('.item.assistant', { hasText: 'echo: first words' })).toBeVisible()
     await page.route('**/api/sessions/*/messages', (route) => route.fulfill({ status: 500, body: 'agent unavailable' }))
     await page.getByLabel('Message').fill('will fail')
-    await page.getByRole('button', { name: 'Send' }).click()
+    await page.getByRole('button', { name: 'Send', exact: true }).click()
     const toast = page.locator('.toast-error').first()
     await expect(toast).toBeVisible()
 

@@ -40,7 +40,7 @@ test('a session whose folder is gone says so in the composer’s place and can b
   const gone = page.getByRole('group', { name: 'Folder gone' })
   try {
     await page.getByLabel('Message').fill('hello?')
-    await page.getByRole('button', { name: 'Send' }).click()
+    await page.getByRole('button', { name: 'Send', exact: true }).click()
     await expect(gone).toContainText('no longer exists')
   } finally { releaseLists() }
   await expect(page.getByLabel('Message')).toHaveCount(0)

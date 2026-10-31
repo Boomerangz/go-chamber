@@ -3,6 +3,7 @@ import {
   createSession,
   forkSession,
   fetchEvents,
+  fetchHistoryPage,
   fetchHealth,
   getAccount,
   getQuotas,
@@ -45,6 +46,15 @@ function stubFetch(impl: (url: string, init?: RequestInit) => Promise<Response>)
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } })
+
+it('fetches the tail and older history with an exclusive cursor', async () => {
+  const page = { events: [], before: 50, hasMore: true, lastSeq: 100 }
+  const fetch = stubFetch(async () => json(page))
+  expect(await fetchHistoryPage('a b')).toEqual(page)
+  expect(fetch.mock.calls[0]![0]).toBe('/api/sessions/a%20b/events?limit=200')
+  await fetchHistoryPage('a b', 50)
+  expect(fetch.mock.calls[1]![0]).toBe('/api/sessions/a%20b/events?limit=200&before=50')
+})
 
 describe('getUnmerged', () => {
   it("returns the fork's left-behind branch, or null when there is none", async () => {

@@ -15,6 +15,8 @@ export interface ChatState {
   // lastTurnFailed is true when the last turn ended with an error, so the
   // header can skip its "done" mark.
   lastTurnFailed?: boolean
+  // Backfilled items appear without animation and do not count as new replies.
+  historicalItems?: ReadonlySet<string>
 }
 
 // TURN_FAILED names the error item written for a turn that ended with an

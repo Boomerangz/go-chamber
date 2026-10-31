@@ -1,3 +1,4 @@
+import * as api from '../../lib/api'
 import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -5,7 +6,7 @@ import type { Session } from '../../lib/api'
 
 vi.mock('../../lib/api', async (orig) => ({
   ...(await orig<typeof import('../../lib/api')>()),
-  fetchEvents: vi.fn().mockResolvedValue([]),
+  fetchHistoryPage: vi.fn(async (id: string, _before: number, signal?: AbortSignal) => ({ events: await api.fetchEvents(id, 0, signal), before: 0, hasMore: false, lastSeq: 0 })), fetchEvents: vi.fn().mockResolvedValue([]),
 }))
 
 import Hotkeys from './Hotkeys'

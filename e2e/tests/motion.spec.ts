@@ -19,7 +19,7 @@ test('works without motion: items appear and an answered request leaves', async 
   await expect(page.getByLabel('Message')).toBeVisible()
 
   await page.getByLabel('Message').fill(text)
-  await page.getByRole('button', { name: 'Send' }).click()
+  await page.getByRole('button', { name: 'Send', exact: true }).click()
   await expect(page.getByLabel('Turn 1')).toBeVisible()
   await expect(page.locator('.request-title', { hasText: 'Run command' })).toBeVisible()
 
@@ -48,7 +48,7 @@ test('marks what arrived since the session was last open', async ({ page }, info
   }
   await open(dir)
   await page.getByLabel('Message').fill(text)
-  await page.getByRole('button', { name: 'Send' }).click()
+  await page.getByRole('button', { name: 'Send', exact: true }).click()
   await expect(page.locator('.request-title', { hasText: 'Run command' })).toBeVisible()
   await expect(page.locator('.unseen-mark')).toHaveCount(0)
 

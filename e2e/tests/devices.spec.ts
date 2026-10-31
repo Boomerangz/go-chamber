@@ -45,7 +45,7 @@ test('what the owner read on one device is not new on the other', async ({ page,
   const phone = await phoneContext.newPage()
   await phone.goto(`/s/${shared}?token=${token}`)
   await phone.getByLabel('Message').fill(title)
-  await phone.getByRole('button', { name: 'Send' }).click()
+  await phone.getByRole('button', { name: 'Send', exact: true }).click()
   await expect(phone.locator('.item.assistant', { hasText: `echo: ${title}` })).toBeVisible()
   await expect.poll(() => looked(page.request, shared)).toBe(true)
 
@@ -84,7 +84,26 @@ test('what the owner read on one device is not new on the other', async ({ page,
 test('a finished turn chimes only where the owner was last', async ({ page, browser, isMobile }) => {
   // It brings its own phone; two runs at once would take "last" from each other.
   test.skip(isMobile, 'the desktop run has a phone of its own')
+  let id = ''
+  const presence = new Map<Page, {client: string; active: string}>()
   const listen = async (p: Page) => {
+    const seen = {client: '', active: ''}; presence.set(p, seen)
+    // This shared server also publishes other specs' completed turns and
+    // permission requests. Count only this scenario's notification events.
+    await p.routeWebSocket('**/api/ws', (ws) => {
+      const server = ws.connectToServer()
+      ws.onMessage((message) => {
+        const frame = JSON.parse(String(message)) as {type: string; client?: string}
+        if (frame.type === 'presence' && frame.client) seen.client = frame.client
+        server.send(message)
+      })
+      server.onMessage((message) => {
+        const event = JSON.parse(String(message)) as {type: string; sessionId?: string; active?: string}
+        if (event.type === 'presence') seen.active = event.active ?? ''
+        if ((event.type === 'turn.ended' || event.type === 'request.opened') && event.sessionId !== id) return
+        ws.send(message)
+      })
+    })
     await p.addInitScript(() => {
       localStorage.setItem('gc.sound', 'on')
       const w = window as unknown as { tones: number }
@@ -99,12 +118,21 @@ test('a finished turn chimes only where the owner was last', async ({ page, brow
   }
   const tones = (p: Page) => p.evaluate(() => (window as unknown as { tones: number }).tones)
   // A focus event says "the owner is here", as switching to the page does.
-  const focus = (p: Page) => p.evaluate(() => window.dispatchEvent(new Event('focus')))
+  const focus = async (p: Page) => {
+    // Wait for the server's ownership broadcast on both sockets before the
+    // turn ends; dispatching focus alone doesn't await that round trip.
+    await expect.poll(async () => {
+      await p.bringToFront()
+      await p.evaluate(() => window.dispatchEvent(new Event('focus')))
+      const client = presence.get(p)?.client
+      return !!client && [...presence.values()].every((state) => state.active === client)
+    }).toBe(true)
+  }
   const phoneContext = await browser.newContext({ ...devices['Pixel 7'] })
   const phone = await phoneContext.newPage()
   await listen(page)
   await listen(phone)
-  const id = await newSession(page.request)
+  id = await newSession(page.request)
   let turns = 0
   const finish = async () => {
     const was = (await snapshot(page.request, id)).endedAt ?? ''

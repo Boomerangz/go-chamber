@@ -584,6 +584,7 @@ button.health { border: 0; background: none; padding: 0; }
 /* the age is short and reads whole: the branch beside it yields instead */
 .session-time { flex: none; white-space: nowrap; margin-left: auto; }
 @container (max-width: 240px) {
+  .session-meta { gap: 4px; }
   .status-more { display: none; }
   .session-meta > .session-status-waiting { min-width: calc(7ch + 12px); }
   /* an archived row that waits says "archived" by its fold alone */
@@ -646,6 +647,13 @@ button.health { border: 0; background: none; padding: 0; }
 .account .sign-in { width: 100%; }
 .account .device-code { padding: 8px 10px; border: 1px dashed var(--rule-strong); color: var(--ink-2); }
 .account .device-code code { padding: 0 4px; font-size: var(--t-body); letter-spacing: 0.1em; color: var(--ink); background: var(--act-wash); }
+.accounts-fold {
+  display: flex; align-items: center; gap: 8px; padding: 0 2px; min-height: 24px;
+  border: 0; background: none; font-family: var(--font-mono); font-size: var(--t-meta); color: var(--ink-2); cursor: pointer;
+}
+.accounts-fold .chevron { transform: rotate(-90deg); transition: transform var(--dur-fast) var(--ease-out); }
+.accounts-fold[aria-expanded='true'] .chevron { transform: none; }
+.sidebar-footer[data-accounts='folded'] .account { display: none; }
 
 .quotas-details summary {
   display: flex; align-items: center; flex-wrap: wrap; gap: 4px 14px; cursor: pointer; list-style: none;
@@ -1286,12 +1294,8 @@ button.health { border: 0; background: none; padding: 0; }
   .session-search { height: 44px; }
   .session-search input { align-self: stretch; }
   .accounts-fold {
-    display: flex; align-items: center; gap: 8px; height: 40px; padding: 0 2px; margin: -10px 0 -4px;
-    border: 0; background: none; font-family: var(--font-mono); font-size: var(--t-meta); color: var(--ink-2);
+    height: 40px; margin: -10px 0 -4px;
   }
-  .accounts-fold .chevron { transform: rotate(-90deg); transition: transform var(--dur-fast) var(--ease-out); }
-  .accounts-fold[aria-expanded='true'] .chevron { transform: none; }
-  .sidebar-footer[data-accounts='folded'] .account { display: none; }
   .mode-switch { grid-column: 1; grid-row: 1; justify-self: start; min-width: 0; overflow-x: auto; scrollbar-width: none; }
   .segmented.mode-switch button { flex: none; padding: 0 10px; }
   .mode-switch { max-width: 100%; }

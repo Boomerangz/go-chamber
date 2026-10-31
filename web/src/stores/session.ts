@@ -60,6 +60,10 @@ export interface SessionStore {
   history: LoadStatus
   // historyError is set while history is 'error'.
   historyError: HistoryError | null
+  olderBefore: number | null
+  olderLoading: boolean
+  olderError: string | null
+  loadOlder: () => Promise<void>
   // requestsStatus tells a request inbox still loading (or failed) from an
   // empty one.
   requestsStatus: LoadStatus
@@ -198,9 +202,11 @@ const DELTA_FLUSH_MS = 100
 let lastSeqs: Record<string, number> = {}
 // chats keeps the last chats left: a revisit renders at once and fetches
 // only the events after their lastSeq.
-const chats = new RecentCache<ChatState>(5)
+const chats = new RecentCache<{ chat: ChatState; before: number | null }>(5)
+interface FetchedHistory { events: api.SessionEvent[]; page?: api.HistoryPage }
 // download is the history fetch under way; see fetchHistory.
-let download: { id: string; since: number; events: Promise<api.SessionEvent[]>; abort: AbortController } | null = null
+let download: { id: string; since: number; events: Promise<FetchedHistory>; abort: AbortController } | null = null
+let olderDownload: AbortController | null = null
 const sessionLists = new LiveList<api.Session>((s) => s.id)
 // A request id is unique only within its session.
 const requestKey = (r: api.SessionRequest) => `${r.sessionId}/${r.id}`
@@ -276,6 +282,9 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
   quotasError: null,
   history: 'ready',
   historyError: null,
+  olderBefore: null,
+  olderLoading: false,
+  olderError: null,
   requestsStatus: 'loading',
   searching: false,
   searchError: null,
@@ -434,14 +443,40 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       return
     }
     keepChat(get)
+    olderDownload?.abort()
+    olderDownload = null
     buffered = null
     dropQueued()
     // A remembered chat shows at once; history stays 'loading' until it has
     // caught up, so what arrived meanwhile still counts as news.
-    set({ activeId: id, chat: chats.get(id) ?? initialChat(), pane: 'chat', history: 'loading', historyError: null })
+    const cached = chats.get(id)
+    set({ activeId: id, chat: cached?.chat ?? initialChat(), olderBefore: cached?.before ?? null, olderLoading: false, olderError: null, pane: 'chat', history: 'loading', historyError: null })
     connect(get, set)
     if (get().sessionsStatus === 'error') void fetchOpenSession(get, set, id)
     await resync(get, set, id)
+  },
+
+  async loadOlder() {
+    const { activeId: id, olderBefore: before, olderLoading, history } = get()
+    if (!id || before === null || olderLoading || history !== 'ready') return
+    const abort = new AbortController()
+    olderDownload = abort
+    set({ olderLoading: true, olderError: null })
+    try {
+      const page = await api.fetchHistoryPage(id, before, abort.signal)
+      if (olderDownload !== abort || get().activeId !== id) return
+      const older = applyEvents(initialChat(), page.events)
+      const current = get().chat
+      const known = new Set(older.order)
+      const historicalItems = new Set(current.historicalItems)
+      for (const key of older.order) if (!current.items[key]) historicalItems.add(key)
+      const chat = { ...current, historicalItems, items: { ...older.items, ...current.items }, order: [...older.order, ...current.order.filter((key) => !known.has(key))], turnResults: { ...older.turnResults, ...current.turnResults } }
+      set({ chat, olderBefore: page.hasMore ? page.before : null })
+    } catch (err) {
+      if (olderDownload === abort && get().activeId === id) set({ olderError: describeError(err) })
+    } finally {
+      if (olderDownload === abort) { olderDownload = null; set({ olderLoading: false }) }
+    }
   },
 
   closeSession: () => {
@@ -706,7 +741,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
 // keepChat remembers the open chat, once loaded, for a later revisit.
 function keepChat(get: () => SessionStore): void {
   const { activeId, chat, history } = get()
-  if (activeId && history === 'ready') chats.put(activeId, chat)
+  if (activeId && history === 'ready') chats.put(activeId, { chat, before: get().olderBefore })
 }
 
 // closeChat empties the workspace, superseding the open chat's history
@@ -714,9 +749,11 @@ function keepChat(get: () => SessionStore): void {
 function closeChat(set: (partial: Partial<SessionStore>) => void): void {
   generation++
   download?.abort.abort()
+  olderDownload?.abort()
+  olderDownload = null
   buffered = null
   dropQueued()
-  set({ activeId: null, chat: initialChat(), history: 'ready', historyError: null })
+  set({ activeId: null, chat: initialChat(), history: 'ready', historyError: null, olderBefore: null, olderLoading: false, olderError: null })
 }
 
 // removeSession forgets a deleted session and the subagents below it, with
@@ -902,8 +939,9 @@ async function resync(
   try {
     const history = await fetchHistory(id, get().chat.lastSeq, () => mine !== generation)
     if (mine !== generation) return
-    const chat = applyEvents(get().chat, [...history, ...live])
-    set({ chat, history: 'ready', historyError: null })
+    const folded = applyEvents(get().chat, [...history.events, ...live])
+    const chat = { ...folded, lastSeq: Math.max(folded.lastSeq, history.page?.lastSeq ?? 0) }
+    set({ chat, history: 'ready', historyError: null, ...(history.page ? { olderBefore: history.page.hasMore ? history.page.before : null } : {}) })
     useNotices.getState().dismissKey('history')
   } catch (err) {
     if (mine === generation) {
@@ -938,18 +976,21 @@ async function resync(
 // shared instead of downloading the transcript twice; as it may predate the
 // socket's subscription, only what came after it is asked for next. Any
 // other download belongs to a superseded resync and is aborted.
-async function fetchHistory(id: string, since: number, stale: () => boolean): Promise<api.SessionEvent[]> {
+async function fetchHistory(id: string, since: number, stale: () => boolean): Promise<FetchedHistory> {
   const shared = download?.id === id && download.since === since ? download.events : null
   if (!shared) download?.abort.abort()
-  const first = shared ? await shared : []
+  const first: FetchedHistory = shared ? await shared : { events: [] }
   if (stale()) return first
-  const after = first.reduce((seq, ev) => Math.max(seq, ev.seq), since)
+  const after = first.events.reduce((seq, ev) => Math.max(seq, ev.seq), Math.max(since, first.page?.lastSeq ?? 0))
   const abort = new AbortController()
-  const events = api.fetchEvents(id, after, abort.signal)
+  const events: Promise<FetchedHistory> = after === 0
+    ? api.fetchHistoryPage(id, 0, abort.signal).then((page) => ({ events: page.events, page }))
+    : api.fetchEvents(id, after, abort.signal).then((events) => ({ events }))
   const mine = { id, since: after, events, abort }
   download = mine
   try {
-    return [...first, ...(await events)]
+    const next = await events
+    return { events: [...first.events, ...next.events], page: first.page ?? next.page }
   } finally {
     if (download === mine) download = null
   }
@@ -1002,6 +1043,8 @@ export function resetStore(): void {
   resyncTimer = null
   lastSeqs = {}
   chats.clear()
+  olderDownload?.abort()
+  olderDownload = null
   download?.abort.abort()
   download = null
   dropQueued()
@@ -1027,6 +1070,9 @@ export function resetStore(): void {
     quotasError: null,
     history: 'ready',
     historyError: null,
+    olderBefore: null,
+    olderLoading: false,
+    olderError: null,
     requestsStatus: 'loading',
     searching: false,
     searchError: null,

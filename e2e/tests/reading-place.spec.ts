@@ -6,13 +6,18 @@ async function newSession(page: Page) {
   await showPane(page, 'Sessions')
   await openNewSession(page)
   await page.getByLabel('Working directory').fill('/tmp')
+  const created = page.waitForResponse((response) => response.request().method() === 'POST' && new URL(response.url()).pathname === '/api/sessions')
   await page.getByRole('button', { name: 'New session', exact: true }).click()
+  const { id } = await (await created).json() as { id: string }
+  // The preceding session's composer can still be visible while creation
+  // finishes. Wait for the new route before typing into its composer.
+  await expect(page).toHaveURL(new RegExp(`/s/${id}$`))
   await expect(page.getByLabel('Message')).toBeVisible()
 }
 
 async function say(page: Page, text: string, reply = `echo: ${text.split('\n')[0]}`) {
   await page.getByLabel('Message').fill(text)
-  await page.getByRole('button', { name: 'Send' }).click()
+  await page.getByRole('button', { name: 'Send', exact: true }).click()
   await expect(page.locator('.item.assistant', { hasText: reply })).toBeVisible()
 }
 

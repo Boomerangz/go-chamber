@@ -4,7 +4,7 @@ import { openNewSession, showPane } from './pane'
 
 async function say(page: Page, text: string) {
   await page.getByLabel('Message', { exact: true }).fill(text)
-  await page.getByRole('button', { name: 'Send' }).click()
+  await page.getByRole('button', { name: 'Send', exact: true }).click()
   await expect(page.locator('.item.assistant', { hasText: `echo: ${text}` })).toBeVisible()
   await expect(page.locator('.chat-meta .status', { hasText: 'idle' })).toBeVisible()
 }
@@ -43,7 +43,7 @@ test('the end of the chat and a message sent while offline stay in view', async 
   await expect.poll(() => gap(page)).toBeLessThan(2)
 
   await page.getByLabel('Message', { exact: true }).fill('sent while offline')
-  await page.getByRole('button', { name: 'Send' }).click()
+  await page.getByRole('button', { name: 'Send', exact: true }).click()
   const waiting = page.locator('.row-pending', { hasText: 'sent while offline' })
   await expect(waiting).toContainText('waits for go-chamber')
   await expect.poll(() => gap(page)).toBeLessThan(2)

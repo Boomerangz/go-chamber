@@ -1,0 +1,248 @@
+[
+  {
+    "name": "unicode and colors",
+    "cols": 40,
+    "rows": 6,
+    "before": "Привет 世界 👋\u001b[31m red\u001b[0m",
+    "after": "!"
+  },
+  {
+    "name": "cursor addressing",
+    "cols": 20,
+    "rows": 5,
+    "before": "abc\u001b[3;4Hxyz\u001b[2D",
+    "after": "XY"
+  },
+  {
+    "name": "alternate screen",
+    "cols": 20,
+    "rows": 5,
+    "before": "shell$ \u001b[?1049h\u001b[2;3HTUI",
+    "after": "!\u001b[?1049lmore"
+  },
+  {
+    "name": "saved cursor and pen",
+    "cols": 20,
+    "rows": 5,
+    "before": "\u001b[31mabc\u001b7\u001b[0m\u001b[3;4Hxyz",
+    "after": "\u001b8!"
+  },
+  {
+    "name": "pending wrap",
+    "cols": 5,
+    "rows": 4,
+    "before": "12345",
+    "after": "6"
+  },
+  {
+    "name": "split CSI",
+    "cols": 20,
+    "rows": 5,
+    "before": "abc\u001b[3",
+    "after": "1mred"
+  },
+  {
+    "name": "input modes",
+    "cols": 20,
+    "rows": 5,
+    "before": "prompt\u001b[?1h\u001b[?2004h\u001b[?1004h\u001b[?1006h",
+    "after": "!"
+  },
+  {
+    "name": "clipboard is not replayed",
+    "cols": 20,
+    "rows": 5,
+    "before": "ok\u001b]52;c;aGVsbG8=\u0007",
+    "after": "!"
+  },
+  {
+    "name": "scroll region",
+    "cols": 20,
+    "rows": 5,
+    "before": "one\r\ntwo\r\nthree\u001b[2;4r\u001b[4;1Hbottom",
+    "after": "\r\nnext"
+  },
+  {
+    "name": "resize",
+    "cols": 20,
+    "rows": 5,
+    "before": "hello\u001b[3;4Hworld",
+    "resizeCols": 30,
+    "resizeRows": 8,
+    "after": "!"
+  },
+  {
+    "name": "alternate pen continuation",
+    "cols": 20,
+    "rows": 5,
+    "before": "\u001b[31mshell$ \u001b[?1049h\u001b[32mTUI\u001b[?1049l",
+    "after": "more"
+  },
+  {
+    "name": "origin mode",
+    "cols": 20,
+    "rows": 5,
+    "before": "\u001b[2;4r\u001b[?6h\u001b[2;3Htest",
+    "after": "more"
+  },
+  {
+    "name": "hyperlink",
+    "cols": 20,
+    "rows": 5,
+    "before": "\u001b]8;;https://example.com\u001b\\link",
+    "after": "!"
+  },
+  {
+    "name": "main resize while alternate",
+    "cols": 20,
+    "rows": 5,
+    "before": "abcdefghijklmnop\u001b[?1049hTUI",
+    "resizeCols": 10,
+    "resizeRows": 4,
+    "after": "\u001b[?1049l!"
+  },
+  {
+    "name": "colored blank",
+    "cols": 20,
+    "rows": 5,
+    "before": "\u001b[31mred\u001b[2K",
+    "after": "!"
+  },
+  {
+    "name": "graphemes",
+    "cols": 40,
+    "rows": 5,
+    "before": "é 👩‍💻",
+    "after": "!"
+  },
+  {
+    "name": "Unicode one byte PTY reads",
+    "cols": 40,
+    "rows": 5,
+    "before": "é 👩‍💻",
+    "after": "!",
+    "chunkBytes": 1
+  },
+  {
+    "name": "Unicode after version 11",
+    "cols": 20,
+    "rows": 5,
+    "before": "🫠🫨",
+    "after": "!"
+  },
+  {
+    "name": "wide pending wrap",
+    "cols": 5,
+    "rows": 4,
+    "before": "123界",
+    "after": "!"
+  },
+  {
+    "name": "wide wraps before right margin",
+    "cols": 5,
+    "rows": 4,
+    "before": "1234界",
+    "after": "!"
+  },
+  {
+    "name": "custom tab stops",
+    "cols": 20,
+    "rows": 5,
+    "before": "\u001b[3g\u001b[1;4H\u001bH\rprompt",
+    "after": "\r\t!"
+  },
+  {
+    "name": "DEC character set",
+    "cols": 20,
+    "rows": 5,
+    "before": "\u001b(0lqk",
+    "after": "xm"
+  },
+  {
+    "name": "main clipping while alternate",
+    "cols": 20,
+    "rows": 5,
+    "before": "abcdefghijklmnop\u001b[?1049hTUI",
+    "resizeCols": 10,
+    "resizeRows": 4,
+    "after": "\u001b[?1049l"
+  },
+  {
+    "name": "main reflow",
+    "cols": 20,
+    "rows": 5,
+    "before": "abcdefghijklmnop",
+    "resizeCols": 10,
+    "resizeRows": 5,
+    "after": "!"
+  },
+  {
+    "name": "custom palette",
+    "cols": 20,
+    "rows": 5,
+    "before": "\u001b]4;1;rgb:12/34/56\u001b\\\u001b[31mred",
+    "after": "!\u001b]4;1;?\u001b\\",
+    "replies": 1
+  },
+  {
+    "name": "dynamic colors",
+    "cols": 20,
+    "rows": 5,
+    "before": "\u001b]10;rgb:12/34/56\u001b\\text",
+    "after": "!\u001b]10;?\u001b\\",
+    "replies": 1
+  },
+  {
+    "name": "full reset",
+    "cols": 20,
+    "rows": 5,
+    "before": "\u001b[31m\u001b[3g\u001b(0old\u001bcnew",
+    "after": "\t!"
+  },
+  {
+    "name": "custom tabs after resize",
+    "cols": 20,
+    "rows": 5,
+    "before": "\u001b[3g\u001b[1;4H\u001bH\rprompt",
+    "resizeCols": 30,
+    "resizeRows": 8,
+    "after": "\r\t!"
+  },
+  {
+    "name": "reset observed input modes",
+    "cols": 20,
+    "rows": 5,
+    "before": "\u001b[?1h\u001b[?2004h\u001bcnew",
+    "after": "!"
+  },
+  {
+    "name": "saved cursor with origin mode",
+    "cols": 20,
+    "rows": 8,
+    "before": "\u001b[2;7r\u001b[?6h\u001b[3;4H\u001b7\u001b[?6l\u001b[Htop",
+    "after": "\u001b8!"
+  },
+  {
+    "name": "legacy alternate buffer 47",
+    "cols": 20,
+    "rows": 5,
+    "before": "shell\u001b[?47h\u001b[Halt",
+    "after": "!\u001b[?47lmore"
+  },
+  {
+    "name": "legacy alternate buffer 1047",
+    "cols": 20,
+    "rows": 5,
+    "before": "shell\u001b[?1047h\u001b[Halt",
+    "after": "!\u001b[?1047lmore"
+  },
+  {
+    "name": "wrapped main resize",
+    "cols": 12,
+    "rows": 6,
+    "before": "abcdefghijklmnopqrstuvwxYZ",
+    "resizeCols": 8,
+    "resizeRows": 6,
+    "after": "!"
+  }
+]

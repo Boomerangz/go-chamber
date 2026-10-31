@@ -22,6 +22,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 )
 
 type msg struct {
@@ -275,7 +276,7 @@ func main() {
 			}, "nextCursor": nil})
 		case "account/rateLimits/read":
 			respond(m.ID, map[string]any{"rateLimits": map[string]any{
-				"primary":   map[string]any{"usedPercent": 25, "resetsAt": 1790000000, "windowDurationMins": 300},
+				"primary":   map[string]any{"usedPercent": 25, "resetsAt": time.Now().Add(5 * time.Hour).Unix(), "windowDurationMins": 300},
 				"secondary": map[string]any{"usedPercent": 5, "windowDurationMins": 10080},
 				"planType":  "plus",
 			}})

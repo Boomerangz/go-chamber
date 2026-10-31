@@ -22,7 +22,24 @@ const state = (over: Partial<ReturnType<typeof useDiagnostics>>) =>
   vi.mocked(useDiagnostics).mockReturnValue({ client: diagnostics(), server: null, error: null, socketStatus: 'online', retry: vi.fn(), ...over })
 
 describe('DiagnosticsPage', () => {
-  beforeEach(() => vi.clearAllMocks())
+  beforeEach(() => { vi.clearAllMocks(); localStorage.removeItem('gc.terminal.rtc') })
+
+  it('explains an empty RTC metric when terminals use WebSocket', () => {
+    const client = diagnostics()
+    client.terminals = [{id: 'fallback', receivedBytes: 0, pendingBytes: 0, peakPendingBytes: 0, reconnects: 0, transport: 'websocket'}]
+    state({client})
+    render(<DiagnosticsPage />)
+    const metric = screen.getByRole('heading', {name: 'WebRTC round trip'}).closest('article')!
+    expect(metric).toHaveTextContent('Terminals in this tab currently use WebSocket.')
+    expect(metric).toHaveTextContent('See WebRTC attempt below')
+  })
+
+  it('explains that disabled RTC cannot produce echo samples', () => {
+    localStorage.setItem('gc.terminal.rtc', 'off')
+    state({})
+    render(<DiagnosticsPage />)
+    expect(screen.getByRole('heading', {name: 'WebRTC round trip'}).closest('article')).toHaveTextContent('WebRTC is disabled on this device.')
+  })
 
   it('shows where each agent CLI is, or how to install a missing one', () => {
     state({

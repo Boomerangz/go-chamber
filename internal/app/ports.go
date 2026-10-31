@@ -170,6 +170,19 @@ type EventLog interface {
 	LastSeq(ctx context.Context, session domain.SessionID) (domain.Seq, error)
 }
 
+// HistoryPage is a bounded replay window. Before is the exclusive cursor for
+// the preceding page; seed events may precede it to complete items at the edge.
+type HistoryPage struct {
+	Events  []domain.Event `json:"events"`
+	Before  domain.Seq     `json:"before"`
+	HasMore bool           `json:"hasMore"`
+	LastSeq domain.Seq     `json:"lastSeq"`
+}
+
+type HistoryPager interface {
+	HistoryPage(ctx context.Context, session domain.SessionID, before domain.Seq, limit int) (HistoryPage, error)
+}
+
 // SearchHit is one session whose messages match a search.
 type SearchHit struct {
 	SessionID domain.SessionID `json:"sessionId"`

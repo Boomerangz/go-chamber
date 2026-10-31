@@ -4,7 +4,7 @@ import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSyn
 import { createServer } from 'node:net'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-import { openNewSession } from './pane'
+import { openNewSession, showAccounts } from './pane'
 
 // A second go-chamber whose PATH has the Claude CLI but no Codex CLI: the
 // shared server's PATH can't be changed while it runs.
@@ -69,6 +69,7 @@ test('a missing Codex CLI is said plainly, and Codex is not offered', async ({ p
   await expect(codex).toBeDisabled()
   await expect(codex).toHaveAttribute('title', /Codex CLI not found on PATH/)
   await expect(page.getByRole('radio', { name: 'Claude' })).toHaveAttribute('aria-checked', 'true')
+  await showAccounts(page)
   await expect(page.getByText('Codex CLI not found on PATH', { exact: true })).toBeVisible()
   await expect(page.getByText('npm install -g @openai/codex', { exact: true })).toBeVisible()
   await expect(page.getByText(/executable file not found/)).toHaveCount(0)

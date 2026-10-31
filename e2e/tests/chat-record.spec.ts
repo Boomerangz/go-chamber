@@ -17,7 +17,7 @@ async function newSession(page: import('@playwright/test').Page) {
 
 async function send(page: import('@playwright/test').Page, text: string) {
   await page.getByLabel('Message').fill(text)
-  await page.getByRole('button', { name: 'Send' }).click()
+  await page.getByRole('button', { name: 'Send', exact: true }).click()
 }
 
 test('a denied command reads "not run", a skipped question "skipped", without raw tool lines', async ({ page }) => {

@@ -26,7 +26,7 @@ for (const [width, dock] of [
     const idle = await composer.evaluate((el) => el.getBoundingClientRect().height)
 
     await page.getByLabel('Message').fill('please permission steady')
-    await page.getByRole('button', { name: 'Send' }).click()
+    await page.getByRole('button', { name: 'Send', exact: true }).click()
     await expect(composer.getByRole('button', { name: 'Stop' })).toBeVisible()
     await expect(composer.getByRole('button', { name: 'Steer' })).toBeVisible()
     expect(await composer.evaluate((el) => el.getBoundingClientRect().height), 'running').toBe(idle)

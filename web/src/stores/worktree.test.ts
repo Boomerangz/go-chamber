@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi, type Mock } from 'vitest'
 vi.mock('../lib/api', () => ({
   createSession: vi.fn(),
   createWorktreeSession: vi.fn(),
-  fetchEvents: vi.fn().mockResolvedValue([]),
+  fetchHistoryPage: vi.fn(async (id: string, _before: number, signal?: AbortSignal) => ({ events: await api.fetchEvents(id, 0, signal), before: 0, hasMore: false, lastSeq: 0 })), fetchEvents: vi.fn().mockResolvedValue([]),
 }))
 
 import * as api from '../lib/api'

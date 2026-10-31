@@ -11,7 +11,7 @@ test('streams a fake agent reply end to end', async ({ page }) => {
 
   await expect(page.getByLabel('Message')).toBeVisible()
   await page.getByLabel('Message').fill('hello')
-  await page.getByRole('button', { name: 'Send' }).click()
+  await page.getByRole('button', { name: 'Send', exact: true }).click()
 
   await expect(page.locator('.item.user', { hasText: 'hello' })).toBeVisible()
   await expect(page.getByText('echo: hello')).toBeVisible()
@@ -26,7 +26,7 @@ test('shows a tool call card from the fake agent', async ({ page }) => {
   await expect(page.getByLabel('Message')).toBeVisible()
 
   await page.getByLabel('Message').fill('bash it')
-  await page.getByRole('button', { name: 'Send' }).click()
+  await page.getByRole('button', { name: 'Send', exact: true }).click()
 
   await expect(page.getByText('done: bash it')).toBeVisible()
 })

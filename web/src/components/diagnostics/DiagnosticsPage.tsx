@@ -37,6 +37,10 @@ export default function DiagnosticsPage() {
     return !remote || (remote.clients === 0 && remote.queuedBytes === 0 && remote.laggedClients === 0)
   }
   const ids = all.filter((id) => !quiet(id))
+  const rtcWaiting = !rtc ? 'WebRTC is disabled on this device.'
+    : !client.terminals.length ? 'Open a terminal in this browser tab to measure WebRTC RTT.'
+    : client.terminals.some((t) => t.transport === 'webrtc') ? 'WebRTC is connected; waiting for a control-channel echo.'
+    : 'Terminals in this tab currently use WebSocket. See WebRTC attempt below for connection progress or failure.'
   const idle = all.filter(quiet).map((id) => terminalName(id, terminalNames.find((t) => t.id === id)))
   const report = () => JSON.stringify({ generatedAt: new Date().toISOString(), client: diagnostics(), server }, null, 2)
   const copyReport = async () => {
@@ -89,7 +93,7 @@ export default function DiagnosticsPage() {
               <div className="diagnostic-value">{ms(metric.p95)} <span>p95</span>{level !== 'none' && <span className="diagnostic-level">{level}</span>}</div>
               {remedy && <p className="diagnostic-remedy">{remedy}</p>}
               <dl><div><dt>Latest</dt><dd>{ms(metric.last)}</dd></div><div><dt>Median</dt><dd>{ms(metric.p50)}</dd></div><div><dt>Maximum</dt><dd>{ms(metric.max)}</dd></div><div><dt>Samples</dt><dd>{metric.samples} / {metric.count}</dd></div></dl>
-              <p>{metric.count ? description : `Waiting for samples. ${description}`}</p>
+              <p>{metric.count ? description : key === 'rtc' ? rtcWaiting : `Waiting for samples. ${description}`}</p>
             </article>
           )
         })}
@@ -128,7 +132,7 @@ export default function DiagnosticsPage() {
         <p className="diagnostics-note">Off keeps terminals on the WebSocket through the server. Open terminals switch right away.</p>
         {ids.length ? (
           <div className="diagnostics-table-wrap"><table>
-            <thead><tr><th>Terminal</th><th>Connection</th><th>Route</th><th>WebRTC attempt</th><th>WebRTC RTT</th><th>Browser pending</th><th>Browser peak</th><th>Reconnects</th><th>Server queued</th><th>Lag resyncs</th><th>Clients</th></tr></thead>
+            <thead><tr><th>Terminal</th><th>Connection</th><th>Route</th><th>WebRTC attempt</th><th>WebRTC RTT</th><th>Browser pending</th><th>Browser peak</th><th>Reconnects</th><th>Server queued</th><th>Lag resyncs</th><th>Clients</th><th>Recovery</th><th>Processed age</th><th>Input pending</th><th>Output unacked</th></tr></thead>
             <tbody>{ids.map((id) => {
               const local = client.terminals.find((t) => t.id === id)
               const remote = server?.terminals.find((t) => t.id === id)
@@ -143,6 +147,10 @@ export default function DiagnosticsPage() {
                 ['Server queued', remote ? bytes(remote.queuedBytes) : '—'],
                 ['Lag resyncs', remote?.laggedClients ?? '—'],
                 ['Clients', remote?.clients ?? '—'],
+                ['Recovery', ms(local?.recoveryMs)],
+                ['Processed age', ms(local?.processedAgeMs)],
+                ['Input pending', bytes(local?.pendingInputBytes ?? 0)],
+                ['Output unacked', bytes(remote?.unackedOutputBytes ?? 0)],
               ]
               // data-label names each cell when a narrow screen lays rows out as cards.
               return <tr key={id}><th scope="row">{terminalName(id, terminalNames.find((t) => t.id === id))}</th>{cells.map(([label, value]) => <td key={label} data-label={label}>{value}</td>)}</tr>
@@ -150,7 +158,7 @@ export default function DiagnosticsPage() {
           </table></div>
         ) : idle.length === 0 && <p>Open a terminal to collect output and queue measurements.</p>}
         {idle.length > 0 && <p className="diagnostics-idle">{`Not attached, nothing measured: ${idle.join(', ')}`}</p>}
-        <p className="diagnostics-note">Browser pending bytes await xterm processing. Server queued bytes await delivery, summed across attached clients.</p>
+        <p className="diagnostics-note">Browser pending bytes await xterm processing. Server queued bytes await delivery, summed across attached clients. Processed age is time since the last xterm output was processed; it also grows while the shell is idle. It does not measure network latency.</p>
       </section>
     </main>
   )

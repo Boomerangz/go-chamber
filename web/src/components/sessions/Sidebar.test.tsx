@@ -36,6 +36,19 @@ function setup(onCreate: SidebarProps['onCreate'] = vi.fn(async () => true), ses
 }
 
 describe('Sidebar new session', () => {
+  it('folds account details by default on desktop too and lets them be opened and closed', async () => {
+    setup()
+    const footer = document.querySelector('.sidebar-footer')!
+    const toggle = screen.getByRole('button', { name: 'Accounts' })
+    expect(toggle).toHaveAttribute('aria-expanded', 'false')
+    expect(footer).toHaveAttribute('data-accounts', 'folded')
+    await userEvent.click(toggle)
+    expect(toggle).toHaveAttribute('aria-expanded', 'true')
+    expect(footer).not.toHaveAttribute('data-accounts')
+    await userEvent.click(toggle)
+    expect(footer).toHaveAttribute('data-accounts', 'folded')
+  })
+
   it('offers only agents whose CLI is installed, and says why not', async () => {
     localStorage.setItem('gc.lastAgent', 'codex')
     vi.mocked(api.listAgents).mockResolvedValueOnce([

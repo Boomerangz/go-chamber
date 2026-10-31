@@ -27,7 +27,7 @@ for (const agent of ['Claude', 'Codex'] as const) {
     await expect.poll(() => chip.evaluate((img: HTMLImageElement) => img.naturalWidth)).toBe(1)
 
     await page.getByLabel('Message').fill('describe')
-    await page.getByRole('button', { name: 'Send' }).click()
+    await page.getByRole('button', { name: 'Send', exact: true }).click()
     await expect(page.locator('.item.assistant', { hasText: /\[image (image\/png )?\d+ bytes\] describe/ })).toBeVisible()
     await expect(page.locator('.item.user img')).toBeVisible()
     await expect(chip).toHaveCount(0)

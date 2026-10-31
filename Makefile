@@ -41,6 +41,7 @@ test-web: web/node_modules
 
 test-protocol-tools:
 	PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s scripts/tests
+	cd third_party/vt && go test ./...
 
 cover-gate:
 	$(GO_TEST) -coverprofile=coverage.out ./... >/dev/null

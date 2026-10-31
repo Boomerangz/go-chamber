@@ -16,7 +16,7 @@ test('focus leaves only the chat and opens the requests when the agent asks', as
   await expect(page.getByRole('toolbar', { name: 'Dock' })).toBeHidden()
 
   await page.getByLabel('Message').fill(text)
-  await page.getByRole('button', { name: 'Send' }).click()
+  await page.getByRole('button', { name: 'Send', exact: true }).click()
   const line = page.getByRole('complementary', { name: 'Pending requests' }).getByRole('listitem').filter({ hasText: text })
   await expect(line).toBeVisible()
   await page.screenshot({ path: 'test-results/focus.png' })
