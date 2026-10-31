@@ -381,10 +381,15 @@ func TestSlowSubscriberIsResyncedFromScrollback(t *testing.T) {
 	emit("9")
 	// Output while the resync waits is part of the scrollback it will send.
 	emit("0")
-	if got := recvFrame(t, slow.Output); got.Resync || string(got.Data) != "12345" {
-		t.Fatalf("frame in flight = %+v", got)
-	}
+	// The forwarder may coalesce writes or not schedule until resync is
+	// pending. An in-flight prefix is optional; the resync itself is required.
 	got := recvFrame(t, slow.Output)
+	if !got.Resync {
+		if len(got.Data) < 5 || len(got.Data) > 8 || !strings.HasPrefix("12345678", string(got.Data)) {
+			t.Fatalf("frame in flight = %+v", got)
+		}
+		got = recvFrame(t, slow.Output)
+	}
 	if !got.Resync || string(got.Data) != "1234567890" {
 		t.Fatalf("resync frame = resync:%v %q, want the whole scrollback", got.Resync, got.Data)
 	}
