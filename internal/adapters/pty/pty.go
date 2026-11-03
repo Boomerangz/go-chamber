@@ -31,12 +31,19 @@ func (fa Factory) Start(spec app.PTYSpec) (app.PTY, error) {
 	cmd.Dir = spec.Cwd
 	// For duplicate keys exec uses the last value, so these override ours.
 	cmd.Env = append(os.Environ(), append(env, "TERM=xterm-256color", "COLORTERM=truecolor")...)
-	f, err := pty.StartWithSize(cmd, &pty.Winsize{Cols: spec.Cols, Rows: spec.Rows})
+	sh, err := startShell(cmd, spec.Cols, spec.Rows, fa.KillAfter, cleanup)
 	if err != nil {
 		cleanup()
 		return nil, err
 	}
-	killAfter := fa.KillAfter
+	return sh, nil
+}
+
+func startShell(cmd *exec.Cmd, cols, rows uint16, killAfter time.Duration, cleanup func()) (*shell, error) {
+	f, err := pty.StartWithSize(cmd, &pty.Winsize{Cols: cols, Rows: rows})
+	if err != nil {
+		return nil, err
+	}
 	if killAfter == 0 {
 		killAfter = 2 * time.Second
 	}

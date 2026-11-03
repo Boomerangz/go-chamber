@@ -45,18 +45,21 @@ func shellHooks(spec app.PTYSpec) ([]string, []string, func(), error) {
 	return []string{"-l"}, []string{"GO_CHAMBER_TERMINAL=1", "GO_CHAMBER_HOOK_DIR=" + dir, "GO_CHAMBER_USER_ZDOTDIR=" + original, "ZDOTDIR=" + dir}, cleanup, nil
 }
 
+// Under tmux the markers travel as DCS passthrough: tmux drops a bare OSC 133.
 const bashHooks = `
 if [ -r /etc/profile ]; then . /etc/profile; fi
 for __gc_profile in "$HOME/.bash_profile" "$HOME/.bash_login" "$HOME/.profile"; do
   if [ -r "$__gc_profile" ]; then . "$__gc_profile"; break; fi
 done
+__gc_o=$'\033]'; __gc_c=$'\007'
+if [ -n "$TMUX" ]; then __gc_o=$'\033Ptmux;\033\033]'; __gc_c=$'\007\033\\'; fi
 __go_chamber_prompt() {
-  printf '\033]133;A\007'
+  printf '%s133;A%s' "$__gc_o" "$__gc_c"
   if (( BASH_VERSINFO[0] * 100 + BASH_VERSINFO[1] >= 404 )); then
-    case "$PS1" in *'133;B'*) ;; *) PS1="${PS1}"'\[\e]133;B\a\]' ;; esac
+    case "$PS1" in *'133;B'*) ;; *) PS1="${PS1}"'\['"${__gc_o}133;B${__gc_c//\\/\\\\}"'\]' ;; esac
   fi
 }
-if (( BASH_VERSINFO[0] * 100 + BASH_VERSINFO[1] >= 404 )); then PS0=$'\e]133;C\a'"$PS0"; fi
+if (( BASH_VERSINFO[0] * 100 + BASH_VERSINFO[1] >= 404 )); then PS0="${__gc_o}133;C${__gc_c//\\/\\\\}$PS0"; fi
 if [[ ${BASH_VERSINFO[0]} -ge 5 ]] && [[ $(declare -p PROMPT_COMMAND 2>/dev/null) == 'declare -a'* ]]; then
   PROMPT_COMMAND+=(__go_chamber_prompt)
 else
@@ -66,11 +69,13 @@ fi
 
 const zshHooks = `
 autoload -Uz add-zsh-hook
+__gc_o=$'\033]'; __gc_c=$'\007'
+if [[ -n $TMUX ]]; then __gc_o=$'\033Ptmux;\033\033]'; __gc_c=$'\007\033\\'; fi
 __go_chamber_prompt() {
-  printf '\033]133;A\007'
-  if [[ $PS1 != *'133;B'* ]]; then PS1+=$'%{\e]133;B\a%}'; fi
+  printf '%s133;A%s' "$__gc_o" "$__gc_c"
+  if [[ $PS1 != *'133;B'* ]]; then PS1+="%{${__gc_o}133;B${__gc_c}%}"; fi
 }
-__go_chamber_running() { printf '\033]133;C\007'; }
+__go_chamber_running() { printf '%s133;C%s' "$__gc_o" "$__gc_c"; }
 add-zsh-hook precmd __go_chamber_prompt
 add-zsh-hook preexec __go_chamber_running
 `

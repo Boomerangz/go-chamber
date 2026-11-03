@@ -56,10 +56,12 @@ func (t *Terminals) Rename(id domain.TerminalID, title string) (domain.Terminal,
 		return domain.Terminal{}, err
 	}
 	rt.mu.Lock()
-	defer rt.mu.Unlock()
 	if title == "" {
 		title = filepath.Base(rt.term.Cwd)
 	}
 	rt.term.Title = title
-	return rt.term, nil
+	term := rt.term
+	rt.mu.Unlock()
+	rt.remember()
+	return term, nil
 }

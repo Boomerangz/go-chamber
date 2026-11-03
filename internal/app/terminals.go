@@ -43,6 +43,8 @@ type PTY interface {
 }
 
 type PTYSpec struct {
+	// ID names the terminal; persistent factories key their shell by it.
+	ID          string
 	PromptHooks bool
 	Cwd         string
 	Shell       string
@@ -52,6 +54,26 @@ type PTYSpec struct {
 // PTYFactory starts shells in pseudo-terminals.
 type PTYFactory interface {
 	Start(spec PTYSpec) (PTY, error)
+}
+
+// Detacher is implemented by a PTY whose shell outlives this process:
+// shutdown leaves it running instead of closing it.
+type Detacher interface{ Detach() error }
+
+// Rememberer is implemented by a PTY that keeps the terminal's description
+// next to its shell, so Restore can bring the terminal back.
+type Rememberer interface{ Remember(domain.Terminal) }
+
+// RestoredTerminal is a shell that survived a restart.
+type RestoredTerminal struct {
+	Term domain.Terminal
+	PTY  PTY
+}
+
+// PTYRestorer is implemented by a factory whose shells survive a restart.
+type PTYRestorer interface {
+	// Restore reattaches every surviving shell at the given size.
+	Restore(cols, rows uint16) ([]RestoredTerminal, error)
 }
 
 // SessionLookup finds a session to open a terminal in its directory.
@@ -169,19 +191,11 @@ func (t *Terminals) Open(ctx context.Context, req OpenTerminal) (domain.Terminal
 	if cols == 0 || rows == 0 {
 		cols, rows = defaultCols, defaultRows
 	}
-	pty, err := t.cfg.PTYs.Start(PTYSpec{Cwd: cwd, Shell: term.Shell, Cols: cols, Rows: rows, PromptHooks: t.cfg.Screens != nil})
+	pty, err := t.cfg.PTYs.Start(PTYSpec{ID: string(id), Cwd: cwd, Shell: term.Shell, Cols: cols, Rows: rows, PromptHooks: t.cfg.Screens != nil})
 	if err != nil {
 		return domain.Terminal{}, fmt.Errorf("start shell: %w", err)
 	}
-	rt := &runningTerminal{
-		term: term, pty: pty,
-		scroll:   newScrollback(t.cfg.ScrollbackBytes),
-		subs:     map[*subscriber]struct{}{},
-		lagBytes: t.cfg.LagBytes,
-	}
-	if t.cfg.Screens != nil {
-		rt.screen = t.cfg.Screens.New(cols, rows)
-	}
+	rt := t.newRunning(term, pty, cols, rows)
 	t.mu.Lock()
 	if t.closed {
 		t.mu.Unlock()
@@ -199,8 +213,50 @@ func (t *Terminals) Open(ctx context.Context, req OpenTerminal) (domain.Terminal
 	term = rt.term
 	t.terms[id] = rt
 	t.mu.Unlock()
+	rt.remember()
 	go rt.pump()
 	return term, nil
+}
+
+func (t *Terminals) newRunning(term domain.Terminal, pty PTY, cols, rows uint16) *runningTerminal {
+	rt := &runningTerminal{
+		term: term, pty: pty,
+		scroll:   newScrollback(t.cfg.ScrollbackBytes),
+		subs:     map[*subscriber]struct{}{},
+		lagBytes: t.cfg.LagBytes,
+	}
+	if t.cfg.Screens != nil {
+		rt.screen = t.cfg.Screens.New(cols, rows)
+	}
+	return rt
+}
+
+// Restore adopts the shells that survived a restart. Call it once, before
+// serving.
+func (t *Terminals) Restore() error {
+	r, ok := t.cfg.PTYs.(PTYRestorer)
+	if !ok {
+		return nil
+	}
+	survivors, err := r.Restore(defaultCols, defaultRows)
+	if err != nil {
+		return err
+	}
+	for _, s := range survivors {
+		rt := t.newRunning(s.Term, s.PTY, defaultCols, defaultRows)
+		t.mu.Lock()
+		t.terms[s.Term.ID] = rt
+		t.mu.Unlock()
+		go rt.pump()
+	}
+	return nil
+}
+
+// remember lets a persistent PTY record the terminal's current description.
+func (rt *runningTerminal) remember() {
+	if r, ok := rt.pty.(Rememberer); ok {
+		r.Remember(rt.snapshot())
+	}
 }
 
 // List returns all terminals, including exited ones, oldest first.
@@ -369,19 +425,25 @@ func (t *Terminals) CloseWithin(dir string) int {
 // shells keep running as ordinary terminals in their folders.
 func (t *Terminals) Unbind(ids ...domain.SessionID) {
 	t.mu.Lock()
-	defer t.mu.Unlock()
+	var changed []*runningTerminal
 	for _, rt := range t.terms {
 		rt.mu.Lock()
 		for _, id := range ids {
 			if rt.term.OpenedFor(id) {
 				rt.term.Unbind()
+				changed = append(changed, rt)
 			}
 		}
 		rt.mu.Unlock()
 	}
+	t.mu.Unlock()
+	for _, rt := range changed {
+		rt.remember()
+	}
 }
 
-// CloseAll kills every shell and refuses new ones; used on shutdown.
+// CloseAll refuses new shells and releases every one: it kills them, except
+// persistent shells, which are left running to be restored; used on shutdown.
 func (t *Terminals) CloseAll() {
 	t.mu.Lock()
 	t.closed = true
@@ -389,6 +451,10 @@ func (t *Terminals) CloseAll() {
 	t.terms = map[domain.TerminalID]*runningTerminal{}
 	t.mu.Unlock()
 	for _, rt := range terms {
+		if d, ok := rt.pty.(Detacher); ok {
+			_ = d.Detach()
+			continue
+		}
 		_ = rt.pty.Close()
 	}
 }

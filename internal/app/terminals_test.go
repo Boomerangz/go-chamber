@@ -199,7 +199,7 @@ func TestOpenTerminalInDirectory(t *testing.T) {
 		t.Fatalf("terminal = %+v, want %+v", term, want)
 	}
 	spec, _ := f.factory.last(t)
-	if spec != (PTYSpec{Cwd: "/srv/app", Shell: "/bin/zsh", Cols: 120, Rows: 40}) {
+	if spec != (PTYSpec{ID: "t1", Cwd: "/srv/app", Shell: "/bin/zsh", Cols: 120, Rows: 40}) {
 		t.Fatalf("spec = %+v", spec)
 	}
 	if got := f.terms.List(); len(got) != 1 || got[0] != term {

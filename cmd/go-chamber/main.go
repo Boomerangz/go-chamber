@@ -5,6 +5,7 @@ package main
 import (
 	"context"
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/hex"
 	"errors"
 	"flag"
@@ -13,6 +14,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"os/exec"
 	"os/signal"
 	"path/filepath"
 	"strings"
@@ -53,6 +55,7 @@ func run(ctx context.Context, args []string, out io.Writer) error {
 	fl := flag.NewFlagSet("go-chamber", flag.ContinueOnError)
 	addr := fl.String("addr", "127.0.0.1:7777", "listen address")
 	terminalV2 := fl.Bool("terminal-v2", false, "enable experimental resumable terminal protocol v2")
+	useTmux := fl.Bool("tmux", true, "keep terminal shells in tmux so they survive a restart (when tmux is installed)")
 	home, _ := os.UserHomeDir()
 	dataDir := fl.String("data", filepath.Join(home, ".go-chamber"), "data directory")
 	idle := fl.Duration("idle-timeout", 15*time.Minute, "close idle Claude processes after this long (0 keeps them)")
@@ -113,7 +116,7 @@ func run(ctx context.Context, args []string, out io.Writer) error {
 	}
 	terminals := app.NewTerminals(app.TerminalsConfig{
 		Screens:  screens,
-		PTYs:     pty.Factory{},
+		PTYs:     shellFactory(*useTmux, *dataDir),
 		Sessions: store.Sessions(),
 		Home:     home,
 		Folders:  fsys.Reader{},
@@ -121,6 +124,9 @@ func run(ctx context.Context, args []string, out io.Writer) error {
 	})
 	// Closing shells also ends their WebSockets, which Shutdown doesn't track.
 	defer terminals.CloseAll()
+	if err := terminals.Restore(); err != nil {
+		_, _ = fmt.Fprintln(os.Stderr, "restore terminals:", err)
+	}
 	manager := app.NewManager(app.ManagerConfig{
 		Repo:          store.Sessions(),
 		Transcripts:   fsys.TranscriptFiles{Root: *dataDir},
@@ -271,3 +277,23 @@ var (
 	_ httpapi.PresenceTracker = (*app.Presence)(nil)
 	_ httpapi.TerminalRenamer = (*app.Terminals)(nil)
 )
+
+// shellFactory keeps shells in tmux, so they outlive a restart, when tmux is
+// installed. launchd's PATH lacks the Homebrew directories. The tmux socket
+// is named after the data directory: instances with other data never see
+// each other's shells.
+func shellFactory(useTmux bool, dataDir string) app.PTYFactory {
+	if !useTmux {
+		return pty.Factory{}
+	}
+	for _, bin := range []string{"tmux", "/opt/homebrew/bin/tmux", "/usr/local/bin/tmux"} {
+		if path, err := exec.LookPath(bin); err == nil {
+			abs, _ := filepath.Abs(dataDir)
+			sum := sha256.Sum256([]byte(abs))
+			_, _ = fmt.Fprintln(os.Stderr, "terminals: persistent via", path)
+			return pty.Tmux{Bin: path, Socket: "go-chamber-" + hex.EncodeToString(sum[:4])}
+		}
+	}
+	_, _ = fmt.Fprintln(os.Stderr, "terminals: tmux not found, shells end with the server")
+	return pty.Factory{}
+}
