@@ -147,7 +147,7 @@ test('key hints: one key per box, the same gap before their words', async ({ pag
       const word = el.querySelector('.keys-label')!
       return Math.round(word.getBoundingClientRect().left - last.getBoundingClientRect().right)
     })
-  const composer = await gapAfter(page.locator('.composer-keys .keys').first())
+  const composer = await gapAfter(page.locator('.chat-hint-keys .keys').first())
   await page.keyboard.press('ControlOrMeta+k')
   const switcher = await gapAfter(page.locator('.switcher-foot .keys').first())
   expect(composer).toBeGreaterThanOrEqual(3)
@@ -265,7 +265,7 @@ test('a permission card that takes focus draws one frame, not a ring around its 
 // session title is a quiet heading, a step above the transcript, not a
 // headline; the REQUIRES block leads as the one thing that needs you; the
 // chrome uses the scale's sizes and nothing between.
-const SCALE = ['11px', '11.5px', '12px', '13px', '14px', '15px', '16px', '18px', '20px', '26px', '32px']
+const SCALE = ['11px', '11.5px', '12px', '13px', '14px', '15px', '16px', '18px', '20px', '26px']
 
 test('type keeps to the scale, the session title and the REQUIRES title lead', async ({ page, isMobile }) => {
   await newSession(page)

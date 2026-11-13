@@ -41,9 +41,6 @@
    under the text in both states. Widths are the content box's; the margins
    take "Stopping…" and "Steering…". */
 .composer { container: composer / inline-size; }
-@container composer (max-width: 659.98px) {
-  .composer .composer-keys { display: none; }
-}
 @container composer (max-width: 439.98px) {
   .composer .composer-input { flex-basis: 100%; }
   .composer .composer-actions { width: 100%; justify-content: flex-end; }
@@ -51,6 +48,14 @@
 /* a draft of several lines takes the whole width; the actions go beneath it */
 .composer.multiline .composer-input { flex-basis: 100%; }
 .composer.multiline .composer-actions { width: 100%; justify-content: flex-end; }
+
+/* Attach, Stop and Send are their icons, named by title and label */
+.composer-actions .btn-label {
+  position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap;
+}
+.composer-actions .btn .btn-glyph { display: block; }
+.composer-actions .btn:has(.btn-glyph) { width: 32px; padding: 0; display: inline-grid; place-items: center; }
+@media (pointer: coarse) { .composer-actions .btn:has(.btn-glyph) { width: 36px; } }
 
 /* a phone: a one-line draft keeps one row, icons beside the text, and Stop
    at the row's start, the whole field away from Steer. A longer draft takes
@@ -60,11 +65,7 @@
   .composer:not(.multiline):has(.stop) { padding-left: 4px; }
   .composer:not(.multiline) .composer-input { flex: 1 1 0; }
   .composer:not(.multiline) .composer-actions { display: contents; }
-  .composer-actions .btn-label {
-    position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap;
-  }
-  .composer-actions .btn .btn-glyph { display: block; }
-  .composer-actions .btn:has(.btn-glyph) { width: 44px; padding: 0; display: inline-grid; place-items: center; }
+  .composer-actions .btn:has(.btn-glyph) { width: 44px; }
   /* a running turn only takes text: Attach comes back with the next message */
   .composer:has(.stop) .attach { display: none; }
 }

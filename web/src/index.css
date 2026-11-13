@@ -64,7 +64,7 @@
   --t-input: 16px;     /* phone fields: below this the browser zooms */
   --t-title: 18px;     /* a block's title: REQUIRES, a sheet, a terminal */
   --t-headline: 26px;  /* a notice heading */
-  --t-display: 32px;   /* an empty document's one line */
+  --t-display: 26px;   /* an empty document's one line */
 
   font-family: var(--font-ui);
   font-size: var(--t-body);
@@ -73,8 +73,9 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* the dark sheet: the system's, unless the owner chose a sheet (Appearance) */
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme='light']) {
     color-scheme: dark;
     --paper: #151412;
     --paper-2: #1b1a17;
@@ -96,6 +97,33 @@
     --chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' fill='none' stroke='%23858076' stroke-width='1.5'%3E%3Cpath d='M1 1l4 4 4-4'/%3E%3C/svg%3E");
   }
 }
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --paper: #151412;
+  --paper-2: #1b1a17;
+  --paper-3: #23211e;
+  --ink: #d4cfc4;
+  --ink-2: #a7a297;
+  --ink-3: #858076;
+  --rule: #2a2825;
+  --rule-strong: #6b665e;
+  --act: #9aa8e6;
+  --act-ink: #151412;
+  --act-wash: rgba(154, 168, 230, 0.12);
+  --act-ring: rgba(154, 168, 230, 0.55);
+  --req: #e3a33a;
+  --req-mark: #e3a33a;
+  --req-wash: rgba(227, 163, 58, 0.1);
+  --bad: #f07a6a;
+  --bad-wash: rgba(240, 122, 106, 0.1);
+  --chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' fill='none' stroke='%23858076' stroke-width='1.5'%3E%3Cpath d='M1 1l4 4 4-4'/%3E%3C/svg%3E");
+}
+
+/* Appearance: the transcript's type a step down or up the scale, and a
+   measure wide enough for tables and logs */
+:root[data-text='small'] { --t-read: 14px; }
+:root[data-text='large'] { --t-read: 16px; }
+:root[data-wide] { --measure: 120ch; }
 
 /* ---------- reset and browser surfaces ---------- */
 *, *::before, *::after { box-sizing: border-box; }
@@ -297,7 +325,6 @@ kbd {
 .bar-rule { flex: none; width: 1px; height: 16px; background: var(--rule); }
 /* the fleet at a glance, after Overview's word: what runs and what waits */
 .overview-toggle .fleet { color: var(--ink-3); white-space: nowrap; }
-.overview-toggle .fleet::before { content: '·'; margin-right: 6px; }
 @media (max-width: 1199px) { .overview-toggle .fleet { display: none; } }
 /* one control height across the bar: the toggles as tall as Focus and Sign out */
 @media (min-width: 721px) { .topbar-end .btn-icon { width: 30px; height: 30px; } }
@@ -308,8 +335,14 @@ kbd {
 .sidebar-signout.signout-confirm { justify-content: center; }
 .signout-question { font-size: var(--t-meta); color: var(--ink-2); }
 .focus-toggle[aria-pressed='true'] { color: var(--ink); border-color: var(--ink); }
-/* Focus, Overview and Sign out are words; a tight bar draws them as icons */
-svg.bar-icon { display: none; }
+/* Focus, Overview and Sign out are named icons; Overview keeps the fleet
+   beside its icon where there is room */
+.topbar :is(.focus-toggle, .overview-toggle, .signout > .btn) { min-width: 30px; height: 30px; padding: 0; justify-content: center; }
+.topbar .overview-toggle:has(.fleet) { padding: 0 8px; }
+.topbar .bar-label {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}
 .brand { display: flex; align-items: center; gap: 12px; }
 .show-sessions { display: inline-flex; align-items: center; gap: 4px; }
 @media (max-width: 720px) { .show-sessions { display: none; } }
@@ -328,7 +361,6 @@ svg.bar-icon { display: none; }
   .show-sessions { width: 30px; height: 30px; padding: 0; justify-content: center; }
   .show-sessions-label { display: none; }
   .topbar-end { gap: 6px; }
-  .topbar .focus-toggle, .topbar .signout .btn { padding: 0 8px; }
 }
 
 .segmented.mode-switch { display: flex; gap: 0; align-self: stretch; border: 0; border-radius: 0; background: none; }
@@ -521,8 +553,9 @@ button.health { border: 0; background: none; padding: 0; }
 }
 .group-more {
   justify-self: start; margin-left: 16px; height: 24px; padding: 0 2px; border: 0; background: none;
-  color: var(--act); font-size: var(--t-meta); text-decoration: underline; text-underline-offset: 3px; text-decoration-thickness: 1px;
+  color: var(--ink-3); font-size: var(--t-meta);
 }
+@media (hover: hover) { .group-more:hover { color: var(--ink); } }
 
 .sessions { list-style: none; margin: 0; padding: 0; display: grid; gap: 1px; align-content: start; }
 .session-child { margin-left: 14px; position: relative; }
@@ -610,6 +643,20 @@ button.health { border: 0; background: none; padding: 0; }
 .sidebar-signout { display: none; }
 .sidebar-signout .btn { width: 100%; }
 .hooks-toggle { justify-self: start; gap: 6px; }
+/* Appearance: folded like Accounts; its choices are small segmented rows */
+.appearance > summary {
+  display: flex; align-items: center; gap: 8px; padding: 0 2px; min-height: 24px; cursor: pointer; list-style: none;
+  font-size: var(--t-meta); color: var(--ink-2);
+}
+.appearance > summary::-webkit-details-marker { display: none; }
+.appearance > summary .chevron { transform: rotate(-90deg); transition: transform var(--dur-fast) var(--ease-out); }
+.appearance[open] > summary .chevron { transform: none; }
+.appearance[open] { display: grid; gap: 8px; }
+.appearance-row { display: grid; grid-template-columns: 48px minmax(0, 1fr); align-items: center; gap: 8px; }
+.appearance-label { font-size: var(--t-meta); color: var(--ink-3); }
+.appearance .segmented { grid-template-columns: repeat(3, 1fr); }
+.appearance .segmented button { height: 26px; font-size: var(--t-meta); font-weight: 400; }
+.appearance-wide { display: flex; align-items: center; gap: 8px; font-size: var(--t-meta); color: var(--ink-2); }
 
 /* phones, and a short window (a phone held sideways, where the form and the
    footer would squeeze the list to nothing): the sidebar itself scrolls,
@@ -789,8 +836,9 @@ button.health { border: 0; background: none; padding: 0; }
 .item .md pre.md-code { max-height: 420px; white-space: pre; margin-top: 0; }
 .md-code span { color: var(--shiki-light); }
 @media (prefers-color-scheme: dark) {
-  .md-code span { color: var(--shiki-dark); }
+  :root:not([data-theme='light']) .md-code span { color: var(--shiki-dark); }
 }
+:root[data-theme='dark'] .md-code span { color: var(--shiki-dark); }
 
 /* hooks: one plaintext line; blocked and error are the only ones that speak up */
 .item.hook { font-size: var(--t-meta); }
@@ -868,7 +916,6 @@ button.health { border: 0; background: none; padding: 0; }
   field-sizing: content; line-height: 1.45;
 }
 .composer-actions { display: flex; gap: 6px; margin-left: auto; }
-.composer-actions .btn-glyph { display: none; }
 
 /* empty document */
 .chat.empty { display: grid; place-items: center; }
@@ -880,12 +927,12 @@ button.health { border: 0; background: none; padding: 0; }
 .model-picker { position: relative; }
 .model-button {
   display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 6px 0 8px;
-  border: 1px solid var(--rule-strong); border-radius: var(--r);
-  background: var(--paper); color: var(--ink); font-family: var(--font-ui); font-size: var(--t-meta);
+  border: 1px solid transparent; border-radius: var(--r);
+  background: transparent; color: var(--ink-2); font-family: var(--font-ui); font-size: var(--t-meta);
   transition: border-color var(--dur-fast);
 }
-.model-button[aria-expanded='true'] { border-color: var(--ink); }
-@media (hover: hover) { .model-button:hover { border-color: var(--ink); } }
+.model-button[aria-expanded='true'] { border-color: var(--rule-strong); color: var(--ink); }
+@media (hover: hover) { .model-button:hover { border-color: var(--rule-strong); color: var(--ink); } }
 .model-button[aria-expanded='true'] .chevron { transform: rotate(180deg); }
 .model-name { max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .model-menu {
@@ -1267,7 +1314,7 @@ button.health { border: 0; background: none; padding: 0; }
 @media (max-width: 720px) {
   /* a phone's title row holds the title beside its controls: the titles
      step down one, still well clear of the 15px transcript */
-  :root { --gutter: 14px; --t-headline: 20px; --t-display: 26px; }
+  :root { --gutter: 14px; --t-headline: 20px; --t-display: 20px; }
   .app { padding-top: env(safe-area-inset-top); }
   /* one 44px row: the modes take the masthead's place once online (the
      name stays for screen readers), health and toggles at the end */
@@ -1293,9 +1340,10 @@ button.health { border: 0; background: none; padding: 0; }
   /* the search field is the whole row's height, a finger's target */
   .session-search { height: 44px; }
   .session-search input { align-self: stretch; }
-  .accounts-fold {
+  .accounts-fold, .appearance > summary {
     height: 40px; margin: -10px 0 -4px;
   }
+  .appearance .segmented button { height: 36px; }
   .mode-switch { grid-column: 1; grid-row: 1; justify-self: start; min-width: 0; overflow-x: auto; scrollbar-width: none; }
   .segmented.mode-switch button { flex: none; padding: 0 10px; }
   .mode-switch { max-width: 100%; }
@@ -1386,12 +1434,6 @@ button.health { border: 0; background: none; padding: 0; }
   .topbar { gap: 0 8px; }
   .topbar .segmented.mode-switch button { padding: 2px 8px 0; }
   .topbar-end { gap: 4px; }
-  .topbar :is(.focus-toggle, .overview-toggle, .signout > .btn) { width: 30px; height: 30px; padding: 0; justify-content: center; }
-  .topbar svg.bar-icon { display: block; }
-  .topbar .bar-label {
-    position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
-    overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
-  }
 }
 @media (min-width: 721px) and (max-width: 960px) and (pointer: coarse) {
   .topbar :is(.focus-toggle, .overview-toggle, .signout > .btn) { width: 36px; height: 36px; }
@@ -1469,8 +1511,9 @@ pre.md-code { tab-size: 4; }
 .fv-line-mark { background: var(--paper-3); box-shadow: inset 1px 0 0 var(--ink); scroll-margin: 40px; }
 .fv-text span { color: var(--shiki-light, inherit); }
 @media (prefers-color-scheme: dark) {
-  .fv-text span { color: var(--shiki-dark, inherit); }
+  :root:not([data-theme='light']) .fv-text span { color: var(--shiki-dark, inherit); }
 }
+:root[data-theme='dark'] .fv-text span { color: var(--shiki-dark, inherit); }
 /* a phone: the whole screen, the path on its own line over the tools */
 @media (max-width: 720px) {
   .file-viewer, .file-viewer[open] {

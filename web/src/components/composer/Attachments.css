@@ -40,5 +40,4 @@
 /* with pictures in the row, Attach, the key hints and Send share its bottom line */
 .composer:has(.attachment, .attachment-error) .attachments { align-items: flex-end; }
 .composer:has(.attachment, .attachment-error) .composer-actions { align-items: flex-end; }
-.composer:has(.attachment, .attachment-error) .composer-actions > .composer-keys,
 .composer:has(.attachment, .attachment-error) .composer-actions > .composer-note { align-self: flex-end; height: 30px; }

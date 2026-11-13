@@ -35,7 +35,7 @@ colors:
 typography:
   display:
     fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, 'Segoe UI', Roboto, sans-serif"
-    fontSize: "32px"
+    fontSize: "26px"
     fontWeight: 600
     lineHeight: 1.15
     letterSpacing: "-0.022em"
@@ -238,8 +238,8 @@ A near-neutral paper and ink pair with three narrow signal colours, each ratione
 **Character:** One calm voice. The sans sets the whole interface; the mono appears only where the text is something a machine reads (a command, a path, a diff, terminal output), so it marks code rather than structure.
 
 ### Hierarchy
-The scale is ten steps held as tokens (`--t-mark` … `--t-display` in `index.css`); no other size is set in the chrome. The steps cluster small for the dense apparatus and then jump: the titles stand well clear of the 15px transcript, the session title in the chat header stays a quiet 18px heading, not a headline competing with the text. On phones (≤720px) headline and display step down one (20px, 26px).
-- **Display** (600, 32px, 1.15, -0.022em, balanced): An empty document's one line (the empty chat and terminal hero).
+The scale is ten steps held as tokens (`--t-mark` … `--t-display` in `index.css`); no other size is set in the chrome. The steps cluster small for the dense apparatus and then jump: the titles stand well clear of the 15px transcript, the session title in the chat header stays a quiet 18px heading, not a headline competing with the text. On phones (≤720px) headline and display drop to 20px.
+- **Display** (600, 26px, 1.15, -0.022em, balanced): An empty document's one line (the empty chat and terminal hero). Its action is a plain bordered button, not a primary: an empty screen asks nothing urgent.
 - **Headline** (600, 26px, 1.2, -0.018em): The notice heading.
 - **Title** (600, 18px, 1.3, -0.01em): The session title in the chat header; the REQUIRES block title; the terminal header title; the folder picker and shortcut sheet headings.
 - **Transcript** (400, 15px, 1.6; user turns 1.55): Assistant and user text, capped at a 72ch measure.
@@ -258,7 +258,7 @@ The scale is ten steps held as tokens (`--t-mark` … `--t-display` in `index.cs
 
 ## Layout
 
-A three-column document on desktop: a 300px sessions table of contents, the transcript, and a right dock (44px icon rail, expanding to a requests tray at minmax(300px, 26%) or a terminal at minmax(420px, 38%)). The top bar is 44px, a three-part grid with the masthead left, the Agents/Terminal mode switch centred, and health right; the trailing controls stand in three groups set apart by 16px hairlines (views: Focus, Overview, floating; alerts: notifications, sound; then help and Sign out). From 1200px Overview's word is followed by the fleet in `ink-3` ("· 2 running · 1 waiting", only what is non-zero), which is the button's description, not its name. The new-session form folds to one mono "Start a session" line with its `n` key until asked for, at every width, and folds again once a session starts, so no filled button sits on every screen. Terminal mode is its own two-column workspace (300px list, terminal).
+A three-column document on desktop: a 300px sessions table of contents, the transcript, and a right dock (44px icon rail, expanding to a requests tray at minmax(300px, 26%) or a terminal at minmax(420px, 38%)). The top bar is 44px, a three-part grid with the masthead left, the Agents/Terminal mode switch centred, and health right; the trailing controls stand in three groups set apart by 16px hairlines (views: Focus, Overview, floating; alerts: notifications, sound; then help and Sign out). Focus, Overview and Sign out are named icons at every width (the word is the accessible name and the tooltip carries the key). From 1200px Overview's word is followed by the fleet in `ink-3` ("· 2 running · 1 waiting", only what is non-zero), which is the button's description, not its name. The new-session form folds to one mono "Start a session" line with its `n` key until asked for, at every width, and folds again once a session starts, so no filled button sits on every screen. Terminal mode is its own two-column workspace (300px list, terminal).
 
 The transcript column is capped at the 72ch measure plus a 56px left margin in which turn numbers hang, right-aligned in a 34px box. The REQUIRES block, the hint and the composer share that column so the request sits directly above the composer. Where the transcript is wide enough for the column and a 184px margin on each side (about 1400px windows, or focus mode), its right margin holds the turns as a table of contents: a 1px rule, each turn's number in mono and its first line in 13px `ink-3`, the turn being read in ink with an ink segment on the rule; it rides at the top of the scroll and a click goes to the turn. Nowhere narrower shows it.
 
@@ -307,7 +307,10 @@ Plain typed commands on paper.
 ### Inputs / Fields
 - **Style:** 32px, 1px strong-rule border, 6px corners, paper; selects draw their own 10px chevron.
 - **Focus:** border turns ink-blue plus a 1px ink-blue ring. The session search is a bottom rule only, which turns blue on focus. The composer, which holds focus most of a session, only lifts its edge to the strong rule, so neither blue nor a heavy frame stands on screen; its caret stays blue.
-- **Composer:** a `paper-2` tray with 12px corners and a quiet rule edge, wrapping an auto-growing textarea with the action buttons inside it, sharing the transcript column.
+- **Composer:** a `paper-2` tray with 12px corners and a quiet rule edge, wrapping an auto-growing textarea with the action buttons inside it, sharing the transcript column. Attach, Stop and Send/Steer are 32px icons (44px on phones), named by their label and title. The send keys live in the empty field's placeholder ("↵ send · ⇧↵ newline"), not in a standing line.
+- **Header pickers:** the model button and the mode and reviewer selects read as `ink-2` text with a chevron until pointed at; hover or an open menu draws the strong rule. On phones they keep their fields behind "⋯".
+- **Show N older:** `ink-3` text without an underline, ink on hover; it is housekeeping, not a link.
+- **Header usage:** the session's total only when the agent reports one (Codex); a single turn's tokens and cost stay on that turn's foot.
 
 ### Navigation
 - **Mode switch:** sans 13px/500 text tabs the full height of the top bar; `ink-3` at rest, ink with a 2px ink underline when checked. On a wide bar a tab's count sits on its corner, in the padding after the word, so a count that comes or goes moves no tab.
@@ -352,7 +355,7 @@ Short and typographic. Hover and colour changes take 120ms; transcript entries t
 - **Do** keep 6px corners and 1px borders.
 - **Do** record every answered request as a decision line in the transcript.
 - **Do** give every new motion a reduced-motion variant that only fades.
-- **Do** keep light and dark on the same roles, switched by `prefers-color-scheme`.
+- **Do** keep light and dark on the same roles, switched by `prefers-color-scheme` unless the owner picked a sheet under Appearance (`data-theme` on the root; terminals follow it too).
 
 ### Don't:
 - **Don't** use elevation shadows, blur, glass, or gradient fills; `box-shadow` is allowed only as a 1px focus ring or inset hairline.
@@ -363,3 +366,10 @@ Short and typographic. Hover and colour changes take 120ms; transcript entries t
 - **Don't** use pill shapes or uppercase letter-spaced labels; radii stay at 6px (12px on the composer; the progress ring is the one exception).
 - **Don't** load fonts from a CDN; the UI must work offline.
 - **Don't** style Claude or Codex as the default; both are a letter on the same tint.
+
+## Appearance
+
+The sessions sidebar's footer folds an Appearance section beside Accounts and the hooks toggle, kept per browser (`gc.appearance`):
+- **Theme:** System, Light or Dark. System leaves the root bare; a choice sets `data-theme`.
+- **Text:** Small, Default or Large moves the transcript's `--t-read` one step down or up the scale (14, 15, 16px); the chrome keeps its sizes.
+- **Wide transcript:** the measure goes from 72ch to 120ch for tables and logs; the column, REQUIRES and composer widen with it.

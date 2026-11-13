@@ -51,7 +51,7 @@ export default function EmptyChat() {
             : 'Pick an agent and a project folder on the left, or open an existing session.'}
         </p>
         <div className="empty-actions">
-          <button type="button" className="btn btn-primary" onClick={chooseProject}>Choose a project</button>
+          <button type="button" className="btn" onClick={chooseProject}>Choose a project</button>
         </div>
         {status === 'error' && <LoadFailed onRetry={() => void useSessionStore.getState().loadSessions()}>Couldn't load sessions</LoadFailed>}
         {status === 'loading' && list.length === 0 && (

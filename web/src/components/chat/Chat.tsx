@@ -474,7 +474,10 @@ export default function Chat() {
   const sendLabel = attachments.uploading && !busy ? 'Uploading…' : inFlight === 'steer' ? 'Steering…' : inFlight === 'send' ? 'Sending…' : busy ? 'Steer' : 'Send'
   const sendBusy = submitting || (attachments.uploading && !busy)
   const mod = isMac() ? '⌘' : 'Ctrl+'
-  const placeholder = busy ? 'Steer the running turn…' : 'Message the agent…'
+  // the keys are told in the empty field, where they are needed, not as a
+  // standing line beside it (a touch screen's Enter is the newline)
+  const keys = narrow || touch ? '' : busy ? '  ↵ steer · ⇧↵ newline' : '  ↵ send · ⇧↵ newline'
+  const placeholder = (busy ? 'Steer the running turn…' : 'Message the agent…') + keys
   // A long message says how long it is; the box itself stops growing.
   const lines = text ? text.split('\n').length : 0
   const multiline = useMultiline(input, text)
@@ -642,11 +645,6 @@ export default function Chat() {
             </button>
           )}
           {lines > LONG_DRAFT_LINES && <span className="composer-note composer-lines">{lines} lines</span>}
-          {!narrow && !touch && (
-            <span className="composer-keys" aria-hidden="true">
-              <Keys keys="↵" label={busy ? 'steer' : 'send'} /> · <Keys keys="⇧↵" label="newline" />
-            </span>
-          )}
           <button
             type="submit"
             className="btn btn-primary"

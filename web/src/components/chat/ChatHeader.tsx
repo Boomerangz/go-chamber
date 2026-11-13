@@ -61,19 +61,18 @@ function ApprovalReviewerSelect({ session }: { session: Session }) {
 }
 
 // SessionUsage shows the session's total when the agent reports one (Codex);
-// otherwise all there is is the last turn's result (Claude), and it says so.
+// a single turn's result (Claude) is the turn's own foot, so it stays there.
 function SessionUsage() {
   const usage = useSessionStore((s) => s.chat.usage)
-  const result = useSessionStore((s) => s.chat.result)
-  const total = usage !== undefined
-  const tokens = total ? (usage.totalTokens ?? 0) : (result?.inputTokens ?? 0) + (result?.outputTokens ?? 0)
-  const cost = total ? usage.costUsd : result?.costUsd
+  if (!usage) return null
+  const tokens = usage.totalTokens ?? 0
+  const cost = usage.costUsd
   if (!tokens && !cost) return null
-  const parts = [tokens ? `${tokens.toLocaleString()} tokens` : '', cost ? `$${cost.toFixed(4)}` : '', total ? '' : 'last turn'].filter(Boolean)
+  const parts = [tokens ? `${tokens.toLocaleString()} tokens` : '', cost ? `$${cost.toFixed(4)}` : ''].filter(Boolean)
   // Each part carries the " · " before it, so a narrow header drops whole
   // parts from the end (useHeaderFold) and never shows "22 tokens ·…".
   return (
-    <span className="usage" aria-label={total ? 'Session usage' : 'Last turn usage'} title={parts.join(' · ')}>
+    <span className="usage" aria-label="Session usage" title={parts.join(' · ')}>
       {parts.map((part, i) => (
         <span key={i} className="usage-part">
           {i > 0 ? ` · ${part}` : part}

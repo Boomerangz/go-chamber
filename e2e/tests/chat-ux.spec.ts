@@ -140,7 +140,7 @@ test('brings sent messages back with ArrowUp', async ({ page }) => {
 test('sends with Enter and breaks lines with Shift+Enter', async ({ page, isMobile }) => {
   test.skip(isMobile, 'on a touch screen Enter is the newline')
   await newSession(page)
-  await expect(page.locator('.composer-keys')).toContainText('send')
+  await expect(page.getByLabel('Message')).toHaveAttribute('placeholder', /↵ send/)
   const box = page.getByLabel('Message')
   await box.fill('two')
   await box.press('Shift+Enter')

@@ -13,6 +13,7 @@ import { leaveTerminal } from './leave'
 import { copyText } from '../../lib/clipboard'
 import { isMac } from '../../lib/hotkeys'
 import { searchDecorations, terminalTheme } from '../../lib/theme'
+import { isDark, useAppearanceStore } from '../../stores/appearance'
 import { useTerminalStore } from '../../stores/terminals'
 import { stepTerminal } from './steps'
 import { TerminalPrediction } from '../../lib/terminal-prediction'
@@ -54,6 +55,12 @@ const FONT_WAIT_MS = 1500
 // Every few failed reconnects, check the terminal still exists: one closed
 // elsewhere would otherwise be retried for as long as the tab is open.
 const RECHECK_EVERY = 5
+
+// Every screen follows the sheet the owner chose.
+useAppearanceStore.subscribe((s, prev) => {
+  if (s.theme === prev.theme) return
+  for (const live of lives.values()) live.xterm.options.theme = terminalTheme(isDark())
+})
 
 // A screen goes once its terminal is closed; every screen follows the
 // chosen font size.
@@ -115,9 +122,9 @@ export function liveFor(id: string, host: HTMLElement, callbacks: Callbacks): Li
     // Unicode 11 widths match what TUIs like Claude Code assume for emoji,
     // so their cursor moves land where they expect.
     allowProposedApi: true,
-    theme: terminalTheme(scheme.matches),
+    theme: terminalTheme(isDark()),
   })
-  const onScheme = () => (xterm.options.theme = terminalTheme(scheme.matches))
+  const onScheme = () => (xterm.options.theme = terminalTheme(isDark()))
   scheme.addEventListener?.('change', onScheme)
   const fit = new FitAddon()
   xterm.loadAddon(fit)
@@ -341,7 +348,7 @@ export function findInTerminal(id: string, term: string, opts: { backwards?: boo
     live.search.clearDecorations()
     return false
   }
-  const dark = window.matchMedia?.('(prefers-color-scheme: dark)').matches ?? false
+  const dark = isDark()
   const options: ISearchOptions = { incremental: opts.incremental, decorations: searchDecorations(dark) }
   return opts.backwards ? live.search.findPrevious(term, options) : live.search.findNext(term, options)
 }

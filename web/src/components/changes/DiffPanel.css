@@ -118,10 +118,12 @@
 .diff-ctx { color: var(--ink-2); }
 .diff-code span { color: var(--shiki-light, inherit); }
 @media (prefers-color-scheme: dark) {
-  .diff-code span { color: var(--shiki-dark, inherit); }
+  :root:not([data-theme='light']) .diff-code span { color: var(--shiki-dark, inherit); }
   /* pressed paper is too close to the sheet in the dark: added lines take deep paper */
-  .diff-view > .diff-add { background: var(--paper-3); }
+  :root:not([data-theme='light']) .diff-view > .diff-add { background: var(--paper-3); }
 }
+:root[data-theme='dark'] .diff-code span { color: var(--shiki-dark, inherit); }
+:root[data-theme='dark'] .diff-view > .diff-add { background: var(--paper-3); }
 .diff-more { margin: 0 0 8px; font-family: var(--font-ui); font-size: var(--t-meta); color: var(--ink-3); }
 .diff-more .act-link, .diff-none .act-link { margin: 0; }
 .diff-none { margin: 4px 6px; color: var(--ink-3); font-size: var(--t-meta); }

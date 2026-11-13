@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { connectTerminal } from '../../lib/terminal'
 import { diagnostics, resetDiagnostics } from '../../lib/diagnostics'
 import { resetTerminals, useTerminalStore } from '../../stores/terminals'
+import { useAppearanceStore } from '../../stores/appearance'
 import { WebLinksAddon } from '@xterm/addon-web-links'
 import * as addonSearch from '@xterm/addon-search'
 import TerminalView from './TerminalView'
@@ -92,6 +93,16 @@ describe('TerminalView', () => {
     expect(connectTerminal).toHaveBeenCalledTimes(1)
     expect(xterms).toHaveLength(1)
     expect(again.getByTestId('terminal-view').querySelector('canvas')).not.toBeNull()
+  })
+
+  it('follows the sheet the owner chose over the system one', () => {
+    render(<TerminalView id="t1" {...props} />)
+    const background = () => (xterms[0].options.theme as { background: string }).background
+    expect(background()).toBe('#faf9f6')
+    act(() => useAppearanceStore.getState().setTheme('dark'))
+    expect(background()).toBe('#151412')
+    act(() => useAppearanceStore.getState().setTheme('system'))
+    expect(background()).toBe('#faf9f6')
   })
 
   it('lets go of the shell once the terminal is gone', () => {

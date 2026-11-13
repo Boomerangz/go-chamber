@@ -466,11 +466,12 @@ describe('sending', () => {
     expect(box()).toHaveValue('fix the tests')
   })
 
-  it('names the send shortcut on the button and beside it', async () => {
+  it('names the send shortcut on the button and in the empty field, not beside it', async () => {
     setup()
+    expect(box()).toHaveAttribute('placeholder', 'Message the agent…  ↵ send · ⇧↵ newline')
     await userEvent.type(box(), 'hi')
     expect(screen.getByRole('button', { name: 'Send' })).toHaveAttribute('title', 'Send (↵)')
-    expect(document.querySelector('.composer-keys')).toHaveTextContent('↵ send · ⇧↵ newline')
+    expect(document.querySelector('.composer-keys')).toBeNull()
   })
 
   it('sends with Enter', async () => {
@@ -891,9 +892,10 @@ describe('live connection', () => {
 })
 
 describe('usage in the header', () => {
-  it('names a turn result for what it is: the last turn', () => {
+  it('leaves a single turn’s result to the turn’s own foot, not the header', () => {
     setup({ chat: chatOf([], { result: { inputTokens: 10, outputTokens: 20 } }) })
-    expect(screen.getByLabelText('Last turn usage')).toHaveTextContent('30 tokens · last turn')
+    expect(screen.queryByLabelText('Last turn usage')).toBeNull()
+    expect(document.querySelector('.chat-header .usage')).toBeNull()
   })
 
   it('keeps the session total when the agent reports one', () => {
@@ -902,10 +904,10 @@ describe('usage in the header', () => {
   })
 
   it('splits the line into whole parts the header can drop, the whole line on hover', () => {
-    setup({ chat: chatOf([], { result: { inputTokens: 10, outputTokens: 12, costUsd: 0.5 } }) })
-    const usage = screen.getByLabelText('Last turn usage')
-    expect([...usage.querySelectorAll('.usage-part')].map((p) => p.textContent)).toEqual(['22 tokens', ' · $0.5000', ' · last turn'])
-    expect(usage).toHaveAttribute('title', '22 tokens · $0.5000 · last turn')
+    setup({ chat: chatOf([], { usage: { totalTokens: 22, costUsd: 0.5 } }) })
+    const usage = screen.getByLabelText('Session usage')
+    expect([...usage.querySelectorAll('.usage-part')].map((p) => p.textContent)).toEqual(['22 tokens', ' · $0.5000'])
+    expect(usage).toHaveAttribute('title', '22 tokens · $0.5000')
   })
 })
 

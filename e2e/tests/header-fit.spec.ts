@@ -165,7 +165,7 @@ test('the title outranks the usage line, docked or not', async ({ page, isMobile
     await page.setViewportSize({ width: 1280, height: 900 })
     const res = await page.request.post('/api/worktrees', {
       headers: { Authorization: `Bearer ${token}` },
-      data: { agent: 'claude', cwd: repo, branch: `${branch}-${info.project.name}` },
+      data: { agent: 'codex', cwd: repo, branch: `${branch}-${info.project.name}` },
     })
     const { id } = (await res.json()) as { id: string }
     await page.goto(`/s/${id}?token=${token}`)
@@ -196,8 +196,18 @@ test('the title outranks the usage line, docked or not', async ({ page, isMobile
   await check([[1280, 'Terminal'], [1280, 'none'], [1100, 'none'], [1024, 'Changes']], 'long branch')
 })
 
-// A short title leaves the usage line its room, for either agent.
-for (const agent of ['Claude', 'Codex'] as const) {
+// A short title leaves the session's usage line its room. Claude reports a
+// turn's usage only, which stays on the turn's foot, not in the header.
+test('Claude’s turn usage stays on the turn, not in the header', async ({ page }) => {
+  await newSession(page, 'Claude')
+  await page.getByLabel('Message').fill('hello')
+  await page.getByRole('button', { name: 'Send', exact: true }).click()
+  await expect(page.locator('.item.assistant', { hasText: 'echo: hello' })).toBeVisible()
+  await settle(page)
+  await expect(page.locator('.chat-header .usage')).toHaveCount(0)
+})
+
+for (const agent of ['Codex'] as const) {
   test(`${agent}'s usage line shows beside a short title`, async ({ page, isMobile }) => {
     test.skip(isMobile, 'a phone puts the usage line under the title')
     await page.setViewportSize({ width: 1280, height: 720 })
