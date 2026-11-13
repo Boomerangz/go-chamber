@@ -220,3 +220,23 @@ for (const agent of ['Codex'] as const) {
     await expect.poll(() => titleFirst(page)).toEqual([])
   })
 }
+
+// A failed command opens its output under its own line: the line stays one
+// row, with no fold marker before the icon.
+test('a failed command keeps its line on one row when its output opens', async ({ page }) => {
+  await newSession(page, 'Codex')
+  await page.getByLabel('Message').fill('please permission')
+  await page.getByRole('button', { name: 'Send', exact: true }).click()
+  await page.getByRole('button', { name: 'Deny', exact: true }).click()
+  const confirm = page.getByRole('button', { name: 'Confirm deny' })
+  const summary = page.locator('.item.command .item-output.headed[open] > summary')
+  await expect(summary.or(confirm)).toBeVisible()
+  if (await confirm.isVisible()) await confirm.click()
+  await expect(summary).toBeVisible()
+  expect(await summary.evaluate((el) => getComputedStyle(el, '::before').content)).toBe('none')
+  const [icon, line] = await Promise.all([
+    summary.locator('.item-icon').boundingBox(),
+    summary.locator('.item-line').boundingBox(),
+  ])
+  expect(Math.abs(icon!.y + icon!.height / 2 - (line!.y + line!.height / 2))).toBeLessThan(8)
+})

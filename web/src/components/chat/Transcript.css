@@ -48,7 +48,7 @@
   display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: 8px; align-items: baseline;
   color: inherit; font: inherit;
 }
-.item-output.headed > summary::before { content: none; }
+.item-output.headed > summary::before, .item-output.headed[open] > summary::before { content: none; }
 @media (hover: hover) {
   .item-output.headed > summary:hover { color: inherit; }
   .item-output.headed > summary:hover code { text-decoration: underline; text-decoration-color: var(--rule-strong); text-underline-offset: 4px; }
