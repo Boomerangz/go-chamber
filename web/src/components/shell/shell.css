@@ -23,10 +23,10 @@
 .switcher-title { display: flex; min-width: 0; white-space: nowrap; font-size: var(--t-small); }
 .switcher-title-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .switcher-path { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-.switcher-detail { display: inline-flex; gap: 8px; min-width: 0; overflow: hidden; font-family: var(--font-mono); font-size: var(--t-meta); color: var(--ink-3); white-space: nowrap; }
+.switcher-detail { display: inline-flex; gap: 8px; min-width: 0; overflow: hidden; font-family: var(--font-ui); font-size: var(--t-meta); color: var(--ink-3); white-space: nowrap; }
 .switcher-time { flex: none; color: var(--ink-3); }
 .switcher-title mark, .switcher-detail mark { background: none; color: var(--ink); box-shadow: inset 0 -1px 0 var(--ink); }
-.switcher-current { flex: none; margin-left: 8px; font-family: var(--font-mono); font-size: var(--t-label); color: var(--ink-3); }
+.switcher-current { flex: none; margin-left: 8px; font-family: var(--font-ui); font-size: var(--t-label); color: var(--ink-3); }
 .switcher-current::before { content: '['; }
 .switcher-current::after { content: ']'; }
 .switcher-empty { padding: 12px 8px; color: var(--ink-3); font-size: var(--t-small); }
@@ -34,7 +34,7 @@
 .switcher-section { margin-top: 6px; padding: 8px 8px 4px; border-top: 1px solid var(--rule); }
 .switcher-foot, .shortcut-note {
   display: flex; gap: 16px; padding: 8px 14px; border-top: 1px solid var(--rule);
-  font-family: var(--font-mono); font-size: var(--t-label); color: var(--ink-3);
+  font-family: var(--font-ui); font-size: var(--t-label); color: var(--ink-3);
 }
 .shortcut-help { width: min(860px, calc(100vw - 32px)); max-height: 86vh; }
 .shortcut-head { display: flex; align-items: center; justify-content: space-between; padding: 12px 10px 8px 16px; border-bottom: 1px solid var(--rule); }

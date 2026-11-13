@@ -36,7 +36,7 @@ test('a reply with a heading, a table and images fits the column', async ({ page
   const reply = page.locator('.item.assistant', { hasText: 'echo: report' })
   await expect(reply.locator('table')).toBeVisible()
 
-  // The heading is the sans and wraps: it is no masthead.
+  // The heading is the sans and wraps, like the rest of the interface.
   const heading = reply.locator('h1')
   const look = await heading.evaluate((el) => {
     const cs = getComputedStyle(el)
@@ -44,7 +44,6 @@ test('a reply with a heading, a table and images fits the column', async ({ page
   })
   expect(look.mono).toBe(false)
   expect(look.wrap).toBe('normal')
-  expect(await page.locator('.brand h1').evaluate((el) => getComputedStyle(el).fontFamily)).toContain('PT Mono')
 
   // A number in a cell stays whole on one line; the table scrolls in its own box.
   const cell = reply.locator('td', { hasText: '1290' })

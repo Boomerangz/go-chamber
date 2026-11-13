@@ -20,7 +20,7 @@
   cursor: pointer;
 }
 @media (hover: hover) { .attachment-remove:hover { border-color: var(--ink); } }
-.attachment-drop { font-family: var(--font-mono); font-size: var(--t-meta); color: var(--act); }
+.attachment-drop { font-family: var(--font-ui); font-size: var(--t-meta); color: var(--act); }
 .attachment-error {
   display: inline-flex; align-items: center; gap: 4px; min-width: 0;
   color: var(--bad); font-size: var(--t-meta);

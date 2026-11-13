@@ -22,5 +22,5 @@
 }
 @media (hover: hover) { .turn-outline button:hover { color: var(--ink); } }
 .turn-outline button[aria-current] { color: var(--ink); border-left-color: var(--ink); }
-.turn-outline-n { font-family: var(--font-mono); font-size: var(--t-meta); text-align: right; }
+.turn-outline-n { font-family: var(--font-ui); font-size: var(--t-meta); text-align: right; }
 .turn-outline-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

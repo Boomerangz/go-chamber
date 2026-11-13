@@ -49,7 +49,7 @@ test('Overview results follow the seen state the sidebar shows, across reloads',
   await send(page.request, id, title)
   const card = overview.locator('.attention-session', { hasText: title })
   await expect(card.locator('.attention-outcome')).toHaveText('Done')
-  await expect(card.locator('.attention-outcome')).toHaveCSS('font-family', /PT Mono/)
+  await expect(card.locator('.attention-outcome')).not.toHaveCSS('font-family', /PT Mono/)
   await expect(card.locator('.attention-result')).toContainText(`echo: ${title}`)
 
   // A reload keeps the news: the server says nobody has looked.

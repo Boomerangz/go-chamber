@@ -13,8 +13,8 @@ function pageTokens(): TokenReader {
 
 // The tokens' values when the stylesheet is not there to read.
 const fallback = {
-  dark: { paper: '#0f1012', ink: '#e4e2dc', act: '#8c98ff', bad: '#f07a6a', paper3: '#1e2023', rule: '#2a2c30', ruleStrong: '#5e6066' },
-  light: { paper: '#f3f3f1', ink: '#16171a', act: '#2433d6', bad: '#b3261e', paper3: '#dfdfda', rule: '#d3d3cd', ruleStrong: '#8c8c86' },
+  dark: { paper: '#151412', ink: '#d4cfc4', act: '#9aa8e6', bad: '#f07a6a', paper3: '#23211e', rule: '#2a2825', ruleStrong: '#6b665e' },
+  light: { paper: '#faf9f6', ink: '#2c2b27', act: '#3550b8', bad: '#b3261e', paper3: '#e7e4dd', rule: '#e4e0d9', ruleStrong: '#8c8780' },
 }
 
 // searchDecorations marks scrollback matches in the sheet's quiet tones and

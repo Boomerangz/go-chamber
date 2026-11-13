@@ -6,7 +6,7 @@
 .item.tool .item-line > code { flex: none; white-space: nowrap; }
 .item-summary {
   flex: 1 1 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-  font-family: var(--font-mono); font-size: var(--t-meta); color: var(--ink-2);
+  font-family: var(--font-ui); font-size: var(--t-meta); color: var(--ink-2);
 }
 .subagent-head .subagent-name { flex: none; white-space: nowrap; }
 /* a question its cut-off turn never got answered: its words, read plainly
@@ -27,7 +27,7 @@
 
 /* an exit code is a tag on the line, bracketed like a hook outcome */
 .exit-tag {
-  flex: none; font-family: var(--font-mono); font-size: var(--t-label); letter-spacing: 0.04em; text-transform: uppercase;
+  flex: none; font-family: var(--font-ui); font-size: var(--t-label);
   color: var(--ink-3); white-space: nowrap;
 }
 .exit-tag::before { content: '['; }
@@ -35,7 +35,7 @@
 .exit-tag.exit-bad { color: var(--bad); }
 /* another agent wrote it, not the owner: the same bracketed tag */
 .origin-tag {
-  font-family: var(--font-mono); font-size: var(--t-label); letter-spacing: 0.04em; text-transform: uppercase;
+  font-family: var(--font-ui); font-size: var(--t-label);
   color: var(--ink-3); white-space: nowrap;
 }
 .origin-tag::before { content: '['; }
@@ -44,7 +44,7 @@
 
 /* folded output: label, then its last line while closed */
 .item-output { grid-column: 1 / -1; margin-top: 4px; }
-.item-output > summary { cursor: pointer; color: var(--ink-3); font-family: var(--font-mono); font-size: var(--t-meta); user-select: none; }
+.item-output > summary { cursor: pointer; color: var(--ink-3); font-family: var(--font-ui); font-size: var(--t-meta); user-select: none; }
 @media (hover: hover) { .item-output > summary:hover { color: var(--ink); } }
 .item-output[open] > summary { margin-bottom: 4px; }
 .item-output > summary { display: flex; align-items: baseline; gap: 10px; min-width: 0; list-style: none; }
@@ -78,7 +78,7 @@
   display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; white-space: normal;
 }
 .error-kw {
-  flex: none; font-family: var(--font-mono); font-size: var(--t-label); letter-spacing: 0.06em; text-transform: uppercase;
+  flex: none; font-family: var(--font-ui); font-size: var(--t-label);
   color: var(--bad);
 }
 .error-text { min-width: 0; font-size: var(--t-small); line-height: 1.5; color: var(--ink); white-space: pre-wrap; }
@@ -91,7 +91,7 @@
 /* reasoning: folded behind +/−, with a dashed rule */
 .item.reasoning summary {
   cursor: pointer; list-style: none; display: inline-flex; align-items: center; gap: 6px;
-  font-family: var(--font-mono); font-size: var(--t-meta); color: var(--ink-3);
+  font-family: var(--font-ui); font-size: var(--t-meta); color: var(--ink-3);
 }
 .item.reasoning summary::-webkit-details-marker { display: none; }
 .item.reasoning summary::before { content: '+'; width: 1ch; }
@@ -111,7 +111,7 @@
 .item.tool-group { font-size: var(--t-small); }
 .item.tool-group > summary {
   display: flex; align-items: center; gap: 8px; min-width: 0; cursor: pointer; list-style: none;
-  font-family: var(--font-mono); font-size: var(--t-meta); color: var(--ink-2);
+  font-family: var(--font-ui); font-size: var(--t-meta); color: var(--ink-2);
 }
 .item.tool-group > summary::-webkit-details-marker { display: none; }
 .item.tool-group > summary::before { content: '+'; flex: none; width: 1ch; color: var(--ink-3); }
@@ -135,11 +135,11 @@
 
 /* what a finished turn cost, as its result says */
 .turn-foot {
-  margin-top: -8px; font-family: var(--font-mono); font-size: var(--t-label); color: var(--ink-3);
+  margin-top: -8px; font-family: var(--font-ui); font-size: var(--t-label); color: var(--ink-3);
   font-variant-numeric: tabular-nums;
 }
 /* a turn the owner stopped: the keyword of TURN FAILED, in ink */
-.turn-foot .stop-kw { letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink); }
+.turn-foot .stop-kw { color: var(--ink); }
 
 /* a message of the owner's: copy it, or take it back into the composer */
 .item.user {
@@ -183,7 +183,7 @@
 .item.user.folded .user-text { max-height: calc(1.55em * 20); overflow: hidden; }
 .act-link {
   display: inline-flex; margin-top: 4px; padding: 0; border: 0; background: none; cursor: pointer;
-  font-family: var(--font-mono); font-size: var(--t-meta); color: var(--act);
+  font-family: var(--font-ui); font-size: var(--t-meta); color: var(--act);
   text-decoration: underline; text-underline-offset: 3px;
 }
 @media (hover: hover) { .act-link:hover { color: var(--ink); } }

@@ -26,7 +26,7 @@
   /* a hint wraps under its item rather than out of the sheet */
   display: flex; flex-wrap: wrap; align-items: center; gap: 0 6px; width: 100%; min-height: 28px; padding: 3px 8px;
   border: 1px solid transparent; border-radius: var(--r); background: none; text-align: left;
-  font-family: var(--font-mono); font-size: var(--t-meta); color: var(--ink); line-height: 1.4; cursor: pointer;
+  font-family: var(--font-ui); font-size: var(--t-meta); color: var(--ink); line-height: 1.4; cursor: pointer;
   transition: background var(--dur-fast);
 }
 .session-menu [role='menuitem']:focus-visible { background: var(--paper-2); }

@@ -378,7 +378,7 @@ describe('terminal keys, find and new output', () => {
     const { SearchAddon } = vi.mocked(addonSearch)
     const search = vi.mocked(SearchAddon).mock.results.at(-1)!.value as { findNext: Mock; findPrevious: Mock; clearDecorations: Mock; onDidChangeResults: Mock }
     expect(findInTerminal('t1', 'err')).toBe(true)
-    expect(search.findNext).toHaveBeenCalledWith('err', expect.objectContaining({ decorations: expect.objectContaining({ activeMatchBorder: '#2433d6' }) }))
+    expect(search.findNext).toHaveBeenCalledWith('err', expect.objectContaining({ decorations: expect.objectContaining({ activeMatchBorder: '#3550b8' }) }))
     expect(findInTerminal('t1', 'err', { backwards: true })).toBe(false)
     expect(search.findPrevious).toHaveBeenCalled()
     expect(findInTerminal('t1', '')).toBe(false)

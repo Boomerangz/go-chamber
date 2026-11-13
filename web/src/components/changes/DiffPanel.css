@@ -11,10 +11,10 @@
 .diff-head .section-title { margin: 0; }
 /* what the panel says when there is nothing to list starts where its label does */
 .dock-body .diff-panel > .tray-empty { padding: 2px 0; }
-.diff-total { font-family: var(--font-mono); font-size: var(--t-meta); color: var(--ink-2); white-space: nowrap; }
+.diff-total { font-family: var(--font-ui); font-size: var(--t-meta); color: var(--ink-2); white-space: nowrap; }
 /* the time gives way before the buttons drop to a second line: it never
    asks for room (no basis), and a narrow panel leaves it out altogether */
-.diff-updated { flex: 1 1 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; font-family: var(--font-mono); font-size: var(--t-meta); color: var(--ink-3); white-space: nowrap; }
+.diff-updated { flex: 1 1 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; font-family: var(--font-ui); font-size: var(--t-meta); color: var(--ink-3); white-space: nowrap; }
 @container (max-width: 400px) { .diff-updated { display: none; } }
 .diff-actions { margin-left: auto; display: inline-flex; align-items: center; gap: 2px; }
 .diff-actions .btn[aria-pressed='true'] { border-color: var(--ink); color: var(--ink); }
@@ -122,23 +122,23 @@
   /* pressed paper is too close to the sheet in the dark: added lines take deep paper */
   .diff-view > .diff-add { background: var(--paper-3); }
 }
-.diff-more { margin: 0 0 8px; font-family: var(--font-mono); font-size: var(--t-meta); color: var(--ink-3); }
+.diff-more { margin: 0 0 8px; font-family: var(--font-ui); font-size: var(--t-meta); color: var(--ink-3); }
 .diff-more .act-link, .diff-none .act-link { margin: 0; }
 .diff-none { margin: 4px 6px; color: var(--ink-3); font-size: var(--t-meta); }
-.diff-note { margin: 4px 6px 0; font-family: var(--font-mono); font-size: var(--t-meta); color: var(--ink-3); }
+.diff-note { margin: 4px 6px 0; font-family: var(--font-ui); font-size: var(--t-meta); color: var(--ink-3); }
 .worktree-bar { display: flex; flex-direction: column; gap: 6px; padding: 8px 10px; border: 1px solid var(--rule); border-radius: var(--r); font-size: var(--t-small); }
 .worktree-bar p { margin: 0; }
 .worktree-bar > .btn { align-self: flex-start; }
 .merge-row { display: flex; align-items: center; gap: 4px; min-width: 0; }
 .merge-hint { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; user-select: all; color: var(--ink-2); }
-.worktree-confirm { display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; min-width: 0; font-family: var(--font-mono); font-size: var(--t-meta); color: var(--ink-2); }
+.worktree-confirm { display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; min-width: 0; font-family: var(--font-ui); font-size: var(--t-meta); color: var(--ink-2); }
 /* the folder on a line of its own: its start gives way, its name stays */
 .worktree-confirm > .worktree-path { display: flex; color: var(--ink); }
 .worktree-confirm p { overflow-wrap: anywhere; }
 .worktree-actions { display: flex; gap: 6px; }
 .worktree-dirty { color: var(--ink); }
 /* the worktree folder is gone: its keyword in mono caps, as on the composer's place */
-.worktree-bar .worktree-gone-kw { font-family: var(--font-mono); font-size: var(--t-meta); letter-spacing: 0.04em; text-transform: uppercase; color: var(--ink); }
+.worktree-bar .worktree-gone-kw { font-family: var(--font-ui); font-size: var(--t-meta); color: var(--ink); }
 
 .layout[data-dock='changes'] { --dock: max(380px, 34%); }
 .changes-pane { display: none; }

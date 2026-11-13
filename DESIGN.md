@@ -2,33 +2,33 @@
 name: go-chamber
 description: A local supervisor for Claude Code and Codex, set as a living specification.
 colors:
-  paper: "#f3f3f1"
-  paper-2: "#e9e9e5"
-  paper-3: "#dfdfda"
-  ink: "#16171a"
-  ink-2: "#45474d"
-  ink-3: "#66686e"
-  rule: "#d3d3cd"
-  rule-strong: "#8c8c86"
-  act: "#2433d6"
+  paper: "#faf9f6"
+  paper-2: "#f1efea"
+  paper-3: "#e7e4dd"
+  ink: "#2c2b27"
+  ink-2: "#57554e"
+  ink-3: "#75726a"
+  rule: "#e4e0d9"
+  rule-strong: "#8c8780"
+  act: "#3550b8"
   act-ink: "#ffffff"
-  act-wash: "rgba(36, 51, 214, 0.09)"
-  act-ring: "rgba(36, 51, 214, 0.55)"
+  act-wash: "rgba(53, 80, 184, 0.09)"
+  act-ring: "rgba(53, 80, 184, 0.5)"
   req: "#8f5200"
   req-mark: "#b86a00"
   req-wash: "rgba(184, 106, 0, 0.1)"
   bad: "#b3261e"
   bad-wash: "rgba(179, 38, 30, 0.08)"
-  paper-dark: "#0f1012"
-  paper-2-dark: "#16171a"
-  paper-3-dark: "#1e2023"
-  ink-dark: "#e4e2dc"
-  ink-2-dark: "#b3b1ab"
-  ink-3-dark: "#8d8f95"
-  rule-dark: "#2a2c30"
-  rule-strong-dark: "#5e6066"
-  act-dark: "#8c98ff"
-  act-ink-dark: "#0f1012"
+  paper-dark: "#151412"
+  paper-2-dark: "#1b1a17"
+  paper-3-dark: "#23211e"
+  ink-dark: "#d4cfc4"
+  ink-2-dark: "#a7a297"
+  ink-3-dark: "#858076"
+  rule-dark: "#2a2825"
+  rule-strong-dark: "#6b665e"
+  act-dark: "#9aa8e6"
+  act-ink-dark: "#151412"
   req-dark: "#e3a33a"
   req-mark-dark: "#e3a33a"
   bad-dark: "#f07a6a"
@@ -68,26 +68,29 @@ typography:
     fontWeight: 400
     lineHeight: 1.5
   masthead:
-    fontFamily: "'PT Mono', ui-monospace, 'SF Mono', Menlo, monospace"
+    fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, 'Segoe UI', Roboto, sans-serif"
     fontSize: "14px"
     fontWeight: 400
-    letterSpacing: "0.01em"
   control:
-    fontFamily: "'PT Mono', ui-monospace, 'SF Mono', Menlo, monospace"
-    fontSize: "12px"
+    fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, 'Segoe UI', Roboto, sans-serif"
+    fontSize: "13px"
     fontWeight: 400
   meta:
-    fontFamily: "'PT Mono', ui-monospace, 'SF Mono', Menlo, monospace"
+    fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, 'Segoe UI', Roboto, sans-serif"
     fontSize: "12px"
     fontWeight: 400
   label:
-    fontFamily: "'PT Mono', ui-monospace, 'SF Mono', Menlo, monospace"
+    fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, 'Segoe UI', Roboto, sans-serif"
     fontSize: "11.5px"
     fontWeight: 400
-    letterSpacing: "0.06em"
+  code:
+    fontFamily: "'PT Mono', ui-monospace, 'SF Mono', Menlo, monospace"
+    fontSize: "12px"
+    fontWeight: 400
 rounded:
   mark: "1px"
-  r: "2px"
+  r: "6px"
+  composer: "12px"
 spacing:
   xs: "4px"
   sm: "8px"
@@ -159,7 +162,7 @@ components:
     rounded: "{rounded.r}"
     padding: "6px 8px"
   session-row-active:
-    backgroundColor: "{colors.paper-2}"
+    backgroundColor: "{colors.paper-3}"
     textColor: "{colors.ink}"
   requires-block:
     backgroundColor: "{colors.paper}"
@@ -171,9 +174,9 @@ components:
     textColor: "{colors.ink-2}"
     padding: "8px 12px"
   composer:
-    backgroundColor: "{colors.paper}"
-    rounded: "{rounded.r}"
-    padding: "6px 6px 6px 12px"
+    backgroundColor: "{colors.paper-2}"
+    rounded: "{rounded.composer}"
+    padding: "8px 8px 8px 14px"
 ---
 
 # Design System: go-chamber
@@ -182,18 +185,18 @@ components:
 
 **Creative North Star: "The Living Specification"**
 
-Every session reads like an RFC that is still being written. The page is one sheet of cool paper printed in one ink; hairline rules divide it into regions, and nothing floats above it. PT Mono carries the structure (the masthead, section labels, turn numbers, metadata, normative keywords, and every button), while the system sans carries what people and agents actually say. The transcript is a numbered document: turn numbers hang in a left margin, user turns open a new ruled section with a vertical ink rule instead of a bubble, and tool output sits in indented plaintext blocks.
+Every session reads like an RFC that is still being written, on paper that is easy to look at for hours. The page is one sheet of warm paper printed in one soft ink, held well short of black-on-white; quiet hairlines divide it into regions, and nothing floats above it. The system sans carries everything people read and press, labels and buttons included, in sentence case; PT Mono is kept for what is literally code: commands, paths, file names, diffs and the terminal. The transcript is a numbered document: turn numbers hang in a left margin, user turns open a new ruled section with a vertical ink rule instead of a bubble, and tool output sits in indented plaintext blocks.
 
-Colour is reserved for meaning, not mood. Ink-blue marks what you can press, amber marks what needs you, and red marks what broke or destroys. Everything else, including session state, is carried by the form of a small square mark. The world replaces an earlier dark glass and gradient look; that look is rejected, not softened.
+Colour is reserved for meaning, not mood. Ink-blue marks what you can press, amber marks what needs you, and red marks what broke or destroys. Everything else, including session state, is carried by the form of a small square mark. The world replaces an earlier dark glass and gradient look, and later a stark cool-grey, all-mono apparatus that tired the eye over long sessions; both are rejected.
 
 Density is high but calm: long streamed sessions in Russian and English, several agents at once, a terminal alongside. Motion is short and typographic, with a little life where the owner is needed: items settle, requests spring in from the margin, a running mark breathes and a finished one lands, and an answered request is struck through and folds into a one-line record.
 
 **Key Characteristics:**
-- One sheet, one ink, hairline rules; light and dark follow the system setting.
-- Structure in PT Mono, prose in the system sans.
+- One warm sheet, one soft ink, quiet hairlines; light and dark follow the system setting.
+- The system sans everywhere, sentence case; PT Mono only for code and paths.
 - State is form: solid, hollow, struck, dashed. No hue on state.
 - Three signal colours, each with one job: act, requires, fails.
-- Flat: no elevation shadows, 2px corners.
+- Flat: no elevation shadows, 6px corners.
 - The REQUIRES block is the signature; its answer stays in the transcript as a struck record.
 
 ## Colors
@@ -210,15 +213,15 @@ A near-neutral paper and ink pair with three narrow signal colours, each ratione
 - **Failure Red** (`bad`, wash `bad-wash`): Failure and destruction only. Deny, Stop, close-terminal on hover, stop-task, failed tool items, DENIED decisions, error text, toasts, the offline and unauthorized health marks, and a quota meter at its limit.
 
 ### Neutral
-- **Cool Paper** (`paper`): The one sheet: page, panels, sidebar, dock, cards, fields and menus all share it.
+- **Warm Paper** (`paper`): The one sheet: page, panels, sidebar, dock, cards, fields and menus all share it.
 - **Pressed Paper** (`paper-2`): Only for hover and active rows (session, terminal, folder, model option) and for plaintext output blocks (tool output, request input). It is never a panel background.
 - **Deep Paper** (`paper-3`): The checked segment of the agent switch and the quota meter track.
 - **Ink** (`ink`): Body text, headings, the running mark, the user-turn rule, the selected-tab underline, neutral counts, filled effort segment.
 - **Ink 2 / Ink 3** (`ink-2`, `ink-3`): Secondary prose and metadata, then labels, placeholders, turn numbers and idle chrome.
-- **Rule / Strong Rule** (`rule`, `rule-strong`): Hairlines that divide regions, then the borders of controls, fields, and output-block left edges. The strong rule holds 3:1 against the sheet in both schemes, so a field's edge is visible on its own.
+- **Rule / Strong Rule** (`rule`, `rule-strong`): Hairlines that divide regions and the borders of buttons and the composer, then the edges of fields and output blocks. The strong rule holds 3:1 against the sheet in both schemes, so a field's edge is visible on its own; buttons and the filled composer don't need it and stay on the quiet rule.
 
 ### Named Rules
-**The One Sheet Rule.** There is one surface colour. Regions are divided by 1px rules, never by a second panel tone; pressed paper appears only under a hovered or active row and behind output.
+**The One Sheet Rule.** There is one surface colour. Regions are divided by 1px rules, never by a second panel tone; pressed paper appears only under a hovered or active row, behind output, and as the composer's tray.
 
 **The Act Rule.** Ink-blue means "you can press this" or "this has focus". If it cannot be pressed, it is not blue.
 
@@ -230,25 +233,26 @@ A near-neutral paper and ink pair with three narrow signal colours, each ratione
 
 **Display Font:** none; the system sans (`-apple-system`, SF Pro Text, system-ui, Segoe UI, Roboto) sets the few headings at weight 600.
 **Body Font:** the system sans, 14px, tabular figures on by default.
-**Label/Mono Font:** PT Mono 400, self-hosted through `@fontsource/pt-mono` (with ui-monospace, SF Mono, Menlo), so it works offline and renders Cyrillic.
+**Code Font:** PT Mono 400, self-hosted through `@fontsource/pt-mono` (with ui-monospace, SF Mono, Menlo), so it works offline and renders Cyrillic.
 
-**Character:** A man-page pairing. The mono is the typewritten apparatus of the document (numbers, keywords, paths, controls); the sans is the readable voice inside it.
+**Character:** One calm voice. The sans sets the whole interface; the mono appears only where the text is something a machine reads (a command, a path, a diff, terminal output), so it marks code rather than structure.
 
 ### Hierarchy
-The scale is ten steps held as tokens (`--t-mark` … `--t-display` in `index.css`); no other size is set in the chrome. The steps cluster small for the dense apparatus and then jump: the titles stand well clear of the 15px transcript, so a page reads as a document with a title rather than one even murmur. On phones (≤720px) headline and display step down one (20px, 26px).
+The scale is ten steps held as tokens (`--t-mark` … `--t-display` in `index.css`); no other size is set in the chrome. The steps cluster small for the dense apparatus and then jump: the titles stand well clear of the 15px transcript, the session title in the chat header stays a quiet 18px heading, not a headline competing with the text. On phones (≤720px) headline and display step down one (20px, 26px).
 - **Display** (600, 32px, 1.15, -0.022em, balanced): An empty document's one line (the empty chat and terminal hero).
-- **Headline** (600, 26px, 1.2, -0.018em): The session title as the document title in the chat header; the notice heading.
-- **Title** (600, 18px, 1.3, -0.01em): The REQUIRES block title; the terminal header title; the folder picker and shortcut sheet headings.
+- **Headline** (600, 26px, 1.2, -0.018em): The notice heading.
+- **Title** (600, 18px, 1.3, -0.01em): The session title in the chat header; the REQUIRES block title; the terminal header title; the folder picker and shortcut sheet headings.
 - **Transcript** (400, 15px, 1.6; user turns 1.55): Assistant and user text, capped at a 72ch measure.
 - **Body** (400, 14px, 1.5): Default UI prose.
-- **Body small** (13px): Tool, command, file and subagent items; session titles (500); hints; turn numbers (PT Mono, ink-3) and the REQUIRES keyword.
-- **Masthead** (PT Mono 400, 14px, 0.01em): The product name in the top bar.
-- **Control and Meta** (PT Mono 400, 12px): Every `.btn`, the folder input, group names, terminal tabs, crumbs; paths, model name, token usage, health, status words (lowercase).
-- **Label** (PT Mono 400, 11.5px, 0.06em, uppercase): Section titles in panels, date buckets, the decision keyword, the unseen mark, small mono notes.
-- **Mark** (PT Mono 400, 11px): A glyph in a box: the agent letter, a key, a count.
+- **Body small** (13px): Tool, command, file and subagent items; session titles (500); hints; turn numbers (ink-3) and the REQUIRES keyword; buttons.
+- **Masthead** (400, 14px): The product name in the top bar.
+- **Meta** (400, 12px): Group names, model name, token usage, health, status words (lowercase).
+- **Label** (400, 11.5px, sentence case): Section titles in panels, date buckets, the decision keyword, the unseen mark, small notes.
+- **Mark** (400, 11px): A glyph on a tint: the agent letter, a key, a count.
+- **Code** (PT Mono 400, 12–13px): Commands and tool targets in transcript lines, paths, the folder input, diffs, crumbs, terminal tabs and output blocks.
 
 ### Named Rules
-**The Mono Carries Structure Rule.** Anything that names, numbers, labels or commands is set in PT Mono; anything someone wrote to be read is set in the sans. Buttons are commands, so buttons are mono.
+**The Mono Is Code Rule.** PT Mono is set only on text a machine reads: commands, paths, file names, diffs, terminal output. Labels, buttons, numbers and keywords are the sans, in sentence case; no uppercase, no letter-spaced labels.
 
 **The Bracket Rule.** Tags and outcomes that annotate a line are printed in square brackets generated by CSS: model tags, hook outcomes, the repo badge. Buttons are not bracketed.
 
@@ -271,7 +275,7 @@ The system is flat. Nothing is lifted: panels, menus, the folder picker and the 
 
 ## Shapes
 
-Corners are barely softened: 2px (`r`) on every control, block, row, count and menu; 1px on the small state marks and the model radio. Counts are numbers in a square, never a pill. Borders are 1px throughout; 2px appears only as the selected-tab underline (mode switch, terminal tabs, pane bar) and the 3px amber top rule of the REQUIRES block. Dashed lines carry a single meaning, something not yet settled: detached state, a connecting health mark, a streaming tool line, an open subagent's rail, reasoning, the device-code box and the unseen rule.
+Corners are softened: 6px (`r`) on every control, block, row, count and menu, 12px on the composer; 1px on the small state marks and the model radio. Counts are numbers in a square, never a pill. Borders are 1px throughout; 2px appears only as the selected-tab underline (mode switch, terminal tabs, pane bar) and the 3px amber top rule of the REQUIRES block. Dashed lines carry a single meaning, something not yet settled: detached state, a connecting health mark, a streaming tool line, an open subagent's rail, reasoning, the device-code box and the unseen rule.
 
 ### Named Rules
 **The State Is Form Rule.** Session and agent state is a small square mark next to a lowercase word, and only its form changes: solid ink square = running (it breathes), solid and still = waiting for you, hollow = idle, struck (a diagonal slash) = interrupted, dashed outline = detached. State never takes a hue: a session that waits for you says so in ink, and the amber count beside it carries the "needs you".
@@ -280,8 +284,8 @@ Corners are barely softened: 2px (`r`) on every control, block, row, count and m
 
 ### Buttons
 Plain typed commands on paper.
-- **Shape:** 2px corners, 1px border, 30px tall (36px on mobile), PT Mono 12px.
-- **Default:** paper with a strong-rule border and ink text; hover darkens the border to ink; active presses to `paper-2`.
+- **Shape:** 6px corners, 1px border, 30px tall (36px on mobile), sans 13px.
+- **Default:** paper with a rule border and ink text; hover fills `paper-2` and lifts the border to the strong rule; active presses to `paper-2`.
 - **Primary:** solid ink-blue with white (dark: paper) text; hover swaps the border to ink. One primary per group (New session, Send/Steer).
 - **Answer:** inside a request (the REQUIRES block, a tray line) the primary is solid ink with paper text, hover to `ink-2`, so the block holds one hue; blue stays on its focus ring.
 - **Danger:** transparent with a red border and red text; hover adds `bad-wash`.
@@ -291,49 +295,49 @@ Plain typed commands on paper.
 - **Choices:** radios and checkboxes are 12px squares with 1px corners on the sheet, never the browser's control: checked is ink-blue, a radio with a 2px paper gap inside, a checkbox with a paper tick.
 
 ### Chips
-- **Style:** 24px, PT Mono 12px, 2px corners, strong-rule border on paper, `ink-2` text; hover to an ink border and ink text. Used for recent folders and terminal projects.
+- **Style:** 24px, sans 12px, 6px corners, strong-rule border on paper, `ink-2` text; hover to an ink border and ink text. Used for recent folders and terminal projects.
 
 ### Cards / Containers
-- **Corner Style:** 2px.
+- **Corner Style:** 6px.
 - **Background:** paper; output blocks inside them are `paper-2` with a 1px strong-rule left edge, max 220 to 280px tall and scrolling.
 - **Shadow Strategy:** none (see Elevation & Depth).
 - **Border:** 1px rule; the folder picker uses 1px ink.
 - **Internal Padding:** 12 to 16px.
 
 ### Inputs / Fields
-- **Style:** 32px, 1px strong-rule border, 2px corners, paper; selects draw their own 10px chevron.
-- **Focus:** border turns ink-blue plus a 1px ink-blue ring. The session search is a bottom rule only, which turns blue on focus. The composer, which holds focus most of a session, doubles its frame in ink instead, so blue isn't standing on screen; its caret stays blue.
-- **Composer:** the same field language wrapping an auto-growing textarea with the action buttons inside it, sharing the transcript column.
+- **Style:** 32px, 1px strong-rule border, 6px corners, paper; selects draw their own 10px chevron.
+- **Focus:** border turns ink-blue plus a 1px ink-blue ring. The session search is a bottom rule only, which turns blue on focus. The composer, which holds focus most of a session, only lifts its edge to the strong rule, so neither blue nor a heavy frame stands on screen; its caret stays blue.
+- **Composer:** a `paper-2` tray with 12px corners and a quiet rule edge, wrapping an auto-growing textarea with the action buttons inside it, sharing the transcript column.
 
 ### Navigation
 - **Mode switch:** sans 13px/500 text tabs the full height of the top bar; `ink-3` at rest, ink with a 2px ink underline when checked. On a wide bar a tab's count sits on its corner, in the padding after the word, so a count that comes or goes moves no tab.
-- **Sessions TOC:** rows with a transparent 1px border; hover to `paper-2`; active to `paper-2` with a strong-rule border and ink title.
+- **Sessions TOC:** rows with a transparent 1px border; hover to `paper-2`; active to `paper-3` with an ink title, no frame.
 - **Dock rail:** 32px icon buttons with lucide icons at 1.5 stroke; pressed state is a 1px ink border. Counts sit on the corner: ink for neutral, amber for pending requests.
 - **Mobile:** a five-button pane bar (Overview, Sessions, Chat, Requests, Changes) with a 2px ink top rule on the selected pane and an amber count on Requests.
 
 ### The REQUIRES Block (signature)
-The only amber object on screen. A 2px-cornered paper block with a 1px amber border and a 3px amber rule across its top. The title line pairs the keyword `REQUIRES APPROVAL` (PT Mono uppercase, `req`) with the request name in 18px/600 (the keyword at 13px), then the prompt, `tool: Name`, the input in an output block, and Allow (the ink answer), Allow for session (default), Deny (danger). A question is the same block in ink-blue with `REQUIRES ANSWER` and bordered option rows that take `act-wash` when checked. It enters from the left margin, draws its top rule across once it has settled, and scrolls itself into view.
+The only amber object on screen. A 2px-cornered paper block with a 1px amber border and a 3px amber rule across its top. The title line pairs the keyword `Requires approval` (sans, `req`) with the request name in 18px/600 (the keyword at 13px), then the prompt, `tool: Name`, the input in an output block, and Allow (the ink answer), Allow for session (default), Deny (danger). A question is the same block in ink-blue with `Requires answer` and bordered option rows that take `act-wash` when checked. It enters from the left margin, draws its top rule across once it has settled, and scrolls itself into view.
 
 ### Decision Record (signature)
-When a request is answered, the block strikes a 1px ink line across its title, fades and collapses, and a single line is written into the transcript: the outcome keyword (PT Mono uppercase, ink; red for DENIED) followed by the request name in `ink-3`, struck through only when denied (an approved name struck through reads as cancelled), with any answer text beneath. A skipped question and an answered one name nothing; the answer is the record. The transcript keeps what was decided.
+When a request is answered, the block strikes a 1px ink line across its title, fades and collapses, and a single line is written into the transcript: the outcome keyword (sans, ink; red for denied) followed by the request name in `ink-3`, struck through only when denied (an approved name struck through reads as cancelled), with any answer text beneath. A skipped question and an answered one name nothing; the answer is the record. The transcript keeps what was decided.
 
 ### Unseen Mark
-"new since you left": a PT Mono uppercase label in ink followed by a dashed ink rule running to the column edge, placed before the first unseen item.
+"new since you left": a small sans label in ink followed by a dashed ink rule running to the column edge, placed before the first unseen item.
 
 ### Transcript Items
-Tool, command and file items are one mono line with a 13px lucide icon; pending and streaming lines take a dashed underline, failed ones turn red. Hooks are a single line with the hook name and a bracketed outcome; `[BLOCKED]` is struck through in ink, `[ERROR]` is red, success stays quiet. Reasoning folds behind a `+`/`−` summary with a dashed left rule. Subagents indent under a dashed rail that turns solid when finished.
+Tool, command and file items are one line with a 13px lucide icon, the command or target in mono and its summary in the sans; pending and streaming lines take a dashed underline, failed ones turn red. Hooks are a single line with the hook name and a bracketed outcome; `[BLOCKED]` is struck through in ink, `[ERROR]` is red, success stays quiet. Reasoning folds behind a `+`/`−` summary with a dashed left rule. Subagents indent under a dashed rail that turns solid when finished.
 
 ### Meters
 Quota meters are 4px bars (36px wide in the folded footer line, which names each agent by its letter box so the window and reset read whole): a `paper-3` track with an inset hairline and a solid ink fill, amber when nearing the limit and red at the limit.
 
 ### Loading and Pending
-Work on its way shows one recognisable progress mark: a 12px ring in the current colour, open on one side, turning every 800ms, before a mono `ink-3` line ("loading sessions…", "searching messages…") or inside a busy button. It is the system's one round shape and one deliberate exception to the square grammar, kept because a spinner reads as "working" at a glance where a breathing square reads like one more state mark; state marks themselves stay square. A live socket that dropped still takes the dashed, breathing square. A busy button keeps its colour and focus, sets `aria-busy`, guards against a second trigger, and swaps its label for the "…ing" form ("Starting…", "Allowing…", "Stopping…"). Controls that a success removes stay busy until they leave. Lists that have not loaded yet show dashed skeleton rows, never their empty state. A load that failed says so in red with a Retry. Choices such as the model or permission mode apply at once in the unsettled form (`ink-3`, dashed underline) and revert if the server refuses. While a turn runs and no reply streams (a tool or subagent may), the transcript tail reads "working · 0:42", or "waiting for you" in `ink-2` beside a still mark when a request is open (the block above it carries the amber).
+Work on its way shows one recognisable progress mark: a 12px ring in the current colour, open on one side, turning every 800ms, before an `ink-3` line ("loading sessions…", "searching messages…") or inside a busy button. It is the system's one round shape and one deliberate exception to the square grammar, kept because a spinner reads as "working" at a glance where a breathing square reads like one more state mark; state marks themselves stay square. A live socket that dropped still takes the dashed, breathing square. A busy button keeps its colour and focus, sets `aria-busy`, guards against a second trigger, and swaps its label for the "…ing" form ("Starting…", "Allowing…", "Stopping…"). Controls that a success removes stay busy until they leave. Lists that have not loaded yet show dashed skeleton rows, never their empty state. A load that failed says so in red with a Retry. Choices such as the model or permission mode apply at once in the unsettled form (`ink-3`, dashed underline) and revert if the server refuses. While a turn runs and no reply streams (a tool or subagent may), the transcript tail reads "working · 0:42", or "waiting for you" in `ink-2` beside a still mark when a request is open (the block above it carries the amber).
 
 ### Notices
-Failures that can't be shown in place stack beside what is being read, at most three: in the open chat, off the transcript column (whose messages carry their actions), in the margin to its right under the chat header when a sheet fits there, else at the transcript's end just above the composer; with no session open, the empty workspace's top right corner; with neither on screen, bottom right clear of the dock rail on desktop and just above the pane bar on phones. A notice never sits on a control, and the stack takes no clicks outside its sheets. Each is a paper sheet with a 1px rule (red for errors): a mono uppercase title naming what failed ("COULDN'T FORK THE SESSION"), the reason in sans, and a lucide X. Errors stay until dismissed; a quiet confirmation ("Path copied") fades after 4s, or 8s when it offers one action as a quiet button ("Archived … · Undo"). A later unrelated success never clears an unread error.
+Failures that can't be shown in place stack beside what is being read, at most three: in the open chat, off the transcript column (whose messages carry their actions), in the margin to its right under the chat header when a sheet fits there, else at the transcript's end just above the composer; with no session open, the empty workspace's top right corner; with neither on screen, bottom right clear of the dock rail on desktop and just above the pane bar on phones. A notice never sits on a control, and the stack takes no clicks outside its sheets. Each is a paper sheet with a 1px rule (red for errors): a small title naming what failed ("Couldn't fork the session"), the reason in sans, and a lucide X. Errors stay until dismissed; a quiet confirmation ("Path copied") fades after 4s, or 8s when it offers one action as a quiet button ("Archived … · Undo"). A later unrelated success never clears an unread error.
 
 ### Keyboard
-⌘K opens a switcher over sessions and terminals, with what waits for the owner first. `?` lists every shortcut. Single keys (j/k, r, /, c, n, f, t, 1–3) act only when the owner isn't typing and never inside the terminal; Escape in an empty, idle composer leaves it. Key hints are drawn as `kbd`: mono 11px in a 1px strong-rule square, one key per box (⇧ and ↵ are two boxes), alternatives set apart by "·", and the word after the same small gap everywhere.
+⌘K opens a switcher over sessions and terminals, with what waits for the owner first. `?` lists every shortcut. Single keys (j/k, r, /, c, n, f, t, 1–3) act only when the owner isn't typing and never inside the terminal; Escape in an empty, idle composer leaves it. Key hints are drawn as `kbd`: sans 11px on a `paper-2` tint with 4px corners, no border, one key per box (⇧ and ↵ are two boxes), alternatives set apart by "·", and the word after the same small gap everywhere.
 
 ### Motion
 Short and typographic. Hover and colour changes take 120ms; transcript entries take 200ms on `cubic-bezier(0.16, 1, 0.3, 1)` and settle 2px up while fading in. What needs the owner and what reorders springs: a request (its block and its tray line) springs 16px in from the left margin, and a block that arrives while the session is open then draws its 3px amber rule across from the left, as a pen would (640ms on the ease-out, the first 30% held so the block settles first; a request already open when the session opens shows its rule at once). The strike that records the answer is its rhyme and the sessions list settles on a spring of 320ms visual duration with a 0.22 bounce, a slight overshoot and never a wobble. A running state mark breathes (opacity to 40% and back over 2.4s); a turn that ends on its own shows `done` for 1.5s while its mark lands (scales down from 1.7x through 0.85x to rest, then turns hollow). An answered request is struck through, then fades and collapses in 450ms; meters fill in 400ms. Sound is opt-in and off by default: a rising two-note sine chime (E5, A5) when an agent needs a decision and one soft D5 when a turn ends, about 0.35s each at low volume, synthesized with no audio files; a burst of events makes one chime. Under reduced motion, entries are a 120ms linear fade and nothing travels or breathes, and a global guard in the stylesheet removes all CSS transitions and animations.
@@ -342,10 +346,10 @@ Short and typographic. Hover and colour changes take 120ms; transcript entries t
 
 ### Do:
 - **Do** divide regions with 1px `rule` hairlines on the one `paper` sheet.
-- **Do** show state with the square mark's form (solid, hollow, struck, dashed) and a lowercase mono word.
+- **Do** show state with the square mark's form (solid, hollow, struck, dashed) and a lowercase word.
 - **Do** reserve `act` for pressable controls, links and focus; `req-mark` for what needs the owner; `bad` for failure and destruction.
-- **Do** set buttons, labels, paths, numbers and keywords in PT Mono 400, and prose in the system sans.
-- **Do** keep 2px corners and 1px borders; draw counts as squares.
+- **Do** set everything in the system sans, and only code, paths and diffs in PT Mono.
+- **Do** keep 6px corners and 1px borders.
 - **Do** record every answered request as a decision line in the transcript.
 - **Do** give every new motion a reduced-motion variant that only fades.
 - **Do** keep light and dark on the same roles, switched by `prefers-color-scheme`.
@@ -354,8 +358,8 @@ Short and typographic. Hover and colour changes take 120ms; transcript entries t
 - **Don't** use elevation shadows, blur, glass, or gradient fills; `box-shadow` is allowed only as a 1px focus ring or inset hairline.
 - **Don't** put a hue on session or terminal state.
 - **Don't** use amber or ink-blue decoratively, or red for emphasis.
-- **Don't** use `paper-2` as a panel or card background.
+- **Don't** use `paper-2` as a panel or card background (the composer's tray is the one exception).
 - **Don't** draw chat bubbles; user turns are ruled sections.
-- **Don't** use pill shapes or radii above 2px (the progress ring is the one exception).
+- **Don't** use pill shapes or uppercase letter-spaced labels; radii stay at 6px (12px on the composer; the progress ring is the one exception).
 - **Don't** load fonts from a CDN; the UI must work offline.
-- **Don't** style Claude or Codex as the default; both are a letter in the same box.
+- **Don't** style Claude or Codex as the default; both are a letter on the same tint.

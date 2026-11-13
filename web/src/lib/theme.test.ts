@@ -4,17 +4,17 @@ import { searchDecorations, terminalTheme } from './theme'
 describe('terminalTheme', () => {
   it('prints ink on the dark sheet', () => {
     const t = terminalTheme(true)
-    expect(t.background).toBe('#0f1012')
-    expect(t.foreground).toBe('#e4e2dc')
-    expect(t.cursor).toBe('#8c98ff')
+    expect(t.background).toBe('#151412')
+    expect(t.foreground).toBe('#d4cfc4')
+    expect(t.cursor).toBe('#9aa8e6')
   })
 
   it('prints ink on the light sheet', () => {
     const t = terminalTheme(false)
-    expect(t.background).toBe('#f3f3f1')
-    expect(t.foreground).toBe('#16171a')
-    expect(t.cursor).toBe('#2433d6')
-    expect(t.cursorAccent).toBe('#f3f3f1')
+    expect(t.background).toBe('#faf9f6')
+    expect(t.foreground).toBe('#2c2b27')
+    expect(t.cursor).toBe('#3550b8')
+    expect(t.cursorAccent).toBe('#faf9f6')
   })
 
   it('selects with a translucent accent in both schemes', () => {
@@ -63,7 +63,7 @@ describe('searchDecorations', () => {
   })
 
   it('falls back to the design values without a stylesheet', () => {
-    expect(searchDecorations(false, () => '')).toMatchObject({ matchBackground: '#dfdfda', activeMatchBorder: '#2433d6' })
-    expect(searchDecorations(true, () => '')).toMatchObject({ matchBackground: '#2a2c30', activeMatchBorder: '#8c98ff' })
+    expect(searchDecorations(false, () => '')).toMatchObject({ matchBackground: '#e7e4dd', activeMatchBorder: '#3550b8' })
+    expect(searchDecorations(true, () => '')).toMatchObject({ matchBackground: '#2a2825', activeMatchBorder: '#9aa8e6' })
   })
 })

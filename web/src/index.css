@@ -1,5 +1,6 @@
-/* go-chamber — a living specification. One sheet, one ink; structure in PT Mono,
-   prose in the system face; state carried by form. Tokens, primitives, shell,
+/* go-chamber — a living specification. One warm sheet, one ink; the system
+   face throughout, PT Mono only for code, paths and the terminal; state
+   carried by form; surfaces over rules. Tokens, primitives, shell,
    then components. */
 
 @import '@fontsource/pt-mono/400.css';
@@ -20,20 +21,20 @@
   --font-mono: 'PT Mono', ui-monospace, 'SF Mono', Menlo, monospace;
 
   /* sheet and ink */
-  --paper: #f3f3f1;
-  --paper-2: #e9e9e5;
-  --paper-3: #dfdfda;
-  --ink: #16171a;
-  --ink-2: #45474d;
-  --ink-3: #66686e;
-  --rule: #d3d3cd;
-  --rule-strong: #8c8c86;
+  --paper: #faf9f6;
+  --paper-2: #f1efea;
+  --paper-3: #e7e4dd;
+  --ink: #2c2b27;
+  --ink-2: #57554e;
+  --ink-3: #75726a;
+  --rule: #e4e0d9;
+  --rule-strong: #8c8780;
 
   /* the actionable, and the one thing that needs you */
-  --act: #2433d6;
+  --act: #3550b8;
   --act-ink: #ffffff;
-  --act-wash: rgba(36, 51, 214, 0.09);
-  --act-ring: rgba(36, 51, 214, 0.55);
+  --act-wash: rgba(53, 80, 184, 0.09);
+  --act-ring: rgba(53, 80, 184, 0.5);
   --req: #8f5200;
   --req-mark: #b86a00;
   --req-wash: rgba(184, 106, 0, 0.1);
@@ -41,8 +42,8 @@
   --bad-wash: rgba(179, 38, 30, 0.08);
 
   /* the select chevron, drawn in ink-3 (a data URL can't take a variable) */
-  --chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' fill='none' stroke='%2366686e' stroke-width='1.5'%3E%3Cpath d='M1 1l4 4 4-4'/%3E%3C/svg%3E");
-  --r: 2px;
+  --chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' fill='none' stroke='%2375726a' stroke-width='1.5'%3E%3Cpath d='M1 1l4 4 4-4'/%3E%3C/svg%3E");
+  --r: 6px;
   --measure: 72ch;
   --column: calc(var(--measure) + 56px);
   --gutter: 20px;
@@ -55,14 +56,14 @@
      carries the rest. The titles stand well clear of the text, so the page
      reads as a document with a title, not as one even murmur. */
   --t-mark: 11px;      /* a glyph in a box: agent letter, key, count */
-  --t-label: 11.5px;   /* uppercase mono labels, small mono notes */
+  --t-label: 11.5px;   /* small labels and notes */
   --t-meta: 12px;      /* mono metadata, paths, buttons and commands */
   --t-small: 13px;     /* tool lines, session titles, hints */
   --t-body: 14px;      /* interface prose */
   --t-read: 15px;      /* the transcript */
   --t-input: 16px;     /* phone fields: below this the browser zooms */
   --t-title: 18px;     /* a block's title: REQUIRES, a sheet, a terminal */
-  --t-headline: 26px;  /* the session as the document's title */
+  --t-headline: 26px;  /* a notice heading */
   --t-display: 32px;   /* an empty document's one line */
 
   font-family: var(--font-ui);
@@ -75,24 +76,24 @@
 @media (prefers-color-scheme: dark) {
   :root {
     color-scheme: dark;
-    --paper: #0f1012;
-    --paper-2: #16171a;
-    --paper-3: #1e2023;
-    --ink: #e4e2dc;
-    --ink-2: #b3b1ab;
-    --ink-3: #8d8f95;
-    --rule: #2a2c30;
-    --rule-strong: #5e6066;
-    --act: #8c98ff;
-    --act-ink: #0f1012;
-    --act-wash: rgba(140, 152, 255, 0.12);
-    --act-ring: rgba(140, 152, 255, 0.6);
+    --paper: #151412;
+    --paper-2: #1b1a17;
+    --paper-3: #23211e;
+    --ink: #d4cfc4;
+    --ink-2: #a7a297;
+    --ink-3: #858076;
+    --rule: #2a2825;
+    --rule-strong: #6b665e;
+    --act: #9aa8e6;
+    --act-ink: #151412;
+    --act-wash: rgba(154, 168, 230, 0.12);
+    --act-ring: rgba(154, 168, 230, 0.55);
     --req: #e3a33a;
     --req-mark: #e3a33a;
     --req-wash: rgba(227, 163, 58, 0.1);
     --bad: #f07a6a;
     --bad-wash: rgba(240, 122, 106, 0.1);
-    --chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' fill='none' stroke='%238d8f95' stroke-width='1.5'%3E%3Cpath d='M1 1l4 4 4-4'/%3E%3C/svg%3E");
+    --chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' fill='none' stroke='%23858076' stroke-width='1.5'%3E%3Cpath d='M1 1l4 4 4-4'/%3E%3C/svg%3E");
   }
 }
 
@@ -122,20 +123,20 @@ svg.icon { flex: none; display: block; }
 
 .section-title {
   display: flex; align-items: center; gap: 8px;
-  font-family: var(--font-mono); font-size: var(--t-label); letter-spacing: 0.06em; text-transform: uppercase;
+  font-family: var(--font-ui); font-size: var(--t-label);
   color: var(--ink-3); font-weight: 400;
 }
 
 .btn {
   display: inline-flex; align-items: center; justify-content: center; gap: 6px;
   height: 30px; padding: 0 12px;
-  border: 1px solid var(--rule-strong); border-radius: var(--r);
+  border: 1px solid var(--rule); border-radius: var(--r);
   background: var(--paper); color: var(--ink);
-  font-family: var(--font-mono); font-size: var(--t-meta); font-weight: 400; white-space: nowrap;
+  font-family: var(--font-ui); font-size: var(--t-small); font-weight: 400; white-space: nowrap;
   transition: background var(--dur-fast), border-color var(--dur-fast), color var(--dur-fast);
 }
 /* a disabled control doesn't answer the pointer; :where keeps each hover's weight */
-@media (hover: hover) { .btn:hover:where(:not(:disabled)) { border-color: var(--ink); } }
+@media (hover: hover) { .btn:hover:where(:not(:disabled)) { border-color: var(--rule-strong); background: var(--paper-2); } }
 .btn:active:where(:not(:disabled)) { background: var(--paper-2); }
 .btn:disabled { color: var(--ink-3); border-color: var(--rule); cursor: default; }
 .btn-primary { border-color: var(--act); background: var(--act); color: var(--act-ink); }
@@ -189,7 +190,7 @@ select.field option { background: var(--paper); color: var(--ink); }
 .badge, .count {
   display: inline-grid; place-items: center; min-width: 18px; height: 18px; padding: 0 4px;
   border-radius: var(--r); background: var(--ink); color: var(--paper);
-  font-family: var(--font-mono); font-size: var(--t-mark); line-height: 1;
+  font-family: var(--font-ui); font-size: var(--t-mark); line-height: 1;
 }
 /* a request count is small text on amber: the deeper text tone keeps it legible */
 .badge { background: var(--req); color: var(--paper); }
@@ -199,7 +200,7 @@ select.field option { background: var(--paper); color: var(--ink); }
 /* status: a mark and a word; the mark's form carries the state */
 .status {
   display: inline-flex; align-items: center; gap: 6px; flex: none;
-  font-family: var(--font-mono); font-size: var(--t-meta); color: var(--ink-2); text-transform: lowercase;
+  font-family: var(--font-ui); font-size: var(--t-meta); color: var(--ink-2); text-transform: lowercase;
 }
 .status::before {
   content: ''; width: 8px; height: 8px; border: 1px solid currentColor; border-radius: 1px;
@@ -238,7 +239,7 @@ select.field option { background: var(--paper); color: var(--ink); }
 .btn-primary[aria-busy='true'] { border-color: var(--act); background: var(--act); color: var(--act-ink); }
 .loading-line {
   display: flex; align-items: center; gap: 8px;
-  font-family: var(--font-mono); font-size: var(--t-meta); color: var(--ink-2); text-transform: lowercase;
+  font-family: var(--font-ui); font-size: var(--t-meta); color: var(--ink-2); text-transform: lowercase;
 }
 /* Retry follows the reason's last word, wherever the text wraps: a long
    reason must not push it onto a line of its own */
@@ -255,8 +256,8 @@ select.field option { background: var(--paper); color: var(--ink); }
 .skeleton { animation: skeleton-breathe 1.8s ease-in-out infinite; }
 kbd {
   display: inline-grid; place-items: center; min-width: 18px; height: 18px; padding: 0 4px;
-  border: 1px solid var(--rule-strong); border-radius: var(--r);
-  font-family: var(--font-mono); font-size: var(--t-mark); color: var(--ink-2); background: var(--paper);
+  border-radius: 4px;
+  font-family: var(--font-ui); font-size: var(--t-mark); color: var(--ink-2); background: var(--paper-2);
 }
 /* a hint: one key per box, alternatives apart, then its word after one gap */
 .keys { display: inline-flex; align-items: center; gap: 2px; white-space: nowrap; vertical-align: middle; }
@@ -266,9 +267,9 @@ kbd {
 /* agents are peers: a letter in a box, same weight for both */
 .avatar {
   flex: none; display: grid; place-items: center;
-  width: 22px; height: 22px; border: 1px solid var(--rule-strong); border-radius: var(--r);
-  font-family: var(--font-mono); font-size: var(--t-meta); line-height: 1; color: var(--ink);
-  background: var(--paper);
+  width: 22px; height: 22px; border-radius: var(--r);
+  font-family: var(--font-ui); font-size: var(--t-meta); font-weight: 500; line-height: 1; color: var(--ink-2);
+  background: var(--paper-3);
 }
 .avatar-sm { width: 20px; height: 20px; font-size: var(--t-mark); }
 
@@ -301,7 +302,7 @@ kbd {
 /* one control height across the bar: the toggles as tall as Focus and Sign out */
 @media (min-width: 721px) { .topbar-end .btn-icon { width: 30px; height: 30px; } }
 @media (max-width: 720px) { .topbar-end .signout, .focus-toggle, .shortcuts-help, .bar-rule { display: none; } }
-.shortcuts-help { font-family: var(--font-mono); font-size: var(--t-small); }
+.shortcuts-help { font-family: var(--font-ui); font-size: var(--t-small); }
 /* signing out asks once, in place */
 .signout-confirm { display: flex; align-items: center; gap: 6px; white-space: nowrap; }
 .sidebar-signout.signout-confirm { justify-content: center; }
@@ -313,7 +314,7 @@ svg.bar-icon { display: none; }
 .show-sessions { display: inline-flex; align-items: center; gap: 4px; }
 @media (max-width: 720px) { .show-sessions { display: none; } }
 /* the masthead only: a markdown heading in agent text is no masthead */
-.brand h1 { font-family: var(--font-mono); font-size: var(--t-body); font-weight: 400; letter-spacing: 0.01em; white-space: nowrap; }
+.brand h1 { font-family: var(--font-ui); font-size: var(--t-body); font-weight: 400; letter-spacing: 0.01em; white-space: nowrap; }
 /* tablets and small laptops: the bar's three parts fit side by side. The
    modes stay centred between the masthead and the controls, Show sessions
    is its icon and Focus and Sign out draw tighter */
@@ -353,7 +354,7 @@ svg.bar-icon { display: none; }
 .health {
   /* one line: "reconnecting · 3s" broken in two reads as two things */
   display: inline-flex; align-items: center; gap: 7px; white-space: nowrap; flex: none;
-  font-family: var(--font-mono); font-size: var(--t-meta); color: var(--ink-3);
+  font-family: var(--font-ui); font-size: var(--t-meta); color: var(--ink-3);
 }
 .health .dot { width: 7px; height: 7px; border: 1px solid currentColor; border-radius: 1px; }
 .health-online .dot { background: currentColor; }
@@ -416,7 +417,7 @@ button.health { border: 0; background: none; padding: 0; }
 .new-session-open {
   display: flex; align-items: center; gap: 8px; height: 36px; padding: 0 2px;
   border: 0; border-bottom: 1px solid var(--rule); background: none; text-align: left;
-  font-family: var(--font-mono); font-size: var(--t-meta); color: var(--ink);
+  font-family: var(--font-ui); font-size: var(--t-meta); color: var(--ink);
   transition: color var(--dur-fast);
 }
 @media (hover: hover) { .new-session-open:hover { color: var(--act); } }
@@ -499,7 +500,7 @@ button.health { border: 0; background: none; padding: 0; }
 .group-toggle {
   flex: 1; min-width: 0; display: flex; align-items: center; gap: 7px;
   height: 26px; padding: 0 2px; border: 0; background: none; text-align: left;
-  font-family: var(--font-mono); font-size: var(--t-meta); color: var(--ink-2);
+  font-family: var(--font-ui); font-size: var(--t-meta); color: var(--ink-2);
 }
 @media (hover: hover) { .group-toggle:hover:not(:disabled) { color: var(--ink); } }
 .group-toggle:disabled { cursor: default; }
@@ -516,8 +517,7 @@ button.health { border: 0; background: none; padding: 0; }
 @media (hover: none) { .group-new { opacity: 1; } }
 .group > .sessions { margin-left: 5px; padding-left: 10px; border-left: 1px solid var(--rule); }
 .bucket {
-  padding: 8px 8px 2px; font-family: var(--font-mono); font-size: var(--t-label); letter-spacing: 0.06em;
-  text-transform: uppercase; color: var(--ink-3);
+  padding: 8px 8px 2px; font-family: var(--font-ui); font-size: var(--t-label); color: var(--ink-3);
 }
 .group-more {
   justify-self: start; margin-left: 16px; height: 24px; padding: 0 2px; border: 0; background: none;
@@ -539,11 +539,11 @@ button.health { border: 0; background: none; padding: 0; }
   transition: background var(--dur-fast), border-color var(--dur-fast);
 }
 @media (hover: hover) { .session:hover { background: var(--paper-2); } }
-.session.active { background: var(--paper-2); border-color: var(--rule-strong); }
+.session.active { background: var(--paper-3); }
 .session.active .session-title { color: var(--ink); }
 .session-text { display: grid; min-width: 0; gap: 1px; container-type: inline-size; }
 .session-title { font-weight: 500; font-size: var(--t-small); color: var(--ink-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.session-meta { display: flex; align-items: center; gap: 8px; font-family: var(--font-mono); font-size: var(--t-label); color: var(--ink-3); min-width: 0; }
+.session-meta { display: flex; align-items: center; gap: 8px; font-family: var(--font-ui); font-size: var(--t-label); color: var(--ink-3); min-width: 0; }
 .session-status { display: inline-flex; align-items: center; gap: 5px; text-transform: lowercase; flex: none; white-space: nowrap; }
 .session-status::before { content: ''; flex: none; width: 7px; height: 7px; border: 1px solid currentColor; border-radius: 1px; }
 /* "waiting for you" is what may give way in a full row: it keeps "waiting"
@@ -555,7 +555,7 @@ button.health { border: 0; background: none; padding: 0; }
 .session-fork { flex: none; border: 1px dashed currentColor; padding: 0 4px; line-height: 1.3; text-transform: lowercase; }
 /* a worktree session names its branch, after a branch glyph; it is context,
    so it is what yields when the row is short of room */
-.session-branch { flex: 0 100 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--font-mono); font-size: var(--t-label); color: var(--ink-3); }
+.session-branch { flex: 0 100 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--font-ui); font-size: var(--t-label); color: var(--ink-3); }
 .session-branch::before { content: '⎇ '; }
 /* the worktree folder is gone; the branch stays. A narrow row keeps the
    branch's name and says "removed" by a dashed glyph (gone, as a detached
@@ -578,7 +578,7 @@ button.health { border: 0; background: none; padding: 0; }
 .session-status-waiting::before, .status-waiting::before { border-color: currentColor; background: currentColor; animation: none; }
 /* changed while the owner was away: the unseen label, with its dashed rule */
 .session-unseen, .group-unseen {
-  flex: none; font-family: var(--font-mono); font-size: var(--t-label); letter-spacing: 0.06em; text-transform: uppercase;
+  flex: none; font-family: var(--font-ui); font-size: var(--t-label);
   color: var(--ink); border-bottom: 1px dashed var(--ink); line-height: 1.2;
 }
 /* the age is short and reads whole: the branch beside it yields instead */
@@ -649,7 +649,7 @@ button.health { border: 0; background: none; padding: 0; }
 .account .device-code code { padding: 0 4px; font-size: var(--t-body); letter-spacing: 0.1em; color: var(--ink); background: var(--act-wash); }
 .accounts-fold {
   display: flex; align-items: center; gap: 8px; padding: 0 2px; min-height: 24px;
-  border: 0; background: none; font-family: var(--font-mono); font-size: var(--t-meta); color: var(--ink-2); cursor: pointer;
+  border: 0; background: none; font-family: var(--font-ui); font-size: var(--t-meta); color: var(--ink-2); cursor: pointer;
 }
 .accounts-fold .chevron { transform: rotate(-90deg); transition: transform var(--dur-fast) var(--ease-out); }
 .accounts-fold[aria-expanded='true'] .chevron { transform: none; }
@@ -657,7 +657,7 @@ button.health { border: 0; background: none; padding: 0; }
 
 .quotas-details summary {
   display: flex; align-items: center; flex-wrap: wrap; gap: 4px 14px; cursor: pointer; list-style: none;
-  font-family: var(--font-mono); font-size: var(--t-meta); color: var(--ink-2);
+  font-family: var(--font-ui); font-size: var(--t-meta); color: var(--ink-2);
 }
 .quotas-details summary::-webkit-details-marker { display: none; }
 .quotas-details summary .chevron { margin-left: auto; transform: rotate(180deg); }
@@ -675,16 +675,16 @@ button.health { border: 0; background: none; padding: 0; }
 .quota { display: grid; gap: 8px; }
 .quota header { display: flex; justify-content: space-between; align-items: center; }
 .quota-agent { display: flex; align-items: center; gap: 8px; font-weight: 600; }
-.plan { font-family: var(--font-mono); font-size: var(--t-label); font-weight: 400; color: var(--ink-3); text-transform: lowercase; }
+.plan { font-family: var(--font-ui); font-size: var(--t-label); font-weight: 400; color: var(--ink-3); text-transform: lowercase; }
 .plan::before { content: '· '; }
 .window { display: grid; gap: 4px; }
-.window-line { display: flex; justify-content: space-between; color: var(--ink-2); font-family: var(--font-mono); font-size: var(--t-meta); }
+.window-line { display: flex; justify-content: space-between; color: var(--ink-2); font-family: var(--font-ui); font-size: var(--t-meta); }
 /* meters are measurement: a hairline track and a solid fill */
 .bar { height: 4px; background: var(--paper-3); box-shadow: inset 0 0 0 1px var(--rule); overflow: hidden; }
 .bar .fill { width: 100%; height: 100%; background: var(--ink); transform-origin: left; transition: transform 400ms var(--ease-out); }
 .bar-mid .fill { background: var(--req-mark); }
 .bar-high .fill { background: var(--bad); }
-.window small { color: var(--ink-3); font-family: var(--font-mono); font-size: var(--t-label); }
+.window small { color: var(--ink-3); font-family: var(--font-ui); font-size: var(--t-label); }
 
 /* ---------- chat: the document ---------- */
 .chat { display: flex; flex-direction: column; min-height: 0; min-width: 0; overflow: hidden; }
@@ -694,12 +694,12 @@ button.health { border: 0; background: none; padding: 0; }
 }
 .chat-header > .avatar { align-self: flex-start; margin-top: 2px; }
 .chat-heading { display: grid; min-width: 0; flex: 1 1 240px; gap: 1px; }
-.chat-heading h2 { font-size: var(--t-headline); font-weight: 600; line-height: 1.2; letter-spacing: -0.018em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chat-heading h2 { font-size: var(--t-title); font-weight: 600; line-height: 1.3; letter-spacing: -0.01em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .chat-path { font-family: var(--font-mono); font-size: var(--t-meta); color: var(--ink-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .chat-meta { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; margin-left: auto; }
 .chat-meta .health { font-size: var(--t-meta); }
-.reviewer { display: flex; gap: 8px; align-items: center; font-family: var(--font-mono); font-size: var(--t-meta); color: var(--ink-3); }
-.usage { font-family: var(--font-mono); font-size: var(--t-meta); color: var(--ink-3); }
+.reviewer { display: flex; gap: 8px; align-items: center; font-family: var(--font-ui); font-size: var(--t-meta); color: var(--ink-3); }
+.usage { font-family: var(--font-ui); font-size: var(--t-meta); color: var(--ink-3); }
 
 .scroll { flex: 1; min-height: 0; overflow: auto; padding: 18px var(--gutter) 16px; border-bottom: 1px solid var(--rule); scroll-padding-bottom: 16px; container: transcript / inline-size; }
 /* the text column, with a margin to its left for turn numbers */
@@ -711,7 +711,7 @@ button.health { border: 0; background: none; padding: 0; }
 
 .turn-no {
   position: absolute; left: -56px; top: 12px; width: 34px; text-align: right;
-  font-family: var(--font-mono); font-size: var(--t-small); color: var(--ink-3);
+  font-family: var(--font-ui); font-size: var(--t-small); color: var(--ink-3);
 }
 .item { min-width: 0; width: 100%; white-space: pre-wrap; overflow-wrap: anywhere; }
 /* a user turn opens a new section: a rule, a number, then the words */
@@ -781,7 +781,7 @@ button.health { border: 0; background: none; padding: 0; }
 }
 /* images fit the column; remote ones are links, failed ones a line of words */
 .md img { display: block; max-width: 100%; height: auto; margin: 4px 0; }
-.md-image-link, .md-image-missing { font-family: var(--font-mono); font-size: var(--t-meta); }
+.md-image-link, .md-image-missing { font-family: var(--font-ui); font-size: var(--t-meta); }
 .md-image-missing { color: var(--ink-3); }
 .md :not(pre) > code { padding: 0 3px; background: var(--paper-2); font-size: 0.9em; }
 .item .md pre.md-code { max-height: 420px; white-space: pre; margin-top: 0; }
@@ -797,8 +797,8 @@ button.health { border: 0; background: none; padding: 0; }
 .item.hook > summary::-webkit-details-marker { display: none; }
 .item.hook .item-icon { color: var(--ink-3); }
 .item.hook.outcome-running .item-icon { color: var(--ink); }
-.hook-name { font-family: var(--font-mono); color: var(--ink-2); white-space: nowrap; }
-.hook-badge { flex: none; font-family: var(--font-mono); font-size: var(--t-label); text-transform: uppercase; letter-spacing: 0.04em; color: var(--ink-3); }
+.hook-name { font-family: var(--font-ui); color: var(--ink-2); white-space: nowrap; }
+.hook-badge { flex: none; font-family: var(--font-ui); font-size: var(--t-label); color: var(--ink-3); }
 .hook-badge::before { content: '['; }
 .hook-badge::after { content: ']'; }
 .hook-badge.hook-success { color: var(--ink-3); }
@@ -814,13 +814,13 @@ button.health { border: 0; background: none; padding: 0; }
   font-size: var(--t-small); white-space: normal; color: var(--ink-2);
 }
 .decision-kw {
-  font-family: var(--font-mono); font-size: var(--t-meta); letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink);
+  font-family: var(--font-ui); font-size: var(--t-meta); color: var(--ink);
 }
 .decision-name { color: var(--ink-3); }
 .decision-name.struck { text-decoration: line-through; text-decoration-thickness: 1px; text-decoration-color: var(--ink-3); }
 .decision-text { flex-basis: 100%; white-space: pre-wrap; color: var(--ink-3); font-size: var(--t-meta); }
 .decision-denied .decision-kw { color: var(--bad); }
-.subagent-head { display: flex; align-items: center; gap: 8px; font-family: var(--font-mono); font-size: var(--t-meta); color: var(--ink-2); }
+.subagent-head { display: flex; align-items: center; gap: 8px; font-family: var(--font-ui); font-size: var(--t-meta); color: var(--ink-2); }
 /* Stop ends the task: a danger button right after what it stops, not at the far edge */
 .subagent-head .item-summary { flex: 0 1 auto; }
 .subagent-head .stop-task { flex: none; }
@@ -833,7 +833,7 @@ button.health { border: 0; background: none; padding: 0; }
 
 .unseen-mark {
   display: flex; align-items: center; gap: 10px; color: var(--ink);
-  font-family: var(--font-mono); font-size: var(--t-label); letter-spacing: 0.06em; text-transform: uppercase;
+  font-family: var(--font-ui); font-size: var(--t-label);
 }
 .unseen-mark::after { content: ''; flex: 1; border-top: 1px dashed var(--ink); }
 
@@ -843,7 +843,7 @@ button.health { border: 0; background: none; padding: 0; }
   padding: 8px 12px; font-size: var(--t-small);
   border: 1px solid var(--req-mark); background: var(--req-wash);
 }
-.banner-warn strong { font-family: var(--font-mono); font-weight: 400; text-transform: uppercase; letter-spacing: 0.04em; color: var(--req); }
+.banner-warn strong { font-family: var(--font-ui); font-weight: 400; color: var(--req); }
 .banner span { color: var(--ink-2); }
 .banner .banner-actions { margin-left: auto; display: flex; gap: 10px; align-items: center; color: var(--ink); }
 .banner-toggle { display: inline-flex; gap: 6px; align-items: center; font-size: var(--t-meta); cursor: pointer; }
@@ -851,15 +851,15 @@ button.health { border: 0; background: none; padding: 0; }
 .composer {
   display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px;
   width: calc(100% - 2 * var(--gutter)); max-width: var(--column); margin: 12px auto 14px;
-  padding: 6px 6px 6px 12px;
-  border: 1px solid var(--rule-strong); border-radius: var(--r); background: var(--paper);
+  padding: 8px 8px 8px 14px;
+  border: 1px solid var(--rule); border-radius: 12px; background: var(--paper-2);
   transition: border-color var(--dur-fast);
 }
-@media (hover: hover) { .composer:hover { border-color: var(--ink-3); } }
-/* the composer holds focus most of the session: a doubled ink frame, not
+@media (hover: hover) { .composer:hover { border-color: var(--rule-strong); } }
+/* the composer holds focus most of the session: a quiet stronger edge, not
    a standing blue one, so blue keeps meaning "press this" (the caret is
    still blue) */
-.composer:focus-within { border-color: var(--ink); box-shadow: 0 0 0 1px var(--ink); }
+.composer:focus-within { border-color: var(--rule-strong); }
 .composer textarea {
   flex: 1; min-width: 0; min-height: 30px; max-height: 40vh; padding: 5px 0;
   border: 0; outline: none; background: transparent; resize: none;
@@ -879,7 +879,7 @@ button.health { border: 0; background: none; padding: 0; }
 .model-button {
   display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 6px 0 8px;
   border: 1px solid var(--rule-strong); border-radius: var(--r);
-  background: var(--paper); color: var(--ink); font-family: var(--font-mono); font-size: var(--t-meta);
+  background: var(--paper); color: var(--ink); font-family: var(--font-ui); font-size: var(--t-meta);
   transition: border-color var(--dur-fast);
 }
 .model-button[aria-expanded='true'] { border-color: var(--ink); }
@@ -912,7 +912,7 @@ button.health { border: 0; background: none; padding: 0; }
 .effort-options { display: flex; flex-wrap: wrap; border: 1px solid var(--rule-strong); border-radius: var(--r); }
 .effort-options button {
   flex: 1; min-width: 48px; height: 26px; border: 0; background: none;
-  color: var(--ink-3); font-family: var(--font-mono); font-size: var(--t-meta);
+  color: var(--ink-3); font-family: var(--font-ui); font-size: var(--t-meta);
 }
 .effort-options button + button { border-left: 1px solid var(--rule-strong); }
 @media (hover: hover) { .effort-options button:hover { color: var(--ink); } }
@@ -962,8 +962,7 @@ button.health { border: 0; background: none; padding: 0; }
   font-size: var(--t-title); font-weight: 600; line-height: 1.3; letter-spacing: -0.01em;
 }
 .request-kw {
-  font-family: var(--font-mono); font-size: var(--t-small); font-weight: 400; letter-spacing: 0.06em;
-  text-transform: uppercase; color: var(--req);
+  font-family: var(--font-ui); font-size: var(--t-small); font-weight: 400; color: var(--req);
 }
 .request.question .request-kw { color: var(--act); }
 .request-title::after {
@@ -971,7 +970,7 @@ button.health { border: 0; background: none; padding: 0; }
   transform: scaleX(var(--strike, 0)); transform-origin: left;
 }
 .request-prompt { color: var(--ink-2); }
-.request-tool { justify-self: start; font-family: var(--font-mono); font-size: var(--t-meta); color: var(--ink); }
+.request-tool { justify-self: start; font-family: var(--font-ui); font-size: var(--t-meta); color: var(--ink); }
 .request-tool::before { content: 'tool: '; color: var(--ink-3); }
 .request-input {
   margin: 0; padding: 8px 12px; max-height: 220px; overflow: auto;
@@ -1016,12 +1015,11 @@ button.health { border: 0; background: none; padding: 0; }
 @container tray-line (width < 360px) { .tray-actions kbd { display: none; } }
 .tray-actions { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 10px 9px; border: 1px solid var(--rule); border-top: 0; background: var(--paper); }
 .request-kind {
-  grid-row: span 2; font-family: var(--font-mono); font-size: var(--t-label); letter-spacing: 0.04em;
-  text-transform: uppercase; color: var(--req);
+  grid-row: span 2; font-family: var(--font-ui); font-size: var(--t-label); color: var(--req);
 }
 .request-kind.kind-question { color: var(--act); }
 .request-label { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.request-session { font-family: var(--font-mono); font-size: var(--t-meta); color: var(--ink-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.request-session { font-family: var(--font-ui); font-size: var(--t-meta); color: var(--ink-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tray-empty { display: none; }
 
 /* ---------- dock ---------- */
@@ -1044,7 +1042,7 @@ button.health { border: 0; background: none; padding: 0; }
 .rail-count {
   position: absolute; top: -4px; right: -5px; min-width: 15px; height: 15px; padding: 0 3px;
   border-radius: var(--r); background: var(--ink); color: var(--paper);
-  font-family: var(--font-mono); font-size: var(--t-mark); line-height: 15px; text-align: center;
+  font-family: var(--font-ui); font-size: var(--t-mark); line-height: 15px; text-align: center;
 }
 .rail-requests .rail-count { background: var(--req); }
 .rail-collapse { margin-top: auto; }
@@ -1079,7 +1077,7 @@ button.health { border: 0; background: none; padding: 0; }
 .terminal-tabs { list-style: none; margin: 0 0 -1px; padding: 0; display: flex; flex: 1; min-width: 0; overflow-x: auto; overflow-y: hidden; scrollbar-width: thin; }
 .terminal-tabs li { flex: none; display: flex; align-items: center; border-bottom: 2px solid transparent; }
 .terminal-tabs li:has([aria-selected='true']) { border-bottom-color: var(--ink); }
-.terminal-tabs button { height: 30px; border: 0; background: none; color: var(--ink-3); font-family: var(--font-mono); font-size: var(--t-meta); }
+.terminal-tabs button { height: 30px; border: 0; background: none; color: var(--ink-3); font-family: var(--font-ui); font-size: var(--t-meta); }
 .terminal-tabs [role='tab'] { display: inline-flex; align-items: center; gap: 6px; padding: 0 4px 0 10px; white-space: nowrap; }
 .terminal-tabs [role='tab'][aria-selected='true'] { color: var(--ink); }
 @media (hover: hover) { .terminal-tabs [role='tab']:hover { color: var(--ink); } }
@@ -1171,7 +1169,7 @@ button.health { border: 0; background: none; padding: 0; }
 .chip {
   display: inline-flex; align-items: center; gap: 6px;
   height: 24px; padding: 0 8px; border: 1px solid var(--rule-strong); border-radius: var(--r);
-  background: var(--paper); color: var(--ink-2); font-family: var(--font-mono); font-size: var(--t-meta);
+  background: var(--paper); color: var(--ink-2); font-family: var(--font-ui); font-size: var(--t-meta);
 }
 /* a long name stays one line inside its chip, cut at the end; the title has it all */
 .chip { max-width: 100%; min-width: 0; }
@@ -1199,8 +1197,8 @@ button.health { border: 0; background: none; padding: 0; }
 .folder-item:focus-within .folder-row { background: var(--paper-2); }
 @media (hover: hover) { .folder-row:hover { background: var(--paper-2); } }
 .folder-up { color: var(--ink-2); padding-right: 8px; }
-.folder-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--font-mono); font-size: var(--t-small); }
-.repo-badge { font-family: var(--font-mono); font-size: var(--t-label); color: var(--ink-3); }
+.folder-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--font-ui); font-size: var(--t-small); }
+.repo-badge { font-family: var(--font-ui); font-size: var(--t-label); color: var(--ink-3); }
 .repo-badge::before { content: '['; }
 .repo-badge::after { content: ']'; }
 .folder-item .pick {
@@ -1247,7 +1245,7 @@ button.health { border: 0; background: none; padding: 0; }
 }
 .toast-error { border-color: var(--bad); }
 .toast-body { display: grid; gap: 2px; min-width: 0; flex: 1; padding-top: 3px; }
-.toast-title { font-family: var(--font-mono); font-size: var(--t-label); letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-2); }
+.toast-title { font-family: var(--font-ui); font-size: var(--t-label); color: var(--ink-2); }
 .toast-error .toast-title { color: var(--bad); }
 .toast-text { font-size: var(--t-small); color: var(--ink); overflow-wrap: anywhere; }
 .toast-close { flex: none; }
@@ -1450,7 +1448,7 @@ pre.md-code { tab-size: 4; }
 .file-viewer-note { color: var(--ink-3); }
 .file-viewer-error { color: var(--bad); }
 .file-viewer-body img[data-loading] { visibility: hidden; height: 0; }
-.file-viewer-cut { margin: 0 0 8px; font-family: var(--font-mono); font-size: var(--t-meta); }
+.file-viewer-cut { margin: 0 0 8px; font-family: var(--font-ui); font-size: var(--t-meta); }
 .file-viewer-note a { color: var(--act); }
 /* a text file: numbered lines in one column as wide as the longest line */
 .fv-code {

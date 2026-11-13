@@ -6,7 +6,7 @@ import { token } from '../playwright.config'
 import { openNewSession, showPane } from './pane'
 
 // DESIGN.md's shared rules, checked where jsdom can't: one look for a
-// choice, one disabled style, one way to draw keys, mono for what labels.
+// choice, one disabled style, one way to draw keys, mono only for code and paths.
 
 const headers = { Authorization: `Bearer ${token}` }
 
@@ -126,12 +126,14 @@ test('a gone folder reads as a label, the path in mono on its own line, then why
   expect(await where.evaluate((el) => getComputedStyle(el).fontFamily)).toMatch(/PT Mono/)
 })
 
-test('folded output and diff summaries are mono like the lines beside them', async ({ page }) => {
+test('chrome is the system face: folded summaries and buttons are not mono, the file name is', async ({ page }) => {
   await newSession(page)
   await say(page, 'edit some files')
   await expect(page.locator('.item.assistant', { hasText: 'edited a.go' })).toBeVisible()
-  const diff = page.locator('.item.file .item-output > summary').first()
-  expect(await diff.evaluate((el) => getComputedStyle(el).fontFamily)).toMatch(/PT Mono/)
+  const font = (l: Locator) => l.evaluate((el) => getComputedStyle(el).fontFamily)
+  expect(await font(page.locator('.item.file .item-output > summary').first())).not.toMatch(/PT Mono/)
+  expect(await font(page.getByRole('button', { name: 'Send', exact: true }))).not.toMatch(/PT Mono/)
+  expect(await font(page.locator('.item.file code').first())).toMatch(/PT Mono/)
 })
 
 test('key hints: one key per box, the same gap before their words', async ({ page, isMobile }) => {
@@ -260,8 +262,9 @@ test('a permission card that takes focus draws one frame, not a ring around its 
 })
 
 // The type scale: few steps, far enough apart to carry different jobs. The
-// session title reads as the document's title, the REQUIRES block as the one
-// thing that needs you; the chrome uses the scale's sizes and nothing between.
+// session title is a quiet heading, a step above the transcript, not a
+// headline; the REQUIRES block leads as the one thing that needs you; the
+// chrome uses the scale's sizes and nothing between.
 const SCALE = ['11px', '11.5px', '12px', '13px', '14px', '15px', '16px', '18px', '20px', '26px', '32px']
 
 test('type keeps to the scale, the session title and the REQUIRES title lead', async ({ page, isMobile }) => {
@@ -270,8 +273,8 @@ test('type keeps to the scale, the session title and the REQUIRES title lead', a
   await expect(page.locator('.request.permission')).toBeVisible()
   const size = (sel: string) => page.locator(sel).first().evaluate((el) => parseFloat(getComputedStyle(el).fontSize))
   const transcript = await size('.item.user, .row-user_message .item')
-  expect(await size('.chat-heading h2')).toBeGreaterThanOrEqual(isMobile ? 20 : 26)
-  expect(await size('.chat-heading h2')).toBeGreaterThan(transcript * (isMobile ? 1.3 : 1.7))
+  expect(await size('.chat-heading h2')).toBe(18)
+  expect(await size('.chat-heading h2')).toBeGreaterThan(transcript)
   expect(await size('.request-title')).toBeGreaterThanOrEqual(18)
   expect(await size('.request-kw')).toBeGreaterThanOrEqual(13)
   const off = await page.evaluate((scale) => {
