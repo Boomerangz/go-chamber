@@ -345,11 +345,13 @@ describe('App', () => {
       },
     })
     render(<App />)
-    const output = await screen.findByText('Output · 3 lines')
-    const details = output.closest('details')!
+    // the command's own line opens its output: no row of its own until asked
+    const line = await screen.findByTitle('Output · 3 lines')
+    const details = line.closest('details')!
     expect(details).not.toHaveAttribute('open')
+    expect(line).toHaveTextContent('ls')
     expect(screen.getByText('Diff · 2 lines').closest('details')).not.toHaveAttribute('open')
-    await userEvent.click(output)
+    await userEvent.click(line)
     expect(details).toHaveAttribute('open')
   })
 
@@ -380,7 +382,7 @@ describe('App', () => {
       act(() => useSessionStore.setState((state) => ({
         chat: { ...state.chat, items: { ...state.chat.items, c1: { ...state.chat.items.c1, text: 'changed\noutput' } } },
       })))
-      expect(screen.getByText('Output · 2 lines')).toBeInTheDocument()
+      expect(screen.getByTitle('Output · 2 lines')).toBeInTheDocument()
     } finally {
       spy.mockRestore()
     }
@@ -557,7 +559,7 @@ describe('App', () => {
     await vi.waitFor(() => expect(api.createSession).toHaveBeenCalledWith('claude', '/w/alpha', undefined))
   })
 
-  it('shows hook runs that had something to say, with their outcome and text', async () => {
+  it('shows hook runs that stopped the agent or failed, not those that went fine', async () => {
     mockApi()
     useSessionStore.setState({
       activeId: 's1',
@@ -575,12 +577,11 @@ describe('App', () => {
     })
     render(<App />)
     const hooks = await screen.findAllByText(/hook$/)
-    expect(hooks.map((h) => h.textContent)).toEqual(['Stop hook', 'PreToolUse hook', 'SessionStart hook'])
+    expect(hooks.map((h) => h.textContent)).toEqual(['Stop hook', 'PreToolUse hook'])
     const items = document.querySelectorAll('.item.hook')
     expect(items[0].textContent).toContain('blocked')
     expect(items[0].textContent).toContain('Check your work.')
     expect(items[1].textContent).toContain('error')
-    expect(items[2].textContent).toContain('ok')
     expect(items[0].tagName).toBe('DETAILS')
   })
 

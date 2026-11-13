@@ -5,12 +5,12 @@ import { icon } from '../icon'
 
 const next: Record<Hooks, Hooks> = { some: 'all', all: 'off', off: 'some' }
 const titles: Record<Hooks, string> = {
-  some: 'Hooks that said something are shown; click for all hooks',
+  some: 'Hooks that stopped the agent or failed are shown; click for all hooks',
   all: 'All hooks are shown; click to hide them',
-  off: 'Hooks are hidden, failed ones aside; click for hooks that said something',
+  off: 'Hooks are hidden, failed ones aside; click for hooks that stopped the agent',
 }
 const pressed: Record<Hooks, boolean | 'mixed'> = { some: 'mixed', all: true, off: false }
-const words: Record<Hooks, string> = { some: 'hooks that spoke', all: 'all hooks', off: 'no hooks' }
+const words: Record<Hooks, string> = { some: 'hooks that objected', all: 'all hooks', off: 'no hooks' }
 
 // HooksToggle steps through how many hook runs the transcript shows; it
 // sits with the app-wide things in the sessions sidebar's footer.

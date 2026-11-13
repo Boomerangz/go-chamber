@@ -122,6 +122,13 @@ describe('isBlank', () => {
     expect(isBlank({ id: 'm', sessionId: 's1', kind: 'assistant_message', status: 'completed', text: 'hi' })).toBe(false)
   })
 
+  it('hides finished reasoning without text, but not while it streams', () => {
+    expect(isBlank({ id: 'r', sessionId: 's1', kind: 'reasoning', status: 'completed', text: '' })).toBe(true)
+    expect(isBlank({ id: 'r', sessionId: 's1', kind: 'reasoning', status: 'completed' })).toBe(true)
+    expect(isBlank({ id: 'r', sessionId: 's1', kind: 'reasoning', status: 'streaming' })).toBe(false)
+    expect(isBlank({ id: 'r', sessionId: 's1', kind: 'reasoning', status: 'completed', text: 'why' })).toBe(false)
+  })
+
   it('hides a hook that had nothing to say, running or done', () => {
     expect(isBlank(hook({}))).toBe(true)
     expect(isBlank(hook({ text: '\n' }))).toBe(true)
@@ -165,8 +172,8 @@ describe('showsItem', () => {
   const blocked = hook({ outcome: 'blocked', text: 'no' })
   const blank: Item = { id: 'm', sessionId: 's1', kind: 'assistant_message', status: 'completed' }
 
-  it('shows hooks that said something by default', () => {
-    expect([said, silent, failed, blocked, blank].map((it) => showsItem(it, 'some'))).toEqual([true, false, true, true, false])
+  it('shows by default only hooks that stopped the agent or failed, not ones that went fine', () => {
+    expect([said, silent, failed, blocked, blank].map((it) => showsItem(it, 'some'))).toEqual([false, false, true, true, false])
   })
 
   it('shows every hook when asked to, but not blank messages', () => {

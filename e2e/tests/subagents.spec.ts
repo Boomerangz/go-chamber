@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test'
 import { token } from '../playwright.config'
-import { openNewSession } from './pane'
+import { narrow, openNewSession, showPane } from './pane'
 
 test('stops a background subagent task', async ({ page }) => {
   await page.goto(`/?token=${token}`)
@@ -13,7 +13,11 @@ test('stops a background subagent task', async ({ page }) => {
   await page.getByRole('button', { name: 'Send', exact: true }).click()
 
   await expect(page.getByText('subagent: Task')).toBeVisible()
-  // A hook on the subagent's command sits among its steps, not in the chat.
+  // A hook on the subagent's command sits among its steps, not in the chat;
+  // it went fine, so it shows once all hooks are asked for.
+  if (narrow(page)) await showPane(page, 'Sessions')
+  await page.getByRole('button', { name: 'Hooks' }).click()
+  if (narrow(page)) await showPane(page, 'Chat')
   await expect(page.locator('.subagent-items .item.hook')).toContainText('PreToolUse hook')
   await expect(page.locator('.items > li > .item.hook')).toHaveCount(0)
   await page.locator('.subagent .stop-task').click()

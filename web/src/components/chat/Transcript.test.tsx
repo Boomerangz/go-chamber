@@ -102,13 +102,14 @@ describe('tool calls', () => {
 })
 
 describe('output', () => {
-  it('opens failed output with its exit code and last line', () => {
+  it('opens failed output under its own line, with the exit code', () => {
     const { container } = show(item({ kind: 'command', status: 'failed', exitCode: 2, input: { command: 'make' }, text: 'building\nerror: boom\n' }))
     const output = container.querySelector('details.item-output') as HTMLDetailsElement
     expect(output.open).toBe(true)
+    expect(output.querySelector('summary')).toHaveTextContent('make')
     const tag = screen.getByText('exit 2')
     expect(tag).toHaveClass('exit-tag', 'exit-bad')
-    expect(container.querySelector('.item-output-preview')).toHaveTextContent('error: boom')
+    expect(output.querySelector('pre')).toHaveTextContent('error: boom')
   })
 
   it('says a denied command never ran, without an exit code or a failure', () => {
@@ -123,10 +124,28 @@ describe('output', () => {
     expect(screen.queryByText('not run')).toBeNull()
   })
 
-  it('keeps successful output folded and its exit code quiet', () => {
+  it('folds successful output behind the command line itself, with no exit tag', () => {
     const { container } = show(item({ kind: 'command', exitCode: 0, input: { command: 'ls' }, text: 'a\nb' }))
-    expect((container.querySelector('details.item-output') as HTMLDetailsElement).open).toBe(false)
-    expect(screen.getByText('exit 0')).not.toHaveClass('exit-bad')
+    const output = container.querySelector('details.item-output') as HTMLDetailsElement
+    expect(output.open).toBe(false)
+    expect(output.querySelector('summary')).toHaveTextContent('ls')
+    expect(container.querySelector('.item-output-preview')).toBeNull()
+    expect(screen.queryByText('exit 0')).toBeNull()
+  })
+
+  it('folds a tool’s output with its input behind its one line', () => {
+    const { container } = show(item({ kind: 'tool_call', name: 'Read', input: { file_path: '/p/a.go' }, text: 'package a' }))
+    const line = container.querySelector('details.tool-line') as HTMLDetailsElement
+    expect(line.open).toBe(false)
+    expect(line.querySelector('.item-output pre')).toHaveTextContent('package a')
+    expect(container.querySelectorAll('.item.tool > .item-output')).toHaveLength(0)
+  })
+
+  it('folds a tool’s output behind its line when it has no input to show', () => {
+    const { container } = show(item({ kind: 'tool_call', name: 'TodoRead', text: 'nothing to do' }))
+    const output = container.querySelector('details.item-output.headed') as HTMLDetailsElement
+    expect(output.open).toBe(false)
+    expect(output.querySelector('summary')).toHaveTextContent('TodoRead')
   })
 
   it('copies output', async () => {

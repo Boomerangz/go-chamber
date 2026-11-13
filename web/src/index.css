@@ -541,15 +541,17 @@ button.health { border: 0; background: none; padding: 0; }
 @media (hover: hover) { .session:hover { background: var(--paper-2); } }
 .session.active { background: var(--paper-3); }
 .session.active .session-title { color: var(--ink); }
-.session-text { display: grid; min-width: 0; gap: 1px; container-type: inline-size; }
-.session-title { font-weight: 500; font-size: var(--t-small); color: var(--ink-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.session-meta { display: flex; align-items: center; gap: 8px; font-family: var(--font-ui); font-size: var(--t-label); color: var(--ink-3); min-width: 0; }
+.session-text { display: flex; flex-wrap: wrap; align-items: center; gap: 1px 8px; min-width: 0; container-type: inline-size; }
+.session-title { flex: 1 1 8em; min-width: 0; font-weight: 500; font-size: var(--t-small); color: var(--ink-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* one line where it fits: the title, then what it is doing and when on its
+   right; a row with more to say (waiting, a branch) takes a second line */
+.session-meta { flex: 0 1 auto; margin-left: auto; display: flex; align-items: center; gap: 6px; font-family: var(--font-ui); font-size: var(--t-label); color: var(--ink-3); min-width: 0; }
+/* the row's state is its mark alone, the word clipped behind it (screen
+   readers and the tooltip still have it); waiting for you keeps its word */
+.session-meta .session-status:not(.session-status-waiting) { width: 7px; overflow: hidden; white-space: nowrap; }
 .session-status { display: inline-flex; align-items: center; gap: 5px; text-transform: lowercase; flex: none; white-space: nowrap; }
 .session-status::before { content: ''; flex: none; width: 7px; height: 7px; border: 1px solid currentColor; border-radius: 1px; }
-/* "waiting for you" is what may give way in a full row: it keeps "waiting"
-   on a narrow row, and ends in an ellipsis before the row spills */
-.session-meta > .session-status-waiting { flex: 0 10 auto; min-width: calc(8ch + 12px); }
-.session-status-waiting .status-word { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.session-meta > .session-status-waiting { flex: none; }
 .session-status-running { color: var(--ink); }
 .session-status-running::before { background: currentColor; }
 .session-fork { flex: none; border: 1px dashed currentColor; padding: 0 4px; line-height: 1.3; text-transform: lowercase; }
@@ -586,7 +588,6 @@ button.health { border: 0; background: none; padding: 0; }
 @container (max-width: 240px) {
   .session-meta { gap: 4px; }
   .status-more { display: none; }
-  .session-meta > .session-status-waiting { min-width: calc(7ch + 12px); }
   /* an archived row that waits says "archived" by its fold alone */
   .session-meta:has(.badge) .time-more { display: none; }
 }
@@ -631,8 +632,9 @@ button.health { border: 0; background: none; padding: 0; }
 /* a finger's targets: on a phone by its width, and on any touch screen (a
    tablet keeps the wide layout but not a mouse's precision) */
 @media (max-width: 720px), (pointer: coarse) {
-  /* the row menu is always shown here: keep the row's text clear of it */
-  .session { padding-right: 44px; }
+  /* the row menu is always shown here: keep the row's text clear of it, and
+     the one-line row as tall as the finger-sized "⋯" over it */
+  .session { padding-right: 44px; min-height: 44px; }
   .group-new { width: 40px; height: 40px; }
   .group-more { min-height: 40px; }
   .group-toggle { height: 40px; }

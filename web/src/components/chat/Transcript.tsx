@@ -113,9 +113,9 @@ function ItemView({ node, onStopTask, onRetry, onEdit }: ItemViewProps) {
       )
     case 'error':
       return <ErrorView item={item} onRetry={onRetry} />
-    case 'command':
-      return (
-        <div className={`item command state-${item.status}`}>
+    case 'command': {
+      const head = (
+        <>
           <ItemIcon label="command" item={item}>
             <Terminal {...icon(13)} />
           </ItemIcon>
@@ -124,7 +124,8 @@ function ItemView({ node, onStopTask, onRetry, onEdit }: ItemViewProps) {
               {commandText(item)}
             </code>
             {item.exitCode !== undefined ? (
-              <span className={`exit-tag${item.exitCode !== 0 ? ' exit-bad' : ''}`}>exit {item.exitCode}</span>
+              // a clean exit says nothing: only a failing code is tagged
+              item.exitCode !== 0 && <span className="exit-tag exit-bad">exit {item.exitCode}</span>
             ) : item.status === 'stopped' ? (
               <StopTag item={item} />
             ) : (
@@ -132,9 +133,14 @@ function ItemView({ node, onStopTask, onRetry, onEdit }: ItemViewProps) {
               item.status === 'completed' && <span className="exit-tag">not run</span>
             )}
           </span>
-          {item.text && <Folded label="Output" text={item.text} open={failed} streaming={live(item)} preview />}
+        </>
+      )
+      return (
+        <div className={`item command state-${item.status}`}>
+          {item.text ? <Folded label="Output" head={head} text={item.text} open={failed} streaming={live(item)} /> : head}
         </div>
       )
+    }
     case 'file_change': {
       const lines = item.diff ? parseUnified(item.diff) : editDiff(item.input)
       return (
@@ -192,18 +198,23 @@ function ItemView({ node, onStopTask, onRetry, onEdit }: ItemViewProps) {
       // The diff shows what an edit's input says; other input folds behind
       // the line itself rather than a row of its own.
       const input = diffed || asked.length > 0 ? undefined : toolInput(item.input)
+      const output = item.text ? <Folded label="Output" text={item.text} open={failed} streaming={live(item)} preview /> : null
       return (
         <div className={`item tool state-${item.status}`}>
           {input ? (
-            <details className="tool-line">
+            // the line opens its input, and the output under it: one row folded
+            <details className="tool-line" open={(failed && !!item.text) || undefined}>
               <summary title="Show input">{head}</summary>
               <div className="item-output-body">
                 <pre>{input}</pre>
                 <CopyButton text={input} className="item-output-copy" />
               </div>
+              {output}
             </details>
-          ) : (
+          ) : diffed || !item.text ? (
             head
+          ) : (
+            <Folded label="Output" head={head} text={item.text} open={failed} streaming={live(item)} />
           )}
           {asked.map((q, i) => (
             <p key={i} className="question-asked">
@@ -211,7 +222,7 @@ function ItemView({ node, onStopTask, onRetry, onEdit }: ItemViewProps) {
             </p>
           ))}
           {diffed && <DiffFold lines={edit} />}
-          {item.text && <Folded label="Output" text={item.text} open={failed} streaming={live(item)} preview />}
+          {diffed && output}
         </div>
       )
     }
@@ -546,6 +557,7 @@ const Folded = memo(function Folded({
   streaming = false,
   preview = false,
   stat,
+  head,
   children,
 }: {
   label: string
@@ -554,6 +566,9 @@ const Folded = memo(function Folded({
   streaming?: boolean
   preview?: boolean
   stat?: string
+  // head, when given, is the item's own line: it opens the fold, so the
+  // output takes no row of its own until asked for
+  head?: ReactNode
   children?: ReactNode
 }) {
   const lines = text.replace(/\n$/, '').split('\n')
@@ -571,24 +586,28 @@ const Folded = memo(function Folded({
   }, [text, streaming])
   return (
     <details
-      className="item-output"
+      className={head ? 'item-output headed' : 'item-output'}
       open={open || undefined}
       onToggle={(e) => {
         setShown(e.currentTarget.open)
         if (streaming && e.currentTarget.open) toEnd()
       }}
     >
-      <summary>
-        <span className="item-output-label">
-          {label} ·{' '}
-          {stat ? <span className="diff-stat">{stat}</span> : lineCount(lines.length)}
-        </span>
-        {last && (
-          <span className="item-output-preview" title={last}>
-            {last}
+      {head ? (
+        <summary title={`${label} · ${lineCount(lines.length)}`}>{head}</summary>
+      ) : (
+        <summary>
+          <span className="item-output-label">
+            {label} ·{' '}
+            {stat ? <span className="diff-stat">{stat}</span> : lineCount(lines.length)}
           </span>
-        )}
-      </summary>
+          {last && (
+            <span className="item-output-preview" title={last}>
+              {last}
+            </span>
+          )}
+        </summary>
+      )}
       <div className="item-output-body">
         {children ?? (
           <pre

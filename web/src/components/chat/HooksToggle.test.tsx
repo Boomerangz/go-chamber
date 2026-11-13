@@ -10,11 +10,11 @@ beforeEach(() => {
 })
 
 describe('HooksToggle', () => {
-  it('steps from hooks that spoke to all hooks to none and back, remembering it', async () => {
+  it('steps from hooks that objected to all hooks to none and back, remembering it', async () => {
     render(<HooksToggle />)
     const button = screen.getByRole('button', { name: 'Hooks' })
     expect(button).toHaveAttribute('aria-pressed', 'mixed')
-    expect(button).toHaveAttribute('title', expect.stringMatching(/^Hooks that said something/))
+    expect(button).toHaveAttribute('title', expect.stringMatching(/^Hooks that stopped the agent or failed/))
     await userEvent.click(button)
     expect(button).toHaveAttribute('aria-pressed', 'true')
     expect(loadLayout().hooks).toBe('all')

@@ -38,14 +38,16 @@ export function prune(nodes: ItemNode[], keep: (item: Item) => boolean): ItemNod
   return out
 }
 
-// Hooks is how much of the hooks the transcript shows: those that said
-// something (some), every run (all), or only the ones that failed (off).
+// Hooks is how much of the hooks the transcript shows: those that stopped
+// the agent or failed (some), every run (all), or only the failed (off).
 export type Hooks = 'off' | 'some' | 'all'
 
 // showsItem says whether the transcript shows an item under the hooks setting.
 export function showsItem(item: Item, hooks: Hooks): boolean {
-  if (item.kind !== 'hook' || hooks === 'some') return !isBlank(item)
-  return hooks === 'all' || item.outcome === 'error' || item.status === 'failed'
+  if (item.kind !== 'hook') return !isBlank(item)
+  const failed = item.outcome === 'error' || item.status === 'failed'
+  if (hooks === 'some') return failed || item.outcome === 'blocked'
+  return hooks === 'all' || failed
 }
 
 import type { Session } from './api'
@@ -86,7 +88,7 @@ export function isBlank(item: Item): boolean {
   if (item.kind === 'hook') {
     return !item.text?.trim() && item.outcome !== 'blocked' && item.outcome !== 'error' && item.status !== 'failed'
   }
-  return item.kind === 'assistant_message' && item.status === 'completed' && !item.text?.trim()
+  return (item.kind === 'assistant_message' || item.kind === 'reasoning') && item.status === 'completed' && !item.text?.trim()
 }
 
 // shownFrom is the first row at or after id in order, so a mark set on an

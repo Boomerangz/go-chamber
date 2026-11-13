@@ -42,6 +42,18 @@
 .origin-tag::after { content: ']'; }
 .item.user .origin-tag { display: block; margin-bottom: 2px; }
 
+/* output folded behind the item's own line: the line is the summary */
+.item-output.headed { margin-top: 0; }
+.item-output.headed > summary {
+  display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: 8px; align-items: baseline;
+  color: inherit; font: inherit;
+}
+.item-output.headed > summary::before { content: none; }
+@media (hover: hover) {
+  .item-output.headed > summary:hover { color: inherit; }
+  .item-output.headed > summary:hover code { text-decoration: underline; text-decoration-color: var(--rule-strong); text-underline-offset: 4px; }
+}
+
 /* folded output: label, then its last line while closed */
 .item-output { grid-column: 1 / -1; margin-top: 4px; }
 .item-output > summary { cursor: pointer; color: var(--ink-3); font-family: var(--font-ui); font-size: var(--t-meta); user-select: none; }
