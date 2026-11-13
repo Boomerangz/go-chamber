@@ -1,15 +1,8 @@
 import { useEffect, useState } from 'react'
 import Markdown from '../markdown/Markdown'
 
-// lastLine is the newest non-empty line of streaming thoughts, for the preview.
-function lastLine(text: string): string | undefined {
-  const lines = text.split('\n')
-  for (let i = lines.length - 1; i >= 0; i--) {
-    const line = lines[i]!.replace(/[*_`#>]+/g, '').trim()
-    if (line) return line
-  }
-  return undefined
-}
+// plainLines are the thoughts' non-empty lines without markdown marks.
+const plainLines = (text: string) => text.split('\n').map((l) => l.replace(/[*_`#>]+/g, '').trim()).filter(Boolean)
 
 // thoughtFor reads how long the agent thought, as the summary says it.
 function thoughtFor(ms: number): string {
@@ -20,7 +13,8 @@ function thoughtFor(ms: number): string {
 // Hidden thinking can grow for many streaming batches. Parse it only when
 // the user opens the block, using the latest text rather than a cached prefix.
 // While it streams, the summary shows its newest line; once done, how long
-// the thinking took when this view saw it start, or just "Thought".
+// the thinking took when this view saw it start, or just "Thought", and the
+// line it started with.
 export default function ReasoningView({ text, streaming = false }: { text: string; streaming?: boolean }) {
   const [open, setOpen] = useState(false)
   // started is set only when the view saw the thinking begin.
@@ -30,7 +24,8 @@ export default function ReasoningView({ text, streaming = false }: { text: strin
     // eslint-disable-next-line react/set-state-in-effect -- the end is read from the clock once
     if (!streaming && started !== null) setTook((t) => t ?? Date.now() - started)
   }, [streaming, started])
-  const preview = streaming && !open ? lastLine(text) : undefined
+  const lines = open ? [] : plainLines(text)
+  const preview = streaming ? lines.at(-1) : lines[0]
   return (
     <details className="item reasoning" onToggle={(event) => setOpen(event.currentTarget.open)}>
       <summary className={streaming ? 'streaming' : undefined}>

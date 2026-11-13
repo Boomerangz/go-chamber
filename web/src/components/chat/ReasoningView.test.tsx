@@ -20,7 +20,8 @@ it('parses reasoning only while expanded and opens the latest streamed text', as
   view.rerender(<ReasoningView text="updated while open" />)
   expect(screen.getByText('updated while open')).toBeInTheDocument()
   await userEvent.click(screen.getByText('Thought'))
-  await waitFor(() => expect(screen.queryByText('updated while open')).toBeNull())
+  // closed, the body goes; only the summary's preview line stays
+  await waitFor(() => expect(view.container.querySelector('details > p')).toBeNull())
   parses.mockClear()
   view.rerender(<ReasoningView text="updated while closed" />)
   expect(parses).not.toHaveBeenCalled()
@@ -71,4 +72,11 @@ it('rounds a quick thought up to a second and reads minutes past a minute', () =
   vi.setSystemTime(125_000)
   slow.rerender(<ReasoningView text="x" />)
   expect(screen.getByText('Thought for 2m 5s')).toBeInTheDocument()
+})
+
+it('previews where a finished thought started, on its one line', () => {
+  const { container } = render(<ReasoningView text={'\n**The user** wants a short report.\nThen more.'} />)
+  const preview = container.querySelector('.reasoning-preview')!
+  expect(preview).toHaveTextContent(/^The user wants a short report\.$/)
+  expect(preview).toHaveAttribute('title', 'The user wants a short report.')
 })

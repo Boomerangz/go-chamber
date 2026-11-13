@@ -116,7 +116,7 @@
 .item.reasoning summary.streaming .reasoning-label { text-decoration: underline dashed var(--rule-strong); text-underline-offset: 4px; }
 .reasoning-preview {
   flex: 1 1 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-  font-family: var(--font-ui); font-size: var(--t-meta); color: var(--ink-3);
+  font-family: var(--font-ui); font-size: var(--t-meta); color: var(--ink-3); font-style: italic;
 }
 
 /* a run of finished tool lines, folded into one line that says what they did */

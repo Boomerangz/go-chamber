@@ -11,16 +11,26 @@ const LOOK_MIN = 2
 // keep a line of their own.
 const EDITS = new Set(['Edit', 'MultiEdit', 'Write', 'NotebookEdit'])
 
-// groupable: a finished tool line with nothing to say on its own. Edits, a
-// failed line, a command that exited non-zero and anything still running
-// stay out.
+// groupable: a finished tool line. Edits and anything still running stay
+// out; a failure folds in too and the group's line counts it.
 function groupable(node: ItemNode): boolean {
   const item = node.item
   if (item.kind !== 'tool_call' && item.kind !== 'command') return false
   if (item.name && EDITS.has(item.name)) return false
-  if (item.status !== 'completed' || node.children.length > 0) return false
+  if ((item.status !== 'completed' && item.status !== 'failed') || node.children.length > 0) return false
   // A command without an exit code never ran (it was denied).
-  return item.kind === 'command' ? item.exitCode === 0 : true
+  return item.kind === 'command' ? item.exitCode !== undefined : true
+}
+
+// thought: a finished thought between tool lines rides along with them.
+const thought = (node: ItemNode) => node.item.kind === 'reasoning' && node.item.status === 'completed'
+
+// failed says a tool line in a group went wrong.
+const failed = (item: Item) => item.status === 'failed' || (item.kind === 'command' && item.exitCode !== 0)
+
+// groupFailures counts a group's tool lines that went wrong.
+export function groupFailures(nodes: ItemNode[]): number {
+  return nodes.filter((n) => n.item.kind !== 'reasoning' && failed(n.item)).length
 }
 
 // looks: a tool that only reads or searches, so a pair of them says
@@ -37,12 +47,13 @@ export function groupTools(nodes: ItemNode[], split?: string | null): ItemNode[]
   const out: ItemNode[] = []
   let run: ItemNode[] = []
   const flush = () => {
-    if (run.length >= GROUP_MIN || (run.length >= LOOK_MIN && run.every(looks))) out.push({ item: run[0]!.item, children: [], group: run })
+    const tools = run.filter((n) => !thought(n))
+    if (tools.length >= GROUP_MIN || (tools.length >= LOOK_MIN && tools.every(looks))) out.push({ item: run[0]!.item, children: [], group: run })
     else out.push(...run)
     run = []
   }
   for (const node of nodes) {
-    if (!groupable(node)) {
+    if (!groupable(node) && !thought(node)) {
       flush()
       out.push(node)
       continue
@@ -97,6 +108,7 @@ function category(item: Item): Omit<Tally, 'keys' | 'calls'> & { key: string } {
 export function groupSummary(nodes: ItemNode[]): string {
   const tallies = new Map<string, Tally>()
   for (const { item } of nodes) {
+    if (item.kind === 'reasoning') continue
     const { key, ...rest } = category(item)
     const tally = tallies.get(key) ?? { ...rest, keys: new Set<string>(), calls: 0 }
     tally.calls++

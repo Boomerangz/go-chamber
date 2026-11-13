@@ -512,6 +512,15 @@ describe('tool groups', () => {
     expect(container.querySelectorAll('.tool-group-items > li')).toHaveLength(3)
     expect(container.querySelector('.tool-group-items .item-summary[title="/b"]')).toHaveTextContent('/b')
   })
+
+  it('counts its tool calls, not the thoughts between them, and says how many failed', () => {
+    const g = group()
+    g.group!.splice(1, 0, { item: item({ id: 'r', kind: 'reasoning', text: 'hmm' }), children: [] })
+    g.group!.push({ item: item({ id: 'x', kind: 'command', status: 'failed', exitCode: 2, input: { command: 'false' } }), children: [] })
+    const { container } = render(<ol><Row node={g} turn={undefined} unseen={false} reduced animateIn={false} onStopTask={vi.fn()} /></ol>)
+    expect(screen.getByText('4 tool calls')).toHaveClass('sr-only')
+    expect(container.querySelector('.tool-group .exit-bad')).toHaveTextContent('1 failed')
+  })
 })
 
 describe('decision records', () => {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { Item } from './api'
-import { groupSummary, groupTools, lastItemId } from './group'
+import { groupFailures, groupSummary, groupTools, lastItemId } from './group'
 import { sameNode, type ItemNode } from './tree'
 
 const nodeOf = (id: string, over: Partial<Item> = {}, children: ItemNode[] = []): ItemNode => ({
@@ -33,17 +33,35 @@ describe('groupTools', () => {
     expect(ids(out)).toEqual(['[a,b]', 'no'])
   })
 
-  it('keeps out what is running, failed, exited non-zero or has children', () => {
+  it('keeps out what is running or has children', () => {
     // Pairs of a tool that does more than look, so a pair alone stays apart.
     const node = (id: string, over: Partial<Item> = {}, children: ItemNode[] = []) => nodeOf(id, { name: 'TodoWrite', ...over }, children)
     const out = groupTools([
       node('a'), node('b'), node('run', { status: 'streaming' }),
-      node('c'), node('d'), node('bad', { status: 'failed' }),
-      node('e'), node('f'), node('exit', { kind: 'command', exitCode: 1 }),
       node('g'), node('h'), node('sub', { kind: 'subagent' }),
       node('i'), node('j'), node('kids', {}, [node('x')]),
     ])
-    expect(ids(out)).toEqual(['a', 'b', 'run', 'c', 'd', 'bad', 'e', 'f', 'exit', 'g', 'h', 'sub', 'i', 'j', 'kids'])
+    expect(ids(out)).toEqual(['a', 'b', 'run', 'g', 'h', 'sub', 'i', 'j', 'kids'])
+  })
+
+  it('takes a failed tool and a command that exited non-zero, and counts them', () => {
+    const node = (id: string, over: Partial<Item> = {}) => nodeOf(id, { name: 'TodoWrite', ...over })
+    const out = groupTools([node('a'), node('bad', { status: 'failed' }), node('exit', { kind: 'command', status: 'failed', exitCode: 1 })])
+    expect(ids(out)).toEqual(['[a,bad,exit]'])
+    expect(groupFailures(out[0]!.group!)).toBe(2)
+  })
+
+  it('carries the thoughts between tool lines into the group, without counting them', () => {
+    const r = (id: string) => node(id, { kind: 'reasoning', text: 'hmm' })
+    const ran = { kind: 'command' as const, exitCode: 0 }
+    const m = node('m', { kind: 'assistant_message' })
+    expect(ids(groupTools([node('a', ran), r('r1'), node('b', ran), r('r2'), node('c', ran), m]))).toEqual(['[a,r1,b,r2,c]', 'm'])
+    // two tools that do more than look stay apart, thoughts or not
+    expect(ids(groupTools([node('a', ran), r('r1'), node('b', ran), m]))).toEqual(['a', 'r1', 'b', 'm'])
+    expect(ids(groupTools([r('r1'), m]))).toEqual(['r1', 'm'])
+    // a thought still being written is not folded away
+    expect(ids(groupTools([node('a'), node('b'), node('t', { kind: 'reasoning', status: 'streaming' })]))).toEqual(['[a,b]', 't'])
+    expect(groupSummary([node('a'), r('r1'), node('b', { name: 'Grep' })])).toBe('Read 1 file · searched 1 pattern')
   })
 
   it('keeps edits on lines of their own: their diffs are what gets reviewed', () => {

@@ -1,9 +1,13 @@
 import { ChevronDown } from 'lucide-react'
 import { type TextSize, type Theme, useAppearanceStore } from '../../stores/appearance'
+import type { Hooks } from '../../lib/tree'
+import { useLayoutStore } from '../../stores/layout'
 import { icon } from '../icon'
 
 const themes: [Theme, string][] = [['system', 'System'], ['light', 'Light'], ['dark', 'Dark']]
 const sizes: [TextSize, string][] = [['small', 'Small'], ['default', 'Default'], ['large', 'Large']]
+// hooks: the ones that stopped the agent or failed, every run, or none but failures
+const hookChoices: [Hooks, string][] = [['some', 'Objected'], ['all', 'All'], ['off', 'None']]
 
 function Choice<T extends string>(props: { label: string; options: [T, string][]; value: T; onChange: (v: T) => void }) {
   return (
@@ -24,6 +28,8 @@ function Choice<T extends string>(props: { label: string; options: [T, string][]
 // sidebar's footer with the other app-wide things.
 export default function AppearanceSettings() {
   const { theme, text, wide, setTheme, setText, setWide } = useAppearanceStore()
+  const hooks = useLayoutStore((s) => s.hooks)
+  const setHooks = useLayoutStore((s) => s.setHooks)
   return (
     <details className="appearance">
       <summary>
@@ -32,6 +38,7 @@ export default function AppearanceSettings() {
       </summary>
       <Choice label="Theme" options={themes} value={theme} onChange={setTheme} />
       <Choice label="Text" options={sizes} value={text} onChange={setText} />
+      <Choice label="Hooks" options={hookChoices} value={hooks} onChange={setHooks} />
       <label className="appearance-wide">
         <input type="checkbox" checked={wide} onChange={(e) => setWide(e.target.checked)} />
         Wide transcript

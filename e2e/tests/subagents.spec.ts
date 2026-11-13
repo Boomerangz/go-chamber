@@ -16,7 +16,8 @@ test('stops a background subagent task', async ({ page }) => {
   // A hook on the subagent's command sits among its steps, not in the chat;
   // it went fine, so it shows once all hooks are asked for.
   if (narrow(page)) await showPane(page, 'Sessions')
-  await page.getByRole('button', { name: 'Hooks' }).click()
+  await page.locator('details.appearance > summary').click()
+  await page.getByRole('radiogroup', { name: 'Hooks' }).getByRole('radio', { name: 'All' }).click()
   if (narrow(page)) await showPane(page, 'Chat')
   await expect(page.locator('.subagent-items .item.hook')).toContainText('PreToolUse hook')
   await expect(page.locator('.items > li > .item.hook')).toHaveCount(0)

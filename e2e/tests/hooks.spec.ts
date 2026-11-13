@@ -23,17 +23,18 @@ for (const agent of ['Claude', 'Codex'] as const) {
     await hook.locator('summary').click()
     await expect(hook.locator('pre')).toHaveText('Check your work first.')
 
-    // The setting sits in the sessions sidebar's footer, a pane of its own
-    // on a phone.
-    const hooks = page.getByRole('button', { name: 'Hooks' })
-    const step = async () => {
+    // The setting sits under Appearance in the sessions sidebar's footer, a
+    // pane of its own on a phone.
+    const choose = async (name: string) => {
       if (narrow(page)) await showPane(page, 'Sessions')
-      await hooks.click()
+      const fold = page.locator('details.appearance')
+      if (!(await fold.evaluate((el: HTMLDetailsElement) => el.open))) await fold.locator('summary').click()
+      await page.getByRole('radiogroup', { name: 'Hooks' }).getByRole('radio', { name }).click()
       if (narrow(page)) await showPane(page, 'Chat')
     }
-    await step()
+    await choose('All')
     await expect(page.locator('.item.hook')).toHaveCount(2)
-    await step()
+    await choose('None')
     await expect(page.locator('.item.hook')).toHaveCount(0)
   })
 }

@@ -13,7 +13,7 @@ import { imageUrl, type Item, type TurnResult } from '../../lib/api'
 import { diffStat, diffText, editDiff, formatStat, parseUnified, type DiffLine } from '../../lib/diff'
 import { TURN_FAILED } from '../../lib/events'
 import { SessionFolder } from '../../lib/files'
-import { groupSummary } from '../../lib/group'
+import { groupFailures, groupSummary } from '../../lib/group'
 import { count, lineCount } from '../../lib/format'
 import { enter } from '../../lib/motion'
 import { relativePath } from '../../lib/path'
@@ -493,16 +493,19 @@ function SubagentView({ node, onStopTask }: { node: ItemNode; onStopTask: StopTa
 function GroupView({ nodes, onStopTask }: { nodes: ItemNode[]; onStopTask: StopTask }) {
   const [open, setOpen] = useState(false)
   const summary = groupSummary(nodes)
+  const calls = nodes.filter((n) => n.item.kind !== 'reasoning').length
+  const failures = groupFailures(nodes)
   return (
     <details className="item tool-group" onToggle={(e) => setOpen(e.currentTarget.open)}>
       <summary>
         <span className="item-icon">
           <ListTree {...icon(13)} />
-          <span className="sr-only">{nodes.length} tool calls</span>
+          <span className="sr-only">{calls} tool calls</span>
         </span>
         <span className="tool-group-label" title={summary}>
           {summary}
         </span>
+        {failures > 0 && <span className="exit-tag exit-bad">{failures} failed</span>}
       </summary>
       {open && (
         <ol className="tool-group-items">
