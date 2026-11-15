@@ -43,19 +43,33 @@ func (tx Tmux) socket() string {
 }
 
 // command runs tmux on the private socket without the user's config, and
-// outside any tmux the server itself runs in (tmux refuses to nest).
+// outside any tmux the server itself runs in (tmux refuses to nest). -u:
+// the web terminal is UTF-8 whatever the server's locale; without it tmux
+// draws every non-ASCII character as "_".
 func (tx Tmux) command(args ...string) *exec.Cmd {
-	cmd := exec.Command(tx.Bin, append([]string{"-L", tx.socket(), "-f", "/dev/null"}, args...)...)
+	cmd := exec.Command(tx.Bin, append([]string{"-u", "-L", tx.socket(), "-f", "/dev/null"}, args...)...)
 	cmd.Env = tmuxEnv(os.Environ())
 	return cmd
 }
 
+// tmuxEnv also gives the shells a UTF-8 locale when the server has none
+// (launchd starts it without one), so they read and edit non-ASCII input.
 func tmuxEnv(env []string) []string {
-	out := make([]string, 0, len(env)+1)
+	out := make([]string, 0, len(env)+2)
+	locale := false
 	for _, kv := range env {
-		if !strings.HasPrefix(kv, "TMUX=") && !strings.HasPrefix(kv, "TMUX_PANE=") {
-			out = append(out, kv)
+		if strings.HasPrefix(kv, "TMUX=") || strings.HasPrefix(kv, "TMUX_PANE=") {
+			continue
 		}
+		for _, k := range []string{"LANG=", "LC_ALL=", "LC_CTYPE="} {
+			if strings.HasPrefix(kv, k) && len(kv) > len(k) {
+				locale = true
+			}
+		}
+		out = append(out, kv)
+	}
+	if !locale {
+		out = append(out, "LANG=en_US.UTF-8")
 	}
 	return append(out, "TERM=xterm-256color")
 }

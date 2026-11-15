@@ -196,3 +196,33 @@ func waitOutput(t *testing.T, att *app.TerminalAttachment, want string) {
 		}
 	}
 }
+
+// A server started without a locale (launchd gives none) still shows
+// non-ASCII text: tmux would draw each such character as "_".
+func TestTmuxShowsCyrillicWithoutALocale(t *testing.T) {
+	for _, k := range []string{"LANG", "LC_ALL", "LC_CTYPE"} {
+		t.Setenv(k, "")
+	}
+	tx := newTmux(t)
+	p, r := startTmux(t, tx, "a7", t.TempDir())
+	defer func() { _ = p.Close() }()
+	_, _ = io.WriteString(p, "printf 'ru=\\320\\277\\321\\200\\320\\270\\320\\262\\320\\265\\321\\202\\n'\n")
+	r.waitFor(t, "ru=привет")
+}
+
+func TestTmuxEnvGivesShellsAUTF8LocaleOnlyWithoutOne(t *testing.T) {
+	has := func(env []string, kv string) bool {
+		for _, e := range env {
+			if e == kv {
+				return true
+			}
+		}
+		return false
+	}
+	if env := tmuxEnv([]string{"HOME=/h", "LANG="}); !has(env, "LANG=en_US.UTF-8") {
+		t.Fatalf("no locale: got %v", env)
+	}
+	if env := tmuxEnv([]string{"LC_CTYPE=ru_RU.UTF-8"}); has(env, "LANG=en_US.UTF-8") {
+		t.Fatalf("a set locale is kept as is: got %v", env)
+	}
+}
