@@ -122,3 +122,18 @@ func TestTitlerRunsOnceAndSkipsFailedTurns(t *testing.T) {
 		t.Fatal("the titler must be asked once per session")
 	}
 }
+
+func TestTitlerNamesACodexSessionToo(t *testing.T) {
+	titler := &fakeTitler{title: "Fibonacci"}
+	m, factory, _ := titleManager(t, map[domain.AgentKind]Titler{domain.AgentCodex: titler})
+	rt := newFakeRuntime("n1")
+	factory.runtimes = []*fakeRuntime{rt}
+	ctx := context.Background()
+	snap, _ := m.CreateSession(ctx, domain.AgentCodex, "/tmp/proj")
+	m.SendMessage(ctx, snap.ID, "write fibonacci")
+	rt.events <- domain.Event{SessionID: snap.ID, Type: domain.EventTurnEnded, Result: &domain.TurnResult{Text: "done"}}
+	eventually(t, "generated title", func() bool {
+		got, _ := m.GetSession(ctx, snap.ID)
+		return got.Title == "Fibonacci"
+	})
+}

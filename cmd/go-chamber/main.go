@@ -127,6 +127,8 @@ func run(ctx context.Context, args []string, out io.Writer) error {
 	if err := terminals.Restore(); err != nil {
 		_, _ = fmt.Fprintln(os.Stderr, "restore terminals:", err)
 	}
+	// Neither headless Claude nor Codex's app-server names its sessions.
+	titler := &claude.Titler{}
 	manager := app.NewManager(app.ManagerConfig{
 		Repo:          store.Sessions(),
 		Transcripts:   fsys.TranscriptFiles{Root: *dataDir},
@@ -138,7 +140,7 @@ func run(ctx context.Context, args []string, out io.Writer) error {
 		History:       events,
 		Models:        runtimes,
 		IdleTimeout:   *idle,
-		Titlers:       map[domain.AgentKind]app.Titler{domain.AgentClaude: &claude.Titler{}},
+		Titlers:       map[domain.AgentKind]app.Titler{domain.AgentClaude: titler, domain.AgentCodex: titler},
 		Eraser:        store,
 		Folders:       fsys.Reader{},
 		CLIs:          fsys.PathCLIs{},
