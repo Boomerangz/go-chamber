@@ -127,6 +127,14 @@ func (m *Mapper) mapNotification(method string, params json.RawMessage) []domain
 		}
 		events = append(events, domain.Event{SessionID: m.session, Type: domain.EventTurnEnded, Result: turnResult(n.Turn)})
 		return events
+	case "thread/name/updated":
+		var n struct {
+			ThreadName string `json:"threadName"`
+		}
+		if err := json.Unmarshal(params, &n); err != nil || strings.TrimSpace(n.ThreadName) == "" {
+			return nil
+		}
+		return []domain.Event{{SessionID: m.session, Type: domain.EventTitle, Title: n.ThreadName}}
 	case "turn/plan/updated":
 		var n planUpdatedNotification
 		if err := json.Unmarshal(params, &n); err != nil {

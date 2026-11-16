@@ -146,6 +146,12 @@ type RequestAnswer struct {
 	Content json.RawMessage
 }
 
+// Titler summarizes a conversation into a short name, for agents that do
+// not name their sessions themselves.
+type Titler interface {
+	Title(ctx context.Context, firstMessage, reply string) (string, error)
+}
+
 // RuntimeFactory starts agent processes.
 type RuntimeFactory interface {
 	Start(ctx context.Context, req StartRequest) (AgentRuntime, error)

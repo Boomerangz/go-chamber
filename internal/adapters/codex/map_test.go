@@ -508,3 +508,14 @@ func TestUserMessagesAreSkippedUnlessIncluded(t *testing.T) {
 		}
 	}
 }
+
+func TestMapThreadNameUpdatedBecomesTitle(t *testing.T) {
+	m := NewMapper("s1")
+	got := feedCodex(t, m, "thread/name/updated", `{"threadId":"th","threadName":"Подними VPN-маршрут"}`)
+	if len(got) != 1 || got[0].Type != domain.EventTitle || got[0].Title != "Подними VPN-маршрут" || got[0].SessionID != "s1" {
+		t.Fatalf("name update = %+v", got)
+	}
+	if got := feedCodex(t, m, "thread/name/updated", `{"threadId":"th","threadName":null}`); len(got) != 0 {
+		t.Fatalf("a cleared name must not map: %+v", got)
+	}
+}

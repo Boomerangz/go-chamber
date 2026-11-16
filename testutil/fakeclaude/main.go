@@ -16,6 +16,8 @@
 //	longstderr write a 1 MiB stderr line, then answer like echo
 //	nocontrol  never answer control_requests
 //
+// Without --input-format (a one-shot prompt on stdin) it prints "Generated chat name".
+//
 // set_model to "bad-model" is rejected with an error control_response.
 //
 // Like the real CLI, permission prompts and AskUserQuestion reach the host as
@@ -32,7 +34,9 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -71,6 +75,12 @@ type pendingTurn struct {
 func main() {
 	sessionID := envOr("FAKECLAUDE_SESSION_ID", "fake-session-1")
 	args := os.Args[1:]
+	if !slices.Contains(args, "--input-format") {
+		// A one-shot `claude -p` (the host naming a session): answer with a name.
+		_, _ = io.Copy(io.Discard, os.Stdin)
+		fmt.Print("Generated chat name")
+		return
+	}
 	for i, a := range args {
 		if a == "--resume" && i+1 < len(args) {
 			sessionID = args[i+1]

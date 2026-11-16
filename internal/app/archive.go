@@ -155,6 +155,7 @@ func (m *Manager) forget(s *domain.Session) {
 	}
 	m.retire(s)
 	delete(m.pending, id)
+	delete(m.titleSeed, id)
 	delete(m.sessions, id)
 }
 

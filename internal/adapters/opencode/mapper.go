@@ -75,6 +75,7 @@ func (m *mapper) mapEvent(e event) []domain.Event {
 		Tokens             tokens          `json:"tokens"`
 		RequestID          string          `json:"requestID"`
 		Form               request         `json:"form"`
+		Title              string          `json:"title"`
 	}
 	if json.Unmarshal(e.Data, &d) != nil {
 		return nil
@@ -132,6 +133,13 @@ func (m *mapper) mapEvent(e event) []domain.Event {
 		return append(out, m.idle()...)
 	case "session.execution.succeeded", "session.execution.interrupted":
 		return m.idle()
+	case "session.renamed":
+		if t := strings.TrimSpace(d.Title); t == "" || strings.HasPrefix(t, "New session - ") {
+			return nil
+		}
+		ev := m.ev(domain.EventTitle)
+		ev.Title = d.Title
+		return []domain.Event{ev}
 	case "permission.asked":
 		if p, ok := asked(e); ok {
 			return m.openRequest(p)

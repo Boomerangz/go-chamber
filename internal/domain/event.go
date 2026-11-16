@@ -1,6 +1,9 @@
 package domain
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+)
 
 // Seq is a monotonic per-session event sequence number used for replay.
 type Seq int64
@@ -21,6 +24,9 @@ const (
 	EventSubagentSpawned EventType = "subagent.spawned"
 	EventQuota           EventType = "quota"
 	EventUsage           EventType = "usage"
+	// EventTitle carries a name the agent chose for the session; the manager
+	// applies it and clients only see the resulting session state.
+	EventTitle EventType = "session.title"
 )
 
 // Event is one entry in a session's append-only event log. Seq is assigned
@@ -37,6 +43,7 @@ type Event struct {
 	Subagent  *SubagentSpawn   `json:"subagent,omitempty"`
 	Quota     *QuotaSnapshot   `json:"quota,omitempty"`
 	Usage     *Usage           `json:"usage,omitempty"`
+	Title     string           `json:"title,omitempty"`
 }
 
 // SubagentSpawn tells the manager to create a child session for a subagent
@@ -87,6 +94,10 @@ func (e Event) Valid() error {
 		}
 		if err := e.Request.Validate(); err != nil {
 			return fmt.Errorf("%w: %w", ErrInvalidEvent, err)
+		}
+	case EventTitle:
+		if strings.TrimSpace(e.Title) == "" {
+			return fmt.Errorf("%w: %s without title", ErrInvalidEvent, e.Type)
 		}
 	case EventQuota:
 		if e.Quota == nil {

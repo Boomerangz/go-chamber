@@ -48,6 +48,9 @@ type ManagerConfig struct {
 	CLIs CLIFinder
 	// Terminals optionally lets go of a deleted session's shells.
 	Terminals ShellUnbinder
+	// Titlers optionally name sessions of agents that do not name their own,
+	// after the first turn.
+	Titlers map[domain.AgentKind]Titler
 }
 
 // ShellUnbinder forgets the sessions shells were opened for.
@@ -128,6 +131,8 @@ type Manager struct {
 	resume map[domain.SessionID]*time.Timer
 	// stopping marks sessions whose owner asked to stop the running turn.
 	stopping map[domain.SessionID]bool
+	// titleSeed holds the first message of a session awaiting its generated name.
+	titleSeed map[domain.SessionID]string
 	// answering holds a session's runtime events while an answer goes out and
 	// its decision is recorded, so what the agent says back comes after it.
 	answering map[domain.SessionID]*sync.Mutex
@@ -149,6 +154,7 @@ func NewManager(cfg ManagerConfig) *Manager {
 		idle:      map[domain.SessionID]*idleTimer{},
 		resume:    map[domain.SessionID]*time.Timer{},
 		stopping:  map[domain.SessionID]bool{},
+		titleSeed: map[domain.SessionID]string{},
 		answering: map[domain.SessionID]*sync.Mutex{},
 	}
 }
@@ -349,7 +355,10 @@ func (m *Manager) SendInput(ctx context.Context, id domain.SessionID, text strin
 			_ = s.MarkSeen(message, now)
 		}
 		if s.Title() == "" {
-			s.Rename(titleFromText(text))
+			s.Name(titleFromText(text), domain.TitleMessage)
+			if m.cfg.Titlers[s.Agent()] != nil {
+				m.titleSeed[id] = text
+			}
 		}
 	}
 	snap := s.Snapshot()
@@ -799,6 +808,15 @@ func (m *Manager) consume(s *domain.Session, rt AgentRuntime) {
 		quotaStop := false
 		var left []domain.Item
 		switch ev.Type {
+		case domain.EventTitle:
+			changed := s.Name(clipTitle(ev.Title), domain.TitleAgent)
+			snap := s.Snapshot()
+			m.mu.Unlock()
+			if changed {
+				m.publishTitle(snap)
+			}
+			hold.Unlock()
+			continue
 		case domain.EventItemUpdated:
 			if ev.Item.Status.Terminal() {
 				delete(open, ev.Item.ID)
@@ -859,6 +877,7 @@ func (m *Manager) consume(s *domain.Session, rt AgentRuntime) {
 			_ = m.cfg.Repo.Save(context.Background(), snap)
 			m.cfg.Bus.Publish(domain.Event{SessionID: s.ID(), Type: domain.EventSessionState, Session: &snap})
 			m.armIdle(s, rt)
+			m.nameFromTurn(s, ev.Result)
 		case domain.EventSubagentSpawned:
 			m.spawnSubagent(s, ev.Subagent)
 		}
@@ -1134,6 +1153,54 @@ func (m *Manager) PendingRequests(context.Context) []domain.Request {
 	}
 	return out
 }
+
+// publishTitle saves and announces a changed title.
+func (m *Manager) publishTitle(snap domain.SessionSnapshot) {
+	_ = m.cfg.Repo.Save(context.Background(), snap)
+	m.cfg.Bus.Publish(domain.Event{SessionID: snap.ID, Type: domain.EventSessionState, Session: &snap})
+}
+
+// clipTitle makes an agent's name one line of at most maxTitle characters.
+func clipTitle(title string) string {
+	title = strings.Join(strings.Fields(title), " ")
+	if r := []rune(title); len(r) > maxTitle {
+		title = string(r[:maxTitle])
+	}
+	return title
+}
+
+// nameFromTurn asks the agent's titler, once per session, for a name after
+// its first successful turn; until then the first message names it.
+func (m *Manager) nameFromTurn(s *domain.Session, res *domain.TurnResult) {
+	if res == nil || res.IsError || res.InterruptionReason != "" {
+		return
+	}
+	m.mu.Lock()
+	seed, ok := m.titleSeed[s.ID()]
+	delete(m.titleSeed, s.ID())
+	m.mu.Unlock()
+	if !ok {
+		return
+	}
+	titler, reply := m.cfg.Titlers[s.Agent()], res.Text
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), titleTimeout)
+		defer cancel()
+		title, err := titler.Title(ctx, seed, reply)
+		if err != nil {
+			return
+		}
+		m.mu.Lock()
+		changed := s.Name(clipTitle(title), domain.TitleAgent)
+		snap := s.Snapshot()
+		m.mu.Unlock()
+		if changed {
+			m.publishTitle(snap)
+		}
+	}()
+}
+
+const titleTimeout = time.Minute
 
 const titleLimit = 60
 

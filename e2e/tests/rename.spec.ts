@@ -30,3 +30,14 @@ test('names a session and a terminal', async ({ page }, info) => {
   await showShells(page)
   await expect(panel.getByRole('tab', { selected: true })).toContainText(`logs ${info.project.name}`)
 })
+
+test('a Claude session is named after its first turn, unless the owner already did', async ({ page }, info) => {
+  await page.goto(`/?token=${token}`)
+  await openNewSession(page)
+  await page.getByLabel('Working directory').fill('/tmp')
+  await page.getByRole('button', { name: 'New session', exact: true }).click()
+  await page.getByLabel('Message').fill(`name me ${info.project.name}`)
+  await page.getByRole('button', { name: 'Send', exact: true }).click()
+  await expect(page.getByText(`echo: name me ${info.project.name}`)).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Generated chat name' })).toBeVisible()
+})

@@ -138,6 +138,7 @@ func run(ctx context.Context, args []string, out io.Writer) error {
 		History:       events,
 		Models:        runtimes,
 		IdleTimeout:   *idle,
+		Titlers:       map[domain.AgentKind]app.Titler{domain.AgentClaude: &claude.Titler{}},
 		Eraser:        store,
 		Folders:       fsys.Reader{},
 		CLIs:          fsys.PathCLIs{},

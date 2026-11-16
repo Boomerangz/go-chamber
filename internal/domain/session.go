@@ -96,6 +96,7 @@ type Session struct {
 	agent        AgentKind
 	cwd          string
 	title        string
+	titleSource  TitleSource
 	nativeID     string
 	parentID     SessionID
 	forkOf       SessionID
@@ -203,6 +204,15 @@ func NewForkSession(id SessionID, parent *Session, target ...AgentKind) (*Sessio
 	return s, nil
 }
 
+// restoredTitleSource treats a saved name as the owner's: the source is not
+// stored, and an agent must not replace a name that may have been typed.
+func restoredTitleSource(title string) TitleSource {
+	if title == "" {
+		return TitleNone
+	}
+	return TitleUser
+}
+
 // RestoreSession rebuilds a session after a server restart. No process
 // survives a restart, so a running turn becomes interrupted and an idle
 // session becomes detached.
@@ -211,7 +221,7 @@ func RestoreSession(snap SessionSnapshot) (*Session, error) {
 		return nil, err
 	}
 	s := &Session{
-		id: snap.ID, agent: snap.Agent, cwd: snap.Cwd, title: snap.Title,
+		id: snap.ID, agent: snap.Agent, cwd: snap.Cwd, title: snap.Title, titleSource: restoredTitleSource(snap.Title),
 		nativeID: snap.NativeID, parentID: snap.ParentID, forkOf: snap.ForkOf, status: StatusDetached,
 		reviewer: snap.ApprovalReviewer, mode: snap.PermissionMode, createdAt: snap.CreatedAt, activeAt: snap.ActiveAt,
 		model: snap.Model, effort: snap.Effort, archivedAt: snap.ArchivedAt,
@@ -260,7 +270,36 @@ func (s *Session) Interruption() Interruption { return s.interruption }
 // the session can accept input.
 func (s *Session) NeedsRuntime() bool { return !s.attached }
 
-func (s *Session) Rename(title string) { s.title = title }
+// TitleSource ranks who named a session: a later source beats an earlier one.
+type TitleSource int
+
+const (
+	TitleNone TitleSource = iota
+	// TitleMessage is the first message, the fallback until someone names it.
+	TitleMessage
+	// TitleAgent is a name the agent chose or a generated summary.
+	TitleAgent
+	// TitleUser is the owner's own name.
+	TitleUser
+)
+
+// Name sets the title unless a higher source already did, reporting a change.
+func (s *Session) Name(title string, src TitleSource) bool {
+	if title == "" || src < s.titleSource || title == s.title {
+		return false
+	}
+	s.title, s.titleSource = title, src
+	return true
+}
+
+// Rename is the owner naming the session; a blank title clears it.
+func (s *Session) Rename(title string) {
+	if title == "" {
+		s.title, s.titleSource = "", TitleNone
+		return
+	}
+	s.title, s.titleSource = title, TitleUser
+}
 
 // RuntimeAttached records that an agent process is up for this session. The
 // native id is fixed on first attach; a resumed process must report the same.

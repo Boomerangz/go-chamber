@@ -711,3 +711,14 @@ func TestCallsOutlastAColdPrompt(t *testing.T) {
 		t.Fatalf("call timeout %v cuts off a cold first prompt", s.client.Timeout)
 	}
 }
+
+func TestMapperTurnsRenameIntoTitle(t *testing.T) {
+	m := newMapper("s", false)
+	out := m.mapEvent(raw("session.renamed", `{"sessionID":"ses_1","title":"Не открывается админка"}`))
+	if len(out) != 1 || out[0].Type != domain.EventTitle || out[0].Title != "Не открывается админка" || out[0].SessionID != "s" {
+		t.Fatalf("rename = %+v", out)
+	}
+	if out := m.mapEvent(raw("session.renamed", `{"sessionID":"ses_1","title":"New session - 2026-10-11T19:29:54.323Z"}`)); len(out) != 0 {
+		t.Fatalf("the placeholder is not a name: %+v", out)
+	}
+}
