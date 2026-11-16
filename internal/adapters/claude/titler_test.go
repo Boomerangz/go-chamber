@@ -44,3 +44,21 @@ func TestTitlerFailsOnCLIErrorOrEmptyAnswer(t *testing.T) {
 		t.Fatal("a failing CLI is not a title")
 	}
 }
+
+func TestTitlerRejectsAnAnswerThatIsNotAName(t *testing.T) {
+	bin, _ := fakeTitleBinary(t, "Горутина Go — лёгкий поток выполнения, которым управляет рантайм Go и который запускает ключевое слово go", 0)
+	if got, err := (&Titler{Binary: bin}).Title(context.Background(), "a", "b"); err == nil {
+		t.Fatalf("a sentence is not a name: %q", got)
+	}
+}
+
+func TestTitlerPutsTheInstructionAfterTheConversation(t *testing.T) {
+	bin, log := fakeTitleBinary(t, "Имя", 0)
+	if _, err := (&Titler{Binary: bin}).Title(context.Background(), "вопрос", "ответ"); err != nil {
+		t.Fatal(err)
+	}
+	sent, _ := os.ReadFile(log)
+	if strings.Index(string(sent), "Reply with the name only") < strings.Index(string(sent), "ответ") {
+		t.Fatalf("the instruction must follow the conversation:\n%s", sent)
+	}
+}

@@ -17,7 +17,10 @@ type Titler struct {
 	Binary string
 }
 
-const titleExcerpt = 600
+const (
+	titleExcerpt  = 600
+	maxTitleWords = 8 // longer is the model answering, not naming
+)
 
 var titleLabel = regexp.MustCompile(`(?i)^(название|заголовок|title|name)[^:]{0,20}:\s*`)
 
@@ -32,15 +35,16 @@ func (t *Titler) Title(ctx context.Context, firstMessage, reply string) (string,
 	cmd := exec.CommandContext(ctx, bin, "-p", "--model", "haiku", "--no-session-persistence",
 		"--tools", "", "--disable-slash-commands", "--settings", `{"disableAllHooks":true}`)
 	cmd.Dir = os.TempDir()
-	cmd.Stdin = strings.NewReader("Give a short name (at most 6 words, in the language of the user's message, " +
-		"no quotes, no trailing period) to this conversation. Reply with the name only.\n\n" +
-		"User message:\n" + clip(firstMessage) + "\n\nAssistant reply:\n" + clip(reply) + "\n")
+	cmd.Stdin = strings.NewReader("<conversation>\nUser message:\n" + clip(firstMessage) +
+		"\n\nAssistant reply:\n" + clip(reply) + "\n</conversation>\n\n" +
+		"Do not continue the conversation. Give it a short name: a noun phrase of at most 5 words, " +
+		"in the language of the user's message, no quotes, no trailing period. Reply with the name only.\n")
 	out, err := cmd.Output()
 	if err != nil {
 		return "", err
 	}
 	title := cleanTitle(string(out))
-	if title == "" {
+	if title == "" || len(strings.Fields(title)) > maxTitleWords {
 		return "", errors.New("claude returned no title")
 	}
 	return title, nil
