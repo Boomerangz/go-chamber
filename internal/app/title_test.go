@@ -3,6 +3,8 @@ package app
 import (
 	"context"
 	"errors"
+	"fmt"
+	"strings"
 	"sync"
 	"testing"
 
@@ -135,5 +137,32 @@ func TestTitlerNamesACodexSessionToo(t *testing.T) {
 	eventually(t, "generated title", func() bool {
 		got, _ := m.GetSession(ctx, snap.ID)
 		return got.Title == "Fibonacci"
+	})
+}
+
+func TestTitlerFailureIsLogged(t *testing.T) {
+	titler := &fakeTitler{err: errors.New("offline")}
+	var mu sync.Mutex
+	var logged []string
+	repo, bus, factory, ids := newMemRepo(), newFakeBus(), &fakeFactory{}, &counter{}
+	m := NewManager(ManagerConfig{
+		Repo: repo, Runtimes: factory, Bus: bus, NewID: func() string { return ids.next() },
+		Titlers: map[domain.AgentKind]Titler{domain.AgentCodex: titler},
+		Logf: func(format string, args ...any) {
+			mu.Lock()
+			defer mu.Unlock()
+			logged = append(logged, fmt.Sprintf(format, args...))
+		},
+	})
+	rt := newFakeRuntime("n1")
+	factory.runtimes = []*fakeRuntime{rt}
+	ctx := context.Background()
+	snap, _ := m.CreateSession(ctx, domain.AgentCodex, "/tmp/proj")
+	m.SendMessage(ctx, snap.ID, "hi")
+	rt.events <- domain.Event{SessionID: snap.ID, Type: domain.EventTurnEnded, Result: &domain.TurnResult{Text: "ok"}}
+	eventually(t, "logged", func() bool {
+		mu.Lock()
+		defer mu.Unlock()
+		return len(logged) == 1 && strings.Contains(logged[0], "offline") && strings.Contains(logged[0], string(snap.ID))
 	})
 }

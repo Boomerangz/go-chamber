@@ -140,6 +140,7 @@ func run(ctx context.Context, args []string, out io.Writer) error {
 		History:       events,
 		Models:        runtimes,
 		IdleTimeout:   *idle,
+		Logf:          func(format string, args ...any) { _, _ = fmt.Fprintf(os.Stderr, format+"\n", args...) },
 		Titlers:       map[domain.AgentKind]app.Titler{domain.AgentClaude: titler, domain.AgentCodex: titler},
 		Eraser:        store,
 		Folders:       fsys.Reader{},

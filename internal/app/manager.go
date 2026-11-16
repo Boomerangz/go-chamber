@@ -51,6 +51,8 @@ type ManagerConfig struct {
 	// Titlers optionally name sessions of agents that do not name their own,
 	// after the first turn.
 	Titlers map[domain.AgentKind]Titler
+	// Logf optionally receives failures nobody waits on, like a name that could not be generated.
+	Logf func(format string, args ...any)
 }
 
 // ShellUnbinder forgets the sessions shells were opened for.
@@ -1188,6 +1190,9 @@ func (m *Manager) nameFromTurn(s *domain.Session, res *domain.TurnResult) {
 		defer cancel()
 		title, err := titler.Title(ctx, seed, reply)
 		if err != nil {
+			if m.cfg.Logf != nil {
+				m.cfg.Logf("session %s: no generated title: %v", s.ID(), err)
+			}
 			return
 		}
 		m.mu.Lock()

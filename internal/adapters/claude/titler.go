@@ -2,7 +2,7 @@ package claude
 
 import (
 	"context"
-	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"regexp"
@@ -45,7 +45,7 @@ func (t *Titler) Title(ctx context.Context, firstMessage, reply string) (string,
 	}
 	title := cleanTitle(string(out))
 	if title == "" || len(strings.Fields(title)) > maxTitleWords {
-		return "", errors.New("claude returned no title")
+		return "", fmt.Errorf("claude returned no title: %q", clip(string(out)))
 	}
 	return title, nil
 }
