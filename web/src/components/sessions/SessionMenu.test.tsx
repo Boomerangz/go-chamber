@@ -341,6 +341,48 @@ describe('SessionMenu', () => {
     expect(trigger()).toHaveFocus()
   })
 
+  it('chooses an emoji inside the rename sheet and saves it explicitly', async () => {
+    render(<Row />)
+    await userEvent.click(trigger())
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Rename' }))
+    await userEvent.tab()
+    await userEvent.keyboard('{Enter}')
+    await userEvent.click(screen.getByRole('button', { name: '🚀 Rocket' }))
+    expect(screen.getByRole('textbox', { name: 'Session name' })).toHaveValue('🚀 Release notes')
+    expect(actions.renameSession).not.toHaveBeenCalled()
+    await userEvent.click(screen.getByRole('button', { name: 'Save name' }))
+    expect(actions.renameSession).toHaveBeenCalledWith('s1', '🚀 Release notes')
+  })
+
+  it('keeps the rename sheet open while an input method composes Escape', async () => {
+    render(<Row />)
+    await userEvent.click(trigger())
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Rename' }))
+    const input = screen.getByRole('textbox', { name: 'Session name' })
+    fireEvent.keyDown(input, { key: 'Escape', isComposing: true })
+    expect(input).toHaveFocus()
+    expect(actions.renameSession).not.toHaveBeenCalled()
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+  })
+
+  it('keeps the emoji palette open when dismissing the phone keyboard resizes the viewport', async () => {
+    const height = window.innerHeight
+    render(<Row />)
+    await userEvent.click(trigger())
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Rename' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Choose title emoji' }))
+    screen.getByRole('button', { name: '🚀 Rocket' }).focus()
+    try {
+      Object.defineProperty(window, 'innerHeight', { value: height + 200, configurable: true })
+      fireEvent.resize(window)
+      expect(screen.getByRole('dialog', { name: 'Title emoji' })).toBeInTheDocument()
+      expect(screen.getByRole('textbox', { name: 'Session name' })).toHaveValue('Release notes')
+      expect(actions.renameSession).not.toHaveBeenCalled()
+    } finally {
+      Object.defineProperty(window, 'innerHeight', { value: height, configurable: true })
+    }
+  })
+
   it('asks before deleting and says the transcript stays', async () => {
     render(<Row />)
     await userEvent.click(trigger())

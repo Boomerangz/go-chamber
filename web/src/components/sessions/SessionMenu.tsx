@@ -10,6 +10,7 @@ import { useShellsWithin } from '../../stores/terminals'
 import { closingNote } from '../../lib/shells'
 import { icon } from '../icon'
 import { matches } from '../chat/useMedia'
+import TitleField from '../title/TitleField'
 import './SessionMenu.css'
 
 // Where the menu opens: under its button, or at the pointer for a right click.
@@ -267,7 +268,9 @@ function MenuSheet(props: {
     // A phone keyboard opening for the rename field shrinks the viewport
     // (only its height) and can push the row out of view: while the owner
     // types in the sheet it stays; turning the phone still closes it.
-    const typing = () => sheet.current?.contains(document.activeElement) && document.activeElement?.tagName === 'INPUT'
+    // Picking an emoji dismisses the phone keyboard too: the whole name
+    // editor stays open across height changes, including its buttons.
+    const typing = () => sheet.current?.contains(document.activeElement) && document.activeElement?.closest('input, .title-field')
     let lastWidth = window.innerWidth
     const onScroll = () => {
       const row = trigger.current?.getBoundingClientRect()
@@ -314,11 +317,11 @@ function MenuSheet(props: {
       onClose(true)
       return
     }
+    if (step !== 'menu') return
     if (e.key === 'Tab') {
       onClose()
       return
     }
-    if (step !== 'menu') return
     if (e.key === 'Enter' || e.key === ' ') {
       // Activate here: left to the browser, the same key press can land on
       // the next step's focused button too (Keep, which would close it).
@@ -480,24 +483,13 @@ function ClosingNote({ dir }: { dir: string }) {
 function RenameField({ value, onDone }: { value: string; onDone: (next: string | null) => void }) {
   const [draft, setDraft] = useState(value)
   return (
-    <input
-      className="field session-menu-input"
-      aria-label="Session name"
+    <TitleField
+      className="session-menu-input"
+      label="Session name"
       value={draft}
-      maxLength={200}
-      autoFocus
-      onFocus={(e) => e.currentTarget.select()}
-      onChange={(e) => setDraft(e.target.value)}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter') {
-          e.preventDefault()
-          onDone(draft.trim())
-        } else if (e.key === 'Escape') {
-          e.preventDefault()
-          e.stopPropagation()
-          onDone(null)
-        }
-      }}
+      onChange={setDraft}
+      onSave={() => onDone(draft.trim())}
+      onCancel={() => onDone(null)}
     />
   )
 }

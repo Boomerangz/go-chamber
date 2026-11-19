@@ -1,6 +1,7 @@
 import { Pencil } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { icon } from '../icon'
+import TitleField from './TitleField'
 
 interface Props {
   value: string
@@ -49,26 +50,16 @@ export default function EditableTitle({ value, label, onRename, className, headi
 
   if (draft !== null) {
     return (
-      <input
-        className={`title-input ${className ?? ''}`}
-        aria-label={`${label[0]!.toUpperCase()}${label.slice(1)} name`}
+      <TitleField
+        className={className}
+        label={`${label[0]!.toUpperCase()}${label.slice(1)} name`}
         value={draft}
-        maxLength={200}
-        autoFocus
-        onFocus={(e) => e.currentTarget.select()}
-        onChange={(e) => setDraft(e.target.value)}
-        onBlur={save}
-        onKeyDown={(e) => {
-          if (e.nativeEvent.isComposing || e.keyCode === 229) return
-          if (e.key === 'Enter') {
-            e.preventDefault()
-            refocus.current = true
-            save()
-          } else if (e.key === 'Escape') {
-            e.preventDefault()
-            refocus.current = true
-            setDraft(null)
-          }
+        onChange={setDraft}
+        saveOnBlur
+        onSave={(keyboard) => { refocus.current = keyboard; save() }}
+        onCancel={() => {
+          refocus.current = true
+          setDraft(null)
         }}
       />
     )
