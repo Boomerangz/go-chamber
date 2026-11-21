@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { ChevronDown } from 'lucide-react'
+import { ChevronDown, Settings } from 'lucide-react'
 import { icon } from '../icon'
 import { Accounts } from '../account/AccountPanel'
-import AppearanceSettings from '../shell/AppearanceSettings'
+import { openSettings } from '../shell/overlay'
 import AgentAvatar from '../AgentAvatar'
 import FolderField from '../folders/FolderField'
 import QuotaWidget from '../quota/QuotaWidget'
@@ -348,7 +348,10 @@ export default function Sidebar(props: SidebarProps) {
         </button>
         <Accounts />
         <QuotaWidget />
-        <AppearanceSettings />
+        <button type="button" className="accounts-fold settings-open" onClick={openSettings} title="Settings (,)">
+          <Settings {...icon(14)} className="icon" />
+          Settings
+        </button>
         <SignOut className="sidebar-signout" />
       </footer>
     </aside>

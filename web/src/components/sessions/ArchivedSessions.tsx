@@ -1,3 +1,4 @@
+import AgentAvatar from '../AgentAvatar'
 import { ChevronRight } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { archivedSessions, matchingTree, relativeTime, sessionTitle } from '../../lib/sessions'
@@ -94,9 +95,7 @@ function ArchivedRow(props: {
   return (
     <li className={props.depth > 0 ? 'session-child' : undefined}>
       <button className={active ? 'session active' : 'session'} data-session={s.id} aria-current={active ? 'true' : undefined} onClick={() => props.onSelect(s.id)}>
-        <span className={`avatar avatar-sm avatar-${s.agent}`} aria-hidden="true">
-          {s.agent === 'claude' ? 'C' : s.agent === 'opencode' ? 'O' : 'X'}
-        </span>
+        <AgentAvatar agent={s.agent} small />
         <span className="session-text">
           <span className="session-title" title={title}>
             {title}

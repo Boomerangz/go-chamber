@@ -23,13 +23,12 @@ for (const agent of ['Claude', 'Codex'] as const) {
     await hook.locator('summary').click()
     await expect(hook.locator('pre')).toHaveText('Check your work first.')
 
-    // The setting sits under Appearance in the sessions sidebar's footer, a
-    // pane of its own on a phone.
+    // Settings opens from the sessions sidebar, a separate pane on a phone.
     const choose = async (name: string) => {
       if (narrow(page)) await showPane(page, 'Sessions')
-      const fold = page.locator('details.appearance')
-      if (!(await fold.evaluate((el: HTMLDetailsElement) => el.open))) await fold.locator('summary').click()
+      await page.getByRole('button', { name: 'Settings', exact: true }).click()
       await page.getByRole('radiogroup', { name: 'Hooks' }).getByRole('radio', { name }).click()
+      await page.getByRole('button', { name: 'Close', exact: true }).click()
       if (narrow(page)) await showPane(page, 'Chat')
     }
     await choose('All')

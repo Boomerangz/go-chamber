@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { DEFAULT_SCHEME, findScheme, tokens } from '../lib/schemes'
 
 // Appearance is the owner's reading setup: the sheet, the transcript's type
 // size and its measure. Each is a data attribute on the page's root, which the
@@ -8,61 +9,103 @@ export type TextSize = 'small' | 'default' | 'large'
 
 interface Appearance {
   theme: Theme
+  // scheme is the colour scheme within the sheet; Chamber is the stylesheet's own.
+  scheme: string
   text: TextSize
   // wide lets the transcript run past the reading measure.
   wide: boolean
+  agentIcons: 'mono' | 'color'
 }
 
 interface AppearanceStore extends Appearance {
   setTheme: (theme: Theme) => void
+  setScheme: (scheme: string) => void
   setText: (text: TextSize) => void
+  setAgentIcons: (agentIcons: 'mono' | 'color') => void
   setWide: (wide: boolean) => void
 }
 
 const KEY = 'gc.appearance'
-const defaults: Appearance = { theme: 'system', text: 'default', wide: false }
+const defaults: Appearance = { theme: 'system', scheme: DEFAULT_SCHEME, text: 'default', wide: false, agentIcons: 'mono' }
 
 export function loadAppearance(): Appearance {
   try {
     const raw = JSON.parse(localStorage.getItem(KEY) ?? '{}') as Record<string, unknown>
     return {
       theme: raw.theme === 'light' || raw.theme === 'dark' ? raw.theme : 'system',
+      scheme: typeof raw.scheme === 'string' && findScheme(raw.scheme) ? raw.scheme : DEFAULT_SCHEME,
       text: raw.text === 'small' || raw.text === 'large' ? raw.text : 'default',
       wide: raw.wide === true,
+      agentIcons: raw.agentIcons === 'color' ? 'color' : 'mono',
     }
   } catch {
     return { ...defaults }
   }
 }
 
-function apply({ theme, text, wide }: Appearance) {
+function systemDark(): boolean {
+  return typeof window !== 'undefined' && !!window.matchMedia?.('(prefers-color-scheme: dark)').matches
+}
+
+const painted = new Set<string>()
+
+function apply({ theme, scheme, text, wide, agentIcons }: Appearance) {
   if (typeof document === 'undefined') return
-  const root = document.documentElement.dataset
-  if (theme === 'system') delete root.theme
-  else root.theme = theme
-  if (text === 'default') delete root.text
-  else root.text = text
-  if (wide) root.wide = ''
-  else delete root.wide
+  const root = document.documentElement
+  const data = root.dataset
+  if (theme === 'system') delete data.theme
+  else data.theme = theme
+  if (text === 'default') delete data.text
+  else data.text = text
+  if (agentIcons === 'color') data.agentIcons = 'color'
+  else delete data.agentIcons
+  if (wide) data.wide = ''
+  else delete data.wide
+  for (const name of painted) root.style.removeProperty(name)
+  painted.clear()
+  const found = scheme === DEFAULT_SCHEME ? undefined : findScheme(scheme)
+  if (!found) {
+    delete data.scheme
+    return
+  }
+  data.scheme = found.id
+  const dark = theme === 'system' ? systemDark() : theme === 'dark'
+  for (const [name, value] of Object.entries(tokens(dark ? found.dark : found.light))) {
+    root.style.setProperty(name, value)
+    painted.add(name)
+  }
+  root.style.setProperty('color-scheme', dark ? 'dark' : 'light')
+  painted.add('color-scheme')
 }
 
 export const useAppearanceStore = create<AppearanceStore>((set, get) => {
   const update = (patch: Partial<Appearance>) => {
+    const { theme, scheme, text, wide, agentIcons } = { ...get(), ...patch }
+    // the page is painted before subscribers look at its tokens
+    apply({ theme, scheme, text, wide, agentIcons })
     set(patch)
-    const { theme, text, wide } = get()
-    apply({ theme, text, wide })
     try {
-      localStorage.setItem(KEY, JSON.stringify({ theme, text, wide }))
+      localStorage.setItem(KEY, JSON.stringify({ theme, scheme, text, wide, agentIcons }))
     } catch {
       // storage unavailable: the choice lasts for this page only
     }
   }
   const initial = loadAppearance()
   apply(initial)
+  // a scheme follows the system sheet when the owner left it to the system
+  if (typeof window !== 'undefined')
+    window.matchMedia?.('(prefers-color-scheme: dark)').addEventListener?.('change', () => {
+      const { theme, scheme, text, wide, agentIcons } = get()
+      if (theme !== 'system' || scheme === DEFAULT_SCHEME) return
+      apply({ theme, scheme, text, wide, agentIcons })
+      set({}) // lets terminals re-read the page
+    })
   return {
     ...initial,
     setTheme: (theme) => update({ theme }),
+    setScheme: (scheme) => update({ scheme }),
     setText: (text) => update({ text }),
+    setAgentIcons: (agentIcons) => update({ agentIcons }),
     setWide: (wide) => update({ wide }),
   }
 })
@@ -71,8 +114,7 @@ export const useAppearanceStore = create<AppearanceStore>((set, get) => {
 // the system's when they left it to the system.
 export function isDark(): boolean {
   const theme = useAppearanceStore.getState().theme
-  if (theme !== 'system') return theme === 'dark'
-  return typeof window !== 'undefined' && !!window.matchMedia?.('(prefers-color-scheme: dark)').matches
+  return theme === 'system' ? systemDark() : theme === 'dark'
 }
 
 export function resetAppearance() {

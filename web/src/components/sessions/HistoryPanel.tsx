@@ -1,3 +1,4 @@
+import AgentAvatar from '../AgentAvatar'
 import { ChevronRight } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import './HistoryPanel.css'
@@ -133,9 +134,7 @@ export default function HistoryPanel() {
                     title={title}
                     onClick={() => void open(s)}
                   >
-                    <span className={`avatar avatar-sm avatar-${s.agent}`} aria-hidden="true">
-                      {s.agent === 'claude' ? 'C' : 'X'}
-                    </span>
+                    <AgentAvatar agent={s.agent} small />
                     <span className="session-text">
                       <span className="session-title">{title}</span>
                       <span className="session-meta">

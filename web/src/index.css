@@ -292,14 +292,20 @@ kbd {
 .keys-or { margin: 0 3px; }
 .keys-label { margin-left: 4px; }
 
-/* agents are peers: a letter in a box, same weight for both */
+/* Agent silhouettes use the same ink unless coloured icons are selected. */
 .avatar {
   flex: none; display: grid; place-items: center;
   width: 22px; height: 22px; border-radius: var(--r);
   font-family: var(--font-ui); font-size: var(--t-meta); font-weight: 500; line-height: 1; color: var(--ink-2);
   background: var(--paper-3);
 }
-.avatar-sm { width: 20px; height: 20px; font-size: var(--t-mark); }
+.avatar-sm { width: 20px; height: 20px; }
+.avatar svg { width: 15px; height: 15px; }
+.avatar-sm svg { width: 14px; height: 14px; }
+[data-agent-icons="color"] .avatar-claude { color: #c15f3c; }
+[data-agent-icons="color"] .avatar-codex { color: #16866d; }
+[data-agent-icons="color"] .avatar-opencode { color: #6977c9; }
+[data-agent-icons="color"] .avatar-native { color: #a36a20; }
 
 /* ---------- app shell ---------- */
 .app {
@@ -644,20 +650,6 @@ button.health { border: 0; background: none; padding: 0; }
 /* Sign out lives in the topbar on wide screens; phones hide it there. */
 .sidebar-signout { display: none; }
 .sidebar-signout .btn { width: 100%; }
-/* Appearance: folded like Accounts; its choices are small segmented rows */
-.appearance > summary {
-  display: flex; align-items: center; gap: 8px; padding: 0 2px; min-height: 24px; cursor: pointer; list-style: none;
-  font-size: var(--t-meta); color: var(--ink-2);
-}
-.appearance > summary::-webkit-details-marker { display: none; }
-.appearance > summary .chevron { transform: rotate(-90deg); transition: transform var(--dur-fast) var(--ease-out); }
-.appearance[open] > summary .chevron { transform: none; }
-.appearance[open] { display: grid; gap: 8px; }
-.appearance-row { display: grid; grid-template-columns: 48px minmax(0, 1fr); align-items: center; gap: 8px; }
-.appearance-label { font-size: var(--t-meta); color: var(--ink-3); }
-.appearance .segmented { grid-template-columns: repeat(3, 1fr); }
-.appearance .segmented button { height: 26px; font-size: var(--t-meta); font-weight: 400; }
-.appearance-wide { display: flex; align-items: center; gap: 8px; font-size: var(--t-meta); color: var(--ink-2); }
 
 /* phones, and a short window (a phone held sideways, where the form and the
    footer would squeeze the list to nothing): the sidebar itself scrolls,
@@ -1341,10 +1333,10 @@ button.health { border: 0; background: none; padding: 0; }
   /* the search field is the whole row's height, a finger's target */
   .session-search { height: 44px; }
   .session-search input { align-self: stretch; }
-  .accounts-fold, .appearance > summary {
+  .accounts-fold {
     height: 40px; margin: -10px 0 -4px;
   }
-  .appearance .segmented button { height: 36px; }
+  .settings .segmented button { height: 36px; }
   .mode-switch { grid-column: 1; grid-row: 1; justify-self: start; min-width: 0; overflow-x: auto; scrollbar-width: none; }
   .segmented.mode-switch button { flex: none; padding: 0 10px; }
   .mode-switch { max-width: 100%; }

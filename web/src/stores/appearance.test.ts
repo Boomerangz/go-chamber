@@ -11,7 +11,7 @@ beforeEach(() => {
 
 describe('appearance store', () => {
   it('follows the system, at the default size and measure', () => {
-    expect(loadAppearance()).toEqual({ theme: 'system', text: 'default', wide: false })
+    expect(loadAppearance()).toEqual({ theme: 'system', scheme: 'chamber', text: 'default', wide: false, agentIcons: 'mono' })
     expect(root().theme).toBeUndefined()
     expect(root().text).toBeUndefined()
     expect(root().wide).toBeUndefined()
@@ -22,7 +22,7 @@ describe('appearance store', () => {
     store().setText('large')
     store().setWide(true)
     expect(root()).toMatchObject({ theme: 'dark', text: 'large', wide: '' })
-    expect(loadAppearance()).toEqual({ theme: 'dark', text: 'large', wide: true })
+    expect(loadAppearance()).toEqual({ theme: 'dark', scheme: 'chamber', text: 'large', wide: true, agentIcons: 'mono' })
     store().setTheme('system')
     store().setText('default')
     store().setWide(false)
@@ -33,9 +33,9 @@ describe('appearance store', () => {
 
   it('ignores a stored value it does not know', () => {
     localStorage.setItem('gc.appearance', JSON.stringify({ theme: 'sepia', text: 'huge', wide: 'yes' }))
-    expect(loadAppearance()).toEqual({ theme: 'system', text: 'default', wide: false })
+    expect(loadAppearance()).toEqual({ theme: 'system', scheme: 'chamber', text: 'default', wide: false, agentIcons: 'mono' })
     localStorage.setItem('gc.appearance', '{')
-    expect(loadAppearance()).toEqual({ theme: 'system', text: 'default', wide: false })
+    expect(loadAppearance()).toEqual({ theme: 'system', scheme: 'chamber', text: 'default', wide: false, agentIcons: 'mono' })
   })
 
   it('reads a chosen theme over the system one', () => {
@@ -43,5 +43,25 @@ describe('appearance store', () => {
     expect(isDark()).toBe(true)
     store().setTheme('light')
     expect(isDark()).toBe(false)
+  })
+})
+
+describe('colour scheme', () => {
+  it('writes the scheme\'s tokens for the sheet in use and clears them for Chamber', () => {
+    store().setTheme('dark')
+    store().setScheme('nord')
+    expect(root().scheme).toBe('nord')
+    expect(document.documentElement.style.getPropertyValue('--paper')).toBe('#2e3440')
+    store().setTheme('light')
+    expect(document.documentElement.style.getPropertyValue('--paper')).toBe('#eceff4')
+    expect(loadAppearance().scheme).toBe('nord')
+    store().setScheme('chamber')
+    expect(root().scheme).toBeUndefined()
+    expect(document.documentElement.style.getPropertyValue('--paper')).toBe('')
+  })
+
+  it('ignores a stored scheme it does not know', () => {
+    localStorage.setItem('gc.appearance', JSON.stringify({ scheme: 'neon' }))
+    expect(loadAppearance().scheme).toBe('chamber')
   })
 })

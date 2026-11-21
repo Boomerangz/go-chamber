@@ -59,3 +59,34 @@
   .switcher-row { min-height: 40px; }
   .shortcut-list > div { grid-template-columns: 8em 1fr; }
 }
+
+/* settings: the same sheet as the shortcut list, with rows of choices */
+.settings {
+  width: min(640px, calc(100vw - 32px)); max-height: 86vh; padding: 0;
+  border: 1px solid var(--ink); border-radius: var(--r); background: var(--paper); color: var(--ink);
+}
+.settings[open] { display: flex; flex-direction: column; }
+.settings::backdrop { background: color-mix(in srgb, var(--paper) 55%, transparent); }
+.settings-body { overflow: auto; padding: 4px 16px 16px; display: grid; gap: 20px; }
+.settings-body section { display: grid; gap: 10px; }
+.settings-row { display: grid; grid-template-columns: 110px minmax(0, 1fr); align-items: center; gap: 12px; }
+.settings-row-top { align-items: start; }
+.settings-label { font-size: var(--t-meta); color: var(--ink-3); }
+.settings .segmented { grid-template-columns: repeat(3, 1fr); }
+.settings .segmented button { height: 28px; font-size: var(--t-meta); font-weight: 400; }
+.settings-check { display: flex; align-items: center; gap: 8px; font-size: var(--t-meta); color: var(--ink-2); }
+.scheme-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 8px; }
+.scheme-card { display: grid; gap: 4px; padding: 4px; border: 1px solid transparent; border-radius: var(--r); background: none; text-align: left; }
+@media (hover: hover) { .scheme-card:hover { background: var(--paper-2); } }
+.scheme-card[aria-checked='true'] { border-color: var(--ink); }
+.scheme-swatch {
+  display: flex; align-items: center; gap: 4px; height: 36px; padding: 0 8px;
+  border: 1px solid var(--rule); border-radius: 4px; background: var(--paper); color: var(--ink);
+}
+.scheme-swatch span { margin-right: auto; font-size: var(--t-small); font-weight: 600; }
+.scheme-swatch i { width: 8px; height: 8px; border-radius: 50%; background: var(--rule-strong); }
+.scheme-swatch[data-default] i:nth-of-type(1) { background: var(--act); }
+.scheme-swatch[data-default] i:nth-of-type(2) { background: var(--req); }
+.scheme-swatch[data-default] i:nth-of-type(3) { background: var(--bad); }
+.scheme-name { font-size: var(--t-meta); color: var(--ink-2); }
+@media (max-width: 720px) { .settings-row { grid-template-columns: minmax(0, 1fr); gap: 6px; } }

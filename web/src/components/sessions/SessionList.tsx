@@ -1,3 +1,4 @@
+import AgentAvatar from '../AgentAvatar'
 import { ChevronDown, Plus, Search, X } from 'lucide-react'
 import { motion, useReducedMotion } from 'motion/react'
 import { icon } from '../icon'
@@ -394,9 +395,7 @@ function SessionRow(props: {
         data-session={s.id}
         onClick={() => props.onSelect(s.id)}
       >
-        <span className={`avatar avatar-sm avatar-${s.agent}`} aria-hidden="true">
-          {s.agent === 'claude' ? 'C' : s.agent === 'opencode' ? 'O' : 'X'}
-        </span>
+        <AgentAvatar agent={s.agent} small />
         <span className="session-text">
           <span className="session-title" title={title}>
             {title}
@@ -469,9 +468,7 @@ function MessageHits(props: {
               aria-current={session.id === props.activeId ? 'true' : undefined}
               onClick={() => props.onSelect(session.id)}
             >
-              <span className={`avatar avatar-sm avatar-${session.agent}`} aria-hidden="true">
-                {session.agent === 'claude' ? 'C' : session.agent === 'opencode' ? 'O' : 'X'}
-              </span>
+              <AgentAvatar agent={session.agent} small />
               <span className="session-text">
                 <span className="session-title" title={sessionTitle(session)}>
                   {sessionTitle(session)}

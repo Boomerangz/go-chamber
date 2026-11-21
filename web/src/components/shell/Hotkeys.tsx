@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef } from 'react'
 import { X } from 'lucide-react'
 import { icon } from '../icon'
 import QuickSwitcher from './QuickSwitcher'
+import SettingsDialog from './SettingsDialog'
 import { replacingHistory } from './routeSync'
 import { useOverlay, type Overlay } from './overlay'
 import { formatCombo, isMac, isStrayFocus, isTypingTarget, matches, nextIndex, notePointer, type Combo } from '../../lib/hotkeys'
@@ -120,6 +121,7 @@ function buildShortcuts(setOverlay: SetOverlay): Shortcut[] {
   return [
     { combo: { key: 'k', mod: true }, group: 'Navigate', label: 'Go to a session or terminal', anywhere: true, run: () => setOverlay((o) => (o === 'switcher' ? null : 'switcher')) },
     { combo: { key: '?' }, group: 'Navigate', label: 'Show shortcuts', run: () => setOverlay((o) => (o === 'help' ? null : 'help')) },
+    { combo: { key: ',' }, group: 'Navigate', label: 'Settings', run: () => setOverlay((o) => (o === 'settings' ? null : 'settings')) },
     { combo: { key: '/' }, group: 'Navigate', label: 'Search sessions', run: () => focusIn('.session-search input, input[type="search"]', 'sessions') },
     { combo: { key: 'n' }, group: 'Navigate', label: 'New session: choose a folder', run: chooseProject },
     { combo: { key: 'j' }, group: 'Navigate', label: 'Next session', run: () => inWorkspace(() => stepSession(1), true) },
@@ -206,6 +208,7 @@ export default function Hotkeys() {
 
   const close = () => useOverlay.setState({ overlay: null })
   if (overlay === 'switcher') return <QuickSwitcher onClose={close} />
+  if (overlay === 'settings') return <SettingsDialog onClose={close} />
   if (overlay === 'help') return <ShortcutHelp shortcuts={shortcuts} onClose={close} />
   return null
 }

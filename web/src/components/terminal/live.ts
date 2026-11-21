@@ -58,7 +58,7 @@ const RECHECK_EVERY = 5
 
 // Every screen follows the sheet the owner chose.
 useAppearanceStore.subscribe((s, prev) => {
-  if (s.theme === prev.theme) return
+  if (s.theme === prev.theme && s.scheme === prev.scheme) return
   for (const live of lives.values()) live.xterm.options.theme = terminalTheme(isDark())
 })
 
