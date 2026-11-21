@@ -145,9 +145,9 @@ describe('RequestCard question', () => {
 })
 
 describe('RequestCard audit fixes', () => {
-  it('offers allow-for-session for codex permissions without suggestions', async () => {
+  it.each(['codex','native'] as const)('offers allow-for-session for %s permissions without suggestions', async (agent) => {
     const onRespond = vi.fn()
-    render(<RequestCard request={{ ...permission, payload: { toolName: 'command', input: {} } }} agent="codex" onRespond={onRespond} />)
+    render(<RequestCard request={{ ...permission, payload: { toolName: 'command', input: {} } }} agent={agent} onRespond={onRespond} />)
     await userEvent.click(screen.getByRole('button', { name: 'Allow for session' }))
     expect(onRespond).toHaveBeenCalledWith('s1', 'r1', { behavior: 'allow', allowForSession: true })
   })

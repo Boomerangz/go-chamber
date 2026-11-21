@@ -176,7 +176,7 @@ function PermissionCard({ request, agent, position, acting, error, answer }: Car
   // ExitPlanMode asks to leave plan mode; its plan reads better as text.
   const input = request.payload?.input as { plan?: unknown } | undefined
   const plan = toolName === 'ExitPlanMode' && typeof input?.plan === 'string' ? input.plan : null
-  const perSession = request.payload?.suggestions != null || agent === 'codex'
+  const perSession = request.payload?.suggestions != null || agent === 'codex' || agent === 'native'
   const grants = describeSuggestions(request.payload?.suggestions)
   const allowing = acting === 'allow' || acting === 'session'
 

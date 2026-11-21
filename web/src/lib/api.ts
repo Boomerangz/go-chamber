@@ -1,6 +1,6 @@
 export type Health = 'online' | 'offline' | 'unauthorized'
 
-export type AgentKind = 'claude' | 'codex' | 'opencode'
+export type AgentKind = 'claude' | 'codex' | 'opencode' | 'native'
 export type SessionStatus = 'detached' | 'idle' | 'running' | 'interrupted'
 
 export interface Interruption {
@@ -566,6 +566,9 @@ export function searchMessages(query: string): Promise<SearchHit[]> {
 }
 
 export interface ModelInfo {
+  stale?: boolean
+  catalogUpdatedAt?: string
+  contextWindow?: number
   provider?: string
   images?: boolean
   id: string
@@ -576,8 +579,10 @@ export interface ModelInfo {
   default?: boolean
 }
 
-export function listModels(agent: AgentKind, cwd?: string): Promise<ModelInfo[]> {
-  const query = cwd === undefined ? '' : `?${new URLSearchParams({ cwd })}`
+export function listModels(agent: AgentKind, cwd?: string, refresh = false): Promise<ModelInfo[]> {
+  const params = new URLSearchParams(cwd === undefined ? {} : { cwd })
+  if (refresh) params.set('refresh', 'true')
+  const query = params.size ? `?${params}` : ''
   return request<ModelInfo[]>(`/api/agents/${agent}/models${query}`, undefined, SLOW_MS)
 }
 

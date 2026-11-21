@@ -18,7 +18,7 @@ type CLIStatus struct {
 	Hint         string            `json:"hint,omitempty"`
 }
 
-var allAgents = []domain.AgentKind{domain.AgentClaude, domain.AgentCodex, domain.AgentOpenCode}
+var allAgents = []domain.AgentKind{domain.AgentClaude, domain.AgentCodex, domain.AgentOpenCode, domain.AgentNative}
 
 // AgentCapabilities describes the controls an agent runtime supports.
 type AgentCapabilities struct {
@@ -39,6 +39,9 @@ func agentDescription(agent domain.AgentKind) (string, AgentCapabilities) {
 	case domain.AgentClaude:
 		c.PermissionModes, c.HistoryImport, c.Quotas = true, true, true
 		return "Claude Code", c
+	case domain.AgentNative:
+		c.PermissionModes, c.Login = true, true
+		return "Native", c
 	case domain.AgentCodex:
 		c.PermissionModes, c.ApprovalReviewer, c.Login, c.Quotas, c.HistoryImport = true, true, true, true, true
 		return "Codex", c
@@ -53,7 +56,7 @@ func (m *Manager) CLIs() []CLIStatus {
 	out := make([]CLIStatus, 0, len(allAgents))
 	for _, agent := range allAgents {
 		name, caps := agentDescription(agent)
-		if m.cfg.CLIs == nil {
+		if m.cfg.CLIs == nil || agent == domain.AgentNative {
 			out = append(out, CLIStatus{Agent: agent, Found: true, Name: name, Capabilities: caps})
 			continue
 		}
@@ -69,7 +72,7 @@ func (m *Manager) CLIs() []CLIStatus {
 
 // checkCLI refuses an agent whose CLI is not installed, in plain words.
 func (m *Manager) checkCLI(agent domain.AgentKind) error {
-	if m.cfg.CLIs == nil {
+	if m.cfg.CLIs == nil || agent == domain.AgentNative {
 		return nil
 	}
 	if _, ok := m.cfg.CLIs.FindCLI(agent); !ok {

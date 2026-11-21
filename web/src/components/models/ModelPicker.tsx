@@ -8,7 +8,7 @@ import { modelCatalogKey, useSessionStore } from '../../stores/session'
 import { LoadFailed, LoadingLine } from '../ui/Loading'
 import './ModelPicker.css'
 
-const agentConfig = { claude: 'Claude settings', codex: 'Codex config', opencode: 'OpenCode config' } as const
+const agentConfig = { claude: 'Claude settings', codex: 'Codex config', opencode: 'OpenCode config', native: 'Native providers' } as const
 
 // ModelPicker chooses the session's model and reasoning effort. A choice
 // shows at once in the "not yet settled" form until the server agrees, and
@@ -31,7 +31,7 @@ export default function ModelPicker({ session }: { session: Session }) {
 
   useEffect(() => {
     void loadModels(session.agent, cwd)
-  }, [session.agent, cwd, loadModels])
+  }, [session.agent, session.id, cwd, loadModels])
 
   const close = (refocus: boolean) => {
     setOpen(false)
@@ -117,7 +117,8 @@ export default function ModelPicker({ session }: { session: Session }) {
       </button>
       {open && (
         <div className="model-menu" role="dialog" aria-label="Choose model" ref={menu}>
-          {session.agent === 'opencode' && <div className="model-search"><input className="field" type="search" aria-label="Search models" placeholder="Model or provider…" value={search} onChange={(e) => setSearch(e.target.value)} /><button className="btn btn-xs" onClick={() => void loadModels(session.agent, cwd, true)}>Refresh models</button></div>}
+          {(session.agent === 'opencode' || session.agent === 'native') && <div className="model-search"><input className="field" type="search" aria-label="Search models" placeholder="Model or provider…" value={search} onChange={(e) => setSearch(e.target.value)} /><button className="btn btn-xs" onClick={() => void loadModels(session.agent, cwd, true)}>Refresh models</button></div>}
+          {list.some((m) => m.stale) && <p role="status">Saved model list — provider refresh failed. Try Refresh models.</p>}
           <div className="model-options" role="radiogroup" aria-label="Model" onKeyDown={walkRadios}>
             <ModelOption
               checked={modelChecked('')}

@@ -16,14 +16,14 @@ const POLL_MS = 3000
 const CODE_TTL_MS = 15 * 60_000
 const COPIED_MS = 1500
 
-const agentName: Record<AgentKind, string> = { claude: 'Claude', codex: 'Codex', opencode: 'OpenCode' }
+const agentName: Record<AgentKind, string> = { claude: 'Claude', codex: 'Codex', opencode: 'OpenCode', native: 'Native' }
 
 const legacyAgents: AgentKind[] = ['claude', 'codex']
 
 const installHint: Record<AgentKind, string> = {
   claude: 'npm install -g @anthropic-ai/claude-code',
   codex: 'npm install -g @openai/codex',
-  opencode: 'npm install -g opencode-ai',
+  opencode: 'npm install -g opencode-ai', native: '',
 }
 
 // Accounts shows each agent's login on its own line, whichever agent the
@@ -60,6 +60,7 @@ export function Accounts() {
       )}
       <AccountPanel agent="claude" quietFailure />
       <AccountPanel agent="codex" quietFailure />
+      {clis.some((c) => c.agent === 'native') && <AccountPanel agent="native" quietFailure />}
       {clis.some((c) => c.agent === 'opencode') && <AccountPanel agent="opencode" quietFailure />}
     </div>
   )
@@ -206,6 +207,7 @@ export default function AccountPanel({ agent, quietFailure = false }: { agent: A
 
   return (
     <div className="account">
+      {agent === 'native' && <span className="account-agent">Native · <span>{account?.providers?.length ? `Providers: ${account.providers.join(', ')}` : 'No connected providers'}</span></span>}
       {account?.loggedIn ? (
         <span className="signed-in">
           <span className="account-agent">{name}</span>
@@ -213,7 +215,7 @@ export default function AccountPanel({ agent, quietFailure = false }: { agent: A
             ? ` Signed in as ${account.email} (${account.plan || account.authMode})`
             : ` Signed in with the ${account.authMode === 'cli' ? 'CLI login' : account.authMode || 'CLI login'}`}
         </span>
-      ) : agent !== 'codex' ? (
+      ) : agent !== 'codex' && agent !== 'native' ? (
         <span className="signed-in">
           <span className="account-agent">{name}</span> not signed in · sign in with its CLI
         </span>
@@ -227,7 +229,7 @@ export default function AccountPanel({ agent, quietFailure = false }: { agent: A
       ) : (
         !login && (
           <button ref={signInButton} className="btn sign-in" aria-busy={requesting || undefined} onClick={() => void signIn()}>
-            {requesting ? 'Requesting code…' : 'Sign in to Codex'}
+            {requesting ? 'Requesting code…' : agent === 'native' ? 'Connect Codex subscription' : 'Sign in to Codex'}
           </button>
         )
       )}

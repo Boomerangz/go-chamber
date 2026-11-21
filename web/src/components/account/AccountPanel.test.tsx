@@ -258,3 +258,13 @@ it('reports one failure when all three native accounts are unreachable', async (
   expect(await screen.findByRole('alert')).toHaveTextContent("Couldn't reach the accounts")
   expect(screen.getAllByRole('alert')).toHaveLength(1)
 })
+
+it('offers native Codex login while showing the connected OpenRouter provider', async () => {
+ vi.mocked(api.getAccount).mockResolvedValue({agent:'native',loggedIn:false,providers:['openrouter']})
+ vi.mocked(api.startLogin).mockResolvedValue(challenge)
+ render(<AccountPanel agent="native" />)
+ expect(await screen.findByText('Providers: openrouter')).toBeInTheDocument()
+ await userEvent.click(screen.getByRole('button',{name:'Connect Codex subscription'}))
+ expect(api.startLogin).toHaveBeenCalledWith('native')
+ expect(await screen.findByText('ABCD')).toBeInTheDocument()
+})

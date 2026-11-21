@@ -1055,6 +1055,10 @@ func TestSubagentSpawnCreatesChildSession(t *testing.T) {
 		}
 		return false
 	})
+	eventually(t, "child running state", func() bool {
+		child, err := repo.Get(ctx, childID)
+		return err == nil && child.Status == domain.StatusRunning
+	})
 }
 
 type fakeQuotaRepo struct {

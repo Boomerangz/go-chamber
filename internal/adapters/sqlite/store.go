@@ -57,6 +57,7 @@ func (s *Store) EraseSession(ctx context.Context, id domain.SessionID) error {
 		`DELETE FROM messages_fts WHERE rowid IN (SELECT id FROM message_keys WHERE session_id = ?)`,
 		`DELETE FROM message_keys WHERE session_id = ?`,
 		`DELETE FROM events WHERE session_id = ?`,
+		`DELETE FROM native_conversations WHERE id = (SELECT native_id FROM sessions WHERE id = ?)`,
 		`DELETE FROM sessions WHERE id = ?`,
 	} {
 		if _, err := tx.ExecContext(ctx, q, id); err != nil {

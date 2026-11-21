@@ -176,3 +176,24 @@ func TestModelsComeFromTheCatalog(t *testing.T) {
 		t.Fatalf("err = %v", err)
 	}
 }
+
+type selectedRuntime struct{ *fakeRuntime }
+
+func (*selectedRuntime) SelectedSettings() (string, string, string) {
+	return "openrouter:chosen", "low", "read-only"
+}
+func TestRuntimeSelectedSettingsArePinned(t *testing.T) {
+	m, _, _, factory, _ := newTestManager(t)
+	factory.next = &selectedRuntime{newFakeRuntime("native-id")}
+	snap, err := m.CreateSession(context.Background(), domain.AgentNative, "/p")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = m.SendMessage(context.Background(), snap.ID, "hello"); err != nil {
+		t.Fatal(err)
+	}
+	got, err := m.GetSession(context.Background(), snap.ID)
+	if err != nil || got.Model != "openrouter:chosen" || got.Effort != "low" || got.PermissionMode != "read-only" {
+		t.Fatalf("%+v %v", got, err)
+	}
+}

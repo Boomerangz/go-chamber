@@ -108,11 +108,17 @@ test('a finished turn chimes only where the owner was last', async ({ page, brow
       localStorage.setItem('gc.sound', 'on')
       const w = window as unknown as { tones: number }
       w.tones = 0
-      const create = AudioContext.prototype.createOscillator
-      AudioContext.prototype.createOscillator = function () {
-        w.tones++
-        return create.call(this)
-      }
+      // This scenario verifies routing between devices, independently of the
+      // headless browser's audio device/autoplay implementation.
+      const parameter = () => ({ setValueAtTime() {}, linearRampToValueAtTime() {}, exponentialRampToValueAtTime() {} })
+      Object.defineProperty(window, 'AudioContext', { value: class {
+        state = 'running'
+        currentTime = 0
+        destination = {}
+        resume() { return Promise.resolve() }
+        createOscillator() { w.tones++; return { type: 'sine', frequency: parameter(), connect() {}, start() {}, stop() {} } }
+        createGain() { return { gain: parameter(), connect() {} } }
+      } })
     })
     await p.goto(`/?token=${token}`)
   }

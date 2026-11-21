@@ -140,7 +140,7 @@ func (m *Manager) ForkTo(ctx context.Context, id domain.SessionID, agent domain.
 		}
 		return m.GetSession(ctx, snap.ID)
 	}
-	if snap.Agent == domain.AgentClaude {
+	if snap.Agent == domain.AgentClaude || snap.Agent == domain.AgentNative {
 		m.copyItems(id, snap.ID) // Codex replays the conversation in thread/fork itself
 	}
 	return snap, nil

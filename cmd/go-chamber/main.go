@@ -7,6 +7,7 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -29,7 +30,11 @@ import (
 	httpapi "github.com/igorzygin/go-chamber/internal/adapters/http"
 	"github.com/igorzygin/go-chamber/internal/adapters/hub"
 	mcpapi "github.com/igorzygin/go-chamber/internal/adapters/mcp"
+	"github.com/igorzygin/go-chamber/internal/adapters/mcpclient"
+	"github.com/igorzygin/go-chamber/internal/adapters/native"
+	"github.com/igorzygin/go-chamber/internal/adapters/nativetools"
 	"github.com/igorzygin/go-chamber/internal/adapters/oauth"
+	"github.com/igorzygin/go-chamber/internal/adapters/openai"
 	"github.com/igorzygin/go-chamber/internal/adapters/opencode"
 	"github.com/igorzygin/go-chamber/internal/adapters/pty"
 	"github.com/igorzygin/go-chamber/internal/adapters/router"
@@ -58,6 +63,11 @@ func run(ctx context.Context, args []string, out io.Writer) error {
 	useTmux := fl.Bool("tmux", true, "keep terminal shells in tmux so they survive a restart (when tmux is installed)")
 	home, _ := os.UserHomeDir()
 	dataDir := fl.String("data", filepath.Join(home, ".go-chamber"), "data directory")
+	nativeMCP := fl.String("native-mcp", "", "JSON file with explicitly configured native MCP servers")
+	nativeAuthPath := fl.String("native-codex-auth", "", "native Codex OAuth file; defaults to data/native/codex.json")
+	nativeCodexURL := fl.String("native-codex-url", "", "native Codex endpoint override")
+	nativeRouterURL := fl.String("native-openrouter-url", "", "OpenRouter compatible endpoint override")
+	nativeRouterKey := fl.String("native-openrouter-key-file", "", "OpenRouter key file (otherwise OPENROUTER_API_KEY)")
 	idle := fl.Duration("idle-timeout", 15*time.Minute, "close idle Claude processes after this long (0 keeps them)")
 	iceDefault := os.Getenv("GO_CHAMBER_ICE_SERVERS")
 	if iceDefault == "" {
@@ -103,7 +113,49 @@ func run(ctx context.Context, args []string, out io.Writer) error {
 	codexFactory := &codex.Factory{}
 	openCodeFactory := &opencode.Factory{}
 	defer func() { _ = openCodeFactory.Close() }()
+	authPath := *nativeAuthPath
+	if authPath == "" {
+		authPath = filepath.Join(*dataDir, "native", "codex.json")
+	}
+	nativeAuth := &openai.CodexAuth{Path: authPath}
+	nativeCodex := &openai.Client{Wire: openai.Codex, BaseURL: *nativeCodexURL, Credentials: nativeAuth}
+	var routerCredentials openai.CredentialSource
+	if *nativeRouterKey != "" {
+		routerCredentials = openai.KeyFile{Path: *nativeRouterKey}
+	} else if key := os.Getenv("OPENROUTER_API_KEY"); key != "" {
+		routerCredentials = openai.StaticCredentials{Token: key}
+	}
+	providers := map[string]native.Provider{"codex": {Client: nativeCodex, Catalog: nativeCodex}}
+	if routerCredentials != nil {
+		client := &openai.Client{Wire: openai.OpenRouter, BaseURL: *nativeRouterURL, Credentials: routerCredentials}
+		providers["openrouter"] = native.Provider{Client: client, Catalog: client}
+	}
+	var mcpServers []mcpclient.Config
+	if *nativeMCP != "" {
+		file, err := os.Open(*nativeMCP)
+		if err != nil {
+			return err
+		}
+		decoder := json.NewDecoder(io.LimitReader(file, 1<<20))
+		decoder.DisallowUnknownFields()
+		err = decoder.Decode(&mcpServers)
+		_ = file.Close()
+		if err != nil {
+			return errors.New("invalid native MCP configuration")
+		}
+	}
+	skillRoots := []string{filepath.Join(home, ".agents", "skills"), filepath.Join(home, ".codex", "skills"), filepath.Join(home, ".claude", "skills")}
+	nativeFactory := &native.Factory{LoadImages: native.LoadImages(filepath.Join(*dataDir, "images")), Repo: store.Conversations(), Providers: providers, Tools: func(cwd string) (app.NativeTools, error) {
+		base := &nativetools.Tools{Cwd: cwd, ReadRoots: append(append([]string{}, skillRoots...), filepath.Join(*dataDir, "transcripts"))}
+		if len(mcpServers) > 0 {
+			return mcpclient.Connect(ctx, base, mcpServers, cwd)
+		}
+		return base, nil
+	}, Instructions: func(cwd string) (string, error) { return nativetools.InstructionsWithSkills(cwd, skillRoots) }}
+	nativeFactory.Accounts = &openai.NativeAccounts{Auth: nativeAuth, OpenRouter: routerCredentials, Context: ctx, OnLogin: nativeFactory.InvalidateModels}
+	defer func() { _ = nativeFactory.Close() }()
 	runtimes := &router.Router{
+		Native:   nativeFactory,
 		Claude:   &claude.Factory{},
 		Codex:    codexFactory,
 		OpenCode: openCodeFactory,

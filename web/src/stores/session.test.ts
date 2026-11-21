@@ -1384,3 +1384,15 @@ it('caches contextual OpenCode catalogs separately and refreshes explicitly', as
   await store().loadModels('opencode','/one',true)
   expect(api.listModels).toHaveBeenCalledTimes(3)
 })
+
+it('refreshes native catalogs on reopening and retains the last list on failure', async () => {
+  const list = [{ id: 'openrouter:new', name: 'New' }]
+  ;(api.listModels as Mock).mockResolvedValueOnce(list).mockRejectedValueOnce(new Error('offline')).mockResolvedValueOnce(list)
+  await store().loadModels('native')
+  await store().loadModels('native')
+  expect(api.listModels).toHaveBeenCalledTimes(2)
+  expect(store().models.native).toEqual(list)
+  expect(store().modelsStatus.native).toBe('error')
+  await store().loadModels('native', undefined, true)
+  expect(api.listModels).toHaveBeenLastCalledWith('native', undefined, true)
+})

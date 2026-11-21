@@ -37,6 +37,7 @@ func TestCLIsReportsEachAgent(t *testing.T) {
 		{Agent: domain.AgentClaude, Found: true, Path: "/usr/local/bin/claude"},
 		{Agent: domain.AgentCodex, Found: false, Hint: "npm install -g @openai/codex"},
 		{Agent: domain.AgentOpenCode, Found: false, Hint: "npm install -g opencode-ai"},
+		{Agent: domain.AgentNative, Found: true},
 	}
 	for i := range want {
 		want[i].Name, want[i].Capabilities = agentDescription(want[i].Agent)
@@ -49,7 +50,7 @@ func TestCLIsReportsEachAgent(t *testing.T) {
 func TestCLIsWithoutAFinderAssumesInstalled(t *testing.T) {
 	m := NewManager(ManagerConfig{Repo: newMemRepo(), Runtimes: &fakeFactory{}, Bus: newFakeBus()})
 	all := m.CLIs()
-	if len(all) != 3 {
+	if len(all) != 4 {
 		t.Fatalf("CLIs = %+v, want both agents", all)
 	}
 	for _, s := range all {
@@ -129,5 +130,21 @@ func TestAccountOfAnAgentWithoutItsCLISaysItIsMissing(t *testing.T) {
 	}
 	if info, err := m.Account(ctx, domain.AgentClaude); err != nil || !info.LoggedIn {
 		t.Fatalf("installed Account = %+v, %v", info, err)
+	}
+}
+
+func TestNativeSessionDoesNotRequireCLI(t *testing.T) {
+	m := NewManager(ManagerConfig{Repo: newMemRepo(), Runtimes: &fakeFactory{}, Bus: newFakeBus(), CLIs: cliFinder{}})
+	if _, err := m.CreateSession(context.Background(), domain.AgentNative, "/tmp/project"); err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, a := range m.CLIs() {
+		if a.Agent == domain.AgentNative {
+			found = a.Found && a.Path == "" && a.Capabilities.Login
+		}
+	}
+	if !found {
+		t.Fatal("native runtime unavailable without CLI")
 	}
 }

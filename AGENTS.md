@@ -1,9 +1,12 @@
 # go-chamber
 
-Локальный однопользовательский веб-UI для запуска Claude Code и Codex CLI по подписке.
+Локальный однопользовательский веб-UI для Claude Code, Codex CLI, OpenCode и нативного Go-агента.
 Go-бэкенд (один бинарник, фронт встроен через `embed`) + React/Vite/TS в `web/`.
-Агенты запускаются как штатные CLI-подпроцессы: `claude -p` (stream-json) и `codex app-server`
-(JSON-RPC). Токены подписки не читаем и не храним — используется логин самого CLI.
+CLI-адаптеры запускают штатные процессы: `claude -p` (stream-json), `codex app-server`
+(JSON-RPC), OpenCode. Их токены подписки не читаем — используется логин самого CLI.
+Native работает напрямую через OpenAI-compatible протоколы: собственный device OAuth
+Codex (отдельный credential file) и API key OpenRouter. Контекст хранится в SQLite;
+настройка, каталоги моделей и границы возможностей описаны в `docs/native-runtime.md`.
 
 ## TDD
 - Red → green → refactor. Продакшен-код пишется только под падающий тест.

@@ -186,3 +186,12 @@ func TestRouterCommands(t *testing.T) {
 		t.Fatalf("no catalog err = %v", err)
 	}
 }
+
+func TestRouterDispatchesNativeRuntime(t *testing.T) {
+	f := &stubFactory{name: "native"}
+	r := &Router{Native: f}
+	rt, err := r.Start(context.Background(), app.StartRequest{Agent: domain.AgentNative})
+	if err != nil || rt.NativeID() != "native" {
+		t.Fatalf("%v %v", rt, err)
+	}
+}

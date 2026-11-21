@@ -216,3 +216,40 @@ func TestClaudeForkShowsTheParentConversation(t *testing.T) {
 		t.Fatal("the parent's items were changed")
 	}
 }
+
+func TestNativeForkShowsTheParentConversation(t *testing.T) {
+	repo, bus, factory, ids := newMemRepo(), newFakeBus(), &fakeFactory{}, &counter{}
+	history := fakeHistory{}
+	m := NewManager(ManagerConfig{Repo: repo, Runtimes: factory, Bus: bus, History: history, NewID: ids.next})
+	parent, err := m.CreateSession(context.Background(), domain.AgentNative, "/p")
+	if err != nil {
+		t.Fatal(err)
+	}
+	startWith(t, m, factory, parent.ID, newFakeRuntime("native-1"))
+	item := func(id domain.ItemID, kind domain.ItemKind, text string) *domain.Item {
+		return &domain.Item{ID: id, SessionID: parent.ID, TurnID: "t1", Kind: kind, Status: domain.ItemCompleted, Text: text}
+	}
+	history[parent.ID] = []domain.Event{
+		{Seq: 1, SessionID: parent.ID, Type: domain.EventItemUpdated, Item: item("u1", domain.ItemUserMessage, "hi")},
+		{Seq: 2, SessionID: parent.ID, Type: domain.EventItemUpdated, Item: item("a1", domain.ItemAssistantMessage, "hel")},
+		{Seq: 3, SessionID: parent.ID, Type: domain.EventTextDelta, Delta: &domain.Delta{ItemID: "a1", Text: "lo"}},
+		{Seq: 4, SessionID: parent.ID, Type: domain.EventItemUpdated, Item: item("a1", domain.ItemAssistantMessage, "hello")},
+	}
+	factory.next = newFakeRuntime("native-2")
+	fork, err := m.Fork(context.Background(), parent.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var copied []domain.Item
+	for _, ev := range bus.snapshot() {
+		if ev.SessionID == fork.ID && ev.Type == domain.EventItemUpdated {
+			copied = append(copied, *ev.Item)
+		}
+	}
+	if len(copied) != 2 || copied[0].Text != "hi" || copied[1].Text != "hello" || copied[1].SessionID != fork.ID {
+		t.Fatalf("copied = %+v", copied)
+	}
+	if history[parent.ID][3].Item.SessionID != parent.ID {
+		t.Fatal("the parent's items were changed")
+	}
+}

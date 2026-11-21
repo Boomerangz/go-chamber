@@ -30,9 +30,12 @@ const (
 	AgentClaude   AgentKind = "claude"
 	AgentCodex    AgentKind = "codex"
 	AgentOpenCode AgentKind = "opencode"
+	AgentNative   AgentKind = "native"
 )
 
-func (k AgentKind) Valid() bool { return k == AgentClaude || k == AgentCodex || k == AgentOpenCode }
+func (k AgentKind) Valid() bool {
+	return k == AgentClaude || k == AgentCodex || k == AgentOpenCode || k == AgentNative
+}
 
 type SessionStatus string
 

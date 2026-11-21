@@ -14,7 +14,7 @@ const test = base.extend<object, { v2: { url: string; dir: string } }>({
       const probe = net.createServer(); probe.listen(0, '127.0.0.1', () => { const port = (probe.address() as net.AddressInfo).port; probe.close(() => resolve(port)) })
     })
     const url = `http://127.0.0.1:${port}`
-    const proc = spawn(path.resolve('../bin/go-chamber'), ['-addr', `127.0.0.1:${port}`, '-data', dir, '-terminal-v2', '-rtc-ice', '[]'], { env: { ...process.env, SHELL: '/bin/zsh', HOME: dir, ZDOTDIR: dir }, stdio: 'ignore' })
+    const proc = spawn(path.resolve('../bin/go-chamber'), ['-addr', `127.0.0.1:${port}`, '-data', dir, '-tmux=false', '-terminal-v2', '-rtc-ice', '[]'], { env: { ...process.env, SHELL: '/bin/zsh', HOME: dir, ZDOTDIR: dir }, stdio: 'ignore' })
     try {
       await expect.poll(async () => { try { return (await fetch(`${url}/api/health`)).status } catch { return 0 } }, { timeout: 15000 }).toBe(401)
       await use({ url, dir })

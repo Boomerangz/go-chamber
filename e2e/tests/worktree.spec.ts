@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test'
 import { execFileSync } from 'node:child_process'
-import { mkdtempSync, realpathSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, realpathSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { token } from '../playwright.config'
@@ -98,7 +98,8 @@ test('a worktree session sits in its repository’s group, by branch; recent fol
 
 test('a worktree asks for its branch by name, and only a repository offers one', async ({ page }) => {
   const repo = newRepo()
-  const plain = realpathSync(mkdtempSync(path.join(tmpdir(), 'gc-plain-')))
+  const plain = path.join(realpathSync(mkdtempSync(path.join(tmpdir(), 'gc-plain-'))), 'notes')
+  mkdirSync(plain)
   await page.goto(`/?token=${token}`)
   await showPane(page, 'Sessions')
   await openNewSession(page)

@@ -27,7 +27,7 @@ export function missingCLIs(clis: CLIStatus[]): AgentKind[] {
 
 // cliMissingText is the server's own sentence for a missing CLI.
 export function cliMissingText(status: CLIStatus): string {
-  const name = status.name ?? (status.agent === 'claude' ? 'Claude Code' : status.agent === 'opencode' ? 'OpenCode' : 'Codex')
+  const name = status.name ?? (status.agent === 'native' ? 'Native' : status.agent === 'claude' ? 'Claude Code' : status.agent === 'opencode' ? 'OpenCode' : 'Codex')
   return `${name} CLI not found on PATH${status.hint ? `. Install it with ${status.hint}` : ''}`
 }
 
@@ -37,5 +37,6 @@ export function resetCLIs(): void {
 
 export function useCapabilities(agent: AgentKind): AgentCapabilities {
   const caps = useCLIs((s) => s.clis.find((c) => c.agent === agent)?.capabilities)
+  if (!caps && agent === 'native') return { steer: true, images: true, fork: true, subagents: true, permissionModes: true, approvalReviewer: false, login: true, quotas: false, historyImport: false }
   return caps ?? { steer: true, images: true, fork: true, subagents: true, permissionModes: agent !== 'opencode', approvalReviewer: agent === 'codex', login: agent === 'codex', quotas: agent !== 'opencode', historyImport: agent !== 'opencode' }
 }

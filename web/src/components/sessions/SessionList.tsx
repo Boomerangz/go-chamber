@@ -33,7 +33,7 @@ import { stableOrder } from '../../lib/stable-order'
 // RECENT is how many sessions an expanded project shows before "older".
 const RECENT = 5
 
-const agentName: Record<AgentKind, string> = { claude: 'Claude', codex: 'Codex', opencode: 'OpenCode' }
+const agentName: Record<AgentKind, string> = { claude: 'Claude', codex: 'Codex', opencode: 'OpenCode', native: 'Native' }
 
 export interface SessionListProps {
   onCreateIn: (cwd: string) => void

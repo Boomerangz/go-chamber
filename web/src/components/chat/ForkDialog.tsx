@@ -29,6 +29,7 @@ export default function ForkDialog({ session, onFork, onClose }: {
           <select className="field" aria-label="Fork agent" value={agent} onChange={(e) => setAgent(e.target.value as AgentKind)} autoFocus>
             <option value="claude" disabled={missing.includes('claude')}>Claude</option>
             <option value="codex" disabled={missing.includes('codex')}>Codex</option>
+            <option value="native">Native</option>
             <option value="opencode" disabled={missing.includes('opencode')}>OpenCode</option>
           </select>
         </label>

@@ -14,6 +14,7 @@ const modes: Record<Session['agent'], [string, string][]> = {
     ['bypassPermissions', 'bypass permissions'],
   ],
   opencode: [],
+  native: [['read-only', 'read only'], ['auto', 'ask before changes'], ['full-access', 'full access']],
   codex: [
     ['read-only', 'read only'],
     ['auto', 'auto'],

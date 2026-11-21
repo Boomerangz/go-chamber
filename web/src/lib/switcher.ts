@@ -97,7 +97,7 @@ function rank(e: SwitcherEntry): number {
 // what was archived.
 const section = (e: SwitcherEntry) => (e.archived ? 2 : e.kind === 'new' ? 1 : 0)
 
-const agentName: Record<AgentKind, string> = { claude: 'Claude', codex: 'Codex', opencode: 'OpenCode' }
+const agentName: Record<AgentKind, string> = { claude: 'Claude', codex: 'Codex', opencode: 'OpenCode', native: 'Native' }
 
 export interface SwitcherOptions {
   activeId?: string | null

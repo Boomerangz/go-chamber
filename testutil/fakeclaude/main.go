@@ -16,7 +16,7 @@
 //	longstderr write a 1 MiB stderr line, then answer like echo
 //	nocontrol  never answer control_requests
 //
-// Without --input-format (a one-shot prompt on stdin) it prints "Generated chat name".
+// Without --input-format it preserves the first message as title; "name me" tests title generation.
 //
 // set_model to "bad-model" is rejected with an error control_response.
 //
@@ -40,6 +40,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/igorzygin/go-chamber/internal/domain"
 )
 
 type envelope struct {
@@ -77,8 +79,8 @@ func main() {
 	args := os.Args[1:]
 	if !slices.Contains(args, "--input-format") {
 		// A one-shot `claude -p` (the host naming a session): answer with a name.
-		_, _ = io.Copy(io.Discard, os.Stdin)
-		fmt.Print("Generated chat name")
+		prompt, _ := io.ReadAll(os.Stdin)
+		fmt.Print(fakeTitle(string(prompt)))
 		return
 	}
 	for i, a := range args {
@@ -737,4 +739,20 @@ func writeInit(enc *json.Encoder, out *bufio.Writer, sessionID string) {
 		},
 	})
 	_ = out.Flush()
+}
+
+// Keep unrelated scenarios independent of asynchronous title generation.
+func fakeTitle(prompt string) string {
+	_, rest, ok := strings.Cut(prompt, "User message:\n")
+	if !ok {
+		return ""
+	}
+	first, _, ok := strings.Cut(rest, "\n\nAssistant reply:")
+	if !ok {
+		return ""
+	}
+	if strings.HasPrefix(first, "name me ") {
+		return "Generated chat name"
+	}
+	return domain.PlainText(first)
 }

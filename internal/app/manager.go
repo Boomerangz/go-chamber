@@ -735,6 +735,11 @@ func (m *Manager) ensureRuntimeFor(ctx context.Context, s *domain.Session, nativ
 		_ = rt.Close()
 		return existing, nil
 	}
+	if settings, ok := rt.(RuntimeSettings); ok {
+		model, effort, mode := settings.SelectedSettings()
+		_ = s.SetModel(model, effort)
+		_ = s.SetPermissionMode(mode)
+	}
 	err = s.RuntimeAttached(rt.NativeID())
 	if err == nil {
 		m.runtimes[s.ID()] = rt
@@ -810,6 +815,10 @@ func (m *Manager) consume(s *domain.Session, rt AgentRuntime) {
 		quotaStop := false
 		var left []domain.Item
 		switch ev.Type {
+		case domain.EventTurnStarted:
+			if s.ParentID() != "" {
+				_ = s.TurnStarted()
+			}
 		case domain.EventTitle:
 			changed := s.Name(clipTitle(ev.Title), domain.TitleAgent)
 			snap := s.Snapshot()
@@ -875,6 +884,11 @@ func (m *Manager) consume(s *domain.Session, rt AgentRuntime) {
 			m.cfg.Bus.Publish(domain.Event{SessionID: s.ID(), Type: domain.EventSessionState, Session: &snap})
 		}
 		switch ev.Type {
+		case domain.EventTurnStarted:
+			if snap.ParentID != "" {
+				_ = m.cfg.Repo.Save(context.Background(), snap)
+				m.cfg.Bus.Publish(domain.Event{SessionID: s.ID(), Type: domain.EventSessionState, Session: &snap})
+			}
 		case domain.EventTurnEnded:
 			_ = m.cfg.Repo.Save(context.Background(), snap)
 			m.cfg.Bus.Publish(domain.Event{SessionID: s.ID(), Type: domain.EventSessionState, Session: &snap})
@@ -1222,4 +1236,14 @@ func titleFromText(text string) string {
 		title = strings.TrimRight(string(r[:titleLimit-1]), " ") + "…"
 	}
 	return title
+}
+
+func (m *Manager) RefreshModels(ctx context.Context, agent domain.AgentKind) ([]ModelInfo, error) {
+	if err := m.checkCLI(agent); err != nil {
+		return nil, err
+	}
+	if c, ok := m.cfg.Models.(RefreshableModelCatalog); ok {
+		return c.RefreshModels(ctx, agent)
+	}
+	return m.Models(ctx, agent)
 }

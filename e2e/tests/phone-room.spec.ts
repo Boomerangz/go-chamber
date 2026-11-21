@@ -89,6 +89,7 @@ test('a phone hides Attach while a turn runs: images wait for the next message',
 test('account logins and OpenCode providers are folded by default on every screen', async ({ page }) => {
   await page.route('**/api/account?*', (route) => {
     const agent = new URL(route.request().url()).searchParams.get('agent')
+    if (agent === 'native') return route.fulfill({ json: { agent, loggedIn: false, providers: [] } })
     return route.fulfill({ json: { agent, loggedIn: true, authMode: 'cli', email: agent === 'codex' ? 'dev@example.com' : undefined, providers: ['openrouter'] } })
   })
   await page.goto(`/?token=${token}`)

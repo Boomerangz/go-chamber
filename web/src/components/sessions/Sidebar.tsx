@@ -25,7 +25,7 @@ import './Sidebar.css'
 import type { AgentKind, Session } from '../../lib/api'
 
 const AGENT_KEY = 'gc.lastAgent'
-const AGENTS = ['claude', 'codex', 'opencode'] as const
+const AGENTS = ['claude', 'codex', 'opencode', 'native'] as const
 
 function lastAgent(): AgentKind {
   try {
@@ -234,7 +234,7 @@ export default function Sidebar(props: SidebarProps) {
                 }}
               >
                 <AgentAvatar agent={a} />
-                {a === 'claude' ? 'Claude' : a === 'opencode' ? 'OpenCode' : 'Codex'}
+                {a === 'native' ? 'Native' : a === 'claude' ? 'Claude' : a === 'opencode' ? 'OpenCode' : 'Codex'}
               </button>
             )
           })}

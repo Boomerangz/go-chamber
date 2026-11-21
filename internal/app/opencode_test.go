@@ -21,7 +21,7 @@ func TestOpenCodeCapabilitiesAndFolderModels(t *testing.T) {
 	f := &folderCatalog{}
 	m := NewManager(ManagerConfig{Models: f})
 	clis := m.CLIs()
-	if len(clis) != 3 {
+	if len(clis) != 4 {
 		t.Fatalf("agents = %+v", clis)
 	}
 	if clis[2].Name != "OpenCode" || !clis[2].Capabilities.Steer || clis[2].Capabilities.Login || clis[2].Capabilities.PermissionModes {

@@ -215,10 +215,13 @@ type ModelSetter interface {
 
 // ModelInfo describes one model an agent offers.
 type ModelInfo struct {
-	ID          string `json:"id"`
-	Name        string `json:"name"`
-	Description string `json:"description,omitempty"`
-	Provider    string `json:"provider,omitempty"`
+	Stale            bool      `json:"stale,omitempty"`
+	CatalogUpdatedAt time.Time `json:"catalogUpdatedAt,omitzero"`
+	ContextWindow    int       `json:"contextWindow,omitempty"`
+	ID               string    `json:"id"`
+	Name             string    `json:"name"`
+	Description      string    `json:"description,omitempty"`
+	Provider         string    `json:"provider,omitempty"`
 	// Images describes image input support when the catalog knows it.
 	Images *bool `json:"images,omitempty"`
 	// Efforts are the reasoning efforts the model accepts, if any.
@@ -236,4 +239,14 @@ type ModelCatalog interface {
 // FolderModelCatalog includes project-local configuration in model discovery.
 type FolderModelCatalog interface {
 	ModelsInFolder(ctx context.Context, agent domain.AgentKind, cwd string) ([]ModelInfo, error)
+}
+
+// RefreshableModelCatalog bypasses the normal catalog TTL on explicit request.
+type RefreshableModelCatalog interface {
+	RefreshModels(context.Context, domain.AgentKind) ([]ModelInfo, error)
+}
+
+// RuntimeSettings reports concrete defaults selected during attachment.
+type RuntimeSettings interface {
+	SelectedSettings() (model, effort, permissionMode string)
 }

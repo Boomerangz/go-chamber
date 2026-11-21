@@ -15,6 +15,7 @@ type Router struct {
 	Claude   app.RuntimeFactory
 	Codex    app.RuntimeFactory
 	OpenCode app.RuntimeFactory
+	Native   app.RuntimeFactory
 	// Accounts handles login for agents that support it (Codex). Claude
 	// manages its own login through `claude login`.
 	Accounts app.AccountManager
@@ -32,8 +33,8 @@ func (r *Router) RateLimits(ctx context.Context, agent domain.AgentKind) (domain
 
 // Account implements app.AccountManager.
 func (r *Router) Account(ctx context.Context, agent domain.AgentKind) (app.AccountInfo, error) {
-	if agent == domain.AgentOpenCode {
-		if accounts, ok := r.OpenCode.(app.AccountManager); ok {
+	if agent == domain.AgentOpenCode || agent == domain.AgentNative {
+		if accounts, ok := r.factory(agent).(app.AccountManager); ok {
 			return accounts.Account(ctx, agent)
 		}
 		return app.AccountInfo{}, app.ErrAccountsUnsupported
@@ -49,6 +50,11 @@ func (r *Router) Account(ctx context.Context, agent domain.AgentKind) (app.Accou
 
 // StartLogin implements app.AccountManager.
 func (r *Router) StartLogin(ctx context.Context, agent domain.AgentKind) (app.LoginChallenge, error) {
+	if agent == domain.AgentNative {
+		if manager, ok := r.Native.(app.AccountManager); ok {
+			return manager.StartLogin(ctx, agent)
+		}
+	}
 	if agent == domain.AgentCodex && r.Accounts != nil {
 		return r.Accounts.StartLogin(ctx, agent)
 	}
@@ -79,6 +85,8 @@ func (r *Router) factory(agent domain.AgentKind) app.RuntimeFactory {
 		return r.Codex
 	case domain.AgentOpenCode:
 		return r.OpenCode
+	case domain.AgentNative:
+		return r.Native
 	}
 	return nil
 }
@@ -102,6 +110,15 @@ var _ app.CommandCatalog = (*Router)(nil)
 func (r *Router) ModelsInFolder(ctx context.Context, agent domain.AgentKind, cwd string) ([]app.ModelInfo, error) {
 	if catalog, ok := r.factory(agent).(app.FolderModelCatalog); ok {
 		return catalog.ModelsInFolder(ctx, agent, cwd)
+	}
+	return r.Models(ctx, agent)
+}
+
+func (r *Router) RefreshModels(ctx context.Context, agent domain.AgentKind) ([]app.ModelInfo, error) {
+	if agent == domain.AgentNative {
+		if c, ok := r.Native.(app.RefreshableModelCatalog); ok {
+			return c.RefreshModels(ctx, agent)
+		}
 	}
 	return r.Models(ctx, agent)
 }

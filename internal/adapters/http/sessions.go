@@ -146,7 +146,9 @@ func (s *server) listModels(w http.ResponseWriter, r *http.Request) {
 	agent := domain.AgentKind(r.PathValue("agent"))
 	var models []app.ModelInfo
 	var err error
-	if catalog, ok := s.cfg.Sessions.(app.FolderModelCatalog); ok && r.URL.Query().Has("cwd") {
+	if catalog, ok := s.cfg.Sessions.(app.RefreshableModelCatalog); ok && r.URL.Query().Get("refresh") == "true" {
+		models, err = catalog.RefreshModels(r.Context(), agent)
+	} else if catalog, ok := s.cfg.Sessions.(app.FolderModelCatalog); ok && r.URL.Query().Has("cwd") {
 		models, err = catalog.ModelsInFolder(r.Context(), agent, r.URL.Query().Get("cwd"))
 	} else {
 		models, err = s.cfg.Sessions.Models(r.Context(), agent)

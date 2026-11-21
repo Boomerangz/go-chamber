@@ -385,7 +385,8 @@ func TestSlowSubscriberIsResyncedFromScrollback(t *testing.T) {
 	// pending. An in-flight prefix is optional; the resync itself is required.
 	got := recvFrame(t, slow.Output)
 	if !got.Resync {
-		if len(got.Data) < 5 || len(got.Data) > 8 || !strings.HasPrefix("12345678", string(got.Data)) {
+		expectedPrefix := "12345678"
+		if len(got.Data) < 5 || len(got.Data) > 8 || !strings.HasPrefix(expectedPrefix, string(got.Data)) {
 			t.Fatalf("frame in flight = %+v", got)
 		}
 		got = recvFrame(t, slow.Output)

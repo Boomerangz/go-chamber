@@ -308,11 +308,11 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
 
   async loadModels(agent, cwd, refresh = false) {
     const key = modelCatalogKey(agent, cwd)
-    if (!refresh && get().models[key] && !modelsFailed.has(key)) return
+    if (agent !== 'native' && !refresh && get().models[key] && !modelsFailed.has(key)) return
     if (get().modelsStatus[key] === 'loading') return
     set({ modelsStatus: { ...get().modelsStatus, [key]: 'loading' } })
     try {
-      const list = cwd === undefined ? await api.listModels(agent) : await api.listModels(agent, cwd)
+      const list = agent === 'native' && refresh ? await api.listModels(agent, cwd, true) : cwd === undefined ? await api.listModels(agent) : await api.listModels(agent, cwd)
       modelsFailed.delete(key)
       const { [key]: _, ...modelsError } = get().modelsError
       set({ models: { ...get().models, [key]: list }, modelsStatus: { ...get().modelsStatus, [key]: 'ready' }, modelsError })
@@ -324,7 +324,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       const unsupported = /not supported/i.test(why)
       if (!unsupported) modelsFailed.add(key)
       set({
-        models: { ...get().models, [key]: [] },
+        models: { ...get().models, [key]: agent === 'native' ? get().models[key] ?? [] : [] },
         modelsStatus: { ...get().modelsStatus, [key]: unsupported ? 'ready' : 'error' },
         ...(unsupported ? {} : { modelsError: { ...get().modelsError, [key]: why } }),
       })

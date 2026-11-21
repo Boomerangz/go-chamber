@@ -27,7 +27,7 @@ function freePort(): Promise<number> {
 }
 
 async function start() {
-  server = spawn(path.join(repoRoot, 'bin', 'go-chamber'), ['-addr', `127.0.0.1:${port}`, '-data', path.join(root, 'data'), '-rtc-ice', '[]'], {
+  server = spawn(path.join(repoRoot, 'bin', 'go-chamber'), ['-addr', `127.0.0.1:${port}`, '-data', path.join(root, 'data'), '-tmux=false', '-rtc-ice', '[]'], {
     env: { HOME: root, SHELL: '/bin/sh', PATH: '/usr/bin:/bin' },
     stdio: 'ignore',
   })

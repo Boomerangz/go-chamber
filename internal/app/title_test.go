@@ -60,7 +60,9 @@ func TestAgentTitleEventNamesSessionOverFirstMessage(t *testing.T) {
 			t.Fatal("the raw title event must not reach clients")
 		}
 	}
-	m.RenameSession(ctx, snap.ID, "Mine")
+	if _, err := m.RenameSession(ctx, snap.ID, "Mine"); err != nil {
+		t.Fatal(err)
+	}
 	rt.events <- domain.Event{SessionID: snap.ID, Type: domain.EventTitle, Title: "Agent again"}
 	rt.events <- domain.Event{SessionID: snap.ID, Type: domain.EventTurnEnded}
 	eventually(t, "turn end", func() bool {
@@ -99,7 +101,9 @@ func TestTitlerRunsOnceAndSkipsFailedTurns(t *testing.T) {
 	factory.runtimes = []*fakeRuntime{rt}
 	ctx := context.Background()
 	snap, _ := m.CreateSession(ctx, domain.AgentClaude, "/tmp/proj")
-	m.SendMessage(ctx, snap.ID, "first")
+	if err := m.SendMessage(ctx, snap.ID, "first"); err != nil {
+		t.Fatal(err)
+	}
 	rt.events <- domain.Event{SessionID: snap.ID, Type: domain.EventTurnEnded, Result: &domain.TurnResult{IsError: true, Error: "boom"}}
 	eventually(t, "idle", func() bool {
 		got, _ := m.GetSession(ctx, snap.ID)
@@ -108,13 +112,17 @@ func TestTitlerRunsOnceAndSkipsFailedTurns(t *testing.T) {
 	if len(titler.called()) != 0 {
 		t.Fatal("a failed turn must not be titled")
 	}
-	m.SendMessage(ctx, snap.ID, "second")
+	if err := m.SendMessage(ctx, snap.ID, "second"); err != nil {
+		t.Fatal(err)
+	}
 	rt.events <- domain.Event{SessionID: snap.ID, Type: domain.EventTurnEnded, Result: &domain.TurnResult{Text: "ok"}}
 	eventually(t, "titler call", func() bool { return len(titler.called()) == 1 })
 	if got, _ := m.GetSession(ctx, snap.ID); got.Title != "first" {
 		t.Fatalf("a failing titler must leave the first message: %q", got.Title)
 	}
-	m.SendMessage(ctx, snap.ID, "third")
+	if err := m.SendMessage(ctx, snap.ID, "third"); err != nil {
+		t.Fatal(err)
+	}
 	rt.events <- domain.Event{SessionID: snap.ID, Type: domain.EventTurnEnded, Result: &domain.TurnResult{Text: "ok"}}
 	eventually(t, "third turn", func() bool {
 		got, _ := m.GetSession(ctx, snap.ID)
@@ -132,7 +140,9 @@ func TestTitlerNamesACodexSessionToo(t *testing.T) {
 	factory.runtimes = []*fakeRuntime{rt}
 	ctx := context.Background()
 	snap, _ := m.CreateSession(ctx, domain.AgentCodex, "/tmp/proj")
-	m.SendMessage(ctx, snap.ID, "write fibonacci")
+	if err := m.SendMessage(ctx, snap.ID, "write fibonacci"); err != nil {
+		t.Fatal(err)
+	}
 	rt.events <- domain.Event{SessionID: snap.ID, Type: domain.EventTurnEnded, Result: &domain.TurnResult{Text: "done"}}
 	eventually(t, "generated title", func() bool {
 		got, _ := m.GetSession(ctx, snap.ID)
@@ -158,7 +168,9 @@ func TestTitlerFailureIsLogged(t *testing.T) {
 	factory.runtimes = []*fakeRuntime{rt}
 	ctx := context.Background()
 	snap, _ := m.CreateSession(ctx, domain.AgentCodex, "/tmp/proj")
-	m.SendMessage(ctx, snap.ID, "hi")
+	if err := m.SendMessage(ctx, snap.ID, "hi"); err != nil {
+		t.Fatal(err)
+	}
 	rt.events <- domain.Event{SessionID: snap.ID, Type: domain.EventTurnEnded, Result: &domain.TurnResult{Text: "ok"}}
 	eventually(t, "logged", func() bool {
 		mu.Lock()

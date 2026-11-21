@@ -219,3 +219,11 @@ it('requires explicit image capability for OpenCode models', () => {
   expect(supportsImages('opencode', models, '')).toBe(true)
   expect(supportsImages('claude', undefined, '')).toBe(true)
 })
+
+it('labels a stale native catalog while keeping model choices available',async()=>{
+ vi.mocked(api.listModels).mockResolvedValue([{id:'openrouter:old',name:'Old model',stale:true}])
+ render(<ModelPicker session={session({agent:'native'})} />)
+ await userEvent.click(await screen.findByRole('button',{name:'Model: Default model'}))
+ expect(await screen.findByText(/Saved model list/)).toBeInTheDocument()
+ expect(screen.getByRole('radio',{name:/Old model/})).toBeInTheDocument()
+})

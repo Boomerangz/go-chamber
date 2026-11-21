@@ -15,6 +15,7 @@ var ErrInvalidPermissionMode = errors.New("invalid permission mode")
 var permissionModes = map[AgentKind][]string{
 	AgentClaude: {"default", "acceptEdits", "plan", "bypassPermissions"},
 	AgentCodex:  {"read-only", "auto", "full-access"},
+	AgentNative: {"read-only", "auto", "full-access"},
 }
 
 // AcceptsPermissionMode reports whether the agent takes mode; every agent
