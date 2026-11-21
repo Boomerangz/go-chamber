@@ -201,8 +201,8 @@ export default function ChatHeader({ session, status, unsettled, loading, notFou
           </span>
         )}
         {unguarded && (
-          <span className="no-approvals" title="The agent won't ask before running commands or editing files">
-            no approvals
+          <span className="no-approvals" title={session?.agent === 'codex' ? 'Full access selected. Permission changes apply to the next Codex turn.' : "The agent won't ask before running commands or editing files"}>
+            {session?.agent === 'codex' ? 'full access' : 'no approvals'}
           </span>
         )}
         {session?.archivedAt && <span className="archived-tag">archived</span>}
@@ -219,6 +219,12 @@ export default function ChatHeader({ session, status, unsettled, loading, notFou
             </span>
             {caps.permissionModes && <PermissionModeSelect session={session} />}
             <ApprovalReviewerSelect session={session} />
+            {session.agent === 'codex' && (
+              <span className="permission-timing" title="Permission and reviewer changes apply to the next turn.">
+                <span className="permission-timing-short">next turn</span>
+                <span className="permission-timing-full">Permission and reviewer changes apply to the next turn.</span>
+              </span>
+            )}
             {/* A fork starts in the session's folder: none once it's gone. */}
             {session.nativeId && !session.folderGone && (
               <button ref={forkButton} disabled={forking} type="button" className="btn btn-ghost chat-fork" aria-busy={forking} aria-haspopup="dialog" onClick={() => setForkOpen(true)}>

@@ -118,6 +118,11 @@ describe('transcript loading', () => {
     expect(document.querySelector('.chat-meta .status')).toHaveTextContent('idle')
   })
 
+  it('shows background work while the session is idle', () => {
+    setup({ sessions: [{ ...session, backgroundTasks: 2 }] })
+    expect(screen.getByText('2 background tasks')).toBeVisible()
+  })
+
   it('flashes "done" for a finished turn but not for a failed one', () => {
     setup({ chat: running([item('u1', 'user_message')]) })
     act(() => useSessionStore.setState({ chat: chatOf([item('u1', 'user_message')], { lastSeq: 5 }) }))
@@ -621,6 +626,20 @@ describe('header', () => {
   it('marks a session the agent runs without approvals', () => {
     setup({ sessions: [{ ...session, permissionMode: 'bypassPermissions' }] })
     expect(document.querySelector('.chat-meta .no-approvals')).toHaveTextContent('no approvals')
+  })
+
+  it('explains that Codex permission changes wait for the next turn', () => {
+    setup({ sessions: [{ ...session, agent: 'codex', status: 'running', permissionMode: 'full-access', approvalReviewer: 'auto_review' }], chat: running() })
+    expect(screen.getByText('Permission and reviewer changes apply to the next turn.')).toBeInTheDocument()
+    expect(screen.getByText('next turn')).toBeInTheDocument()
+    expect(document.querySelector('.permission-timing')).toHaveAttribute('title', 'Permission and reviewer changes apply to the next turn.')
+    expect(document.querySelector('.chat-meta .no-approvals')).toHaveTextContent(/^full access$/)
+    expect(document.querySelector('.chat-meta .no-approvals')).toHaveAttribute('title', 'Full access selected. Permission changes apply to the next Codex turn.')
+  })
+
+  it('does not show the Codex timing note for Claude', () => {
+    setup({ chat: running() })
+    expect(screen.queryByText('Permission and reviewer changes apply to the next turn.')).toBeNull()
   })
 
   it('has no unguarded mark in an asking mode', () => {
