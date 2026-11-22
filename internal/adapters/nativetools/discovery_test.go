@@ -72,3 +72,24 @@ func TestSkillCommandsMatchInstructionsAndDeduplicate(t *testing.T) {
 		t.Fatalf("instructions=%s err=%v", instructions, err)
 	}
 }
+
+func TestUnreadableSkillDoesNotHideOthers(t *testing.T) {
+	cwd := t.TempDir()
+	good := filepath.Join(cwd, ".claude/skills/good")
+	broken := filepath.Join(cwd, ".claude/skills/broken")
+	for _, dir := range []string{good, broken} {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.WriteFile(filepath.Join(good, "SKILL.md"), []byte("description: works\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(filepath.Join(cwd, "missing"), filepath.Join(broken, "SKILL.md")); err != nil {
+		t.Fatal(err)
+	}
+	commands, err := SkillCommands(cwd, nil)
+	if err != nil || len(commands) != 1 || commands[0].Name != "good" {
+		t.Fatalf("commands = %+v, err = %v", commands, err)
+	}
+}

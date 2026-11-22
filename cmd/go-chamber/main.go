@@ -68,6 +68,7 @@ func run(ctx context.Context, args []string, out io.Writer) error {
 	nativeCodexURL := fl.String("native-codex-url", "", "native Codex endpoint override")
 	nativeRouterURL := fl.String("native-openrouter-url", "", "OpenRouter compatible endpoint override")
 	nativeRouterKey := fl.String("native-openrouter-key-file", "", "OpenRouter key file (otherwise OPENROUTER_API_KEY)")
+	codexIdle := fl.Duration("codex-idle-timeout", 2*time.Minute, "unload idle Codex threads after this long (0 keeps them)")
 	idle := fl.Duration("idle-timeout", 15*time.Minute, "close idle Claude processes after this long (0 keeps them)")
 	iceDefault := os.Getenv("GO_CHAMBER_ICE_SERVERS")
 	if iceDefault == "" {
@@ -182,22 +183,23 @@ func run(ctx context.Context, args []string, out io.Writer) error {
 	// Neither headless Claude nor Codex's app-server names its sessions.
 	titler := &claude.Titler{}
 	manager := app.NewManager(app.ManagerConfig{
-		Repo:          store.Sessions(),
-		Transcripts:   fsys.TranscriptFiles{Root: *dataDir},
-		Runtimes:      runtimes,
-		Accounts:      runtimes,
-		Quotas:        store.Quotas(),
-		QuotaProvider: runtimes,
-		Bus:           events,
-		History:       events,
-		Models:        runtimes,
-		IdleTimeout:   *idle,
-		Logf:          func(format string, args ...any) { _, _ = fmt.Fprintf(os.Stderr, format+"\n", args...) },
-		Titlers:       map[domain.AgentKind]app.Titler{domain.AgentClaude: titler, domain.AgentCodex: titler},
-		Eraser:        store,
-		Folders:       fsys.Reader{},
-		CLIs:          fsys.PathCLIs{},
-		Terminals:     terminals,
+		Repo:             store.Sessions(),
+		Transcripts:      fsys.TranscriptFiles{Root: *dataDir},
+		Runtimes:         runtimes,
+		Accounts:         runtimes,
+		Quotas:           store.Quotas(),
+		QuotaProvider:    runtimes,
+		Bus:              events,
+		History:          events,
+		Models:           runtimes,
+		IdleTimeout:      *idle,
+		CodexIdleTimeout: *codexIdle,
+		Logf:             func(format string, args ...any) { _, _ = fmt.Fprintf(os.Stderr, format+"\n", args...) },
+		Titlers:          map[domain.AgentKind]app.Titler{domain.AgentClaude: titler, domain.AgentCodex: titler},
+		Eraser:           store,
+		Folders:          fsys.Reader{},
+		CLIs:             fsys.PathCLIs{},
+		Terminals:        terminals,
 	})
 	defer manager.Close()
 	if _, err := manager.Restore(ctx); err != nil {

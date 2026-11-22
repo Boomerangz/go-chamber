@@ -24,9 +24,15 @@ type pendingRequest struct {
 // normalized domain events. It is stateful: it correlates streamed blocks
 // with the assistant messages and tool results that complete them.
 type Mapper struct {
-	mu      sync.Mutex
-	session domain.SessionID
-	turn    domain.TurnID
+	mu          sync.Mutex
+	session     domain.SessionID
+	turn        domain.TurnID
+	afterResult bool
+	// backgroundTasks is the CLI's last task snapshot; backgroundSeen notes
+	// background work active at or after the last result, which is what
+	// wakes the CLI into a turn of its own.
+	backgroundTasks int
+	backgroundSeen  bool
 
 	// Each runtime gets its own namespace, so replaying a session after a
 	// restart never replaces items produced by its previous process.
@@ -96,6 +102,7 @@ func (m *Mapper) Deny(id domain.RequestID) {
 func (m *Mapper) SetTurn(turn domain.TurnID) {
 	m.mu.Lock()
 	m.turn = turn
+	m.afterResult = false
 	m.mu.Unlock()
 }
 
@@ -227,7 +234,7 @@ func (m *Mapper) create(kind domain.ItemKind, parentToolID string) *domain.Item 
 }
 
 func (m *Mapper) updated(item *domain.Item) []domain.Event {
-	item.OutlivesTurn = item.Kind == domain.ItemSubagent && (m.background[item.ID] || inputBool(item.Input, "run_in_background"))
+	item.OutlivesTurn = m.background[item.ID] || inputBool(item.Input, "run_in_background")
 	return []domain.Event{{SessionID: m.session, Type: domain.EventItemUpdated, Item: item}}
 }
 
@@ -444,7 +451,7 @@ func (m *Mapper) mapUser(raw *rawMessage) []domain.Event {
 			continue
 		}
 		item.Text = textFromToolResult(block.Content)
-		if item.Kind == domain.ItemSubagent && !block.IsError && (m.background[item.ID] || inputBool(item.Input, "run_in_background")) {
+		if !block.IsError && (m.background[item.ID] || inputBool(item.Input, "run_in_background")) {
 			// The launch acknowledgement; task_notification brings the outcome.
 			events = append(events, m.updated(item)...)
 			continue
@@ -514,6 +521,20 @@ func clampPct(pct float64) float64 {
 // mapSystem handles background subagent task lifecycle messages.
 func (m *Mapper) mapSystem(raw *rawMessage) []domain.Event {
 	switch raw.Subtype {
+	case "status":
+		if raw.Status == "requesting" && m.afterResult && m.backgroundSeen {
+			m.afterResult, m.backgroundSeen = false, false
+			return []domain.Event{{SessionID: m.session, Type: domain.EventTurnStarted}}
+		}
+	case "background_tasks_changed":
+		var tasks []json.RawMessage
+		if len(raw.Tasks) == 0 || json.Unmarshal(raw.Tasks, &tasks) != nil || string(raw.Tasks) == "null" {
+			return nil
+		}
+		count := len(tasks)
+		m.backgroundTasks = count
+		m.backgroundSeen = m.backgroundSeen || count > 0
+		return []domain.Event{{SessionID: m.session, Type: domain.EventBackgroundWork, BackgroundCount: &count}}
 	case "task_started":
 		return m.mapTaskStarted(raw)
 	case "task_notification":
@@ -633,7 +654,14 @@ func (m *Mapper) mapTaskStarted(raw *rawMessage) []domain.Event {
 		if name == "" {
 			name = raw.TaskType
 		}
-		item = m.create(domain.ItemSubagent, "")
+		kind := domain.ItemSubagent
+		if raw.TaskType == "local_bash" {
+			kind = domain.ItemCommand
+		}
+		item = m.create(kind, "")
+		if raw.ToolUseID != "" {
+			m.byTool[raw.ToolUseID] = item.ID
+		}
 		item.Name = name
 		text := raw.Description
 		if text == "" {
@@ -648,6 +676,7 @@ func (m *Mapper) mapTaskStarted(raw *rawMessage) []domain.Event {
 	m.tasks[raw.TaskID] = item.ID
 	if raw.IsBackgrounded != nil && *raw.IsBackgrounded {
 		m.background[item.ID] = true
+		m.backgroundSeen = true
 	}
 	return m.updated(item)
 }
@@ -659,6 +688,9 @@ func (m *Mapper) mapTaskNotification(raw *rawMessage) []domain.Event {
 	}
 	if item == nil {
 		return nil
+	}
+	if m.background[item.ID] {
+		m.backgroundSeen = true
 	}
 	if raw.Summary != "" {
 		item.Text = raw.Summary
@@ -676,7 +708,18 @@ func (m *Mapper) mapTaskNotification(raw *rawMessage) []domain.Event {
 	return m.updated(item)
 }
 
+func (m *Mapper) openBackgroundItem() bool {
+	for id := range m.background {
+		if item := m.items[id]; item != nil && !item.Status.Terminal() {
+			return true
+		}
+	}
+	return false
+}
+
 func (m *Mapper) mapResult(raw *rawMessage) []domain.Event {
+	m.afterResult = true
+	m.backgroundSeen = m.backgroundTasks > 0 || m.openBackgroundItem()
 	res := &domain.TurnResult{
 		Text:    raw.Result,
 		IsError: raw.IsError,

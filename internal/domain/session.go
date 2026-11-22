@@ -95,28 +95,29 @@ type Interruption struct {
 // process is disposable; the session survives it and can be resumed through
 // its NativeID (Claude session_id or Codex threadId).
 type Session struct {
-	id           SessionID
-	agent        AgentKind
-	cwd          string
-	title        string
-	titleSource  TitleSource
-	nativeID     string
-	parentID     SessionID
-	forkOf       SessionID
-	status       SessionStatus
-	attached     bool
-	interruption Interruption
-	autoContinue bool
-	reviewer     ApprovalReviewer
-	mode         string
-	createdAt    time.Time
-	activeAt     time.Time
-	model        string
-	effort       string
-	worktree     *Worktree
-	archivedAt   time.Time
-	seen         Seen
-	endedAt      time.Time
+	id              SessionID
+	agent           AgentKind
+	cwd             string
+	title           string
+	titleSource     TitleSource
+	nativeID        string
+	parentID        SessionID
+	forkOf          SessionID
+	status          SessionStatus
+	attached        bool
+	interruption    Interruption
+	autoContinue    bool
+	reviewer        ApprovalReviewer
+	mode            string
+	createdAt       time.Time
+	activeAt        time.Time
+	model           string
+	effort          string
+	worktree        *Worktree
+	archivedAt      time.Time
+	seen            Seen
+	endedAt         time.Time
+	backgroundTasks int
 }
 
 // SessionSnapshot is the persistable state of a Session.
@@ -154,6 +155,8 @@ type SessionSnapshot struct {
 	Seen Seen `json:"seen,omitzero"`
 	// EndedAt is when a turn last ended.
 	EndedAt time.Time `json:"endedAt,omitzero"`
+	// BackgroundTasks is live runtime state and is cleared on restart.
+	BackgroundTasks int `json:"backgroundTasks,omitempty"`
 }
 
 func NewSession(id SessionID, agent AgentKind, cwd string) (*Session, error) {
@@ -327,6 +330,7 @@ func (s *Session) RuntimeExited(reason ExitReason) {
 		return
 	}
 	s.attached = false
+	s.backgroundTasks = 0
 	switch s.status {
 	case StatusRunning:
 		s.status = StatusInterrupted
@@ -415,9 +419,12 @@ func (s *Session) Snapshot() SessionSnapshot {
 		Status: s.status, Title: s.title, Interruption: s.interruption, AutoContinue: s.autoContinue,
 		ApprovalReviewer: s.reviewer, PermissionMode: s.mode, CreatedAt: s.createdAt, ActiveAt: s.activeAt,
 		Model: s.model, Effort: s.effort, Worktree: s.Worktree(), ArchivedAt: s.archivedAt,
-		Seen: s.seen, EndedAt: s.endedAt,
+		Seen: s.seen, EndedAt: s.endedAt, BackgroundTasks: s.backgroundTasks,
 	}
 }
+
+// SetBackgroundTasks records the runtime's live background task count.
+func (s *Session) SetBackgroundTasks(n int) { s.backgroundTasks = n }
 
 // Model returns the chosen model and reasoning effort.
 func (s *Session) Model() (model, effort string) { return s.model, s.effort }

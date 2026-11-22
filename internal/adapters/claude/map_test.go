@@ -10,6 +10,73 @@ import (
 	"github.com/igorzygin/go-chamber/internal/domain"
 )
 
+func TestBackgroundCommandRemainsOpenUntilNotification(t *testing.T) {
+	m := NewMapper("s")
+	events := feed(t, m,
+		`{"type":"assistant","message":{"id":"m","content":[{"type":"tool_use","id":"tool","name":"Bash","input":{"command":"sleep 8","run_in_background":true}}]}}`,
+		`{"type":"system","subtype":"task_started","task_id":"task","tool_use_id":"tool","task_type":"local_bash","is_backgrounded":true}`,
+		`{"type":"user","message":{"content":[{"type":"tool_result","tool_use_id":"tool","content":"Command running in background"}]}}`,
+	)
+	item := events[len(events)-1].Item
+	if item == nil || item.Status.Terminal() || !item.OutlivesTurn {
+		t.Fatalf("launch acknowledgement: %+v", item)
+	}
+	events = feed(t, m, `{"type":"system","subtype":"task_notification","task_id":"task","status":"completed","summary":"done"}`)
+	if len(events) != 1 || events[0].Item.Status != domain.ItemCompleted {
+		t.Fatalf("completion: %+v", events)
+	}
+}
+
+func TestBackgroundTaskStartedBeforeToolUsesSameItem(t *testing.T) {
+	m := NewMapper("s")
+	started := feed(t, m, `{"type":"system","subtype":"task_started","task_id":"task","tool_use_id":"tool","task_type":"local_bash","is_backgrounded":true}`)
+	tool := feed(t, m, `{"type":"assistant","message":{"id":"m","content":[{"type":"tool_use","id":"tool","name":"Bash","input":{"command":"sleep 8","run_in_background":true}}]}}`)
+	if len(started) != 1 || len(tool) == 0 || started[0].Item.ID != tool[len(tool)-1].Item.ID {
+		t.Fatalf("started=%+v tool=%+v", started, tool)
+	}
+}
+
+func TestBackgroundTaskSnapshots(t *testing.T) {
+	m := NewMapper("s")
+	for _, tc := range []struct {
+		line  string
+		count int
+	}{
+		{`{"type":"system","subtype":"background_tasks_changed","tasks":[{"task_id":"one","task_type":"local_bash"},{"task_id":"two","task_type":"monitor"}]}`, 2},
+		{`{"type":"system","subtype":"background_tasks_changed","tasks":[]}`, 0},
+	} {
+		events := feed(t, m, tc.line)
+		if len(events) != 1 || events[0].Type != domain.EventBackgroundWork || events[0].BackgroundCount == nil || *events[0].BackgroundCount != tc.count {
+			t.Fatalf("snapshot: %+v", events)
+		}
+	}
+}
+
+func TestBackgroundNotificationStartsNewTurn(t *testing.T) {
+	m := NewMapper("s")
+	feed(t, m,
+		`{"type":"system","subtype":"task_started","task_id":"task","tool_use_id":"tool","task_type":"local_bash","is_backgrounded":true}`,
+		`{"type":"result","subtype":"success"}`,
+		`{"type":"system","subtype":"task_notification","task_id":"task","status":"completed","summary":"done"}`,
+		`{"type":"system","subtype":"background_tasks_changed","tasks":[]}`,
+	)
+	events := feed(t, m, `{"type":"system","subtype":"status","status":"requesting"}`)
+	if len(events) != 1 || events[0].Type != domain.EventTurnStarted {
+		t.Fatalf("new activity: %+v", events)
+	}
+	if events = feed(t, m, `{"type":"system","subtype":"status","status":"requesting"}`); len(events) != 0 {
+		t.Fatalf("duplicate start: %+v", events)
+	}
+}
+
+func TestRequestAfterResultWithoutBackgroundWorkIsNotATurn(t *testing.T) {
+	m := NewMapper("s")
+	feed(t, m, `{"type":"result","subtype":"success"}`)
+	if events := feed(t, m, `{"type":"system","subtype":"status","status":"requesting"}`); len(events) != 0 {
+		t.Fatalf("started a turn without background work: %+v", events)
+	}
+}
+
 // feed maps every line and returns the collected events; it fails the test on
 // a mapping error.
 func feed(t *testing.T, m *Mapper, lines ...string) []domain.Event {

@@ -24,15 +24,16 @@ type rawMessage struct {
 	Request         json.RawMessage `json:"request"`
 
 	// system/task_started and system/task_notification fields.
-	TaskID         string `json:"task_id"`
-	ToolUseID      string `json:"tool_use_id"`
-	Status         string `json:"status"`
-	Summary        string `json:"summary"`
-	Description    string `json:"description"`
-	SubagentType   string `json:"subagent_type"`
-	TaskType       string `json:"task_type"`
-	Prompt         string `json:"prompt"`
-	IsBackgrounded *bool  `json:"is_backgrounded"`
+	TaskID         string          `json:"task_id"`
+	ToolUseID      string          `json:"tool_use_id"`
+	Status         string          `json:"status"`
+	Summary        string          `json:"summary"`
+	Description    string          `json:"description"`
+	SubagentType   string          `json:"subagent_type"`
+	TaskType       string          `json:"task_type"`
+	Prompt         string          `json:"prompt"`
+	IsBackgrounded *bool           `json:"is_backgrounded"`
+	Tasks          json.RawMessage `json:"tasks"`
 
 	RateLimitInfo *rawRateLimitInfo `json:"rate_limit_info"`
 

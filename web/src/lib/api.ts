@@ -26,6 +26,7 @@ export interface Session {
   // forkOf is the session this one branched off from.
   forkOf?: string
   status: SessionStatus
+  backgroundTasks?: number
   title?: string
   interruption?: Interruption
   // autoContinue resumes a quota-interrupted turn once the limit resets.

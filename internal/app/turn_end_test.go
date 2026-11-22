@@ -176,3 +176,20 @@ func TestRestoreStopsLeftoverItems(t *testing.T) {
 		t.Fatalf("stored %+v", stored.Interruption)
 	}
 }
+
+func TestRestoreStopsBackgroundWorkFromIdleSession(t *testing.T) {
+	repo, bus := newMemRepo(), newFakeBus()
+	item := itemEvent("idle", "background", domain.ItemSubagent, domain.ItemStreaming)
+	item.Seq = 1
+	item.Item.OutlivesTurn = true
+	m := NewManager(ManagerConfig{Repo: repo, Runtimes: &fakeFactory{}, Bus: bus, History: fakeHistory{"idle": {item}}})
+	ctx := context.Background()
+	_ = repo.Save(ctx, domain.SessionSnapshot{ID: "idle", Agent: domain.AgentClaude, Cwd: "/p", NativeID: "n", Status: domain.StatusIdle})
+	if _, err := m.Restore(ctx); err != nil {
+		t.Fatal(err)
+	}
+	ids, _ := stoppedItems(bus)
+	if len(ids) != 1 || ids[0] != "background" {
+		t.Fatalf("stopped %v", ids)
+	}
+}

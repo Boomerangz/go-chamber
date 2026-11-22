@@ -38,7 +38,7 @@ func (m *Manager) SetPermissionMode(ctx context.Context, id domain.SessionID, mo
 		m.mu.Lock()
 		switch {
 		case errors.Is(err, ErrRestartRequired):
-			if s.Status() == domain.StatusRunning {
+			if s.Status() == domain.StatusRunning || s.Snapshot().BackgroundTasks > 0 {
 				m.restart[id] = true
 			} else {
 				m.retire(s)

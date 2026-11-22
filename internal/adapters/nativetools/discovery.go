@@ -208,7 +208,7 @@ func discoverSkills(cwd string, extraRoots []string) ([]discoveredSkill, error) 
 			}
 			raw, err := os.ReadFile(path)
 			if err != nil {
-				return nil, err
+				continue // A broken skill must not hide the others.
 			}
 			description := ""
 			for _, line := range strings.Split(string(raw), "\n") {

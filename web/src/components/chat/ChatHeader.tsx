@@ -200,6 +200,9 @@ export default function ChatHeader({ session, status, unsettled, loading, notFou
             {statusWord(status)}
           </span>
         )}
+        {!!session?.backgroundTasks && (
+          <span className="usage">{session.backgroundTasks} background {session.backgroundTasks === 1 ? 'task' : 'tasks'}</span>
+        )}
         {unguarded && (
           <span className="no-approvals" title={session?.agent === 'codex' ? 'Full access selected. Permission changes apply to the next Codex turn.' : "The agent won't ask before running commands or editing files"}>
             {session?.agent === 'codex' ? 'full access' : 'no approvals'}

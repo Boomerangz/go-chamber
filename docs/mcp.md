@@ -114,3 +114,13 @@ the agents' own settings included when that folder is the home directory.
 - Messages and decisions sent over MCP are tagged `via MCP` in the transcript and do not mark the
   session as seen.
 - A session that waits on itself is not stopped: its `wait` returns `running` at the timeout.
+
+## Освобождение памяти Codex
+
+`-codex-idle-timeout` (по умолчанию `2m`, `0` отключает) отсоединяет
+простаивающий thread через `thread/unsubscribe`. Работающий ход, запрос ответа
+и активные дочерние сессии удерживают подписку. История сохраняется; следующее
+сообщение вызывает `thread/resume` для того же thread. Общий app-server остаётся
+запущенным. После последней отписки Codex сам выгружает thread и его MCP:
+в Codex 0.170.0 дополнительная задержка по умолчанию составляет 60 секунд
+(`thread_unload_delay_secs`). Другие подписчики могут удерживать thread.

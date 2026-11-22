@@ -27,23 +27,26 @@ const (
 	// EventTitle carries a name the agent chose for the session; the manager
 	// applies it and clients only see the resulting session state.
 	EventTitle EventType = "session.title"
+	// EventBackgroundWork reports the runtime's current background task count.
+	EventBackgroundWork EventType = "background.work"
 )
 
 // Event is one entry in a session's append-only event log. Seq is assigned
 // by the session manager, not by agent adapters.
 type Event struct {
-	Seq       Seq              `json:"seq"`
-	SessionID SessionID        `json:"sessionId"`
-	Type      EventType        `json:"type"`
-	Session   *SessionSnapshot `json:"session,omitempty"`
-	Item      *Item            `json:"item,omitempty"`
-	Delta     *Delta           `json:"delta,omitempty"`
-	Request   *Request         `json:"request,omitempty"`
-	Result    *TurnResult      `json:"result,omitempty"`
-	Subagent  *SubagentSpawn   `json:"subagent,omitempty"`
-	Quota     *QuotaSnapshot   `json:"quota,omitempty"`
-	Usage     *Usage           `json:"usage,omitempty"`
-	Title     string           `json:"title,omitempty"`
+	Seq             Seq              `json:"seq"`
+	SessionID       SessionID        `json:"sessionId"`
+	Type            EventType        `json:"type"`
+	Session         *SessionSnapshot `json:"session,omitempty"`
+	Item            *Item            `json:"item,omitempty"`
+	Delta           *Delta           `json:"delta,omitempty"`
+	Request         *Request         `json:"request,omitempty"`
+	Result          *TurnResult      `json:"result,omitempty"`
+	Subagent        *SubagentSpawn   `json:"subagent,omitempty"`
+	Quota           *QuotaSnapshot   `json:"quota,omitempty"`
+	Usage           *Usage           `json:"usage,omitempty"`
+	Title           string           `json:"title,omitempty"`
+	BackgroundCount *int             `json:"backgroundCount,omitempty"`
 }
 
 // SubagentSpawn tells the manager to create a child session for a subagent
@@ -111,6 +114,10 @@ func (e Event) Valid() error {
 	case EventSubagentSpawned:
 		if e.Subagent == nil || e.Subagent.ThreadID == "" {
 			return fmt.Errorf("%w: %s without thread id", ErrInvalidEvent, e.Type)
+		}
+	case EventBackgroundWork:
+		if e.BackgroundCount == nil || *e.BackgroundCount < 0 {
+			return fmt.Errorf("%w: %s without valid count", ErrInvalidEvent, e.Type)
 		}
 	case EventTurnStarted, EventTurnEnded, EventSessionRemoved:
 	default:

@@ -39,6 +39,8 @@ type ManagerConfig struct {
 	// IdleTimeout closes a Claude process idle this long; the session becomes
 	// detached and resumes on the next message. Zero keeps processes alive.
 	IdleTimeout time.Duration
+	// CodexIdleTimeout unloads idle Codex threads; zero disables unloading.
+	CodexIdleTimeout time.Duration
 	// Eraser optionally removes deleted sessions' records.
 	Eraser SessionEraser
 	// Folders optionally checks a new session's folder exists.
@@ -127,7 +129,7 @@ type Manager struct {
 	// restart marks sessions whose runtime must be replaced before the next
 	// turn (a model change it couldn't apply live).
 	restart map[domain.SessionID]bool
-	// idle holds the timers that retire idle Claude processes.
+	// idle holds timers that retire idle Claude processes and Codex threads.
 	idle map[domain.SessionID]*idleTimer
 	// resume holds the timers that continue quota-interrupted sessions.
 	resume map[domain.SessionID]*time.Timer
@@ -196,6 +198,13 @@ func (m *Manager) ListSessions(ctx context.Context) ([]domain.SessionSnapshot, e
 	if err != nil {
 		return nil, err
 	}
+	m.mu.Lock()
+	for i := range snaps {
+		if s := m.sessions[snaps[i].ID]; s != nil {
+			snaps[i].BackgroundTasks = s.Snapshot().BackgroundTasks
+		}
+	}
+	m.mu.Unlock()
 	m.markGoneFolders(snaps)
 	return snaps, nil
 }
@@ -238,8 +247,10 @@ func (m *Manager) Restore(ctx context.Context) ([]domain.SessionSnapshot, error)
 			s.InterruptedWithRequest(first)
 			cur = s.Snapshot()
 		}
-		if snap.Status == domain.StatusRunning {
+		if snap.Status == domain.StatusRunning || snap.Status == domain.StatusIdle {
 			m.stopLeftoverItems(cur.ID)
+		}
+		if snap.Status == domain.StatusRunning {
 			m.publishInterrupted(cur.ID, domain.ExitServerRestart)
 		}
 		if cur.AutoContinue {
@@ -337,7 +348,7 @@ func (m *Manager) SendInput(ctx context.Context, id domain.SessionID, text strin
 	message := domain.ItemID(m.cfg.NewID())
 	m.mu.Lock()
 	// A running turn keeps its runtime; the restart waits for the next turn.
-	if m.restart[id] && s.Status() != domain.StatusRunning {
+	if m.restart[id] && s.Status() != domain.StatusRunning && s.Snapshot().BackgroundTasks == 0 {
 		m.retire(s)
 	}
 	m.mu.Unlock()
@@ -542,7 +553,7 @@ func (m *Manager) SetModel(ctx context.Context, id domain.SessionID, model, effo
 		switch {
 		case errors.Is(err, ErrRestartRequired):
 			m.mu.Lock()
-			if s.Status() == domain.StatusRunning {
+			if s.Status() == domain.StatusRunning || s.Snapshot().BackgroundTasks > 0 {
 				m.restart[id] = true
 			} else {
 				m.retire(s)
@@ -659,9 +670,11 @@ func (m *Manager) Close() {
 		t.Stop()
 	}
 	m.mu.Unlock()
+	var wg sync.WaitGroup
 	for _, rt := range runtimes {
-		_ = rt.Close()
+		wg.Go(func() { _ = rt.Close() })
 	}
+	wg.Wait()
 }
 
 func (m *Manager) session(ctx context.Context, id domain.SessionID) (*domain.Session, error) {
@@ -698,6 +711,10 @@ func (m *Manager) ensureRuntime(ctx context.Context, s *domain.Session) (AgentRu
 func (m *Manager) ensureRuntimeFor(ctx context.Context, s *domain.Session, nativeID string, passive, fork bool) (AgentRuntime, error) {
 	m.mu.Lock()
 	if rt := m.runtimes[s.ID()]; rt != nil {
+		if timer := m.idle[s.ID()]; timer != nil {
+			timer.Stop()
+			delete(m.idle, s.ID())
+		}
 		m.mu.Unlock()
 		return rt, nil
 	}
@@ -756,6 +773,9 @@ func (m *Manager) ensureRuntimeFor(ctx context.Context, s *domain.Session, nativ
 // spawnSubagent creates and attaches a child session for an agent-spawned
 // subagent thread.
 func (m *Manager) spawnSubagent(parent *domain.Session, sp *domain.SubagentSpawn) {
+	if m.reattachSubagent(parent, sp.ThreadID) {
+		return
+	}
 	id := domain.SessionID(m.cfg.NewID())
 	child, err := domain.NewChildSession(id, parent.Agent(), parent.Cwd(), parent.ID())
 	if err != nil {
@@ -784,11 +804,48 @@ func (m *Manager) spawnSubagent(parent *domain.Session, sp *domain.SubagentSpawn
 	m.cfg.Bus.Publish(domain.Event{SessionID: id, Type: domain.EventSessionState, Session: &snap})
 }
 
+// reattachSubagent resumes a known child thread a resumed parent reports
+// again, rather than creating a duplicate child session.
+func (m *Manager) reattachSubagent(parent *domain.Session, threadID string) bool {
+	m.mu.Lock()
+	var child *domain.Session
+	for _, s := range m.sessions {
+		if s.ParentID() == parent.ID() && s.NativeID() == threadID {
+			child = s
+			break
+		}
+	}
+	m.mu.Unlock()
+	if child == nil {
+		return false
+	}
+	// The idle unload unsubscribed the thread; resume subscribes again.
+	ctx := context.Background()
+	if _, err := m.ensureRuntimeFor(ctx, child, threadID, false, false); err != nil {
+		return true
+	}
+	m.mu.Lock()
+	snap := child.Snapshot()
+	m.mu.Unlock()
+	_ = m.cfg.Repo.Save(ctx, snap)
+	m.cfg.Bus.Publish(domain.Event{SessionID: snap.ID, Type: domain.EventSessionState, Session: &snap})
+	return true
+}
+
 // consume pumps runtime events into the bus and applies state changes until
 // the runtime exits.
 func (m *Manager) consume(s *domain.Session, rt AgentRuntime) {
 	// open tracks unfinished items, failed if the process dies under them.
 	open := map[domain.ItemID]domain.Item{}
+	// A runtime's own task snapshot, once seen, is authoritative: an item
+	// whose completion notice never arrives must not keep it busy.
+	backgroundCount, snapshotSeen := 0, false
+	background := func() int {
+		if snapshotSeen {
+			return backgroundCount
+		}
+		return countBackgroundItems(open)
+	}
 	hold := m.answerLock(s.ID())
 	for ev := range rt.Events() {
 		if err := ev.Valid(); err != nil {
@@ -812,7 +869,40 @@ func (m *Manager) consume(s *domain.Session, rt AgentRuntime) {
 			hold.Unlock()
 			continue
 		}
+		if ev.Type == domain.EventBackgroundWork {
+			wasBusy := backgroundCount > 0
+			backgroundCount, snapshotSeen = *ev.BackgroundCount, true
+			s.SetBackgroundTasks(background())
+			snap := s.Snapshot()
+			finished := wasBusy && backgroundCount == 0
+			m.mu.Unlock()
+			m.cfg.Bus.Publish(domain.Event{SessionID: s.ID(), Type: domain.EventSessionState, Session: &snap})
+			if finished {
+				m.armIdle(s, rt)
+			}
+			hold.Unlock()
+			continue
+		}
+		// A root's own turns start in SendInput; the runtime starting one
+		// itself (after background work) only counts when idle. Subagents
+		// start every turn this way.
+		if ev.Type == domain.EventTurnStarted && s.ParentID() == "" {
+			if s.Status() != domain.StatusIdle || s.TurnStarted() != nil {
+				m.mu.Unlock()
+				hold.Unlock()
+				continue
+			}
+			snap := s.Snapshot()
+			m.mu.Unlock()
+			_ = m.cfg.Repo.Save(context.Background(), snap)
+			ev.Session = &snap
+			m.cfg.Bus.Publish(ev)
+			hold.Unlock()
+			continue
+		}
 		quotaStop := false
+		backgroundFinished := false
+		backgroundChanged := false
 		var left []domain.Item
 		switch ev.Type {
 		case domain.EventTurnStarted:
@@ -829,11 +919,17 @@ func (m *Manager) consume(s *domain.Session, rt AgentRuntime) {
 			hold.Unlock()
 			continue
 		case domain.EventItemUpdated:
+			previousCount := s.Snapshot().BackgroundTasks
 			if ev.Item.Status.Terminal() {
+				if prev, ok := open[ev.Item.ID]; ok && prev.OutlivesTurn {
+					backgroundFinished = true
+				}
 				delete(open, ev.Item.ID)
 			} else {
 				open[ev.Item.ID] = *ev.Item
 			}
+			s.SetBackgroundTasks(background())
+			backgroundChanged = previousCount != s.Snapshot().BackgroundTasks
 		case domain.EventTextDelta:
 			// Keep the streamed text, so a crash fails the item with it
 			// rather than with the empty snapshot taken at its start.
@@ -894,6 +990,13 @@ func (m *Manager) consume(s *domain.Session, rt AgentRuntime) {
 			m.cfg.Bus.Publish(domain.Event{SessionID: s.ID(), Type: domain.EventSessionState, Session: &snap})
 			m.armIdle(s, rt)
 			m.nameFromTurn(s, ev.Result)
+		case domain.EventItemUpdated:
+			if backgroundChanged {
+				m.cfg.Bus.Publish(domain.Event{SessionID: s.ID(), Type: domain.EventSessionState, Session: &snap})
+			}
+			if backgroundFinished {
+				m.armIdle(s, rt)
+			}
 		case domain.EventSubagentSpawned:
 			m.spawnSubagent(s, ev.Subagent)
 		}
@@ -913,6 +1016,16 @@ func (m *Manager) answerLock(id domain.SessionID) *sync.Mutex {
 		m.answering[id] = l
 	}
 	return l
+}
+
+func countBackgroundItems(open map[domain.ItemID]domain.Item) int {
+	count := 0
+	for _, item := range open {
+		if item.OutlivesTurn {
+			count++
+		}
+	}
+	return count
 }
 
 // markStopped notes on the result of a turn the owner asked to stop that it
@@ -938,9 +1051,18 @@ func cutShort(res *domain.TurnResult) bool {
 	return res != nil && (res.Stopped || res.IsError || res.InterruptionReason != "")
 }
 
-// armIdle (re)starts the timer that retires an idle Claude process.
+// armIdle (re)starts the timer that retires an idle runtime.
 func (m *Manager) armIdle(s *domain.Session, rt AgentRuntime) {
-	if m.cfg.IdleTimeout <= 0 || s.Agent() != domain.AgentClaude {
+	timeout := m.cfg.IdleTimeout
+	if s.Agent() == domain.AgentCodex {
+		if s.ParentID() != "" {
+			return // Unloaded with its root; see retireIdle.
+		}
+		timeout = m.cfg.CodexIdleTimeout
+	} else if s.Agent() != domain.AgentClaude {
+		return
+	}
+	if timeout <= 0 {
 		return
 	}
 	m.mu.Lock()
@@ -949,7 +1071,7 @@ func (m *Manager) armIdle(s *domain.Session, rt AgentRuntime) {
 		t.Stop()
 	}
 	entry := &idleTimer{}
-	entry.Timer = time.AfterFunc(m.cfg.IdleTimeout, func() { m.retireIdle(s, rt, entry) })
+	entry.Timer = time.AfterFunc(timeout, func() { m.retireIdle(s, rt, entry) })
 	m.idle[s.ID()] = entry
 }
 
@@ -961,16 +1083,43 @@ type idleTimer struct{ *time.Timer }
 func (m *Manager) retireIdle(s *domain.Session, rt AgentRuntime, timer *idleTimer) {
 	m.mu.Lock()
 	if m.idle[s.ID()] != timer || m.runtimes[s.ID()] != rt ||
-		s.Status() != domain.StatusIdle || len(m.pending[s.ID()]) > 0 {
+		s.Status() != domain.StatusIdle || len(m.pending[s.ID()]) > 0 || s.Snapshot().BackgroundTasks > 0 {
+		m.mu.Unlock()
+		return
+	}
+	if s.Agent() == domain.AgentCodex && m.codexFamilyBusy(s) {
+		timer.Timer = time.AfterFunc(m.cfg.CodexIdleTimeout, func() { m.retireIdle(s, rt, timer) })
 		m.mu.Unlock()
 		return
 	}
 	delete(m.idle, s.ID())
-	m.retire(s)
-	snap := s.Snapshot()
+	retired := []*domain.Session{s}
+	if s.Agent() == domain.AgentCodex {
+		// Children go with their idle root: a resumed root reattaches them.
+		retired = append(retired, m.loadedDescendants(s)...)
+	}
+	snaps := make([]domain.SessionSnapshot, 0, len(retired))
+	for _, r := range retired {
+		m.retire(r)
+		snaps = append(snaps, r.Snapshot())
+	}
 	m.mu.Unlock()
-	_ = m.cfg.Repo.Save(context.Background(), snap)
-	m.cfg.Bus.Publish(domain.Event{SessionID: s.ID(), Type: domain.EventSessionState, Session: &snap})
+	for _, snap := range snaps {
+		_ = m.cfg.Repo.Save(context.Background(), snap)
+		m.cfg.Bus.Publish(domain.Event{SessionID: snap.ID, Type: domain.EventSessionState, Session: &snap})
+	}
+}
+
+// loadedDescendants lists the root's subagent sessions with a runtime.
+// The caller holds m.mu.
+func (m *Manager) loadedDescendants(root *domain.Session) []*domain.Session {
+	var out []*domain.Session
+	for id, s := range m.sessions {
+		if s != root && m.runtimes[id] != nil && m.rootOf(s) == root.ID() {
+			out = append(out, s)
+		}
+	}
+	return out
 }
 
 // cacheQuota serializes read-merge-save across runtime reports and refreshes,
@@ -991,6 +1140,8 @@ func (m *Manager) detach(s *domain.Session, rt AgentRuntime, open map[domain.Ite
 	m.mu.Lock()
 	if m.runtimes[s.ID()] != rt {
 		m.mu.Unlock()
+		// Retired: background work died with the process.
+		m.failItems(s.ID(), open)
 		return
 	}
 	delete(m.runtimes, s.ID())
@@ -1015,16 +1166,20 @@ func (m *Manager) detach(s *domain.Session, rt AgentRuntime, open map[domain.Ite
 		req.MarkStale()
 		m.cfg.Bus.Publish(domain.Event{SessionID: s.ID(), Type: domain.EventRequestResolved, Request: req})
 	}
-	for _, item := range open {
-		if item.SetStatus(domain.ItemFailed) == nil {
-			m.cfg.Bus.Publish(domain.Event{SessionID: s.ID(), Type: domain.EventItemUpdated, Item: &item})
-		}
-	}
+	m.failItems(s.ID(), open)
 	if cutOff {
 		m.publishInterrupted(s.ID(), reason)
 	}
 	_ = m.cfg.Repo.Save(context.Background(), snap)
 	m.cfg.Bus.Publish(domain.Event{SessionID: s.ID(), Type: domain.EventSessionState, Session: &snap})
+}
+
+func (m *Manager) failItems(id domain.SessionID, open map[domain.ItemID]domain.Item) {
+	for _, item := range open {
+		if item.SetStatus(domain.ItemFailed) == nil {
+			m.cfg.Bus.Publish(domain.Event{SessionID: id, Type: domain.EventItemUpdated, Item: &item})
+		}
+	}
 }
 
 // publishInterrupted ends a turn that was cut off, so the transcript keeps
@@ -1246,4 +1401,31 @@ func (m *Manager) RefreshModels(ctx context.Context, agent domain.AgentKind) ([]
 		return c.RefreshModels(ctx, agent)
 	}
 	return m.Models(ctx, agent)
+}
+
+// codexFamilyBusy keeps parent and child subscriptions while their family works.
+// The caller holds m.mu.
+func (m *Manager) codexFamilyBusy(s *domain.Session) bool {
+	family := m.rootOf(s)
+	for id, candidate := range m.sessions {
+		if candidate.Agent() != domain.AgentCodex || m.rootOf(candidate) != family {
+			continue
+		}
+		if candidate.Status() == domain.StatusRunning || len(m.pending[id]) > 0 || candidate.Snapshot().BackgroundTasks > 0 {
+			return true
+		}
+	}
+	return false
+}
+
+// rootOf follows parents to the family's root. The caller holds m.mu.
+func (m *Manager) rootOf(s *domain.Session) domain.SessionID {
+	for s.ParentID() != "" {
+		parent := m.sessions[s.ParentID()]
+		if parent == nil {
+			break
+		}
+		s = parent
+	}
+	return s.ID()
 }

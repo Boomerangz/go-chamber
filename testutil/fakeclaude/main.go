@@ -276,6 +276,8 @@ func startTurn(mode string, enc *json.Encoder, out *bufio.Writer, sessionID, pro
 		emitTaskTurn(enc, out, sessionID, prompt)
 	default: // auto
 		switch {
+		case strings.Contains(low, "background lifecycle probe"):
+			emitBackgroundLifecycle(enc, out, sessionID)
 		case strings.Contains(low, "crash while asking"):
 			// The process dies while a permission waits for the owner.
 			emitPermission(enc, out, sessionID, prompt)
@@ -316,6 +318,17 @@ func startTurn(mode string, enc *json.Encoder, out *bufio.Writer, sessionID, pro
 		}
 	}
 	return nil
+}
+
+func emitBackgroundLifecycle(enc *json.Encoder, out *bufio.Writer, sessionID string) {
+	_ = enc.Encode(map[string]any{"type": "system", "subtype": "background_tasks_changed", "session_id": sessionID,
+		"tasks": []any{map[string]any{"task_id": "bg-test", "task_type": "local_bash"}}})
+	emitTextTurn(enc, out, sessionID, "waiting for background work")
+	_ = out.Flush()
+	time.Sleep(8 * time.Second)
+	_ = enc.Encode(map[string]any{"type": "system", "subtype": "background_tasks_changed", "session_id": sessionID, "tasks": []any{}})
+	_ = enc.Encode(map[string]any{"type": "system", "subtype": "status", "status": "requesting", "session_id": sessionID})
+	emitTextTurn(enc, out, sessionID, "background work finished")
 }
 
 func emitPermission(enc *json.Encoder, out *bufio.Writer, sessionID, prompt string) *pendingTurn {

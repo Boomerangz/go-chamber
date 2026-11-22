@@ -453,3 +453,23 @@ func TestRestoreEndsARunningTurnAsInterrupted(t *testing.T) {
 		t.Fatalf("idle turn ends = %+v", got)
 	}
 }
+
+func TestRestoreClearsBackgroundCountInHistory(t *testing.T) {
+	repo, bus := newMemRepo(), newFakeBus()
+	busy := domain.SessionSnapshot{ID: "idle", Agent: domain.AgentClaude, Cwd: "/p", NativeID: "n", Status: domain.StatusIdle, BackgroundTasks: 1}
+	state := domain.Event{Seq: 1, SessionID: "idle", Type: domain.EventSessionState, Session: &busy}
+	m := NewManager(ManagerConfig{Repo: repo, Runtimes: &fakeFactory{}, Bus: bus, History: fakeHistory{"idle": {state}}})
+	ctx := context.Background()
+	stored := busy
+	stored.BackgroundTasks = 0
+	_ = repo.Save(ctx, stored)
+	if _, err := m.Restore(ctx); err != nil {
+		t.Fatal(err)
+	}
+	for _, ev := range bus.snapshot() {
+		if ev.Type == domain.EventSessionState && ev.Session.ID == "idle" && ev.Session.BackgroundTasks == 0 {
+			return
+		}
+	}
+	t.Fatalf("history still ends with a background count: %+v", bus.snapshot())
+}

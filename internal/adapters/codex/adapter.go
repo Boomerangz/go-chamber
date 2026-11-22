@@ -260,6 +260,11 @@ type Server struct {
 	stdin  io.WriteCloser
 	client *Client
 
+	// threadLocks serialize one thread's subscription changes with its
+	// runtime replacement; other threads don't wait for them.
+	threadLocksMu sync.Mutex
+	threadLocks   map[string]*sync.Mutex
+
 	mu      sync.Mutex
 	threads map[string]*Runtime
 	orphans map[string][]orphan
@@ -420,10 +425,35 @@ func (s *Server) takeAll() ([]*Runtime, map[string][]domain.RequestID) {
 	return threads, stale
 }
 
+// threadLock returns the lock for one thread's subscription.
+// ponytail: locks are never pruned; one small mutex per thread seen.
+func (s *Server) threadLock(threadID string) *sync.Mutex {
+	s.threadLocksMu.Lock()
+	defer s.threadLocksMu.Unlock()
+	if s.threadLocks == nil {
+		s.threadLocks = map[string]*sync.Mutex{}
+	}
+	l := s.threadLocks[threadID]
+	if l == nil {
+		l = &sync.Mutex{}
+		s.threadLocks[threadID] = l
+	}
+	return l
+}
+
 // resume reattaches a thread of a crashed server to this one.
 func (s *Server) resume(rt *Runtime) error {
+	rt.lifecycleMu.Lock()
+	defer rt.lifecycleMu.Unlock()
+	l := s.threadLock(rt.threadID)
+	l.Lock()
+	defer l.Unlock()
 	params := map[string]any{"threadId": rt.threadID}
 	rt.mu.Lock()
+	if rt.closed {
+		rt.mu.Unlock()
+		return nil
+	}
 	addReviewer(params, rt.reviewer)
 	if rt.model != "" {
 		params["model"] = rt.model
@@ -557,6 +587,9 @@ func (s *Server) registerLocked(rt *Runtime) {
 // attachThread registers a passive runtime for a thread the agent created
 // itself (a collab subagent) and replays messages buffered before it existed.
 func (s *Server) attachThread(nativeID string, session domain.SessionID) (*Runtime, error) {
+	l := s.threadLock(nativeID)
+	l.Lock()
+	defer l.Unlock()
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if rt := s.threads[nativeID]; rt != nil {
@@ -572,6 +605,9 @@ func (s *Server) attachThread(nativeID string, session domain.SessionID) (*Runti
 func (s *Server) startThread(ctx context.Context, req app.StartRequest) (*Runtime, error) {
 	var thread rpcThread
 	if req.NativeID != "" {
+		l := s.threadLock(req.NativeID)
+		l.Lock()
+		defer l.Unlock()
 		params := map[string]any{"threadId": req.NativeID}
 		addReviewer(params, req.ApprovalReviewer)
 		if req.Model != "" {
@@ -716,10 +752,11 @@ type Runtime struct {
 	reviewer domain.ApprovalReviewer
 	// model and effort override the thread's choice from the next turn on;
 	// empty values keep what the thread already uses.
-	model     string
-	effort    string
-	closed    bool
-	closeOnce sync.Once
+	model       string
+	effort      string
+	closed      bool
+	closeOnce   sync.Once
+	lifecycleMu sync.Mutex // Serializes Close with crash recovery.
 
 	// mode is the permission preset applied to each turn; empty restores config.
 	cwd                string
@@ -1037,11 +1074,18 @@ func approvalDecision(answer app.RequestAnswer) string {
 	return "accept"
 }
 
-// Close closes the runtime's event stream; the shared server stays up.
+// Close unsubscribes the owned thread and closes its event stream.
+// Codex unloads it after its grace period; the shared server stays up.
 func (r *Runtime) Close() error {
 	r.closeOnce.Do(func() {
+		r.lifecycleMu.Lock()
+		defer r.lifecycleMu.Unlock()
 		srv := r.current()
+		l := srv.threadLock(r.threadID)
+		l.Lock()
+		defer l.Unlock()
 		srv.mu.Lock()
+		owned := srv.threads[r.threadID] == r
 		if srv.threads[r.threadID] == r {
 			delete(srv.threads, r.threadID)
 		}
@@ -1050,6 +1094,11 @@ func (r *Runtime) Close() error {
 		r.closed = true
 		r.mu.Unlock()
 		close(r.stop)
+		if owned {
+			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+			defer cancel()
+			_, _ = srv.client.Call(ctx, "thread/unsubscribe", map[string]any{"threadId": r.threadID})
+		}
 	})
 	return nil
 }
