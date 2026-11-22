@@ -10,6 +10,8 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+
+	"github.com/igorzygin/go-chamber/internal/app"
 )
 
 func discoveryDefinitions() []struct {
@@ -160,26 +162,64 @@ func InstructionsWithSkills(cwd string, extraRoots []string) (string, error) {
 		_, _ = fmt.Fprintf(&out, "Instructions from %s:\n%s\n", path, raw)
 	}
 	out.WriteString("Before editing a subdirectory, inspect and follow its more specific AGENTS.md files. Skills are instructions to load with read when relevant:\n")
+	skills, err := discoverSkills(cwd, extraRoots)
+	if err != nil {
+		return "", err
+	}
+	out.WriteString("When the user invokes a listed /skill command, read that skill's SKILL.md and follow it, using the rest of the user's message as its task.\n")
+	for _, skill := range skills {
+		_, _ = fmt.Fprintf(&out, "- /%s: %s (instructions: %s)\n", skill.Name, skill.Description, skill.path)
+	}
+
+	return out.String(), nil
+}
+
+// SkillCommands uses the same catalog and precedence as the model instructions.
+func SkillCommands(cwd string, extraRoots []string) ([]app.Command, error) {
+	skills, err := discoverSkills(cwd, extraRoots)
+	if err != nil {
+		return nil, err
+	}
+	commands := make([]app.Command, 0, len(skills))
+	for _, skill := range skills {
+		commands = append(commands, skill.Command)
+	}
+	return commands, nil
+}
+
+type discoveredSkill struct {
+	app.Command
+	path string
+}
+
+func discoverSkills(cwd string, extraRoots []string) ([]discoveredSkill, error) {
 	roots := append([]string{filepath.Join(cwd, ".agents/skills"), filepath.Join(cwd, ".claude/skills"), filepath.Join(cwd, ".codex/skills")}, extraRoots...)
+	seen := map[string]bool{"compact": true}
+	var skills []discoveredSkill
 	for _, dir := range roots {
 		paths, err := filepath.Glob(filepath.Join(dir, "*", "SKILL.md"))
 		if err != nil {
-			return "", err
+			return nil, err
 		}
 		for _, path := range paths {
+			name := filepath.Base(filepath.Dir(path))
+			if seen[name] {
+				continue
+			}
 			raw, err := os.ReadFile(path)
 			if err != nil {
-				return "", err
+				return nil, err
 			}
 			description := ""
 			for _, line := range strings.Split(string(raw), "\n") {
 				if value, ok := strings.CutPrefix(line, "description:"); ok {
-					description = strings.TrimSpace(value)
+					description = strings.Trim(strings.TrimSpace(value), "\"'")
 					break
 				}
 			}
-			_, _ = fmt.Fprintf(&out, "- %s: %s\n", path, description)
+			seen[name] = true
+			skills = append(skills, discoveredSkill{Command: app.Command{Name: name, Description: description, Insert: "/" + name}, path: path})
 		}
 	}
-	return out.String(), nil
+	return skills, nil
 }

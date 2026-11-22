@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { mkdtempSync, realpathSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, realpathSync, writeFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { token } from '../playwright.config'
@@ -73,4 +73,51 @@ test('Native child sessions and interrupt',async({page})=>{
  await page.getByLabel('Message').fill('after stop')
  await page.getByRole('button',{name:'Send',exact:true}).click()
  await expect(page.getByText('native: after stop',{exact:true})).toBeVisible()
+})
+
+
+test('Native completes slash skills and reads the selected instructions', async ({ page, isMobile }) => {
+ const cwd = realpathSync(mkdtempSync(path.join(tmpdir(), 'native-skills-')))
+ try {
+  const skillDir = path.join(cwd, '.agents', 'skills', 'chart-probe')
+  mkdirSync(skillDir, { recursive: true })
+  writeFileSync(path.join(skillDir, 'SKILL.md'), '---\nname: chart-probe\ndescription: Plot the test metrics\n---\nchart-skill-loaded\n')
+  const response = await page.request.post('/api/sessions', { headers, data: { agent: 'native', cwd, model: 'openrouter:test/native' } })
+  expect(response.ok()).toBe(true)
+  const session = await response.json()
+  await page.goto(`/s/${session.id}?token=${token}`)
+  const box = page.getByLabel('Message')
+  await box.fill('/chart')
+  await expect(page.getByRole('option', { name: /\/chart-probe/ })).toBeVisible()
+  if (isMobile) await page.getByRole('option', { name: /\/chart-probe/ }).click()
+  else await box.press('Tab')
+  await expect(box).toHaveValue('/chart-probe ')
+  await box.fill('/chart-probe plot results')
+  await page.getByRole('button', { name: 'Send', exact: true }).click()
+  await expect(page.locator('.item.assistant', { hasText: 'chart-skill-loaded' })).toBeVisible()
+ } finally {
+  rmSync(cwd, { recursive: true, force: true })
+ }
+})
+
+
+test('Native delegates only one level', async ({ page }) => {
+ const cwd = realpathSync(mkdtempSync(path.join(tmpdir(), 'native-depth-')))
+ try {
+  const response = await page.request.post('/api/sessions', { headers, data: { agent: 'native', cwd, model: 'openrouter:test/native' } })
+  expect(response.ok()).toBe(true)
+  const parent = await response.json()
+  await page.goto(`/s/${parent.id}?token=${token}`)
+  await page.getByLabel('Message').fill('native delegation boundary')
+  await page.getByRole('button', { name: 'Send', exact: true }).click()
+  await expect(page.getByText('native: native delegation boundary', { exact: true })).toBeVisible()
+  const sessions = await (await page.request.get('/api/sessions', { headers })).json()
+  const children = sessions.filter((s: { parentId?: string }) => s.parentId === parent.id)
+  expect(children).toHaveLength(1)
+  expect(sessions.filter((s: { parentId?: string }) => s.parentId === children[0].id)).toHaveLength(0)
+  await page.goto(`/s/${children[0].id}?token=${token}`)
+  await expect(page.getByText('executor boundary verified', { exact: true })).toBeVisible()
+ } finally {
+  rmSync(cwd, { recursive: true, force: true })
+ }
 })

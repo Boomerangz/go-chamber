@@ -21,19 +21,20 @@ type Provider struct {
 	Catalog app.InferenceModelCatalog
 }
 type Factory struct {
-	Repo         app.ConversationRepo
-	Providers    map[string]Provider
-	Tools        func(string) (app.NativeTools, error)
-	Instructions func(string) (string, error)
-	Accounts     app.AccountManager
-	LoadImages   func(context.Context, []app.Image) ([]domain.ModelImage, error)
-	mu           sync.Mutex
-	caches       map[string]*app.ModelCache
-	runtimes     map[string]*app.NativeRuntime
-	closed       bool
-	taskMu       sync.Mutex
-	startMu      sync.Mutex
-	tasks        map[string]string
+	Repo          app.ConversationRepo
+	Providers     map[string]Provider
+	Tools         func(string) (app.NativeTools, error)
+	Instructions  func(string) (string, error)
+	SkillCommands func(string) ([]app.Command, error)
+	Accounts      app.AccountManager
+	LoadImages    func(context.Context, []app.Image) ([]domain.ModelImage, error)
+	mu            sync.Mutex
+	caches        map[string]*app.ModelCache
+	runtimes      map[string]*app.NativeRuntime
+	closed        bool
+	taskMu        sync.Mutex
+	startMu       sync.Mutex
+	tasks         map[string]string
 }
 
 func (f *Factory) Models(ctx context.Context, agent domain.AgentKind) ([]app.ModelInfo, error) {
@@ -191,6 +192,9 @@ func (f *Factory) Start(ctx context.Context, req app.StartRequest) (app.AgentRun
 		}
 		instructions += "\n\n" + extra
 	}
+	if !canSpawnAgents(conversation) {
+		instructions += "\n\nYou are a subagent executing a bounded task for your parent. Complete the assigned task yourself using your tools. Do not delegate or start other agents, including through shell commands or external services. Report your result or blockers to your parent."
+	}
 	if conversation.Busy && !req.Passive {
 		conversation.Busy = false
 		conversation.PendingPrompt = ""
@@ -290,12 +294,20 @@ func (p profileClient) Stream(ctx context.Context, request domain.ModelRequest, 
 var _ app.RuntimeFactory = (*Factory)(nil)
 var _ app.ModelCatalog = (*Factory)(nil)
 
-func (f *Factory) Commands(ctx context.Context, agent domain.AgentKind, _ string) ([]app.Command, error) {
+func (f *Factory) Commands(ctx context.Context, agent domain.AgentKind, cwd string) ([]app.Command, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
 	if agent != domain.AgentNative {
 		return nil, app.ErrCommandsUnsupported
 	}
-	return []app.Command{{Name: "compact", Insert: "/compact", Description: "Summarize earlier context while preserving recent tool results"}}, nil
+	commands := []app.Command{{Name: "compact", Insert: "/compact", Description: "Summarize earlier context while preserving recent tool results"}}
+	if f.SkillCommands != nil {
+		skills, err := f.SkillCommands(cwd)
+		if err != nil {
+			return nil, err
+		}
+		commands = append(commands, skills...)
+	}
+	return commands, nil
 }

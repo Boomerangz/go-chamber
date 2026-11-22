@@ -321,3 +321,17 @@ func TestNativeDefaultChoiceReselectsProviderDefault(t *testing.T) {
 		t.Fatal("Default kept the previous explicit choice", selected)
 	}
 }
+
+func TestNativeCommandsIncludeSkills(t *testing.T) {
+	f, _ := testFactory(t)
+	f.SkillCommands = func(cwd string) ([]app.Command, error) {
+		if cwd != "/project" {
+			t.Fatalf("cwd=%s", cwd)
+		}
+		return []app.Command{{Name: "chart", Insert: "/chart", Description: "Plot metrics"}}, nil
+	}
+	commands, err := f.Commands(context.Background(), domain.AgentNative, "/project")
+	if err != nil || len(commands) != 2 || commands[0].Insert != "/compact" || commands[1].Insert != "/chart" {
+		t.Fatalf("%+v %v", commands, err)
+	}
+}

@@ -21,8 +21,11 @@ type taskTools struct {
 }
 
 func (t *taskTools) Definitions() []domain.ModelTool {
-	return append(t.base.Definitions(),
-		domain.ModelTool{Name: "spawn_agent", Description: "Start an independent child agent for a bounded task; returns its ID. Children inherit your permission mode. Use wait_agent for results.", Parameters: json.RawMessage(`{"type":"object","properties":{"task":{"type":"string"},"title":{"type":"string"}},"required":["task"],"additionalProperties":false}`)},
+	tools := t.base.Definitions()
+	if canSpawnAgents(t.parent) {
+		tools = append(tools, domain.ModelTool{Name: "spawn_agent", Description: "Start an independent child agent for a bounded task; returns its ID. Children inherit your permission mode. Use wait_agent for results.", Parameters: json.RawMessage(`{"type":"object","properties":{"task":{"type":"string"},"title":{"type":"string"}},"required":["task"],"additionalProperties":false}`)})
+	}
+	return append(tools,
 		domain.ModelTool{Name: "wait_agent", Description: "Wait up to 30 seconds for your child agent; completed results remain available.", Parameters: json.RawMessage(`{"type":"object","properties":{"id":{"type":"string"}},"required":["id"],"additionalProperties":false}`)},
 		domain.ModelTool{Name: "stop_agent", Description: "Interrupt your child agent and its descendants.", Parameters: json.RawMessage(`{"type":"object","properties":{"id":{"type":"string"}},"required":["id"],"additionalProperties":false}`)},
 		domain.ModelTool{Name: "send_agent", Description: "Send guidance to your child agent; starts a new turn if idle.", Parameters: json.RawMessage(`{"type":"object","properties":{"id":{"type":"string"},"message":{"type":"string"}},"required":["id","message"],"additionalProperties":false}`)})
@@ -121,8 +124,8 @@ func (t *taskTools) spawn(ctx context.Context, task, title string) (string, erro
 	if task == "" || len(task) > 128<<10 {
 		return "", errors.New("task is empty or exceeds limit")
 	}
-	if t.parent.Depth >= 3 {
-		return "", errors.New("subagent depth limit reached")
+	if !canSpawnAgents(t.parent) {
+		return "", errors.New("only the root agent may spawn subagents; complete the assigned task yourself")
 	}
 	f := t.factory
 	f.taskMu.Lock()
@@ -186,4 +189,10 @@ func (f *Factory) interruptChildren(parent string) {
 			_ = r.Interrupt(context.Background())
 		}
 	}
+}
+
+// Both markers are checked so old or partially populated journals cannot
+// restore nested delegation.
+func canSpawnAgents(conversation domain.Conversation) bool {
+	return conversation.Parent == "" && conversation.Depth == 0
 }

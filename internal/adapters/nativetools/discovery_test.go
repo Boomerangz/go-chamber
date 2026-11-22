@@ -37,3 +37,38 @@ func TestDiscoveryAndWorkspaceInstructions(t *testing.T) {
 		}
 	}
 }
+
+func TestSkillCommandsMatchInstructionsAndDeduplicate(t *testing.T) {
+	root, global := t.TempDir(), t.TempDir()
+	for name, body := range map[string]string{
+		".agents/skills/chart/SKILL.md":  "---\nname: chart\ndescription: Plot metrics\n---\nprimary",
+		".claude/skills/chart/SKILL.md":  "---\ndescription: Other chart\n---\nsecondary",
+		".codex/skills/compact/SKILL.md": "reserved",
+	} {
+		p := filepath.Join(root, name)
+		if err := os.MkdirAll(filepath.Dir(p), 0755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(p, []byte(body), 0644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	p := filepath.Join(global, "review", "SKILL.md")
+	if err := os.MkdirAll(filepath.Dir(p), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(p, []byte("---\ndescription: Review changes\n---\nreview"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	commands, err := SkillCommands(root, []string{global})
+	if err != nil || len(commands) != 2 {
+		t.Fatalf("commands=%+v err=%v", commands, err)
+	}
+	if commands[0].Name != "chart" || commands[0].Insert != "/chart" || commands[0].Description != "Plot metrics" || commands[1].Insert != "/review" {
+		t.Fatalf("%+v", commands)
+	}
+	instructions, err := InstructionsWithSkills(root, []string{global})
+	if err != nil || !strings.Contains(instructions, "/chart") || strings.Contains(instructions, "Other chart") || !strings.Contains(instructions, p) {
+		t.Fatalf("instructions=%s err=%v", instructions, err)
+	}
+}

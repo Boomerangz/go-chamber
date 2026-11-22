@@ -197,3 +197,67 @@ func TestWaitAfterRestartReportsUnattachedInterruptedChild(t *testing.T) {
 		t.Fatalf("unattached child reported as running: %s %v", output, err)
 	}
 }
+
+func TestOnlyRootCanSpawnAgents(t *testing.T) {
+	for _, tc := range []struct {
+		name         string
+		conversation domain.Conversation
+		allowed      bool
+	}{
+		{"root", domain.Conversation{ID: "root", Model: "codex:fresh"}, true},
+		{"child", domain.Conversation{ID: "child", Parent: "root", Depth: 1}, false},
+		{"legacy grandchild", domain.Conversation{ID: "child", Parent: "parent", Depth: 3}, false},
+		{"parent marker", domain.Conversation{ID: "child", Parent: "root"}, false},
+		{"depth marker", domain.Conversation{ID: "child", Depth: 1}, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			f, _ := testFactory(t)
+			emitted := 0
+			tools := &taskTools{base: noTools{}, factory: f, parent: tc.conversation, emit: func(domain.Event) { emitted++ }}
+			offered := false
+			for _, def := range tools.Definitions() {
+				if def.Name == "spawn_agent" {
+					offered = true
+				}
+			}
+			if offered != tc.allowed {
+				t.Errorf("spawn advertised=%v, want %v", offered, tc.allowed)
+			}
+			_, err := tools.Execute(context.Background(), domain.ModelToolCall{Name: "spawn_agent", Arguments: []byte(`{"task":"inspect code"}`)})
+			if tc.allowed {
+				if err != nil || emitted != 1 {
+					t.Fatalf("root spawn: emitted=%d err=%v", emitted, err)
+				}
+			} else if err == nil || emitted != 0 || len(f.tasks) != 0 {
+				t.Fatalf("nested spawn accepted: emitted=%d tasks=%d err=%v", emitted, len(f.tasks), err)
+			}
+		})
+	}
+}
+
+func TestChildReceivesExecutorInstructions(t *testing.T) {
+	f, model := testFactory(t)
+	ctx := context.Background()
+	if err := f.Repo.SaveConversation(ctx, domain.Conversation{ID: "child", Parent: "parent", Depth: 1, Model: "codex:fresh"}); err != nil {
+		t.Fatal(err)
+	}
+	rt, err := f.Start(ctx, app.StartRequest{SessionID: "child-session", Agent: domain.AgentNative, NativeID: "child", Cwd: t.TempDir()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := rt.Send(ctx, "turn", "inspect files"); err != nil {
+		t.Fatal(err)
+	}
+	endTurn(t, rt)
+	model.mu.Lock()
+	defer model.mu.Unlock()
+	req := model.requests[len(model.requests)-1]
+	if !strings.Contains(req.Instructions, "Complete the assigned task yourself") {
+		t.Fatalf("missing executor role: %s", req.Instructions)
+	}
+	for _, tool := range req.Tools {
+		if tool.Name == "spawn_agent" {
+			t.Fatal("child model received spawn_agent")
+		}
+	}
+}

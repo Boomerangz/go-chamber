@@ -151,7 +151,7 @@ func run(ctx context.Context, args []string, out io.Writer) error {
 			return mcpclient.Connect(ctx, base, mcpServers, cwd)
 		}
 		return base, nil
-	}, Instructions: func(cwd string) (string, error) { return nativetools.InstructionsWithSkills(cwd, skillRoots) }}
+	}, SkillCommands: func(cwd string) ([]app.Command, error) { return nativetools.SkillCommands(cwd, skillRoots) }, Instructions: func(cwd string) (string, error) { return nativetools.InstructionsWithSkills(cwd, skillRoots) }}
 	nativeFactory.Accounts = &openai.NativeAccounts{Auth: nativeAuth, OpenRouter: routerCredentials, Context: ctx, OnLogin: nativeFactory.InvalidateModels}
 	defer func() { _ = nativeFactory.Close() }()
 	runtimes := &router.Router{
