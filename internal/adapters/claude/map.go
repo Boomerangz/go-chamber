@@ -479,10 +479,10 @@ func (m *Mapper) mapRateLimit(raw *rawMessage) []domain.Event {
 	if info == nil || info.RateLimitType == "" {
 		return nil
 	}
-	if strings.Contains(info.RateLimitType, "overage") && !info.UsingOverage {
-		return nil
-	}
 	window := domain.QuotaWindow{Name: info.RateLimitType, Status: info.Status}
+	if strings.Contains(info.RateLimitType, "overage") && !info.UsingOverage {
+		window.Status = ""
+	}
 	if info.ResetsAt != nil {
 		window.ResetsAt = time.Unix(*info.ResetsAt, 0).UTC()
 	}
@@ -495,7 +495,7 @@ func (m *Mapper) mapRateLimit(raw *rawMessage) []domain.Event {
 	}
 	snapshot := domain.QuotaSnapshot{
 		Agent: domain.AgentClaude, Windows: []domain.QuotaWindow{window},
-		Reached: info.Status == "rejected", UpdatedAt: time.Now().UTC(),
+		Reached: window.Status == "rejected", UpdatedAt: time.Now().UTC(),
 	}
 	return []domain.Event{{SessionID: m.session, Type: domain.EventQuota, Quota: &snapshot}}
 }

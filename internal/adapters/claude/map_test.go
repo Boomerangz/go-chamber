@@ -543,8 +543,10 @@ func TestMapRateLimit(t *testing.T) {
 		t.Fatalf("rejected = %+v", rejected[0].Quota)
 	}
 	// Overage refused while not in use is not a subscription limit: the turn keeps running.
-	if evs := feed(t, m, `{"type":"rate_limit_event","session_id":"s1","rate_limit_info":{"status":"rejected","resetsAt":1790000000,"rateLimitType":"seven_day_overage_included","overageStatus":"rejected","overageDisabledReason":"org_level_disabled","isUsingOverage":false}}`); len(evs) != 0 {
-		t.Fatalf("unused overage = %+v", evs)
+	// The window is still sent, cleared, so it replaces a stale cached rejection.
+	overage := feed(t, m, `{"type":"rate_limit_event","session_id":"s1","rate_limit_info":{"status":"rejected","resetsAt":1790000000,"rateLimitType":"seven_day_overage_included","overageStatus":"rejected","overageDisabledReason":"org_level_disabled","isUsingOverage":false}}`)
+	if len(overage) != 1 || overage[0].Quota.Reached || overage[0].Quota.Windows[0].Status != "" {
+		t.Fatalf("unused overage = %+v", overage)
 	}
 	if evs := feed(t, m, `{"type":"rate_limit_event","session_id":"s1","rate_limit_info":{"status":"allowed"}}`); len(evs) != 0 {
 		t.Fatalf("no type = %+v", evs)
