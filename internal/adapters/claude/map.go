@@ -479,6 +479,9 @@ func (m *Mapper) mapRateLimit(raw *rawMessage) []domain.Event {
 	if info == nil || info.RateLimitType == "" {
 		return nil
 	}
+	if strings.Contains(info.RateLimitType, "overage") && !info.UsingOverage {
+		return nil
+	}
 	window := domain.QuotaWindow{Name: info.RateLimitType, Status: info.Status}
 	if info.ResetsAt != nil {
 		window.ResetsAt = time.Unix(*info.ResetsAt, 0).UTC()

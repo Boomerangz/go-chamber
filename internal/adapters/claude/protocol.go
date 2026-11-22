@@ -66,6 +66,7 @@ type rawRateLimitInfo struct {
 	ResetsAt      *int64   `json:"resetsAt"`
 	RateLimitType string   `json:"rateLimitType"`
 	Utilization   *float64 `json:"utilization"`
+	UsingOverage  bool     `json:"isUsingOverage"`
 }
 
 type rawUsage struct {
