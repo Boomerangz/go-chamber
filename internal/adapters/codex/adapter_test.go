@@ -573,3 +573,38 @@ func TestCodexForkReplaysUserMessages(t *testing.T) {
 		t.Fatal("live user echo must stay suppressed")
 	}
 }
+
+func TestCodexResumeDoesNotRepublishHistory(t *testing.T) {
+	f := &Factory{Binary: fakeBin, InitTimeout: 10 * time.Second}
+	t.Cleanup(f.Close)
+	req := app.StartRequest{SessionID: "session", Cwd: t.TempDir()}
+	first, err := f.Start(context.Background(), req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := first.Send(context.Background(), "old-turn", "old prompt"); err != nil {
+		t.Fatal(err)
+	}
+	drainCodex(t, first.(*Runtime), func(ev domain.Event) bool { return ev.Type == domain.EventTurnEnded })
+	req.NativeID = first.NativeID()
+	if err := first.Close(); err != nil {
+		t.Fatal(err)
+	}
+	resumed, err := f.Start(context.Background(), req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = resumed.Close() })
+	if err := resumed.Send(context.Background(), "new-turn", "new prompt"); err != nil {
+		t.Fatal(err)
+	}
+	events := drainCodex(t, resumed.(*Runtime), func(ev domain.Event) bool { return ev.Type == domain.EventTurnEnded })
+	for _, ev := range events {
+		if ev.Item != nil && strings.Contains(ev.Item.Text, "old prompt") {
+			t.Fatalf("resume republished historical item: %+v", ev.Item)
+		}
+	}
+	if got := events[len(events)-1].Result.Text; got != "echo: new prompt" {
+		t.Fatalf("new reply = %q", got)
+	}
+}

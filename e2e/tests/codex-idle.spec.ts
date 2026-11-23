@@ -66,9 +66,17 @@ test('idle Codex unloads and resumes the same conversation', async ({ page }) =>
   const sessions = async () => (await page.request.get(`${base}/api/sessions`, { headers })).json()
   const first = (await sessions())[0]
   await expect.poll(async () => (await sessions())[0].status).toBe('detached')
+  const eventsURL = `${base}/api/sessions/${first.id}/events`
+  const before = await (await page.request.get(eventsURL, { headers })).json() as { seq: number }[]
+  const lastSeq = Math.max(...before.map((event) => event.seq))
   await page.getByLabel('Message').fill('after idle')
   await page.getByRole('button', { name: 'Send', exact: true }).click()
   await expect(page.locator('.item.assistant', { hasText: 'echo: after idle' })).toBeVisible()
   expect((await sessions())[0].nativeId).toBe(first.nativeId)
   await expect(page.locator('.item.assistant', { hasText: 'echo: before idle' })).toBeVisible()
+  const resumed = await (await page.request.get(`${eventsURL}?since=${lastSeq}`, { headers })).json() as { item?: { text?: string } }[]
+  expect(resumed.some((event) => event.item?.text?.includes('before idle'))).toBe(false)
+  await page.reload()
+  await expect(page.locator('.item.assistant', { hasText: 'echo: after idle' })).toBeVisible()
+  await expect(page.locator('.item.user', { hasText: 'after idle' })).toBeVisible()
 })

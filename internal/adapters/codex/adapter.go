@@ -448,7 +448,7 @@ func (s *Server) resume(rt *Runtime) error {
 	l := s.threadLock(rt.threadID)
 	l.Lock()
 	defer l.Unlock()
-	params := map[string]any{"threadId": rt.threadID}
+	params := map[string]any{"threadId": rt.threadID, "excludeTurns": true}
 	rt.mu.Lock()
 	if rt.closed {
 		rt.mu.Unlock()
@@ -616,6 +616,8 @@ func (s *Server) startThread(ctx context.Context, req app.StartRequest) (*Runtim
 		method := "thread/resume"
 		if req.Fork {
 			method = "thread/fork"
+		} else {
+			params["excludeTurns"] = true
 		}
 		res, err := s.client.Call(ctx, method, params)
 		if err != nil {
@@ -654,8 +656,10 @@ func (s *Server) startThread(ctx context.Context, req app.StartRequest) (*Runtim
 	rt.reviewer, rt.effort, rt.mode = req.ApprovalReviewer, req.Effort, req.PermissionMode
 	rt.cwd = req.Cwd
 	rt.mapper.IncludeUserMessages = req.Fork
-	for _, ev := range rt.mapThread(thread) {
-		rt.emit(ev)
+	if req.Fork {
+		for _, ev := range rt.mapThread(thread) {
+			rt.emit(ev)
+		}
 	}
 	rt.mapper.IncludeUserMessages = false
 	s.register(rt)

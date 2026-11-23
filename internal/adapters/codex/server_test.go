@@ -270,3 +270,48 @@ func TestMapErrorNotification(t *testing.T) {
 		t.Fatalf("item = %+v", item)
 	}
 }
+
+func TestResumeExcludesTurns(t *testing.T) {
+	for _, recovery := range []bool{false, true} {
+		name := "detached"
+		if recovery {
+			name = "recovery"
+		}
+		t.Run(name, func(t *testing.T) {
+			s, peer := newPipeServer(t)
+			done := make(chan error, 1)
+			go func() {
+				if recovery {
+					done <- s.resume(s.newRuntime("thread", NewMapper("session")))
+				} else {
+					_, err := s.startThread(context.Background(), app.StartRequest{SessionID: "session", NativeID: "thread"})
+					done <- err
+				}
+			}()
+			request := peer.read()
+			var params struct {
+				ThreadID     string `json:"threadId"`
+				ExcludeTurns bool   `json:"excludeTurns"`
+			}
+			if err := json.Unmarshal(request.Params, &params); err != nil {
+				t.Fatal(err)
+			}
+			if request.Method != "thread/resume" || params.ThreadID != "thread" || !params.ExcludeTurns {
+				t.Fatalf("resume must omit historical turns: %+v %s", request, request.Params)
+			}
+			peer.send(rpcMessage{JSONRPC: "2.0", ID: request.ID, Result: json.RawMessage(`{"thread":{"id":"thread","turns":[]}}`)})
+			if !recovery {
+				quota := peer.read()
+				peer.send(rpcMessage{JSONRPC: "2.0", ID: quota.ID, Result: json.RawMessage(`{}`)})
+			}
+			select {
+			case err := <-done:
+				if err != nil {
+					t.Fatal(err)
+				}
+			case <-time.After(5 * time.Second):
+				t.Fatal("resume did not finish")
+			}
+		})
+	}
+}

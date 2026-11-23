@@ -162,7 +162,7 @@ func main() {
 			setReviewer(p.ThreadID, m.Params)
 			setModel(p.ThreadID, m.Params)
 			respond(m.ID, map[string]any{"thread": map[string]any{
-				"id": p.ThreadID, "turns": []any{},
+				"id": p.ThreadID, "turns": histories[p.ThreadID],
 			}})
 		case "thread/fork":
 			var p struct {
