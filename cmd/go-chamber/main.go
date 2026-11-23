@@ -67,6 +67,7 @@ func run(ctx context.Context, args []string, out io.Writer) error {
 	nativeAuthPath := fl.String("native-codex-auth", "", "native Codex OAuth file; defaults to data/native/codex.json")
 	nativeCodexURL := fl.String("native-codex-url", "", "native Codex endpoint override")
 	nativeRouterURL := fl.String("native-openrouter-url", "", "OpenRouter compatible endpoint override")
+	nativeGoalAuditor := fl.String("native-goal-auditor", "", "provider:model that audits /goal progress; defaults to the session's model")
 	nativeRouterKey := fl.String("native-openrouter-key-file", "", "OpenRouter key file (otherwise OPENROUTER_API_KEY)")
 	codexIdle := fl.Duration("codex-idle-timeout", 2*time.Minute, "unload idle Codex threads after this long (0 keeps them)")
 	idle := fl.Duration("idle-timeout", 15*time.Minute, "close idle Claude processes after this long (0 keeps them)")
@@ -146,7 +147,7 @@ func run(ctx context.Context, args []string, out io.Writer) error {
 		}
 	}
 	skillRoots := []string{filepath.Join(home, ".agents", "skills"), filepath.Join(home, ".codex", "skills"), filepath.Join(home, ".claude", "skills")}
-	nativeFactory := &native.Factory{LoadImages: native.LoadImages(filepath.Join(*dataDir, "images")), Repo: store.Conversations(), Providers: providers, Tools: func(cwd string) (app.NativeTools, error) {
+	nativeFactory := &native.Factory{GoalAuditor: *nativeGoalAuditor, LoadImages: native.LoadImages(filepath.Join(*dataDir, "images")), Repo: store.Conversations(), Providers: providers, Tools: func(cwd string) (app.NativeTools, error) {
 		base := &nativetools.Tools{Cwd: cwd, ReadRoots: append(append([]string{}, skillRoots...), filepath.Join(*dataDir, "transcripts"))}
 		if len(mcpServers) > 0 {
 			return mcpclient.Connect(ctx, base, mcpServers, cwd)

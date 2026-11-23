@@ -281,6 +281,59 @@ func main() {
 			}
 		case "account/login/start":
 			respond(m.ID, map[string]any{"type": "chatgptDeviceCode", "loginId": "login-1", "userCode": "ABCD-EFGH", "verificationUrl": "https://example.com/device"})
+		case "thread/goal/set":
+			// Like the real server (0.160.1): an active goal starts turns on
+			// its own until the agent marks it complete.
+			var p struct {
+				ThreadID    string  `json:"threadId"`
+				Objective   *string `json:"objective"`
+				Status      *string `json:"status"`
+				TokenBudget *int64  `json:"tokenBudget"`
+			}
+			_ = json.Unmarshal(m.Params, &p)
+			goal := goals[p.ThreadID]
+			if goal == nil {
+				if p.Objective == nil {
+					respondError(m.ID, "thread has no goal")
+					continue
+				}
+				goal = map[string]any{"threadId": p.ThreadID, "tokenBudget": nil, "tokensUsed": 0, "timeUsedSeconds": 0, "createdAt": 1, "updatedAt": 1}
+				goals[p.ThreadID] = goal
+			}
+			if p.Objective != nil {
+				goal["objective"] = *p.Objective
+			}
+			if p.Status != nil {
+				goal["status"] = *p.Status
+			}
+			if p.TokenBudget != nil {
+				goal["tokenBudget"] = *p.TokenBudget
+			}
+			respond(m.ID, map[string]any{"goal": goal})
+			notify("thread/goal/updated", map[string]any{"threadId": p.ThreadID, "turnId": nil, "goal": goal})
+			if goal["status"] == "active" {
+				objective, _ := goal["objective"].(string)
+				replyTurn(p.ThreadID, nextID("turn"), objective, "goal: working on "+objective)
+				final := nextID("turn")
+				goal["status"], goal["tokensUsed"] = "complete", 42
+				notify("thread/goal/updated", map[string]any{"threadId": p.ThreadID, "turnId": final, "goal": goal})
+				replyTurn(p.ThreadID, final, objective, "goal: done")
+			}
+		case "thread/goal/get":
+			var p struct {
+				ThreadID string `json:"threadId"`
+			}
+			_ = json.Unmarshal(m.Params, &p)
+			respond(m.ID, map[string]any{"goal": goals[p.ThreadID]})
+		case "thread/goal/clear":
+			var p struct {
+				ThreadID string `json:"threadId"`
+			}
+			_ = json.Unmarshal(m.Params, &p)
+			_, had := goals[p.ThreadID]
+			delete(goals, p.ThreadID)
+			respond(m.ID, map[string]any{"cleared": had})
+			notify("thread/goal/cleared", map[string]any{"threadId": p.ThreadID})
 		case "turn/steer":
 			respond(m.ID, map[string]any{})
 		case "turn/interrupt":
@@ -486,6 +539,9 @@ func collabTurn(threadID, turnID, text string) {
 // openTurns holds each running turn's server requests.
 var openTurns = map[string][]string{}
 
+// goals holds each thread's goal as the wire object.
+var goals = map[string]map[string]any{}
+
 func turnStarted(threadID, turnID string) {
 	openTurns[turnID] = nil
 	notify("turn/started", map[string]any{"threadId": threadID,
@@ -516,6 +572,11 @@ func notify(method string, params any) {
 
 func serverRequest(id string, method string, params any) {
 	_ = enc.Encode(map[string]any{"jsonrpc": "2.0", "id": id, "method": method, "params": params})
+	_ = out.Flush()
+}
+
+func respondError(id json.RawMessage, message string) {
+	_ = enc.Encode(map[string]any{"jsonrpc": "2.0", "id": id, "error": map[string]any{"code": -32600, "message": message}})
 	_ = out.Flush()
 }
 

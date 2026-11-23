@@ -19,6 +19,7 @@ func TestCodexCommandsAreItsEnabledSkills(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := []app.Command{
+		goalCommand,
 		{Name: "pdf", Description: "Read and write PDFs", Insert: "$pdf"},
 		{Name: "review", Description: "Review the working tree", Insert: "$review"},
 	}

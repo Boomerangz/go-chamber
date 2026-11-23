@@ -17,6 +17,15 @@ export interface Interruption {
 // absent means the agent's own configuration decides.
 export type ApprovalReviewer = 'user' | 'auto_review'
 
+export interface SessionGoal {
+  objective: string
+  status: 'active' | 'paused' | 'blocked' | 'budgetLimited' | 'usageLimited' | 'complete'
+  note?: string
+  turnsUsed?: number
+  tokensUsed?: number
+  tokenBudget?: number
+}
+
 export interface Session {
   id: string
   agent: AgentKind
@@ -27,6 +36,8 @@ export interface Session {
   forkOf?: string
   status: SessionStatus
   backgroundTasks?: number
+  // goal is the objective the agent is pursuing across continuations.
+  goal?: SessionGoal
   title?: string
   interruption?: Interruption
   // autoContinue resumes a quota-interrupted turn once the limit resets.

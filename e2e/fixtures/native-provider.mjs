@@ -44,6 +44,11 @@ http.createServer(async (req, res) => {
   if(!results.length)call('spawn_agent',{task:'child task',title:'Foreground child'})
   else delta={content:`parent got: ${JSON.parse(results[0].content).result}`}
  }
+ if(text==='native background'){
+  if(!results.length)call('spawn_agent',{task:'child task',title:'Background child',background:true})
+  else delta={content:`launched: ${JSON.parse(results[0].content).status}`}
+ }
+ if(typeof text==='string'&&text.startsWith('Background agent "Background child" completed'))delta={content:text.includes('native: child task')?'parent woke with the child result':'parent woke without the result'}
  const system=msgs.filter(m=>m.role==='system'||m.role==='developer').map(m=>m.content).join('\n')
  if(system.startsWith('You audit the progress'))delta={content:JSON.stringify(text.includes('goal step 2')?{verdict:'complete',note:'probe verified'}:{verdict:'continue',note:'one step left'})}
  else if(typeof text==='string'&&text.startsWith('Work toward the active session goal.'))delta={content:`goal step ${Number(text.match(/Continuations used: (\d+)/)[1])+1}`}

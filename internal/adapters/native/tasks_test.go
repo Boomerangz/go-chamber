@@ -86,20 +86,20 @@ func TestNativeTaskCancellationLimitsAndGuidance(t *testing.T) {
 	if _, err = tasks.Execute(ctx, domain.ModelToolCall{Name: "spawn_agent", Arguments: []byte(`{`)}); err == nil {
 		t.Fatal("malformed args accepted")
 	}
-	if _, err = tasks.spawn(ctx, "", ""); err == nil {
+	if _, err = tasks.spawn(ctx, "", "", false); err == nil {
 		t.Fatal("empty task accepted")
 	}
 	tasks.parent.Depth = 3
-	if _, err = tasks.spawn(ctx, "task", ""); err == nil {
+	if _, err = tasks.spawn(ctx, "task", "", false); err == nil {
 		t.Fatal("depth exceeded")
 	}
 	tasks.parent.Depth = 0
 	for i := 0; i < 4; i++ {
-		if _, err = tasks.spawn(ctx, "task", ""); err != nil {
+		if _, err = tasks.spawn(ctx, "task", "", false); err != nil {
 			t.Fatal(err)
 		}
 	}
-	if _, err = tasks.spawn(ctx, "task", ""); err == nil {
+	if _, err = tasks.spawn(ctx, "task", "", false); err == nil {
 		t.Fatal("concurrency exceeded")
 	}
 	// Pending tasks are represented in the same ownership map as attached tasks.
@@ -156,7 +156,7 @@ func TestNativeInterruptCancelsPendingChildrenBeforeAttachment(t *testing.T) {
 		t.Fatal(err)
 	}
 	tasks := &taskTools{base: noTools{}, factory: f, parent: domain.Conversation{ID: parent.NativeID(), Model: "codex:fresh"}, emit: parent.(*app.NativeRuntime).Emit}
-	raw, err := tasks.spawn(ctx, "pending task", "")
+	raw, err := tasks.spawn(ctx, "pending task", "", false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -179,7 +179,7 @@ func TestDeletedChildDoesNotBlockFutureSpawns(t *testing.T) {
 	f, _ := testFactory(t)
 	f.tasks = map[string]string{"deleted": "parent"}
 	tools := &taskTools{base: noTools{}, factory: f, parent: domain.Conversation{ID: "parent", Model: "codex:fresh"}, emit: func(domain.Event) {}}
-	if _, err := tools.spawn(context.Background(), "new task", ""); err != nil {
+	if _, err := tools.spawn(context.Background(), "new task", "", false); err != nil {
 		t.Fatal("deleted journal blocked next child", err)
 	}
 }
@@ -361,8 +361,17 @@ func TestGoalDoesNotOutliveItsRunAcrossRestartOrFork(t *testing.T) {
 	if forked, _ := f.Repo.LoadConversation(ctx, fork.NativeID()); forked.Goal != nil {
 		t.Fatalf("fork inherited the goal: %+v", forked.Goal)
 	}
-	if _, err = f.Start(ctx, app.StartRequest{SessionID: "root", Agent: domain.AgentNative, NativeID: "root", Cwd: t.TempDir()}); err != nil {
+	root, err := f.Start(ctx, app.StartRequest{SessionID: "root", Agent: domain.AgentNative, NativeID: "root", Cwd: t.TempDir()})
+	if err != nil {
 		t.Fatal(err)
+	}
+	select {
+	case ev := <-root.Events():
+		if ev.Type != domain.EventGoal || ev.Goal == nil || ev.Goal.Status != domain.GoalPaused {
+			t.Fatalf("attached session not told its goal: %+v", ev)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("attached session not told its goal")
 	}
 	resumed, _ := f.Repo.LoadConversation(ctx, "root")
 	if resumed.Goal == nil || resumed.Goal.Status != domain.GoalPaused || resumed.Goal.Note == "" {
@@ -371,5 +380,132 @@ func TestGoalDoesNotOutliveItsRunAcrossRestartOrFork(t *testing.T) {
 	commands, err := f.Commands(ctx, domain.AgentNative, t.TempDir())
 	if err != nil || len(commands) < 2 || commands[1].Name != "goal" || commands[1].Insert != "/goal " {
 		t.Fatalf("%+v %v", commands, err)
+	}
+}
+
+func backgroundChild(t *testing.T, f *Factory, parent app.AgentRuntime) (*taskTools, string) {
+	t.Helper()
+	ctx := context.Background()
+	tasks := &taskTools{base: noTools{}, factory: f, parent: domain.Conversation{ID: parent.NativeID(), Model: "codex:fresh"}, emit: parent.(*app.NativeRuntime).Emit}
+	raw, err := tasks.Execute(ctx, domain.ModelToolCall{Name: "spawn_agent", Arguments: []byte(`{"task":"inspect code","title":"Review","background":true}`)})
+	if err != nil || !strings.Contains(raw, "notified") {
+		t.Fatalf("%s %v", raw, err)
+	}
+	var spawned struct {
+		ID string `json:"id"`
+	}
+	_ = json.Unmarshal([]byte(raw), &spawned)
+	if ev := <-parent.Events(); ev.Type != domain.EventSubagentSpawned {
+		t.Fatalf("%+v", ev)
+	}
+	return tasks, spawned.ID
+}
+
+func TestBackgroundChildWakesItsIdleParentWithTheResult(t *testing.T) {
+	f, model := testFactory(t)
+	ctx := context.Background()
+	parent, err := f.Start(ctx, app.StartRequest{SessionID: "parent", Agent: domain.AgentNative, Cwd: t.TempDir()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, id := backgroundChild(t, f, parent)
+	child, err := f.Start(ctx, app.StartRequest{SessionID: "child", Agent: domain.AgentNative, NativeID: id, Passive: true, Cwd: t.TempDir()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	endTurn(t, child)
+	var shown string
+	for ev := range parent.Events() {
+		if ev.Type == domain.EventItemUpdated && ev.Item.Kind == domain.ItemUserMessage {
+			shown = ev.Item.Text
+		}
+		if ev.Type == domain.EventTurnEnded {
+			break
+		}
+	}
+	if !strings.Contains(shown, "Review") {
+		t.Fatalf("wake-up not shown in the parent transcript: %q", shown)
+	}
+	model.mu.Lock()
+	defer model.mu.Unlock()
+	messages := model.requests[len(model.requests)-1].Messages
+	woke := messages[len(messages)-1]
+	if woke.Role != "user" || !strings.Contains(woke.Text, id) || !strings.Contains(woke.Text, "hello") || !strings.Contains(woke.Text, "not a message from the user") {
+		t.Fatalf("parent did not receive the child's result: %+v", woke)
+	}
+}
+
+func TestBackgroundChildReportsIntoARunningParentTurn(t *testing.T) {
+	f, _ := testFactory(t)
+	ctx := context.Background()
+	started := make(chan struct{}, 1)
+	f.Providers["slow"] = Provider{Client: blockModel{started}, Catalog: f.Providers["codex"].Catalog}
+	parent, err := f.Start(ctx, app.StartRequest{SessionID: "parent", Agent: domain.AgentNative, Model: "slow:fresh", Cwd: t.TempDir()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, id := backgroundChild(t, f, parent)
+	if err = parent.Send(ctx, "turn", "long work"); err != nil {
+		t.Fatal(err)
+	}
+	<-started
+	saved, _ := f.Repo.LoadConversation(ctx, id)
+	saved.Model = "codex:fresh"
+	_ = f.Repo.SaveConversation(ctx, saved)
+	child, err := f.Start(ctx, app.StartRequest{SessionID: "child", Agent: domain.AgentNative, NativeID: id, Passive: true, Cwd: t.TempDir()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	endTurn(t, child)
+	_ = child.Close() // Returns once the child has delivered its report.
+	_ = parent.Interrupt(ctx)
+	shown := false
+	for ev := range parent.Events() {
+		shown = shown || ev.Type == domain.EventItemUpdated && ev.Item.Kind == domain.ItemUserMessage && strings.Contains(ev.Item.Text, "Review") && ev.Item.TurnID == "turn"
+		if ev.Type == domain.EventTurnEnded {
+			break
+		}
+	}
+	if !shown {
+		t.Fatal("report into a running turn not shown in the transcript")
+	}
+	got, _ := f.Repo.LoadConversation(ctx, parent.NativeID())
+	last := got.Messages[len(got.Messages)-1]
+	if last.Role != "user" || !strings.Contains(last.Text, id) || !strings.Contains(last.Text, "hello") {
+		t.Fatalf("running parent lost the child's result: %+v", got.Messages)
+	}
+}
+
+func TestForegroundChildDoesNotWakeItsParent(t *testing.T) {
+	f, model := testFactory(t)
+	ctx := context.Background()
+	parent, err := f.Start(ctx, app.StartRequest{SessionID: "parent", Agent: domain.AgentNative, Cwd: t.TempDir()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	tasks := &taskTools{base: noTools{}, factory: f, parent: domain.Conversation{ID: parent.NativeID(), Model: "codex:fresh"}, emit: parent.(*app.NativeRuntime).Emit}
+	raw, err := tasks.spawn(ctx, "inspect code", "", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var spawned struct {
+		ID string `json:"id"`
+	}
+	_ = json.Unmarshal([]byte(raw), &spawned)
+	<-parent.Events()
+	child, err := f.Start(ctx, app.StartRequest{SessionID: "child", Agent: domain.AgentNative, NativeID: spawned.ID, Passive: true, Cwd: t.TempDir()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	endTurn(t, child)
+	select {
+	case ev := <-parent.Events():
+		t.Fatalf("parent woken for a result it already holds: %+v", ev)
+	case <-time.After(200 * time.Millisecond):
+	}
+	model.mu.Lock()
+	defer model.mu.Unlock()
+	if len(model.requests) != 1 {
+		t.Fatalf("model called %d times", len(model.requests))
 	}
 }

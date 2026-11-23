@@ -73,6 +73,10 @@ type Conversation struct {
 	Depth          int
 	LastError      string
 	Goal           *Goal `json:"Goal,omitempty"`
+	// Title and Background describe a child: a background child reports its
+	// result to the parent, which is not waiting for it.
+	Title      string `json:"Title,omitempty"`
+	Background bool   `json:"Background,omitempty"`
 }
 
 // ModelImage is a validated inline image owned by the conversation.

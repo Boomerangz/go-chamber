@@ -749,7 +749,12 @@ type Runtime struct {
 	// doneTurn is the last completed turn; a late turn/start response must
 	// not revive it.
 	doneTurn string
-	reviewer domain.ApprovalReviewer
+	// goalActive says Codex is pursuing a goal and may start turns itself.
+	goalActive bool
+	// turnsStarted counts turn/started notifications, so a command can tell
+	// that the turn it caused has begun even if it already ended.
+	turnsStarted int
+	reviewer     domain.ApprovalReviewer
 	// model and effort override the thread's choice from the next turn on;
 	// empty values keep what the thread already uses.
 	model       string
@@ -781,6 +786,7 @@ func (r *Runtime) mapNotification(method string, params json.RawMessage) []domai
 			r.mu.Lock()
 			if method == "turn/started" {
 				r.turnID = n.Turn.ID
+				r.turnsStarted++
 			} else {
 				r.doneTurn = n.Turn.ID
 				if r.turnID == n.Turn.ID {
@@ -790,7 +796,7 @@ func (r *Runtime) mapNotification(method string, params json.RawMessage) []domai
 			r.mu.Unlock()
 		}
 	}
-	return events
+	return r.noteGoal(method, events)
 }
 
 func (r *Runtime) activeTurn() string {
@@ -886,7 +892,10 @@ func (r *Runtime) pump() {
 }
 
 // Send starts a new turn on the thread.
-func (r *Runtime) Send(ctx context.Context, _ domain.TurnID, text string) error {
+func (r *Runtime) Send(ctx context.Context, turn domain.TurnID, text string) error {
+	if command, ok := app.ParseGoalCommand(text); ok {
+		return r.goal(ctx, turn, command)
+	}
 	return r.startTurn(ctx, []map[string]any{{"type": "text", "text": text}})
 }
 
@@ -990,6 +999,13 @@ func (r *Runtime) Interrupt(ctx context.Context) error {
 	_, err := r.current().client.Call(ctx, "turn/interrupt", map[string]any{
 		"threadId": r.threadID, "turnId": turnID,
 	})
+	r.mu.Lock()
+	pursuing := r.goalActive
+	r.mu.Unlock()
+	if err == nil && pursuing {
+		// Codex leaves an interrupted goal active; say what the stop meant.
+		_, _ = r.current().client.Call(ctx, "thread/goal/set", map[string]any{"threadId": r.threadID, "status": domain.GoalPaused})
+	}
 	return err
 }
 

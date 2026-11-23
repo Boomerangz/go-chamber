@@ -282,3 +282,25 @@ func TestCloseClosesRuntimesConcurrently(t *testing.T) {
 	close(release)
 	<-done
 }
+
+func TestSessionShowsTheGoalItsRuntimeReports(t *testing.T) {
+	m, _, factory := newIdleManager(t, time.Hour)
+	snap := createClaude(t, m)
+	rt := newFakeRuntime("native-1")
+	factory.runtimes = []*fakeRuntime{rt}
+	if err := m.SendMessage(context.Background(), snap.ID, "work"); err != nil {
+		t.Fatal(err)
+	}
+	goal, _ := domain.NewGoal("ship it")
+	rt.events <- domain.Event{SessionID: snap.ID, Type: domain.EventGoal, Goal: goal}
+	eventually(t, "goal visible", func() bool {
+		current, err := m.GetSession(context.Background(), snap.ID)
+		list, listErr := m.ListSessions(context.Background())
+		return err == nil && current.Goal != nil && current.Goal.Objective == "ship it" && listErr == nil && list[0].Goal != nil
+	})
+	rt.events <- domain.Event{SessionID: snap.ID, Type: domain.EventGoal}
+	eventually(t, "goal cleared", func() bool {
+		current, err := m.GetSession(context.Background(), snap.ID)
+		return err == nil && current.Goal == nil
+	})
+}

@@ -65,6 +65,17 @@ func savedGoal(t *testing.T, repo *nativeMemory) *domain.Goal {
 	return saved.Goal
 }
 
+// reportedGoal is the last goal state the runtime published; reported is
+// false when it never published one.
+func reportedGoal(events []domain.Event) (goal *domain.Goal, reported bool) {
+	for _, ev := range events {
+		if ev.Type == domain.EventGoal {
+			goal, reported = ev.Goal, true
+		}
+	}
+	return goal, reported
+}
+
 func notices(events []domain.Event) string {
 	var b strings.Builder
 	for _, ev := range events {
@@ -110,6 +121,9 @@ func TestGoalContinuesInOneTurnUntilTheAuditConfirms(t *testing.T) {
 	if ended != 1 || g.Status != domain.GoalComplete || g.TurnsUsed != 1 || g.TokensUsed != 220 || g.Note != "tests green" {
 		t.Fatalf("ended %d goal %+v", ended, g)
 	}
+	if seen, ok := reportedGoal(events); !ok || seen == nil || seen.Status != domain.GoalComplete || seen.TokensUsed != 220 {
+		t.Fatalf("session not told the final goal state: %+v", seen)
+	}
 	if shown := notices(events); !strings.Contains(shown, "Goal set") || !strings.Contains(shown, "tests still red") || !strings.Contains(shown, "Goal complete") {
 		t.Fatalf("notices: %s", shown)
 	}
@@ -123,6 +137,9 @@ func TestGoalPausesWhenTheTurnIsStoppedOrFails(t *testing.T) {
 	_, repo, events := goalRun(t, model, "/goal ship")
 	if g := savedGoal(t, repo); g.Status != domain.GoalPaused || !strings.Contains(g.Note, "provider down") || len(model.audits) != 0 {
 		t.Fatalf("failed turn left %+v, audits %d", g, len(model.audits))
+	}
+	if seen, _ := reportedGoal(events); seen == nil || seen.Status != domain.GoalPaused {
+		t.Fatalf("session not told about the pause: %+v", seen)
 	}
 	if !strings.Contains(notices(events), "Goal paused") {
 		t.Fatal("pause not shown")
@@ -200,7 +217,7 @@ func TestGoalCommandsManageTheGoalWithoutCallingTheModel(t *testing.T) {
 	if len(model.agent) != 0 || savedGoal(t, repo) != nil {
 		t.Fatalf("commands without a goal reached the model %d times", len(model.agent))
 	}
-	if shown := notices(events); strings.Count(shown, "No goal is set") != 4 || !strings.Contains(shown, goalUsage) {
+	if shown := notices(events); strings.Count(shown, "No goal is set") != 4 || !strings.Contains(shown, GoalUsage) {
 		t.Fatalf("notices: %s", shown)
 	}
 	send := func(text string) string {
@@ -227,7 +244,12 @@ func TestGoalCommandsManageTheGoalWithoutCallingTheModel(t *testing.T) {
 	if g := savedGoal(t, repo); g.Status != domain.GoalComplete || len(model.agent) != steps+1 {
 		t.Fatalf("resume did not run: %+v", g)
 	}
-	send("/goal clear")
+	if err := r.Send(context.Background(), "turn", "/goal clear"); err != nil {
+		t.Fatal(err)
+	}
+	if seen, ok := reportedGoal(nativeEnd(t, r)); !ok || seen != nil {
+		t.Fatalf("session not told the goal was cleared: %+v %v", seen, ok)
+	}
 	send("/goalkeeper stats")
 	saved, _ := repo.LoadConversation(context.Background(), "native")
 	if saved.Goal != nil || saved.Messages[len(saved.Messages)-2].Text != "/goalkeeper stats" {
@@ -299,5 +321,21 @@ func TestImageOnlyMessageStillReachesTheModel(t *testing.T) {
 	nativeEnd(t, r)
 	if len(model.agent) != 1 || len(model.agent[0].Messages) != 1 || len(model.agent[0].Messages[0].Images) != 1 {
 		t.Fatalf("image-only input dropped: %+v", model.agent)
+	}
+}
+
+func TestGoalAuditUsesTheConfiguredAuditorModel(t *testing.T) {
+	model := &goalModel{verdict: func(int) (string, error) { return `{"verdict":"complete","note":"ok"}`, nil }}
+	r := NewNativeRuntime(NativeRuntimeConfig{SessionID: "s", Conversation: domain.Conversation{ID: "native", Model: "codex:big", Effort: "high"}, Model: model, Tools: &nativeTestTools{}, Repo: &nativeMemory{}, GoalAuditor: "openrouter:small"})
+	t.Cleanup(func() { _ = r.Close() })
+	if err := r.Send(context.Background(), "turn", "/goal ship"); err != nil {
+		t.Fatal(err)
+	}
+	nativeEnd(t, r)
+	if audit := model.audits[0]; audit.Model != "openrouter:small" || audit.Effort != "" {
+		t.Fatalf("audit ran on %q effort %q", audit.Model, audit.Effort)
+	}
+	if step := model.agent[0]; step.Model != "codex:big" || step.Effort != "high" {
+		t.Fatalf("agent step ran on %q effort %q", step.Model, step.Effort)
 	}
 }

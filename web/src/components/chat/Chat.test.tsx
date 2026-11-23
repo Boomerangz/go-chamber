@@ -123,6 +123,13 @@ describe('transcript loading', () => {
     expect(screen.getByText('2 background tasks')).toBeVisible()
   })
 
+  it('shows the goal the session is pursuing, with its objective on hover', () => {
+    setup({ sessions: [{ ...session, goal: { objective: 'ship it', status: 'active', note: 'tests red' } }] })
+    expect(screen.getByText('goal active')).toHaveAttribute('title', 'ship it\n\ntests red')
+    act(() => useSessionStore.setState({ sessions: [{ ...session, goal: { objective: 'ship it', status: 'budgetLimited' } }] }))
+    expect(screen.getByText('goal out of budget')).toHaveAttribute('title', 'ship it')
+  })
+
   it('flashes "done" for a finished turn but not for a failed one', () => {
     setup({ chat: running([item('u1', 'user_message')]) })
     act(() => useSessionStore.setState({ chat: chatOf([item('u1', 'user_message')], { lastSeq: 5 }) }))

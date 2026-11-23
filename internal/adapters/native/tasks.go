@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/igorzygin/go-chamber/internal/app"
@@ -23,10 +24,10 @@ type taskTools struct {
 func (t *taskTools) Definitions() []domain.ModelTool {
 	tools := t.base.Definitions()
 	if canSpawnAgents(t.parent) {
-		tools = append(tools, domain.ModelTool{Name: "spawn_agent", Description: "Run a child agent on one independent, bounded task and return its final result. The child starts with fresh context, so put everything it needs in task. Do steps that depend on each other yourself instead of delegating them. Set background=true only for work that can proceed while you do something else on different files; it returns the child ID at once, and wait_agent collects the result. Children inherit your permission mode.", Parameters: json.RawMessage(`{"type":"object","properties":{"task":{"type":"string"},"title":{"type":"string"},"background":{"type":"boolean"}},"required":["task"],"additionalProperties":false}`)})
+		tools = append(tools, domain.ModelTool{Name: "spawn_agent", Description: "Run a child agent on one independent, bounded task and return its final result. The child starts with fresh context, so put everything it needs in task. Do steps that depend on each other yourself instead of delegating them. Set background=true only for work that can proceed while you do something else on different files; it returns the child ID at once and you are notified when the child finishes. Children inherit your permission mode.", Parameters: json.RawMessage(`{"type":"object","properties":{"task":{"type":"string"},"title":{"type":"string"},"background":{"type":"boolean"}},"required":["task"],"additionalProperties":false}`)})
 	}
 	return append(tools,
-		domain.ModelTool{Name: "wait_agent", Description: "Wait up to 30 seconds for a background child agent; completed results remain available. Do not call it in a loop while you have other work.", Parameters: json.RawMessage(`{"type":"object","properties":{"id":{"type":"string"}},"required":["id"],"additionalProperties":false}`)},
+		domain.ModelTool{Name: "wait_agent", Description: "Wait up to 30 seconds for a background child agent; completed results remain available. You are notified when a background child finishes, so do not poll with it.", Parameters: json.RawMessage(`{"type":"object","properties":{"id":{"type":"string"}},"required":["id"],"additionalProperties":false}`)},
 		domain.ModelTool{Name: "stop_agent", Description: "Interrupt your child agent and its descendants.", Parameters: json.RawMessage(`{"type":"object","properties":{"id":{"type":"string"}},"required":["id"],"additionalProperties":false}`)},
 		domain.ModelTool{Name: "send_agent", Description: "Send guidance to your child agent; starts a new turn if idle.", Parameters: json.RawMessage(`{"type":"object","properties":{"id":{"type":"string"},"message":{"type":"string"}},"required":["id","message"],"additionalProperties":false}`)})
 }
@@ -55,7 +56,7 @@ func (t *taskTools) Execute(ctx context.Context, call domain.ModelToolCall) (str
 		return "", errors.New("invalid agent arguments")
 	}
 	if call.Name == "spawn_agent" {
-		spawned, err := t.spawn(ctx, input.Task, input.Title)
+		spawned, err := t.spawn(ctx, input.Task, input.Title, input.Background)
 		if err != nil || input.Background {
 			return spawned, err
 		}
@@ -158,7 +159,7 @@ func (t *taskTools) wait(ctx context.Context, id string, limit time.Duration) (s
 		}
 	}
 }
-func (t *taskTools) spawn(ctx context.Context, task, title string) (string, error) {
+func (t *taskTools) spawn(ctx context.Context, task, title string, background bool) (string, error) {
 	if task == "" || len(task) > 128<<10 {
 		return "", errors.New("task is empty or exceeds limit")
 	}
@@ -185,7 +186,7 @@ func (t *taskTools) spawn(ctx context.Context, task, title string) (string, erro
 	if active >= 4 {
 		return "", errors.New("four native child agents are already active; wait for one")
 	}
-	child := domain.Conversation{ID: rand.Text(), Parent: t.parent.ID, Depth: t.parent.Depth + 1, Model: t.parent.Model, Effort: t.parent.Effort, PermissionMode: t.parent.PermissionMode, PendingPrompt: task, Busy: true}
+	child := domain.Conversation{ID: rand.Text(), Parent: t.parent.ID, Depth: t.parent.Depth + 1, Model: t.parent.Model, Effort: t.parent.Effort, PermissionMode: t.parent.PermissionMode, PendingPrompt: task, Busy: true, Title: title, Background: background}
 	if err := f.Repo.SaveConversation(ctx, child); err != nil {
 		return "", err
 	}
@@ -194,8 +195,49 @@ func (t *taskTools) spawn(ctx context.Context, task, title string) (string, erro
 	}
 	f.tasks[child.ID] = child.Parent
 	t.emit(domain.Event{Type: domain.EventSubagentSpawned, Subagent: &domain.SubagentSpawn{ThreadID: child.ID, Title: title}})
-	out, _ := json.Marshal(map[string]string{"id": child.ID})
-	return string(out), nil
+	out := map[string]string{"id": child.ID}
+	if background {
+		out["status"] = "running"
+		out["note"] = "You will be notified when it finishes. Do not poll it or duplicate its work: continue with tasks that touch other files, or end your turn."
+	}
+	raw, _ := json.Marshal(out)
+	return string(raw), nil
+}
+
+// reportToParent delivers a background child's result: into the parent's
+// running turn, or as a new turn when the parent is idle.
+func (f *Factory) reportToParent(child domain.Conversation, result domain.TurnResult) {
+	f.mu.Lock()
+	parent := f.runtimes[child.Parent]
+	f.mu.Unlock()
+	if parent == nil || result.Stopped {
+		return // A stopped child was cancelled by its owner; wait_agent still has the result.
+	}
+	name, status, body := child.Title, "completed", result.Text
+	if name == "" {
+		name = child.ID
+	}
+	if result.IsError {
+		status, body = "failed", result.Error
+	}
+	shown := fmt.Sprintf("Background agent %q %s", name, status)
+	text := fmt.Sprintf("%s. This is an automatic notification, not a message from the user.\n\n<subagent id=%q status=%q>\n%s\n</subagent>", shown, child.ID, status, body)
+	ctx := context.Background()
+	for range 40 {
+		if parent.SteerWithNotice(ctx, text, shown) == nil {
+			return
+		}
+		turn := domain.TurnID(rand.Text())
+		err := parent.Send(ctx, turn, text)
+		if err == nil {
+			parent.Emit(domain.Event{Type: domain.EventItemUpdated, Item: &domain.Item{ID: domain.ItemID(rand.Text()), SessionID: parent.SessionID(), TurnID: turn, Kind: domain.ItemUserMessage, Status: domain.ItemCompleted, Text: shown}})
+			return
+		}
+		if !errors.Is(err, domain.ErrSessionBusy) {
+			return
+		}
+		time.Sleep(50 * time.Millisecond) // The parent is between turns.
+	}
 }
 func (f *Factory) interruptChildren(parent string) {
 	f.taskMu.Lock()

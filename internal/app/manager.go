@@ -202,6 +202,7 @@ func (m *Manager) ListSessions(ctx context.Context) ([]domain.SessionSnapshot, e
 	for i := range snaps {
 		if s := m.sessions[snaps[i].ID]; s != nil {
 			snaps[i].BackgroundTasks = s.Snapshot().BackgroundTasks
+			snaps[i].Goal = s.Snapshot().Goal
 		}
 	}
 	m.mu.Unlock()
@@ -880,6 +881,14 @@ func (m *Manager) consume(s *domain.Session, rt AgentRuntime) {
 			if finished {
 				m.armIdle(s, rt)
 			}
+			hold.Unlock()
+			continue
+		}
+		if ev.Type == domain.EventGoal {
+			s.SetGoal(ev.Goal)
+			snap := s.Snapshot()
+			m.mu.Unlock()
+			m.cfg.Bus.Publish(domain.Event{SessionID: s.ID(), Type: domain.EventSessionState, Session: &snap})
 			hold.Unlock()
 			continue
 		}

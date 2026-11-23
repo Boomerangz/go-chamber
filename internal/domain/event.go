@@ -29,6 +29,9 @@ const (
 	EventTitle EventType = "session.title"
 	// EventBackgroundWork reports the runtime's current background task count.
 	EventBackgroundWork EventType = "background.work"
+	// EventGoal reports the session's goal after it changed; no goal means
+	// it was cleared.
+	EventGoal EventType = "goal"
 )
 
 // Event is one entry in a session's append-only event log. Seq is assigned
@@ -47,6 +50,7 @@ type Event struct {
 	Usage           *Usage           `json:"usage,omitempty"`
 	Title           string           `json:"title,omitempty"`
 	BackgroundCount *int             `json:"backgroundCount,omitempty"`
+	Goal            *Goal            `json:"goal,omitempty"`
 }
 
 // SubagentSpawn tells the manager to create a child session for a subagent
@@ -119,7 +123,7 @@ func (e Event) Valid() error {
 		if e.BackgroundCount == nil || *e.BackgroundCount < 0 {
 			return fmt.Errorf("%w: %s without valid count", ErrInvalidEvent, e.Type)
 		}
-	case EventTurnStarted, EventTurnEnded, EventSessionRemoved:
+	case EventTurnStarted, EventTurnEnded, EventSessionRemoved, EventGoal:
 	default:
 		return fmt.Errorf("%w: unknown type %q", ErrInvalidEvent, e.Type)
 	}

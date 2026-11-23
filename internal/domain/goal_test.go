@@ -1,6 +1,7 @@
 package domain
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 )
@@ -126,5 +127,31 @@ func TestGoalSummaryNamesStateAndUsage(t *testing.T) {
 	g.SetBudget(0)
 	if !strings.Contains(g.Progress(), "· 250 tokens") {
 		t.Errorf("unbudgeted usage: %s", g.Progress())
+	}
+}
+
+func TestGoalReachesTheSessionSnapshotAsItsOwnCopy(t *testing.T) {
+	s, err := NewSession("s", AgentNative, "/tmp")
+	if err != nil {
+		t.Fatal(err)
+	}
+	g, _ := NewGoal("ship it")
+	s.SetGoal(g)
+	g.Pause("later change")
+	if got := s.Snapshot().Goal; got == nil || got.Status != GoalActive || got.Objective != "ship it" {
+		t.Fatalf("snapshot follows the runtime's goal: %+v", got)
+	}
+	raw, _ := json.Marshal(s.Snapshot())
+	if !strings.Contains(string(raw), `"goal":{"objective":"ship it","status":"active"}`) {
+		t.Fatalf("goal wire form: %s", raw)
+	}
+	s.SetGoal(nil)
+	if s.Snapshot().Goal != nil {
+		t.Fatal("cleared goal kept")
+	}
+	for _, ev := range []Event{{SessionID: "s", Type: EventGoal, Goal: g}, {SessionID: "s", Type: EventGoal}} {
+		if err := ev.Valid(); err != nil {
+			t.Fatalf("goal event rejected: %v", err)
+		}
 	}
 }

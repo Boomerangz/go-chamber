@@ -28,13 +28,16 @@ type Factory struct {
 	SkillCommands func(string) ([]app.Command, error)
 	Accounts      app.AccountManager
 	LoadImages    func(context.Context, []app.Image) ([]domain.ModelImage, error)
-	mu            sync.Mutex
-	caches        map[string]*app.ModelCache
-	runtimes      map[string]*app.NativeRuntime
-	closed        bool
-	taskMu        sync.Mutex
-	startMu       sync.Mutex
-	tasks         map[string]string
+	// GoalAuditor is the provider:model that audits goal progress; empty
+	// means each session's own model.
+	GoalAuditor string
+	mu          sync.Mutex
+	caches      map[string]*app.ModelCache
+	runtimes    map[string]*app.NativeRuntime
+	closed      bool
+	taskMu      sync.Mutex
+	startMu     sync.Mutex
+	tasks       map[string]string
 }
 
 func (f *Factory) Models(ctx context.Context, agent domain.AgentKind) ([]app.ModelInfo, error) {
@@ -233,7 +236,11 @@ func (f *Factory) Start(ctx context.Context, req app.StartRequest) (app.AgentRun
 	wrapped := &taskTools{base: tools, factory: f, parent: metadata, cwd: req.Cwd}
 	pending := conversation.PendingPrompt
 	conversation.PendingPrompt = ""
-	runtime := app.NewNativeRuntime(app.NativeRuntimeConfig{SessionID: req.SessionID, Conversation: conversation, Model: profileClient{f.Providers}, Tools: wrapped, Repo: f.Repo, Instructions: instructions, ContextWindow: window, LoadImages: f.LoadImages, PermissionMode: conversation.PermissionMode, OnInterrupt: func() { f.interruptChildren(id) }, StopTask: func(ctx context.Context, child string) error {
+	var onTurnEnd func(domain.TurnResult)
+	if metadata.Parent != "" && metadata.Background {
+		onTurnEnd = func(result domain.TurnResult) { f.reportToParent(metadata, result) }
+	}
+	runtime := app.NewNativeRuntime(app.NativeRuntimeConfig{OnTurnEnd: onTurnEnd, GoalAuditor: f.GoalAuditor, SessionID: req.SessionID, Conversation: conversation, Model: profileClient{f.Providers}, Tools: wrapped, Repo: f.Repo, Instructions: instructions, ContextWindow: window, LoadImages: f.LoadImages, PermissionMode: conversation.PermissionMode, OnInterrupt: func() { f.interruptChildren(id) }, StopTask: func(ctx context.Context, child string) error {
 		args, _ := json.Marshal(map[string]string{"id": child})
 		_, err := wrapped.Execute(ctx, domain.ModelToolCall{Name: "stop_agent", Arguments: args})
 		return err
@@ -247,6 +254,9 @@ func (f *Factory) Start(ctx context.Context, req app.StartRequest) (app.AgentRun
 	}})
 	f.runtimes[id] = runtime
 	wrapped.emit = runtime.Emit
+	if conversation.Goal != nil {
+		runtime.ReportGoal()
+	}
 	if req.Passive && pending != "" {
 		turn := domain.TurnID(rand.Text())
 		runtime.Emit(domain.Event{Type: domain.EventItemUpdated, Item: &domain.Item{ID: domain.ItemID(rand.Text()), SessionID: req.SessionID, TurnID: turn, Kind: domain.ItemUserMessage, Status: domain.ItemCompleted, Text: pending}})

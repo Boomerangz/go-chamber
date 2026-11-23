@@ -36,7 +36,7 @@ func (f *Factory) Commands(ctx context.Context, agent domain.AgentKind, cwd stri
 	if err := json.Unmarshal(res, &out); err != nil {
 		return nil, fmt.Errorf("codex: skills/list response: %w", err)
 	}
-	list := []app.Command{}
+	list := []app.Command{goalCommand}
 	for _, entry := range out.Data {
 		for _, s := range entry.Skills {
 			if !s.Enabled {

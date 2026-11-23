@@ -13,7 +13,6 @@ import (
 )
 
 const (
-	goalUsage      = "Usage: /goal <objective> | pause | resume | clear | budget <tokens>"
 	goalReplyLimit = 6000
 	goalNoteLimit  = 280
 )
@@ -52,42 +51,69 @@ Rules:
 		strings.NewReplacer("&", "&amp;", "<", "&lt;", ">", "&gt;").Replace(g.Objective), budget, g.TurnsUsed, domain.GoalMaxAutoTurns)
 }
 
+// GoalCommand is a parsed /goal message: show, set, pause, resume, clear or budget.
+type GoalCommand struct {
+	Kind      string
+	Objective string
+	Budget    int64
+}
+
+// GoalUsage is the command syntax shown when a /goal message cannot apply.
+const GoalUsage = "Usage: /goal <objective> | pause | resume | clear | budget <tokens>"
+
+// ParseGoalCommand reads a /goal message. Anything that is not a management
+// word is the objective, so an objective may start with one.
+func ParseGoalCommand(text string) (GoalCommand, bool) {
+	rest, found := strings.CutPrefix(text, "/goal")
+	if !found || (rest != "" && strings.TrimLeft(rest, " \t\n") == rest) {
+		return GoalCommand{}, false
+	}
+	rest = strings.TrimSpace(rest)
+	switch rest {
+	case "":
+		return GoalCommand{Kind: "show"}, true
+	case "pause", "resume", "clear":
+		return GoalCommand{Kind: rest}, true
+	}
+	if word, arg, _ := strings.Cut(rest, " "); word == "budget" {
+		if budget, err := strconv.ParseInt(strings.TrimSpace(arg), 10, 64); err == nil && budget >= 0 {
+			return GoalCommand{Kind: "budget", Budget: budget}, true
+		}
+	}
+	return GoalCommand{Kind: "set", Objective: rest}, true
+}
+
 // goalCommand applies a /goal command from the user. reply is shown in the
 // transcript; prompt, when set, is the model input that starts the pursuit.
 // Subagents have no goals: their input is always a task.
 func (r *NativeRuntime) goalCommand(text string) (reply, prompt string, ok bool) {
-	rest, found := strings.CutPrefix(text, "/goal")
-	if !found || r.cfg.Conversation.Parent != "" || (rest != "" && strings.TrimLeft(rest, " \t\n") == rest) {
+	command, ok := ParseGoalCommand(text)
+	if !ok || r.cfg.Conversation.Parent != "" {
 		return "", "", false
 	}
-	rest = strings.TrimSpace(rest)
 	c := &r.cfg.Conversation
-	if rest == "clear" {
+	switch {
+	case command.Kind == "clear":
 		c.Goal = nil
 		return "Goal cleared.", "", true
-	}
-	word, arg, _ := strings.Cut(rest, " ")
-	budget, budgetErr := strconv.ParseInt(strings.TrimSpace(arg), 10, 64)
-	manages := rest == "" || rest == "pause" || rest == "resume" || (word == "budget" && budgetErr == nil)
-	if !manages {
-		goal, err := domain.NewGoal(rest)
+	case command.Kind == "set":
+		goal, err := domain.NewGoal(command.Objective)
 		if err != nil {
 			return err.Error(), "", true
 		}
 		c.Goal = goal
 		return "Goal set. Stop the turn or send /goal pause to pause it.", goalPrompt(goal), true
+	case c.Goal == nil:
+		return "No goal is set.\n" + GoalUsage, "", true
 	}
-	if c.Goal == nil {
-		return "No goal is set.\n" + goalUsage, "", true
-	}
-	switch word {
+	switch command.Kind {
 	case "pause":
 		c.Goal.Pause("paused by the user")
 	case "budget":
-		c.Goal.SetBudget(budget)
+		c.Goal.SetBudget(command.Budget)
 	case "resume":
 		if err := c.Goal.Resume(); err != nil {
-			return err.Error() + "\n" + goalUsage, "", true
+			return err.Error() + "\n" + GoalUsage, "", true
 		}
 		return "Goal resumed.", goalPrompt(c.Goal), true
 	}
@@ -116,6 +142,7 @@ func (r *NativeRuntime) pursueGoal(ctx context.Context, turn domain.TurnID, repl
 		next = goalPrompt(g)
 	}
 	r.notice(turn, g.Progress())
+	r.ReportGoal()
 	return next
 }
 
@@ -125,8 +152,11 @@ func (r *NativeRuntime) auditGoal(ctx context.Context, g *domain.Goal, reply str
 	if len(reply) > goalReplyLimit {
 		reply = strings.ToValidUTF8(reply[len(reply)-goalReplyLimit:], "")
 	}
-	c := r.cfg.Conversation
-	res, err := r.cfg.Model.Stream(ctx, domain.ModelRequest{Model: c.Model, Effort: c.Effort, SessionID: r.cfg.SessionID, Instructions: goalAuditInstructions, Messages: []domain.ModelMessage{{Role: "user", Text: fmt.Sprintf("The goal objective:\n\n<objective>\n%s\n</objective>\n\nThe agent's latest reply:\n\n<reply>\n%s\n</reply>\n\nReturn the verdict JSON.", g.Objective, reply)}}}, func(domain.ModelDelta) error { return ctx.Err() })
+	model, effort := r.cfg.Conversation.Model, r.cfg.Conversation.Effort
+	if r.cfg.GoalAuditor != "" {
+		model, effort = r.cfg.GoalAuditor, "" // Effort levels are the session model's own.
+	}
+	res, err := r.cfg.Model.Stream(ctx, domain.ModelRequest{Model: model, Effort: effort, SessionID: r.cfg.SessionID, Instructions: goalAuditInstructions, Messages: []domain.ModelMessage{{Role: "user", Text: fmt.Sprintf("The goal objective:\n\n<objective>\n%s\n</objective>\n\nThe agent's latest reply:\n\n<reply>\n%s\n</reply>\n\nReturn the verdict JSON.", g.Objective, reply)}}}, func(domain.ModelDelta) error { return ctx.Err() })
 	if err != nil {
 		return "", "", 0, err
 	}
@@ -152,6 +182,16 @@ func (r *NativeRuntime) auditGoal(ctx context.Context, g *domain.Goal, reply str
 	return out.Verdict, string(note), usage, nil
 }
 
+// ReportGoal publishes the goal's current state to the session.
+func (r *NativeRuntime) ReportGoal() {
+	var goal *domain.Goal
+	if g := r.cfg.Conversation.Goal; g != nil {
+		c := *g
+		goal = &c
+	}
+	r.Emit(domain.Event{Type: domain.EventGoal, Goal: goal})
+}
+
 // notice shows runtime-authored text in the transcript.
 func (r *NativeRuntime) notice(turn domain.TurnID, text string) {
 	r.Emit(domain.Event{Type: domain.EventItemUpdated, Item: &domain.Item{ID: domain.ItemID(rand.Text()), SessionID: r.cfg.SessionID, TurnID: turn, Kind: domain.ItemAssistantMessage, Status: domain.ItemCompleted, Text: text}})
@@ -159,11 +199,16 @@ func (r *NativeRuntime) notice(turn domain.TurnID, text string) {
 
 // absorb adds queued user input to the conversation. Goal commands change
 // the goal instead of reaching the model as text.
-func (r *NativeRuntime) absorb(turn domain.TurnID, texts []string) {
-	for _, text := range texts {
-		if reply, prompt, ok := r.goalCommand(text); ok {
+func (r *NativeRuntime) absorb(turn domain.TurnID, queued []steered) {
+	for _, input := range queued {
+		text := input.text
+		if reply, prompt, ok := r.goalCommand(text); ok && input.notice == "" {
 			r.notice(turn, reply)
+			r.ReportGoal()
 			text = prompt
+		}
+		if input.notice != "" {
+			r.Emit(domain.Event{Type: domain.EventItemUpdated, Item: &domain.Item{ID: domain.ItemID(rand.Text()), SessionID: r.cfg.SessionID, TurnID: turn, Kind: domain.ItemUserMessage, Status: domain.ItemCompleted, Text: input.notice}})
 		}
 		if text != "" {
 			r.cfg.Conversation.Messages = append(r.cfg.Conversation.Messages, domain.ModelMessage{Role: "user", Text: text})

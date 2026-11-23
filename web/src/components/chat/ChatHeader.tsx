@@ -148,6 +148,8 @@ interface Props {
 // ChatHeader names the open session and holds its settings. On a phone it
 // folds to the title and one meta line; the folder, model, mode and fork
 // open behind "⋯" so the transcript keeps the screen.
+const goalWord: Partial<Record<NonNullable<Session['goal']>['status'], string>> = { budgetLimited: 'out of budget', usageLimited: 'at usage limit' }
+
 export default function ChatHeader({ session, status, unsettled, loading, notFound, forking, onFork }: Props) {
   const caps = useCapabilities(session?.agent ?? 'claude')
   const renameSession = useSessionStore((s) => s.renameSession)
@@ -202,6 +204,11 @@ export default function ChatHeader({ session, status, unsettled, loading, notFou
         )}
         {!!session?.backgroundTasks && (
           <span className="usage">{session.backgroundTasks} background {session.backgroundTasks === 1 ? 'task' : 'tasks'}</span>
+        )}
+        {session?.goal && (
+          <span className="usage" title={[session.goal.objective, session.goal.note].filter(Boolean).join('\n\n')}>
+            goal {goalWord[session.goal.status] ?? session.goal.status}
+          </span>
         )}
         {unguarded && (
           <span className="no-approvals" title={session?.agent === 'codex' ? 'Full access selected. Permission changes apply to the next Codex turn.' : "The agent won't ask before running commands or editing files"}>

@@ -14,6 +14,9 @@ const (
 	GoalBlocked       GoalStatus = "blocked"
 	GoalBudgetLimited GoalStatus = "budgetLimited"
 	GoalComplete      GoalStatus = "complete"
+	// GoalUsageLimited is reported by agents that stop a goal at the
+	// account's usage limit.
+	GoalUsageLimited GoalStatus = "usageLimited"
 )
 
 // GoalVerdict is the auditor's reading of the turn that just ended.
@@ -41,14 +44,14 @@ const (
 // Goal is an objective the agent pursues across continuations until an
 // independent audit settles it or a limit stops it.
 type Goal struct {
-	Objective     string
-	Status        GoalStatus
-	TokenBudget   int64
-	TokensUsed    int64
-	TurnsUsed     int
-	BlockedStreak int
-	AuditFailures int
-	Note          string
+	Objective     string     `json:"objective"`
+	Status        GoalStatus `json:"status"`
+	TokenBudget   int64      `json:"tokenBudget,omitempty"`
+	TokensUsed    int64      `json:"tokensUsed,omitempty"`
+	TurnsUsed     int        `json:"turnsUsed,omitempty"`
+	BlockedStreak int        `json:"blockedStreak,omitempty"`
+	AuditFailures int        `json:"auditFailures,omitempty"`
+	Note          string     `json:"note,omitempty"`
 }
 
 func NewGoal(objective string) (*Goal, error) {

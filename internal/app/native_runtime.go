@@ -38,6 +38,11 @@ type NativeRuntimeConfig struct {
 	StopTask       func(context.Context, string) error
 	OnClose        func()
 	OnInterrupt    func()
+	// GoalAuditor names the model that audits goal progress; empty means
+	// the conversation's own model.
+	GoalAuditor string
+	// OnTurnEnd runs after a turn's result is durable and announced.
+	OnTurnEnd func(domain.TurnResult)
 }
 
 type NativeRuntime struct {
@@ -51,7 +56,7 @@ type NativeRuntime struct {
 	acceptingSteer bool
 	closed         bool
 	turnCancel     context.CancelFunc
-	steering       []string
+	steering       []steered
 	answers        map[domain.RequestID]chan RequestAnswer
 	grants         map[string]bool
 	wg             sync.WaitGroup
@@ -118,10 +123,24 @@ func (r *NativeRuntime) send(ctx context.Context, turn domain.TurnID, text strin
 		r.turnCancel = nil
 		r.mu.Unlock()
 		r.Emit(domain.Event{Type: domain.EventTurnEnded, Result: &result})
+		if r.cfg.OnTurnEnd != nil {
+			r.cfg.OnTurnEnd(result)
+		}
 	})
 	return nil
 }
+
+// steered is input queued for the running turn. Notice, when set, is what
+// the transcript shows for input the user did not type.
+type steered struct{ text, notice string }
+
 func (r *NativeRuntime) Steer(ctx context.Context, text string) error {
+	return r.SteerWithNotice(ctx, text, "")
+}
+
+// SteerWithNotice queues input the runtime's owner produced, such as a
+// background agent's result, and shows notice in its place.
+func (r *NativeRuntime) SteerWithNotice(ctx context.Context, text, notice string) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -130,7 +149,7 @@ func (r *NativeRuntime) Steer(ctx context.Context, text string) error {
 	if !r.running || !r.acceptingSteer {
 		return errors.New("native turn is not running")
 	}
-	r.steering = append(r.steering, text)
+	r.steering = append(r.steering, steered{text, notice})
 	return nil
 }
 func (r *NativeRuntime) Interrupt(context.Context) error {
@@ -193,6 +212,7 @@ func (r *NativeRuntime) runTurn(ctx context.Context, turn domain.TurnID, text st
 	goalReply, goalPrompt, goalCommand := r.goalCommand(text)
 	if goalCommand {
 		r.notice(turn, goalReply)
+		r.ReportGoal()
 		text = goalPrompt
 	}
 	settled := goalCommand && goalPrompt == ""
@@ -212,6 +232,7 @@ func (r *NativeRuntime) runTurn(ctx context.Context, turn domain.TurnID, text st
 			}
 			g.Pause(reason)
 			r.notice(turn, g.Progress())
+			r.ReportGoal()
 		}
 		r.cfg.Conversation.Busy = false
 		r.cfg.Conversation.LastError = result.Error

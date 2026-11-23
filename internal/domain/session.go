@@ -118,6 +118,7 @@ type Session struct {
 	seen            Seen
 	endedAt         time.Time
 	backgroundTasks int
+	goal            *Goal
 }
 
 // SessionSnapshot is the persistable state of a Session.
@@ -157,6 +158,9 @@ type SessionSnapshot struct {
 	EndedAt time.Time `json:"endedAt,omitzero"`
 	// BackgroundTasks is live runtime state and is cleared on restart.
 	BackgroundTasks int `json:"backgroundTasks,omitempty"`
+	// Goal is the runtime's last report of the session goal; like
+	// BackgroundTasks it is not stored and returns when the runtime reports.
+	Goal *Goal `json:"goal,omitempty"`
 }
 
 func NewSession(id SessionID, agent AgentKind, cwd string) (*Session, error) {
@@ -419,8 +423,17 @@ func (s *Session) Snapshot() SessionSnapshot {
 		Status: s.status, Title: s.title, Interruption: s.interruption, AutoContinue: s.autoContinue,
 		ApprovalReviewer: s.reviewer, PermissionMode: s.mode, CreatedAt: s.createdAt, ActiveAt: s.activeAt,
 		Model: s.model, Effort: s.effort, Worktree: s.Worktree(), ArchivedAt: s.archivedAt,
-		Seen: s.seen, EndedAt: s.endedAt, BackgroundTasks: s.backgroundTasks,
+		Seen: s.seen, EndedAt: s.endedAt, BackgroundTasks: s.backgroundTasks, Goal: s.goal,
 	}
+}
+
+// SetGoal records the runtime's report of the session goal; nil clears it.
+func (s *Session) SetGoal(goal *Goal) {
+	if goal != nil {
+		c := *goal
+		goal = &c
+	}
+	s.goal = goal
 }
 
 // SetBackgroundTasks records the runtime's live background task count.
