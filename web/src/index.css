@@ -717,8 +717,8 @@ button.health { border: 0; background: none; padding: 0; }
 .quota { display: grid; gap: 8px; }
 .quota header { display: flex; justify-content: space-between; align-items: center; }
 .quota-agent { display: flex; align-items: center; gap: 8px; font-weight: 600; }
-.plan { font-family: var(--font-ui); font-size: var(--t-label); font-weight: 400; color: var(--ink-3); text-transform: lowercase; }
-.plan::before { content: '· '; }
+span.plan { font-family: var(--font-ui); font-size: var(--t-label); font-weight: 400; color: var(--ink-3); text-transform: lowercase; }
+span.plan::before { content: '· '; }
 .window { display: grid; gap: 4px; }
 .window-line { display: flex; justify-content: space-between; color: var(--ink-2); font-family: var(--font-ui); font-size: var(--t-meta); }
 /* meters are measurement: a hairline track and a solid fill */

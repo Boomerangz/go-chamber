@@ -25,6 +25,7 @@ func (s *nativeMemory) SaveConversation(_ context.Context, v domain.Conversation
 		return errors.New("disk failed")
 	}
 	b, _ := json.Marshal(v)
+	s.value = domain.Conversation{}
 	_ = json.Unmarshal(b, &s.value)
 	return nil
 }
@@ -337,4 +338,59 @@ func TestNativeInterruptMakesPendingApprovalStale(t *testing.T) {
 		}
 	}
 	t.Fatal("interrupted approval stayed pending")
+}
+
+func TestNativeUpdatePlanKeepsOnePlanItemPerTurn(t *testing.T) {
+	repo := &nativeMemory{}
+	tools := &nativeTestTools{}
+	plans := []string{
+		`{"plan":[{"step":"Read code","status":"in_progress"},{"step":"Edit","status":"pending"}]}`,
+		`{"explanation":"Reading done","plan":[{"step":"Read code","status":"completed"},{"step":"Edit","status":"in_progress"}]}`,
+		`{"plan":[{"step":"Edit","status":"doing"}]}`,
+	}
+	requests := 0
+	model := nativeModelFunc(func(_ context.Context, req domain.ModelRequest, _ func(domain.ModelDelta) error) (domain.ModelResult, error) {
+		offered := false
+		for _, tool := range req.Tools {
+			offered = offered || tool.Name == "update_plan"
+		}
+		if !offered {
+			t.Error("update_plan not offered to the model")
+		}
+		if requests < len(plans) {
+			requests++
+			return domain.ModelResult{Message: domain.ModelMessage{ToolCalls: []domain.ModelToolCall{{ID: "p", Name: "update_plan", Arguments: json.RawMessage(plans[requests-1])}}}}, nil
+		}
+		return domain.ModelResult{Message: domain.ModelMessage{Text: "done"}}, nil
+	})
+	r := nativeTestRuntime(t, model, tools, repo)
+	if err := r.Send(context.Background(), "turn", "work"); err != nil {
+		t.Fatal(err)
+	}
+	var texts []string
+	for _, ev := range nativeEnd(t, r) {
+		if ev.Type != domain.EventItemUpdated {
+			continue
+		}
+		if ev.Item.Name == "update_plan" {
+			t.Errorf("plan update shown as a tool call: %+v", ev.Item)
+		}
+		if ev.Item.Kind == domain.ItemPlan {
+			if ev.Item.ID != "plan-turn" || ev.Item.TurnID != "turn" || ev.Item.Status != domain.ItemCompleted {
+				t.Errorf("plan item: %+v", ev.Item)
+			}
+			texts = append(texts, ev.Item.Text)
+		}
+	}
+	want := []string{"- [ ] **Read code**\n- [ ] Edit\n", "- [x] Read code\n- [ ] **Edit**\n\nReading done"}
+	if len(texts) != 2 || texts[0] != want[0] || texts[1] != want[1] {
+		t.Fatalf("plans %q", texts)
+	}
+	saved, _ := repo.LoadConversation(context.Background(), "native")
+	if saved.Messages[2].Text != "Plan updated" || !strings.Contains(saved.Messages[6].Text, "Tool error") {
+		t.Fatalf("results %+v", saved.Messages)
+	}
+	if tools.calls != 0 {
+		t.Fatal("plan update reached workspace tools")
+	}
 }

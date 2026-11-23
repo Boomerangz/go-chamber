@@ -19,7 +19,7 @@ func TestNativeTasksSpawnAttachWaitAndOwnership(t *testing.T) {
 		t.Fatal(err)
 	}
 	tasks := &taskTools{base: noTools{}, factory: f, parent: domain.Conversation{ID: parent.NativeID(), Model: "codex:fresh", PermissionMode: "read-only"}, cwd: t.TempDir(), emit: parent.(*app.NativeRuntime).Emit}
-	raw, err := tasks.Execute(ctx, domain.ModelToolCall{Name: "spawn_agent", Arguments: json.RawMessage(`{"task":"inspect code","title":"Review"}`)})
+	raw, err := tasks.Execute(ctx, domain.ModelToolCall{Name: "spawn_agent", Arguments: json.RawMessage(`{"task":"inspect code","title":"Review","background":true}`)})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -223,7 +223,7 @@ func TestOnlyRootCanSpawnAgents(t *testing.T) {
 			if offered != tc.allowed {
 				t.Errorf("spawn advertised=%v, want %v", offered, tc.allowed)
 			}
-			_, err := tools.Execute(context.Background(), domain.ModelToolCall{Name: "spawn_agent", Arguments: []byte(`{"task":"inspect code"}`)})
+			_, err := tools.Execute(context.Background(), domain.ModelToolCall{Name: "spawn_agent", Arguments: []byte(`{"task":"inspect code","background":true}`)})
 			if tc.allowed {
 				if err != nil || emitted != 1 {
 					t.Fatalf("root spawn: emitted=%d err=%v", emitted, err)
@@ -259,5 +259,117 @@ func TestChildReceivesExecutorInstructions(t *testing.T) {
 		if tool.Name == "spawn_agent" {
 			t.Fatal("child model received spawn_agent")
 		}
+	}
+}
+
+func TestSpawnReturnsChildResultUnlessBackground(t *testing.T) {
+	f, _ := testFactory(t)
+	ctx := context.Background()
+	parent, err := f.Start(ctx, app.StartRequest{SessionID: "parent", Agent: domain.AgentNative, Cwd: t.TempDir()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	tasks := &taskTools{base: noTools{}, factory: f, parent: domain.Conversation{ID: parent.NativeID(), Model: "codex:fresh"}, emit: parent.(*app.NativeRuntime).Emit}
+	type outcome struct {
+		output string
+		err    error
+	}
+	done := make(chan outcome, 1)
+	go func() {
+		output, err := tasks.Execute(ctx, domain.ModelToolCall{Name: "spawn_agent", Arguments: []byte(`{"task":"inspect code"}`)})
+		done <- outcome{output, err}
+	}()
+	var spawned string
+	select {
+	case ev := <-parent.Events():
+		spawned = ev.Subagent.ThreadID
+	case <-time.After(time.Second):
+		t.Fatal("missing spawn event")
+	}
+	select {
+	case got := <-done:
+		t.Fatalf("spawn returned before the child finished: %+v", got)
+	case <-time.After(100 * time.Millisecond):
+	}
+	child, err := f.Start(ctx, app.StartRequest{SessionID: "child", Agent: domain.AgentNative, NativeID: spawned, Passive: true, Cwd: t.TempDir()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	endTurn(t, child)
+	select {
+	case got := <-done:
+		if got.err != nil || !strings.Contains(got.output, "hello") || !strings.Contains(got.output, spawned) || !strings.Contains(got.output, `"completed"`) {
+			t.Fatalf("%+v", got)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("spawn did not return the child result")
+	}
+}
+
+func TestSpawnFailsWhenChildNeverStarts(t *testing.T) {
+	f, _ := testFactory(t)
+	old := childStartTimeout
+	childStartTimeout = 20 * time.Millisecond
+	t.Cleanup(func() { childStartTimeout = old })
+	tasks := &taskTools{base: noTools{}, factory: f, parent: domain.Conversation{ID: "parent", Model: "codex:fresh"}, emit: func(domain.Event) {}}
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	_, err := tasks.Execute(ctx, domain.ModelToolCall{Name: "spawn_agent", Arguments: []byte(`{"task":"inspect code"}`)})
+	if err == nil || !strings.Contains(err.Error(), "did not start") {
+		t.Fatalf("unstarted child kept the parent waiting: %v", err)
+	}
+	for id := range f.tasks {
+		child, _ := f.Repo.LoadConversation(ctx, id)
+		if child.Busy || child.PendingPrompt != "" {
+			t.Fatalf("unstarted child still counts as active: %+v", child)
+		}
+	}
+}
+
+func TestRootIsToldToPlanAndDelegateSparingly(t *testing.T) {
+	f, model := testFactory(t)
+	ctx := context.Background()
+	rt, err := f.Start(ctx, app.StartRequest{SessionID: "root", Agent: domain.AgentNative, Cwd: t.TempDir()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := rt.Send(ctx, "turn", "do the work"); err != nil {
+		t.Fatal(err)
+	}
+	endTurn(t, rt)
+	model.mu.Lock()
+	defer model.mu.Unlock()
+	instructions := model.requests[len(model.requests)-1].Instructions
+	for _, want := range []string{"update_plan", "do the steps yourself", "same files"} {
+		if !strings.Contains(instructions, want) {
+			t.Errorf("root instructions lack %q: %s", want, instructions)
+		}
+	}
+}
+
+func TestGoalDoesNotOutliveItsRunAcrossRestartOrFork(t *testing.T) {
+	f, _ := testFactory(t)
+	ctx := context.Background()
+	goal, _ := domain.NewGoal("ship it")
+	if err := f.Repo.SaveConversation(ctx, domain.Conversation{ID: "root", Model: "codex:fresh", Busy: true, Goal: goal}); err != nil {
+		t.Fatal(err)
+	}
+	fork, err := f.Start(ctx, app.StartRequest{SessionID: "fork", Agent: domain.AgentNative, NativeID: "root", Fork: true, Cwd: t.TempDir()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if forked, _ := f.Repo.LoadConversation(ctx, fork.NativeID()); forked.Goal != nil {
+		t.Fatalf("fork inherited the goal: %+v", forked.Goal)
+	}
+	if _, err = f.Start(ctx, app.StartRequest{SessionID: "root", Agent: domain.AgentNative, NativeID: "root", Cwd: t.TempDir()}); err != nil {
+		t.Fatal(err)
+	}
+	resumed, _ := f.Repo.LoadConversation(ctx, "root")
+	if resumed.Goal == nil || resumed.Goal.Status != domain.GoalPaused || resumed.Goal.Note == "" {
+		t.Fatalf("goal left active with nothing pursuing it: %+v", resumed.Goal)
+	}
+	commands, err := f.Commands(ctx, domain.AgentNative, t.TempDir())
+	if err != nil || len(commands) < 2 || commands[1].Name != "goal" || commands[1].Insert != "/goal " {
+		t.Fatalf("%+v %v", commands, err)
 	}
 }

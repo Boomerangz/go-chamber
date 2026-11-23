@@ -190,11 +190,29 @@ func (r *NativeRuntime) persist() error {
 func (r *NativeRuntime) runTurn(ctx context.Context, turn domain.TurnID, text string, images []domain.ModelImage) (result domain.TurnResult) {
 	r.Emit(domain.Event{Type: domain.EventTurnStarted})
 	r.cfg.Conversation.Busy = true
-	if text != "/compact" {
+	goalReply, goalPrompt, goalCommand := r.goalCommand(text)
+	if goalCommand {
+		r.notice(turn, goalReply)
+		text = goalPrompt
+	}
+	settled := goalCommand && goalPrompt == ""
+	if text != "/compact" && !settled {
 		r.cfg.Conversation.Messages = append(r.cfg.Conversation.Messages, domain.ModelMessage{Role: "user", Text: text, Images: images})
 	}
+	var charged int64
 	defer func() {
-		r.finishSteering()
+		r.finishSteering(turn)
+		// A goal is active only while its turn runs: any exit that left it
+		// active was cut short.
+		if g := r.cfg.Conversation.Goal; g.Active() {
+			g.Spend(result.InputTokens + result.OutputTokens - charged)
+			reason := "turn failed: " + result.Error
+			if ctx.Err() != nil {
+				reason = "stopped by the user"
+			}
+			g.Pause(reason)
+			r.notice(turn, g.Progress())
+		}
 		r.cfg.Conversation.Busy = false
 		r.cfg.Conversation.LastError = result.Error
 		if err := r.persist(); err != nil {
@@ -205,6 +223,9 @@ func (r *NativeRuntime) runTurn(ctx context.Context, turn domain.TurnID, text st
 			result.Stopped = true
 		}
 	}()
+	if settled {
+		return domain.TurnResult{Text: goalReply}
+	}
 	if err := r.persist(); err != nil {
 		return nativeFailure(err)
 	}
@@ -219,7 +240,7 @@ func (r *NativeRuntime) runTurn(ctx context.Context, turn domain.TurnID, text st
 		if err := ctx.Err(); err != nil {
 			return nativeFailure(err)
 		}
-		r.drainSteering()
+		r.drainSteering(turn)
 		if err := r.persist(); err != nil {
 			return nativeFailure(err)
 		}
@@ -248,7 +269,20 @@ func (r *NativeRuntime) runTurn(ctx context.Context, turn domain.TurnID, text st
 		}
 		if len(message.ToolCalls) == 0 {
 			result.Text = message.Text
-			if r.drainOrFinishSteering() {
+			if r.cfg.Conversation.Goal.Active() {
+				if r.drainSteering(turn) {
+					continue
+				}
+				spent := result.InputTokens + result.OutputTokens
+				next := r.pursueGoal(ctx, turn, message.Text, spent-charged)
+				charged = spent
+				if next != "" {
+					r.cfg.Conversation.Messages = append(r.cfg.Conversation.Messages, domain.ModelMessage{Role: "user", Text: next})
+					step = -1 // Each continuation gets its own step allowance.
+					continue
+				}
+			}
+			if r.drainOrFinishSteering(turn) {
 				continue
 			}
 			return result
@@ -272,37 +306,32 @@ func (r *NativeRuntime) runTurn(ctx context.Context, turn domain.TurnID, text st
 func nativeFailure(err error) domain.TurnResult {
 	return domain.TurnResult{IsError: true, Error: err.Error()}
 }
-func (r *NativeRuntime) drainSteering() bool {
+func (r *NativeRuntime) drainSteering(turn domain.TurnID) bool {
 	r.mu.Lock()
-	defer r.mu.Unlock()
-	for _, text := range r.steering {
-		r.cfg.Conversation.Messages = append(r.cfg.Conversation.Messages, domain.ModelMessage{Role: "user", Text: text})
-	}
-	changed := len(r.steering) > 0
+	texts := r.steering
 	r.steering = nil
-	return changed
+	r.mu.Unlock()
+	r.absorb(turn, texts)
+	return len(texts) > 0
 }
-func (r *NativeRuntime) finishSteering() {
+func (r *NativeRuntime) finishSteering(turn domain.TurnID) {
 	r.mu.Lock()
-	defer r.mu.Unlock()
 	r.acceptingSteer = false
-	for _, text := range r.steering {
-		r.cfg.Conversation.Messages = append(r.cfg.Conversation.Messages, domain.ModelMessage{Role: "user", Text: text})
-	}
+	texts := r.steering
 	r.steering = nil
+	r.mu.Unlock()
+	r.absorb(turn, texts)
 }
-func (r *NativeRuntime) drainOrFinishSteering() bool {
+func (r *NativeRuntime) drainOrFinishSteering(turn domain.TurnID) bool {
 	r.mu.Lock()
-	defer r.mu.Unlock()
-	if len(r.steering) == 0 {
-		r.acceptingSteer = false
-		return false
-	}
-	for _, text := range r.steering {
-		r.cfg.Conversation.Messages = append(r.cfg.Conversation.Messages, domain.ModelMessage{Role: "user", Text: text})
-	}
+	texts := r.steering
 	r.steering = nil
-	return true
+	if len(texts) == 0 {
+		r.acceptingSteer = false
+	}
+	r.mu.Unlock()
+	r.absorb(turn, texts)
+	return len(texts) > 0
 }
 func (r *NativeRuntime) infer(ctx context.Context, turn domain.TurnID) (domain.ModelMessage, domain.ModelUsage, error) {
 	id := domain.ItemID(rand.Text())
@@ -336,6 +365,9 @@ func (r *NativeRuntime) infer(ctx context.Context, turn domain.TurnID) (domain.M
 	return res.Message, res.Usage, nil
 }
 func (r *NativeRuntime) execute(ctx context.Context, turn domain.TurnID, call domain.ModelToolCall) (output string, err error) {
+	if call.Name == planTool.Name {
+		return r.updatePlan(turn, call)
+	}
 	item := domain.Item{ID: domain.ItemID(rand.Text()), SessionID: r.cfg.SessionID, TurnID: turn, Kind: domain.ItemToolCall, Status: domain.ItemStreaming, Name: call.Name, Input: call.Arguments}
 	r.Emit(domain.Event{Type: domain.EventItemUpdated, Item: &item})
 	defer func() {
@@ -410,7 +442,7 @@ func (r *NativeRuntime) waitRequest(ctx context.Context, req domain.Request) (Re
 var _ AgentRuntime = (*NativeRuntime)(nil)
 
 func (r *NativeRuntime) definitions() []domain.ModelTool {
-	return append(r.cfg.Tools.Definitions(), domain.ModelTool{Name: "ask_user", Description: "Ask the user a question and wait for their answer.", Parameters: json.RawMessage(`{"type":"object","properties":{"question":{"type":"string"},"options":{"type":"array","items":{"type":"string"}}},"required":["question"],"additionalProperties":false}`)})
+	return append(r.cfg.Tools.Definitions(), planTool, domain.ModelTool{Name: "ask_user", Description: "Ask the user a question and wait for their answer.", Parameters: json.RawMessage(`{"type":"object","properties":{"question":{"type":"string"},"options":{"type":"array","items":{"type":"string"}}},"required":["question"],"additionalProperties":false}`)})
 }
 func (r *NativeRuntime) question(ctx context.Context, turn domain.TurnID, item domain.ItemID, call domain.ModelToolCall) (string, error) {
 	var input struct {

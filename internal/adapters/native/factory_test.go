@@ -248,7 +248,7 @@ func TestNativeCatalogLabelsStaleSnapshot(t *testing.T) {
 func TestNativeCommandsAdvertiseCompaction(t *testing.T) {
 	f, _ := testFactory(t)
 	commands, err := f.Commands(context.Background(), domain.AgentNative, "")
-	if err != nil || len(commands) != 1 || commands[0].Insert != "/compact" {
+	if err != nil || len(commands) != 2 || commands[0].Insert != "/compact" {
 		t.Fatalf("%v %v", commands, err)
 	}
 }
@@ -331,7 +331,7 @@ func TestNativeCommandsIncludeSkills(t *testing.T) {
 		return []app.Command{{Name: "chart", Insert: "/chart", Description: "Plot metrics"}}, nil
 	}
 	commands, err := f.Commands(context.Background(), domain.AgentNative, "/project")
-	if err != nil || len(commands) != 2 || commands[0].Insert != "/compact" || commands[1].Insert != "/chart" {
+	if err != nil || len(commands) != 3 || commands[0].Insert != "/compact" || commands[1].Insert != "/goal " || commands[2].Insert != "/chart" {
 		t.Fatalf("%+v %v", commands, err)
 	}
 }

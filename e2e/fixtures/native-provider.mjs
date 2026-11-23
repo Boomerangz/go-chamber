@@ -39,6 +39,14 @@ http.createServer(async (req, res) => {
   if(!results.length)call('spawn_agent',{task:'child task',title:'Native child'})
   else if(results.length===1)call('wait_agent',{id:JSON.parse(results[0].content).id})
  }
+ if(text==='native plan'&&!results.length)call('update_plan',{plan:[{step:'Read the code',status:'completed'},{step:'Write the fix',status:'in_progress'}]})
+ if(text==='native foreground'){
+  if(!results.length)call('spawn_agent',{task:'child task',title:'Foreground child'})
+  else delta={content:`parent got: ${JSON.parse(results[0].content).result}`}
+ }
+ const system=msgs.filter(m=>m.role==='system'||m.role==='developer').map(m=>m.content).join('\n')
+ if(system.startsWith('You audit the progress'))delta={content:JSON.stringify(text.includes('goal step 2')?{verdict:'complete',note:'probe verified'}:{verdict:'continue',note:'one step left'})}
+ else if(typeof text==='string'&&text.startsWith('Work toward the active session goal.'))delta={content:`goal step ${Number(text.match(/Continuations used: (\d+)/)[1])+1}`}
  res.setHeader('Content-Type','text/event-stream')
  res.end(`data: ${JSON.stringify({choices:[{index:0,delta,finish_reason:finish}]})}\n\ndata: [DONE]\n\n`)
 }).listen(port,'127.0.0.1')

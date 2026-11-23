@@ -72,6 +72,7 @@ type Conversation struct {
 	PermissionMode string
 	Depth          int
 	LastError      string
+	Goal           *Goal `json:"Goal,omitempty"`
 }
 
 // ModelImage is a validated inline image owned by the conversation.

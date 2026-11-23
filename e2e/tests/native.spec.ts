@@ -121,3 +121,37 @@ test('Native delegates only one level', async ({ page }) => {
   rmSync(cwd, { recursive: true, force: true })
  }
 })
+
+test('Native plans, waits for delegated work and pursues a goal until audited', async ({ page }) => {
+ const cwd = realpathSync(mkdtempSync(path.join(tmpdir(), 'native-goal-')))
+ try {
+  const response = await page.request.post('/api/sessions', { headers, data: { agent: 'native', cwd, model: 'openrouter:test/native' } })
+  expect(response.ok()).toBe(true)
+  const session = await response.json()
+  await page.goto(`/s/${session.id}?token=${token}`)
+  const send = async (text: string) => { await page.getByLabel('Message').fill(text); await page.getByRole('button', { name: 'Send', exact: true }).click() }
+  await send('native plan')
+  await expect(page.getByText('native: native plan', { exact: true })).toBeVisible()
+  const plan = page.locator('.chat .item.plan')
+  await expect(plan.getByRole('checkbox')).toHaveCount(2)
+  await expect(plan.getByRole('listitem').filter({ hasText: 'Read the code' }).getByRole('checkbox')).toBeChecked()
+  await expect(plan.getByRole('listitem').filter({ hasText: 'Write the fix' }).getByRole('checkbox')).not.toBeChecked()
+  await expect(plan).toHaveCSS('text-transform', 'none')
+  await send('native foreground')
+  await expect(page.getByText('parent got: native: child task', { exact: true })).toBeVisible()
+  await page.getByLabel('Message').fill('/go')
+  await expect(page.getByRole('option', { name: /goal/ })).toBeVisible()
+  await send('/goal native goal probe')
+  await expect(page.getByText('goal step 1', { exact: true })).toBeVisible()
+  await expect(page.getByText('goal step 2', { exact: true })).toBeVisible()
+  await expect(page.getByText(/Goal active · continuation 1 of 20/)).toBeVisible()
+  await expect(page.getByText(/Goal complete · continuation 1 of 20/)).toBeVisible()
+  await expect(page.getByText('probe verified')).toBeVisible()
+  await expect(page.locator('.chat-meta .status')).toHaveText('idle')
+  await expect(page.getByText('goal step 3', { exact: true })).toHaveCount(0)
+  await send('/goal')
+  await expect(page.getByText(/Goal complete · continuation 1 of 20/)).toHaveCount(2)
+ } finally {
+  rmSync(cwd, { recursive: true, force: true })
+ }
+})

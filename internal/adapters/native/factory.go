@@ -114,8 +114,11 @@ func (f *Factory) Start(ctx context.Context, req app.StartRequest) (app.AgentRun
 			conversation.Depth = 0
 			conversation.PendingPrompt = ""
 			conversation.Busy = false
+			conversation.Goal = nil
 		}
 	}
+	// A new runtime means nothing is pursuing a goal that was left active.
+	conversation.Goal.Pause("interrupted by a restart")
 	selected := req.Model
 	if selected == "" && req.Passive {
 		selected = conversation.Model
@@ -192,7 +195,9 @@ func (f *Factory) Start(ctx context.Context, req app.StartRequest) (app.AgentRun
 		}
 		instructions += "\n\n" + extra
 	}
-	if !canSpawnAgents(conversation) {
+	if canSpawnAgents(conversation) {
+		instructions += "\n\nFor multi-step work keep a short plan with update_plan and do the steps yourself, in order. Delegate with spawn_agent only when a task is independent and bounded, and never have two agents, yourself included, change the same files at once."
+	} else {
 		instructions += "\n\nYou are a subagent executing a bounded task for your parent. Complete the assigned task yourself using your tools. Do not delegate or start other agents, including through shell commands or external services. Report your result or blockers to your parent."
 	}
 	if conversation.Busy && !req.Passive {
@@ -301,7 +306,7 @@ func (f *Factory) Commands(ctx context.Context, agent domain.AgentKind, cwd stri
 	if agent != domain.AgentNative {
 		return nil, app.ErrCommandsUnsupported
 	}
-	commands := []app.Command{{Name: "compact", Insert: "/compact", Description: "Summarize earlier context while preserving recent tool results"}}
+	commands := []app.Command{{Name: "compact", Insert: "/compact", Description: "Summarize earlier context while preserving recent tool results"}, {Name: "goal", Insert: "/goal ", ArgumentHint: "<objective> | pause | resume | clear | budget <tokens>", Description: "Pursue an objective across continuations until an independent audit confirms it"}}
 	if f.SkillCommands != nil {
 		skills, err := f.SkillCommands(cwd)
 		if err != nil {

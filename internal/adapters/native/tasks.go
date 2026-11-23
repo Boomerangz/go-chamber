@@ -23,10 +23,10 @@ type taskTools struct {
 func (t *taskTools) Definitions() []domain.ModelTool {
 	tools := t.base.Definitions()
 	if canSpawnAgents(t.parent) {
-		tools = append(tools, domain.ModelTool{Name: "spawn_agent", Description: "Start an independent child agent for a bounded task; returns its ID. Children inherit your permission mode. Use wait_agent for results.", Parameters: json.RawMessage(`{"type":"object","properties":{"task":{"type":"string"},"title":{"type":"string"}},"required":["task"],"additionalProperties":false}`)})
+		tools = append(tools, domain.ModelTool{Name: "spawn_agent", Description: "Run a child agent on one independent, bounded task and return its final result. The child starts with fresh context, so put everything it needs in task. Do steps that depend on each other yourself instead of delegating them. Set background=true only for work that can proceed while you do something else on different files; it returns the child ID at once, and wait_agent collects the result. Children inherit your permission mode.", Parameters: json.RawMessage(`{"type":"object","properties":{"task":{"type":"string"},"title":{"type":"string"},"background":{"type":"boolean"}},"required":["task"],"additionalProperties":false}`)})
 	}
 	return append(tools,
-		domain.ModelTool{Name: "wait_agent", Description: "Wait up to 30 seconds for your child agent; completed results remain available.", Parameters: json.RawMessage(`{"type":"object","properties":{"id":{"type":"string"}},"required":["id"],"additionalProperties":false}`)},
+		domain.ModelTool{Name: "wait_agent", Description: "Wait up to 30 seconds for a background child agent; completed results remain available. Do not call it in a loop while you have other work.", Parameters: json.RawMessage(`{"type":"object","properties":{"id":{"type":"string"}},"required":["id"],"additionalProperties":false}`)},
 		domain.ModelTool{Name: "stop_agent", Description: "Interrupt your child agent and its descendants.", Parameters: json.RawMessage(`{"type":"object","properties":{"id":{"type":"string"}},"required":["id"],"additionalProperties":false}`)},
 		domain.ModelTool{Name: "send_agent", Description: "Send guidance to your child agent; starts a new turn if idle.", Parameters: json.RawMessage(`{"type":"object","properties":{"id":{"type":"string"},"message":{"type":"string"}},"required":["id","message"],"additionalProperties":false}`)})
 }
@@ -45,16 +45,25 @@ func (t *taskTools) Execute(ctx context.Context, call domain.ModelToolCall) (str
 		return t.base.Execute(ctx, call)
 	}
 	var input struct {
-		ID      string `json:"id"`
-		Task    string `json:"task"`
-		Title   string `json:"title"`
-		Message string `json:"message"`
+		ID         string `json:"id"`
+		Task       string `json:"task"`
+		Title      string `json:"title"`
+		Message    string `json:"message"`
+		Background bool   `json:"background"`
 	}
 	if json.Unmarshal(call.Arguments, &input) != nil {
 		return "", errors.New("invalid agent arguments")
 	}
 	if call.Name == "spawn_agent" {
-		return t.spawn(ctx, input.Task, input.Title)
+		spawned, err := t.spawn(ctx, input.Task, input.Title)
+		if err != nil || input.Background {
+			return spawned, err
+		}
+		var child struct {
+			ID string `json:"id"`
+		}
+		_ = json.Unmarshal([]byte(spawned), &child)
+		return t.wait(ctx, child.ID, 0)
 	}
 	child, err := t.factory.Repo.LoadConversation(ctx, input.ID)
 	if err != nil {
@@ -83,42 +92,71 @@ func (t *taskTools) Execute(ctx context.Context, call domain.ModelToolCall) (str
 		runtime.Emit(domain.Event{Type: domain.EventItemUpdated, Item: &domain.Item{ID: domain.ItemID(rand.Text()), SessionID: runtime.SessionID(), TurnID: turn, Kind: domain.ItemUserMessage, Status: domain.ItemCompleted, Text: input.Message}})
 		return "Child started", runtime.Send(ctx, turn, input.Message)
 	case "wait_agent":
-		t.factory.taskMu.Lock()
-		_, tracked := t.factory.tasks[input.ID]
-		t.factory.taskMu.Unlock()
-		if runtime == nil && !tracked && (child.Busy || child.PendingPrompt != "") {
-			return `{"status":"interrupted","error":"Child runtime is not attached after restart. Open its session to resume; inspect unknown tool outcomes before retrying."}`, nil
-		}
-		deadline := time.NewTimer(30 * time.Second)
-		defer deadline.Stop()
-		tick := time.NewTicker(50 * time.Millisecond)
-		defer tick.Stop()
-		for {
-			child, err = t.factory.Repo.LoadConversation(ctx, input.ID)
-			if err != nil {
-				return "", err
-			}
-			if !child.Busy && child.PendingPrompt == "" {
-				text := ""
-				for i := len(child.Messages) - 1; i >= 0; i-- {
-					if child.Messages[i].Role == "assistant" {
-						text = child.Messages[i].Text
-						break
-					}
-				}
-				out, _ := json.Marshal(map[string]any{"id": child.ID, "status": "completed", "result": text, "error": child.LastError})
-				return string(out), nil
-			}
-			select {
-			case <-ctx.Done():
-				return "", ctx.Err()
-			case <-deadline.C:
-				return `{"status":"running"}`, nil
-			case <-tick.C:
-			}
-		}
+		return t.wait(ctx, input.ID, 30*time.Second)
 	}
 	return "", errors.New("unknown agent operation")
+}
+
+// childStartTimeout bounds how long a parent waits for the session manager to
+// attach a child it has just spawned.
+var childStartTimeout = 30 * time.Second
+
+// wait blocks until the child has finished; a positive limit returns "running"
+// once it passes.
+func (t *taskTools) wait(ctx context.Context, id string, limit time.Duration) (string, error) {
+	f := t.factory
+	attached := func() bool { f.mu.Lock(); defer f.mu.Unlock(); return f.runtimes[id] != nil }
+	child, err := f.Repo.LoadConversation(ctx, id)
+	if err != nil {
+		return "", err
+	}
+	f.taskMu.Lock()
+	_, tracked := f.tasks[id]
+	f.taskMu.Unlock()
+	if !attached() && !tracked && (child.Busy || child.PendingPrompt != "") {
+		return `{"status":"interrupted","error":"Child runtime is not attached after restart. Open its session to resume; inspect unknown tool outcomes before retrying."}`, nil
+	}
+	var deadline <-chan time.Time
+	if limit > 0 {
+		timer := time.NewTimer(limit)
+		defer timer.Stop()
+		deadline = timer.C
+	}
+	start := time.NewTimer(childStartTimeout)
+	defer start.Stop()
+	tick := time.NewTicker(50 * time.Millisecond)
+	defer tick.Stop()
+	for {
+		if child, err = f.Repo.LoadConversation(ctx, id); err != nil {
+			return "", err
+		}
+		if !child.Busy && child.PendingPrompt == "" {
+			text := ""
+			for i := len(child.Messages) - 1; i >= 0; i-- {
+				if child.Messages[i].Role == "assistant" {
+					text = child.Messages[i].Text
+					break
+				}
+			}
+			out, _ := json.Marshal(map[string]any{"id": child.ID, "status": "completed", "result": text, "error": child.LastError})
+			return string(out), nil
+		}
+		select {
+		case <-ctx.Done():
+			return "", ctx.Err()
+		case <-deadline:
+			return `{"status":"running"}`, nil
+		case <-start.C:
+			if limit == 0 && !attached() {
+				child.Busy = false
+				child.PendingPrompt = ""
+				child.LastError = "Child agent did not start"
+				_ = f.Repo.SaveConversation(ctx, child)
+				return "", errors.New("child agent did not start; do the task yourself")
+			}
+		case <-tick.C:
+		}
+	}
 }
 func (t *taskTools) spawn(ctx context.Context, task, title string) (string, error) {
 	if task == "" || len(task) > 128<<10 {
