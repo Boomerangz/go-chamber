@@ -15,6 +15,10 @@ interface Appearance {
   // wide lets the transcript run past the reading measure.
   wide: boolean
   agentIcons: 'mono' | 'color'
+  // smoothing leaves the page's glyphs to the system's font smoothing
+  // rather than the thinner antialiasing; termSmoothing does so for the
+  // terminal, apart from the page.
+  smoothing: boolean
   // termSmoothing leaves the terminal's glyphs to the system's smoothing
   // rather than the page's thinner antialiasing.
   termSmoothing: boolean
@@ -26,11 +30,12 @@ interface AppearanceStore extends Appearance {
   setText: (text: TextSize) => void
   setAgentIcons: (agentIcons: 'mono' | 'color') => void
   setWide: (wide: boolean) => void
+  setSmoothing: (smoothing: boolean) => void
   setTermSmoothing: (termSmoothing: boolean) => void
 }
 
 const KEY = 'gc.appearance'
-const defaults: Appearance = { theme: 'system', scheme: DEFAULT_SCHEME, text: 'default', wide: false, agentIcons: 'mono', termSmoothing: true }
+const defaults: Appearance = { theme: 'system', scheme: DEFAULT_SCHEME, text: 'default', wide: false, agentIcons: 'mono', smoothing: true, termSmoothing: true }
 
 export function loadAppearance(): Appearance {
   try {
@@ -41,6 +46,7 @@ export function loadAppearance(): Appearance {
       text: raw.text === 'small' || raw.text === 'large' ? raw.text : 'default',
       wide: raw.wide === true,
       agentIcons: raw.agentIcons === 'color' ? 'color' : 'mono',
+      smoothing: raw.smoothing !== false,
       termSmoothing: raw.termSmoothing !== false,
     }
   } catch {
@@ -54,7 +60,7 @@ function systemDark(): boolean {
 
 const painted = new Set<string>()
 
-function apply({ theme, scheme, text, wide, agentIcons, termSmoothing }: Appearance) {
+function apply({ theme, scheme, text, wide, agentIcons, smoothing, termSmoothing }: Appearance) {
   if (typeof document === 'undefined') return
   const root = document.documentElement
   const data = root.dataset
@@ -66,6 +72,8 @@ function apply({ theme, scheme, text, wide, agentIcons, termSmoothing }: Appeara
   else delete data.agentIcons
   if (wide) data.wide = ''
   else delete data.wide
+  if (smoothing) delete data.antialiased
+  else data.antialiased = ''
   if (termSmoothing) delete data.termAntialiased
   else data.termAntialiased = ''
   for (const name of painted) root.style.removeProperty(name)
@@ -87,8 +95,8 @@ function apply({ theme, scheme, text, wide, agentIcons, termSmoothing }: Appeara
 
 export const useAppearanceStore = create<AppearanceStore>((set, get) => {
   const update = (patch: Partial<Appearance>) => {
-    const { theme, scheme, text, wide, agentIcons, termSmoothing } = { ...get(), ...patch }
-    const next = { theme, scheme, text, wide, agentIcons, termSmoothing }
+    const { theme, scheme, text, wide, agentIcons, smoothing, termSmoothing } = { ...get(), ...patch }
+    const next = { theme, scheme, text, wide, agentIcons, smoothing, termSmoothing }
     // the page is painted before subscribers look at its tokens
     apply(next)
     set(patch)
@@ -115,6 +123,7 @@ export const useAppearanceStore = create<AppearanceStore>((set, get) => {
     setText: (text) => update({ text }),
     setAgentIcons: (agentIcons) => update({ agentIcons }),
     setWide: (wide) => update({ wide }),
+    setSmoothing: (smoothing) => update({ smoothing }),
     setTermSmoothing: (termSmoothing) => update({ termSmoothing }),
   }
 })

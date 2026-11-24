@@ -24,10 +24,32 @@ test('Settings pick the terminal font from the ones this browser has, and keep i
   const rows = panel.getByTestId('terminal-view').locator('.xterm-rows')
   const font = () => rows.evaluate((el) => getComputedStyle(el).fontFamily)
   await expect.poll(font).toMatch(new RegExp(`^"?${family}"?,`))
-  // The terminal keeps the system's smoothing; the page around it doesn't.
+  // The page and the terminal each keep the system's smoothing until
+  // their own setting switches it off.
   const smoothing = (el: Element) => getComputedStyle(el).getPropertyValue('-webkit-font-smoothing')
   expect(await rows.evaluate(smoothing)).toBe('auto')
+  expect(await page.locator('body').evaluate(smoothing)).toBe('auto')
+  // Settings are reached from the agents' side.
+  const settings = async (change: () => Promise<void>) => {
+    await page.getByRole('radio', { name: /^Agents/ }).click()
+    await showPane(page, 'Sessions')
+    await page.getByRole('button', { name: 'Settings' }).click()
+    await change()
+    await page.keyboard.press('Escape')
+    await page.getByRole('radio', { name: /^Terminal/ }).click()
+    await expect(rows).toBeAttached()
+  }
+  const page_ = page.getByRole('checkbox', { name: 'System font smoothing', exact: true })
+  const term = page.getByRole('checkbox', { name: 'System font smoothing in the terminal' })
+  await settings(() => page_.uncheck())
+  expect(await rows.evaluate(smoothing)).toBe('auto')
   expect(await page.locator('body').evaluate(smoothing)).toBe('antialiased')
+  await settings(async () => {
+    await page_.check()
+    await term.uncheck()
+  })
+  expect(await rows.evaluate(smoothing)).toBe('antialiased')
+  expect(await page.locator('body').evaluate(smoothing)).toBe('auto')
 
   await page.reload()
   await showShells(page)

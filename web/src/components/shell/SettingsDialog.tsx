@@ -94,7 +94,7 @@ function TerminalFont() {
 // what the transcript shows. It opens from the sidebar footer or with a comma.
 export default function SettingsDialog({ onClose }: { onClose: () => void }) {
   const ref = useRef<HTMLDialogElement>(null)
-  const { theme, text, wide, agentIcons, termSmoothing, setTheme, setText, setWide, setAgentIcons, setTermSmoothing } = useAppearanceStore()
+  const { theme, text, wide, agentIcons, smoothing, termSmoothing, setTheme, setText, setWide, setAgentIcons, setSmoothing, setTermSmoothing } = useAppearanceStore()
   const hooks = useLayoutStore((s) => s.hooks)
   const setHooks = useLayoutStore((s) => s.setHooks)
   useEffect(() => {
@@ -130,6 +130,10 @@ export default function SettingsDialog({ onClose }: { onClose: () => void }) {
             <input type="checkbox" checked={wide} onChange={(e) => setWide(e.target.checked)} />
             Wide transcript
           </label>
+          <label className="settings-check">
+            <input type="checkbox" checked={smoothing} onChange={(e) => setSmoothing(e.target.checked)} />
+            System font smoothing
+          </label>
         </section>
         <section aria-label="Transcript">
           <h3 className="section-title">Transcript</h3>
@@ -140,7 +144,7 @@ export default function SettingsDialog({ onClose }: { onClose: () => void }) {
           <TerminalFont />
           <label className="settings-check">
             <input type="checkbox" checked={termSmoothing} onChange={(e) => setTermSmoothing(e.target.checked)} />
-            System font smoothing
+            System font smoothing in the terminal
           </label>
         </section>
       </div>

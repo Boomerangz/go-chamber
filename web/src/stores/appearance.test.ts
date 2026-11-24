@@ -11,7 +11,7 @@ beforeEach(() => {
 
 describe('appearance store', () => {
   it('follows the system, at the default size and measure', () => {
-    expect(loadAppearance()).toEqual({ theme: 'system', scheme: 'chamber', text: 'default', wide: false, agentIcons: 'mono', termSmoothing: true })
+    expect(loadAppearance()).toEqual({ theme: 'system', scheme: 'chamber', text: 'default', wide: false, agentIcons: 'mono', smoothing: true, termSmoothing: true })
     expect(root().theme).toBeUndefined()
     expect(root().text).toBeUndefined()
     expect(root().wide).toBeUndefined()
@@ -22,7 +22,7 @@ describe('appearance store', () => {
     store().setText('large')
     store().setWide(true)
     expect(root()).toMatchObject({ theme: 'dark', text: 'large', wide: '' })
-    expect(loadAppearance()).toEqual({ theme: 'dark', scheme: 'chamber', text: 'large', wide: true, agentIcons: 'mono', termSmoothing: true })
+    expect(loadAppearance()).toEqual({ theme: 'dark', scheme: 'chamber', text: 'large', wide: true, agentIcons: 'mono', smoothing: true, termSmoothing: true })
     store().setTheme('system')
     store().setText('default')
     store().setWide(false)
@@ -33,9 +33,9 @@ describe('appearance store', () => {
 
   it('ignores a stored value it does not know', () => {
     localStorage.setItem('gc.appearance', JSON.stringify({ theme: 'sepia', text: 'huge', wide: 'yes' }))
-    expect(loadAppearance()).toEqual({ theme: 'system', scheme: 'chamber', text: 'default', wide: false, agentIcons: 'mono', termSmoothing: true })
+    expect(loadAppearance()).toEqual({ theme: 'system', scheme: 'chamber', text: 'default', wide: false, agentIcons: 'mono', smoothing: true, termSmoothing: true })
     localStorage.setItem('gc.appearance', '{')
-    expect(loadAppearance()).toEqual({ theme: 'system', scheme: 'chamber', text: 'default', wide: false, agentIcons: 'mono', termSmoothing: true })
+    expect(loadAppearance()).toEqual({ theme: 'system', scheme: 'chamber', text: 'default', wide: false, agentIcons: 'mono', smoothing: true, termSmoothing: true })
   })
 
   it('reads a chosen theme over the system one', () => {

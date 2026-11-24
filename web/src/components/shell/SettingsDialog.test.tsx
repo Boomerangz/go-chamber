@@ -80,7 +80,7 @@ it('keeps a chosen font listed and offers no full list where the browser has non
 
 it('leaves the terminal its system font smoothing until it is switched off, and remembers that', async () => {
   render(<SettingsDialog onClose={() => {}} />)
-  const smoothing = screen.getByRole('checkbox', { name: 'System font smoothing' })
+  const smoothing = screen.getByRole('checkbox', { name: 'System font smoothing in the terminal' })
   expect(smoothing).toBeChecked()
   expect(document.documentElement.dataset.termAntialiased).toBeUndefined()
   await userEvent.click(smoothing)
@@ -88,4 +88,16 @@ it('leaves the terminal its system font smoothing until it is switched off, and 
   resetAppearance()
   expect(smoothing).not.toBeChecked()
   expect(document.documentElement.dataset.termAntialiased).toBe('')
+})
+
+it('leaves the page its system font smoothing until it is switched off, apart from the terminal', async () => {
+  render(<SettingsDialog onClose={() => {}} />)
+  const smoothing = screen.getByRole('checkbox', { name: 'System font smoothing' })
+  expect(smoothing).toBeChecked()
+  await userEvent.click(smoothing)
+  expect(document.documentElement.dataset.antialiased).toBe('')
+  expect(document.documentElement.dataset.termAntialiased).toBeUndefined()
+  expect(screen.getByRole('checkbox', { name: 'System font smoothing in the terminal' })).toBeChecked()
+  await userEvent.click(smoothing)
+  expect(document.documentElement.dataset.antialiased).toBeUndefined()
 })

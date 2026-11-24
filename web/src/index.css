@@ -69,9 +69,11 @@
   font-family: var(--font-ui);
   font-size: var(--t-body);
   line-height: 1.5;
-  -webkit-font-smoothing: antialiased;
   font-variant-numeric: tabular-nums;
 }
+
+/* glyphs keep the system's smoothing unless the owner chose the thinner one (Appearance) */
+:root[data-antialiased] { -webkit-font-smoothing: antialiased; }
 
 /* the dark sheet: the system's, unless the owner chose a sheet (Appearance) */
 @media (prefers-color-scheme: dark) {
