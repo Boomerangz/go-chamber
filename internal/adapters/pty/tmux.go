@@ -87,7 +87,7 @@ func (tx Tmux) Start(spec app.PTYSpec) (app.PTY, error) {
 	// No alternate screen: the web terminal keeps its own scrollback.
 	argv := []string{
 		"set-option", "-g", "status", "off", ";",
-		"set-option", "-g", "allow-passthrough", "on", ";",
+		"set-option", "-gq", "allow-passthrough", "on", ";",
 		"set-option", "-g", "default-terminal", "xterm-256color", ";",
 		"set-option", "-s", "escape-time", "0", ";",
 		"set-option", "-sa", "terminal-overrides", ",xterm*:smcup@:rmcup@", ";",

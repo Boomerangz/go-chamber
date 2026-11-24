@@ -3,6 +3,7 @@ package pty
 import (
 	"context"
 	"io"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
@@ -225,4 +226,23 @@ func TestTmuxEnvGivesShellsAUTF8LocaleOnlyWithoutOne(t *testing.T) {
 	if env := tmuxEnv([]string{"LC_CTYPE=ru_RU.UTF-8"}); has(env, "LANG=en_US.UTF-8") {
 		t.Fatalf("a set locale is kept as is: got %v", env)
 	}
+}
+
+// tmux 3.2 (Ubuntu 22.04) has no allow-passthrough and rejects it unless the
+// option is set quietly.
+func TestTmuxStartsOnATmuxWithoutAllowPassthrough(t *testing.T) {
+	tx := newTmux(t)
+	real := tx.Bin
+	tx.Bin = filepath.Join(t.TempDir(), "tmux32")
+	script := "#!/bin/sh\nprev=\nfor a in \"$@\"; do\n" +
+		"  if [ \"$a\" = allow-passthrough ]; then case \"$prev\" in -gq|-q) ;; *) echo \"invalid option: allow-passthrough\" >&2; exit 1;; esac; fi\n" +
+		"  prev=\"$a\"\ndone\nexec " + real + " \"$@\"\n"
+	if err := os.WriteFile(tx.Bin, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	dir, _ := filepath.EvalSymlinks(t.TempDir())
+	p, r := startTmux(t, tx, "old1", dir)
+	defer func() { _ = p.Close() }()
+	_, _ = io.WriteString(p, "echo up$((6*7))\n")
+	r.waitFor(t, "up42")
 }
