@@ -77,3 +77,15 @@ it('keeps a chosen font listed and offers no full list where the browser has non
   expect(screen.getByRole('combobox', { name: 'Terminal font' })).toHaveValue('Gone Mono')
   expect(screen.queryByRole('button', { name: 'All installed fonts' })).toBeNull()
 })
+
+it('leaves the terminal its system font smoothing until it is switched off, and remembers that', async () => {
+  render(<SettingsDialog onClose={() => {}} />)
+  const smoothing = screen.getByRole('checkbox', { name: 'System font smoothing' })
+  expect(smoothing).toBeChecked()
+  expect(document.documentElement.dataset.termAntialiased).toBeUndefined()
+  await userEvent.click(smoothing)
+  expect(document.documentElement.dataset.termAntialiased).toBe('')
+  resetAppearance()
+  expect(smoothing).not.toBeChecked()
+  expect(document.documentElement.dataset.termAntialiased).toBe('')
+})

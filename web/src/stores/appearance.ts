@@ -15,6 +15,9 @@ interface Appearance {
   // wide lets the transcript run past the reading measure.
   wide: boolean
   agentIcons: 'mono' | 'color'
+  // termSmoothing leaves the terminal's glyphs to the system's smoothing
+  // rather than the page's thinner antialiasing.
+  termSmoothing: boolean
 }
 
 interface AppearanceStore extends Appearance {
@@ -23,10 +26,11 @@ interface AppearanceStore extends Appearance {
   setText: (text: TextSize) => void
   setAgentIcons: (agentIcons: 'mono' | 'color') => void
   setWide: (wide: boolean) => void
+  setTermSmoothing: (termSmoothing: boolean) => void
 }
 
 const KEY = 'gc.appearance'
-const defaults: Appearance = { theme: 'system', scheme: DEFAULT_SCHEME, text: 'default', wide: false, agentIcons: 'mono' }
+const defaults: Appearance = { theme: 'system', scheme: DEFAULT_SCHEME, text: 'default', wide: false, agentIcons: 'mono', termSmoothing: true }
 
 export function loadAppearance(): Appearance {
   try {
@@ -37,6 +41,7 @@ export function loadAppearance(): Appearance {
       text: raw.text === 'small' || raw.text === 'large' ? raw.text : 'default',
       wide: raw.wide === true,
       agentIcons: raw.agentIcons === 'color' ? 'color' : 'mono',
+      termSmoothing: raw.termSmoothing !== false,
     }
   } catch {
     return { ...defaults }
@@ -49,7 +54,7 @@ function systemDark(): boolean {
 
 const painted = new Set<string>()
 
-function apply({ theme, scheme, text, wide, agentIcons }: Appearance) {
+function apply({ theme, scheme, text, wide, agentIcons, termSmoothing }: Appearance) {
   if (typeof document === 'undefined') return
   const root = document.documentElement
   const data = root.dataset
@@ -61,6 +66,8 @@ function apply({ theme, scheme, text, wide, agentIcons }: Appearance) {
   else delete data.agentIcons
   if (wide) data.wide = ''
   else delete data.wide
+  if (termSmoothing) delete data.termAntialiased
+  else data.termAntialiased = ''
   for (const name of painted) root.style.removeProperty(name)
   painted.clear()
   const found = scheme === DEFAULT_SCHEME ? undefined : findScheme(scheme)
@@ -80,12 +87,13 @@ function apply({ theme, scheme, text, wide, agentIcons }: Appearance) {
 
 export const useAppearanceStore = create<AppearanceStore>((set, get) => {
   const update = (patch: Partial<Appearance>) => {
-    const { theme, scheme, text, wide, agentIcons } = { ...get(), ...patch }
+    const { theme, scheme, text, wide, agentIcons, termSmoothing } = { ...get(), ...patch }
+    const next = { theme, scheme, text, wide, agentIcons, termSmoothing }
     // the page is painted before subscribers look at its tokens
-    apply({ theme, scheme, text, wide, agentIcons })
+    apply(next)
     set(patch)
     try {
-      localStorage.setItem(KEY, JSON.stringify({ theme, scheme, text, wide, agentIcons }))
+      localStorage.setItem(KEY, JSON.stringify(next))
     } catch {
       // storage unavailable: the choice lasts for this page only
     }
@@ -95,9 +103,9 @@ export const useAppearanceStore = create<AppearanceStore>((set, get) => {
   // a scheme follows the system sheet when the owner left it to the system
   if (typeof window !== 'undefined')
     window.matchMedia?.('(prefers-color-scheme: dark)').addEventListener?.('change', () => {
-      const { theme, scheme, text, wide, agentIcons } = get()
+      const { theme, scheme } = get()
       if (theme !== 'system' || scheme === DEFAULT_SCHEME) return
-      apply({ theme, scheme, text, wide, agentIcons })
+      apply(get())
       set({}) // lets terminals re-read the page
     })
   return {
@@ -107,6 +115,7 @@ export const useAppearanceStore = create<AppearanceStore>((set, get) => {
     setText: (text) => update({ text }),
     setAgentIcons: (agentIcons) => update({ agentIcons }),
     setWide: (wide) => update({ wide }),
+    setTermSmoothing: (termSmoothing) => update({ termSmoothing }),
   }
 })
 

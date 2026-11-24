@@ -173,3 +173,7 @@
   .term-workspace:not([data-attached]):not([data-missing]) > .term-main { display: none; }
   .term-workspace:not([data-attached]) > .term-main > .hero > :not(.term-missing) { display: none; }
 }
+
+/* The terminal keeps the system's font smoothing unless Settings switch it
+   off; the page around it is antialiased. */
+:root:not([data-term-antialiased]) :is(.xterm, .xterm-rows, .xterm-rows *) { -webkit-font-smoothing: auto !important; }

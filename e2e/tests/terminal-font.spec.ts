@@ -24,6 +24,10 @@ test('Settings pick the terminal font from the ones this browser has, and keep i
   const rows = panel.getByTestId('terminal-view').locator('.xterm-rows')
   const font = () => rows.evaluate((el) => getComputedStyle(el).fontFamily)
   await expect.poll(font).toMatch(new RegExp(`^"?${family}"?,`))
+  // The terminal keeps the system's smoothing; the page around it doesn't.
+  const smoothing = (el: Element) => getComputedStyle(el).getPropertyValue('-webkit-font-smoothing')
+  expect(await rows.evaluate(smoothing)).toBe('auto')
+  expect(await page.locator('body').evaluate(smoothing)).toBe('antialiased')
 
   await page.reload()
   await showShells(page)

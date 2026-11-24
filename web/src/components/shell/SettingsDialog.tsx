@@ -94,7 +94,7 @@ function TerminalFont() {
 // what the transcript shows. It opens from the sidebar footer or with a comma.
 export default function SettingsDialog({ onClose }: { onClose: () => void }) {
   const ref = useRef<HTMLDialogElement>(null)
-  const { theme, text, wide, agentIcons, setTheme, setText, setWide, setAgentIcons } = useAppearanceStore()
+  const { theme, text, wide, agentIcons, termSmoothing, setTheme, setText, setWide, setAgentIcons, setTermSmoothing } = useAppearanceStore()
   const hooks = useLayoutStore((s) => s.hooks)
   const setHooks = useLayoutStore((s) => s.setHooks)
   useEffect(() => {
@@ -138,6 +138,10 @@ export default function SettingsDialog({ onClose }: { onClose: () => void }) {
         <section aria-label="Terminal">
           <h3 className="section-title">Terminal</h3>
           <TerminalFont />
+          <label className="settings-check">
+            <input type="checkbox" checked={termSmoothing} onChange={(e) => setTermSmoothing(e.target.checked)} />
+            System font smoothing
+          </label>
         </section>
       </div>
     </dialog>
