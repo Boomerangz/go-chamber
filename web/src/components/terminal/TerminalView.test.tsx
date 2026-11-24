@@ -351,6 +351,15 @@ describe('terminal keys, find and new output', () => {
     expect(xt().options.fontSize).toBe(13)
   })
 
+  it('shows every screen in the chosen font', () => {
+    render(<TerminalView id="t1" {...props} />)
+    expect(xt().options.fontFamily).toMatch(/^"PT Mono"/)
+    act(() => useTerminalStore.getState().setFontFamily('Menlo'))
+    expect(xt().options.fontFamily).toMatch(/^"Menlo", "PT Mono"/)
+    act(() => useTerminalStore.getState().setFontFamily(null))
+    expect(xt().options.fontFamily).toMatch(/^"PT Mono"/)
+  })
+
   it('asks the tab list to step with Alt+[ and Alt+]', () => {
     const steps: number[] = []
     const listen = (e: Event) => steps.push((e as CustomEvent<number>).detail)

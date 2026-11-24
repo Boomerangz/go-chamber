@@ -11,6 +11,7 @@ import { ctrlChar, InputQueue, parseOsc52 } from '../../lib/terminal-input'
 import { terminalAction } from '../../lib/terminal-keys'
 import { leaveTerminal } from './leave'
 import { copyText } from '../../lib/clipboard'
+import { fontStack } from '../../lib/fonts'
 import { isMac } from '../../lib/hotkeys'
 import { searchDecorations, terminalTheme } from '../../lib/theme'
 import { isDark, useAppearanceStore } from '../../stores/appearance'
@@ -51,6 +52,7 @@ export interface Live {
 export const lives = new Map<string, Live>()
 
 const FONT = '"PT Mono", "SF Mono", ui-monospace, Menlo, monospace'
+const chosenFont = () => fontStack(useTerminalStore.getState().fontFamily, FONT)
 const FONT_WAIT_MS = 1500
 // Every few failed reconnects, check the terminal still exists: one closed
 // elsewhere would otherwise be retried for as long as the tab is open.
@@ -63,14 +65,15 @@ useAppearanceStore.subscribe((s, prev) => {
 })
 
 // A screen goes once its terminal is closed; every screen follows the
-// chosen font size.
+// chosen font and its size.
 useTerminalStore.subscribe((s) => {
   for (const [id, live] of lives) {
     if (!s.terminals.some((t) => t.id === id)) {
       lives.delete(id)
       live.dispose()
-    } else if (live.xterm.options.fontSize !== s.fontSize) {
+    } else if (live.xterm.options.fontSize !== s.fontSize || live.xterm.options.fontFamily !== chosenFont()) {
       live.xterm.options.fontSize = s.fontSize
+      live.xterm.options.fontFamily = chosenFont()
       live.refit?.()
     }
   }
@@ -114,7 +117,7 @@ export function liveFor(id: string, host: HTMLElement, callbacks: Callbacks): Li
   host.appendChild(el)
   const scheme = window.matchMedia('(prefers-color-scheme: dark)')
   const xterm = new XTerm({
-    fontFamily: FONT,
+    fontFamily: chosenFont(),
     fontSize: useTerminalStore.getState().fontSize,
     lineHeight: 1.2,
     cursorBlink: true,
@@ -166,7 +169,7 @@ export function liveFor(id: string, host: HTMLElement, callbacks: Callbacks): Li
       const cellWidth = bounds.width / xterm.cols, cellHeight = bounds.height / xterm.rows
       predictionLayer.style.left = `${bounds.left - hostBounds.left + (xterm.buffer.active.cursorX + view.offset) * cellWidth}px`
       predictionLayer.style.top = `${bounds.top - hostBounds.top + xterm.buffer.active.cursorY * cellHeight}px`
-      predictionLayer.style.fontFamily = FONT
+      predictionLayer.style.fontFamily = chosenFont()
       predictionLayer.style.fontSize = `${xterm.options.fontSize}px`
       predictionLayer.style.lineHeight = `${cellHeight}px`
     }

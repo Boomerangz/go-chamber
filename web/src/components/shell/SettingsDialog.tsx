@@ -1,9 +1,11 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { X } from 'lucide-react'
 import { type TextSize, type Theme, isDark, useAppearanceStore } from '../../stores/appearance'
 import { DEFAULT_SCHEME, schemes } from '../../lib/schemes'
 import type { Hooks } from '../../lib/tree'
 import { useLayoutStore } from '../../stores/layout'
+import { useTerminalStore } from '../../stores/terminals'
+import { allFonts, knownFonts } from '../../lib/fonts'
 import { icon } from '../icon'
 import './shell.css'
 
@@ -56,6 +58,38 @@ function Schemes() {
   )
 }
 
+// TerminalFont picks the terminal's font from the ones this browser has:
+// the well-known ones at once, every installed one once the owner asks
+// (the browser wants a click, and its leave, to list them).
+function TerminalFont() {
+  const family = useTerminalStore((s) => s.fontFamily)
+  const setFamily = useTerminalStore((s) => s.setFontFamily)
+  const [fonts, setFonts] = useState(knownFonts)
+  const [refused, setRefused] = useState(false)
+  const listed = family && !fonts.includes(family) ? [family, ...fonts] : fonts
+  return (
+    <div className="settings-row">
+      <span className="settings-label">Font</span>
+      <div className="settings-font">
+        <select className="field field-sm" aria-label="Terminal font" value={family ?? ''} onChange={(e) => setFamily(e.target.value || null)}>
+          <option value="">Default</option>
+          {listed.map((f) => <option key={f} value={f} style={{ fontFamily: JSON.stringify(f) }}>{f}</option>)}
+        </select>
+        {'queryLocalFonts' in window && (
+          <button
+            type="button"
+            className="btn btn-xs"
+            title={refused ? 'The browser did not allow listing fonts' : 'List every fixed-width font installed here'}
+            onClick={() => void allFonts().then((all) => (all ? setFonts(all) : setRefused(true)))}
+          >
+            All installed fonts
+          </button>
+        )}
+      </div>
+    </div>
+  )
+}
+
 // SettingsDialog is the owner's setup, over the app: how the page looks and
 // what the transcript shows. It opens from the sidebar footer or with a comma.
 export default function SettingsDialog({ onClose }: { onClose: () => void }) {
@@ -100,6 +134,10 @@ export default function SettingsDialog({ onClose }: { onClose: () => void }) {
         <section aria-label="Transcript">
           <h3 className="section-title">Transcript</h3>
           <Choice label="Hooks" options={hookChoices} value={hooks} onChange={setHooks} />
+        </section>
+        <section aria-label="Terminal">
+          <h3 className="section-title">Terminal</h3>
+          <TerminalFont />
         </section>
       </div>
     </dialog>

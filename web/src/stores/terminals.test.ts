@@ -403,6 +403,18 @@ describe('terminal store', () => {
     expect(localStorage.getItem('gc.terminal.fontSize')).toBeNull()
   })
 
+  it('remembers the font family', () => {
+    expect(store().fontFamily).toBeNull()
+    store().setFontFamily('Menlo')
+    expect(store().fontFamily).toBe('Menlo')
+    expect(localStorage.getItem('gc.terminal.fontFamily')).toBe('Menlo')
+    resetTerminals()
+    expect(store().fontFamily).toBe('Menlo')
+    store().setFontFamily(null)
+    expect(store().fontFamily).toBeNull()
+    expect(localStorage.getItem('gc.terminal.fontFamily')).toBeNull()
+  })
+
   it('reads a stored font size on reset', () => {
     localStorage.setItem('gc.terminal.fontSize', '15')
     resetTerminals()

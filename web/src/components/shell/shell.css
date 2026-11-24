@@ -74,6 +74,8 @@
 .settings-label { font-size: var(--t-meta); color: var(--ink-3); }
 .settings .segmented { grid-template-columns: repeat(3, 1fr); }
 .settings .segmented button { height: 28px; font-size: var(--t-meta); font-weight: 400; }
+.settings-font { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.settings-font select { flex: 1; min-width: 0; }
 .settings-check { display: flex; align-items: center; gap: 8px; font-size: var(--t-meta); color: var(--ink-2); }
 .scheme-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 8px; }
 .scheme-card { display: grid; gap: 4px; padding: 4px; border: 1px solid transparent; border-radius: var(--r); background: none; text-align: left; }

@@ -3,6 +3,8 @@ import userEvent from '@testing-library/user-event'
 import { beforeEach, expect, it, vi } from 'vitest'
 import { resetAppearance, useAppearanceStore } from '../../stores/appearance'
 import { resetLayout, useLayoutStore } from '../../stores/layout'
+import { resetTerminals, useTerminalStore } from '../../stores/terminals'
+import * as fonts from '../../lib/fonts'
 import SettingsDialog from './SettingsDialog'
 
 beforeEach(() => {
@@ -46,4 +48,32 @@ it('remembers the agent icon colour choice', async () => {
   expect(document.documentElement.dataset.agentIcons).toBe('color')
   resetAppearance()
   expect(screen.getByRole('radio', { name: 'Color' })).toBeChecked()
+})
+
+it('chooses the terminal font from the ones this client has', async () => {
+  resetTerminals()
+  vi.spyOn(fonts, 'knownFonts').mockReturnValue(['Menlo'])
+  vi.spyOn(fonts, 'allFonts').mockResolvedValue(['Iosevka', 'Menlo'])
+  vi.stubGlobal('queryLocalFonts', vi.fn())
+  render(<SettingsDialog onClose={() => {}} />)
+  const font = screen.getByRole('combobox', { name: 'Terminal font' })
+  expect(font).toHaveValue('')
+  await userEvent.selectOptions(font, 'Menlo')
+  expect(useTerminalStore.getState().fontFamily).toBe('Menlo')
+  expect(screen.queryByRole('option', { name: 'Iosevka' })).toBeNull()
+  await userEvent.click(screen.getByRole('button', { name: 'All installed fonts' }))
+  await userEvent.selectOptions(font, 'Iosevka')
+  expect(useTerminalStore.getState().fontFamily).toBe('Iosevka')
+  await userEvent.selectOptions(font, 'Default')
+  expect(useTerminalStore.getState().fontFamily).toBeNull()
+  vi.unstubAllGlobals()
+  vi.restoreAllMocks()
+})
+
+it('keeps a chosen font listed and offers no full list where the browser has none', () => {
+  resetTerminals()
+  useTerminalStore.getState().setFontFamily('Gone Mono')
+  render(<SettingsDialog onClose={() => {}} />)
+  expect(screen.getByRole('combobox', { name: 'Terminal font' })).toHaveValue('Gone Mono')
+  expect(screen.queryByRole('button', { name: 'All installed fonts' })).toBeNull()
 })

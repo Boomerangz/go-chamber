@@ -46,6 +46,9 @@ interface TerminalStoreState {
   conn: Record<string, ConnState>
   // fontSize is the screen font size of every terminal, in px.
   fontSize: number
+  // fontFamily is the font the owner chose for every terminal; null is the
+  // default one.
+  fontFamily: string | null
   // finding is the terminal whose find bar is open.
   finding: string | null
   // findTick changes each time find is asked for, so the bar takes focus again.
@@ -68,6 +71,7 @@ interface TerminalStoreState {
   setConnState: (id: string, state: TerminalState, attempt?: number) => void
   setClientState: (id: string, client: TerminalClientState) => void
   setFontSize: (px: number | null) => void
+  setFontFamily: (family: string | null) => void
   setFinding: (id: string, on: boolean) => void
   setUnseen: (id: string, on: boolean) => void
 }
@@ -180,6 +184,16 @@ function storedFont(): number {
   }
 }
 
+const FAMILY_KEY = 'gc.terminal.fontFamily'
+
+function storedFamily(): string | null {
+  try {
+    return localStorage.getItem(FAMILY_KEY) || null
+  } catch {
+    return null
+  }
+}
+
 export const useTerminalStore = create<TerminalStoreState>((set, get) => {
   const track = (key: string, on: boolean) =>
     set((s) => {
@@ -199,6 +213,7 @@ export const useTerminalStore = create<TerminalStoreState>((set, get) => {
   return {
     ...initial,
     fontSize: storedFont(),
+    fontFamily: storedFamily(),
     load: async () => {
       try {
         let run: string | undefined
@@ -367,6 +382,15 @@ export const useTerminalStore = create<TerminalStoreState>((set, get) => {
         // storage unavailable: the size lasts for this page only
       }
     },
+    setFontFamily: (family) => {
+      set({ fontFamily: family })
+      try {
+        if (family) localStorage.setItem(FAMILY_KEY, family)
+        else localStorage.removeItem(FAMILY_KEY)
+      } catch {
+        // storage unavailable: the font lasts for this page only
+      }
+    },
     setFinding: (id, on) => {
       if (on) set((s) => ({ finding: id, findTick: s.findTick + 1 }))
       else if (get().finding === id) set({ finding: null })
@@ -385,7 +409,7 @@ export const useTerminalStore = create<TerminalStoreState>((set, get) => {
 
 export function resetTerminals() {
   terminalLists.reset()
-  useTerminalStore.setState({ ...initial, fontSize: storedFont() })
+  useTerminalStore.setState({ ...initial, fontSize: storedFont(), fontFamily: storedFamily() })
 }
 
 // useShellsWithin counts the listed shells working in dir or below it.
