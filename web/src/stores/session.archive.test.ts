@@ -7,6 +7,7 @@ vi.mock('../lib/api', () => ({
   getQuotas: vi.fn(),
   fetchHistoryPage: vi.fn(async (id: string, _before: number, signal?: AbortSignal) => ({ events: await api.fetchEvents(id, 0, signal), before: 0, hasMore: false, lastSeq: 0 })), fetchEvents: vi.fn(),
   archiveSession: vi.fn(),
+  setPinned: vi.fn(),
   unarchiveSession: vi.fn(),
   deleteSession: vi.fn(),
 }))
@@ -172,4 +173,35 @@ describe('delete', () => {
     await loading
     expect(store().sessions.map((s) => s.id)).toEqual(['b'])
   })
+})
+
+describe('pin', () => {
+  it('pins and unpins with the persisted server copy', async () => {
+    useSessionStore.setState({ sessions: [session('a')] })
+    for (const pinned of [true, false]) {
+      ;(api.setPinned as Mock).mockResolvedValue(session('a', { pinned }))
+      expect(await store().setPinned('a', pinned)).toBe(true)
+      expect(api.setPinned).toHaveBeenCalledWith('a', pinned)
+      expect(store().sessions[0]!.pinned).toBe(pinned)
+    }
+  })
+  it('keeps the session unchanged on failure and reports it', async () => {
+    useSessionStore.setState({ sessions: [session('a')] })
+    ;(api.setPinned as Mock).mockRejectedValue(new Error('disk full'))
+    expect(await store().setPinned('a', true)).toBe(false)
+    expect(store().sessions[0]!.pinned).toBeUndefined()
+    expect(useNotices.getState().notices[0]!.title).toBe("Couldn't pin the session")
+  })
+})
+
+
+it('keeps the newest pin state when older session events arrive', () => {
+  useSessionStore.setState({ sessions: [session('a', { pinned: true, pinRevision: 1 })] })
+  store().applyIncoming({ seq: 100, sessionId: 'a', type: 'session.state', session: session('a', { title: 'renamed' }) })
+  expect(store().sessions[0]).toMatchObject({ title: 'renamed', pinned: true, pinRevision: 1 })
+  store().applyIncoming({ seq: 101, sessionId: 'a', type: 'session.state', session: session('a', { pinRevision: 2 }) })
+  expect(store().sessions[0]!.pinned).toBeUndefined()
+  store().applyIncoming({ seq: 102, sessionId: 'a', type: 'session.state', session: session('a', { pinned: true, pinRevision: 1 }) })
+  expect(store().sessions[0]!.pinned).toBeUndefined()
+  expect(store().sessions[0]!.pinRevision).toBe(2)
 })

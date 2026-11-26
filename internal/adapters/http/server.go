@@ -98,6 +98,7 @@ func NewServer(cfg Config) http.Handler {
 	s.historyRoutes()
 	s.pushRoutes()
 	s.renameRoutes()
+	s.pinRoutes()
 	s.seenRoutes()
 	s.archiveRoutes()
 	s.fileRoutes()

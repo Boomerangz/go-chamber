@@ -95,6 +95,8 @@ type Interruption struct {
 // process is disposable; the session survives it and can be resumed through
 // its NativeID (Claude session_id or Codex threadId).
 type Session struct {
+	pinned          bool
+	pinRevision     uint64
 	id              SessionID
 	agent           AgentKind
 	cwd             string
@@ -123,11 +125,13 @@ type Session struct {
 
 // SessionSnapshot is the persistable state of a Session.
 type SessionSnapshot struct {
-	ID       SessionID `json:"id"`
-	Agent    AgentKind `json:"agent"`
-	Cwd      string    `json:"cwd"`
-	NativeID string    `json:"nativeId,omitempty"`
-	ParentID SessionID `json:"parentId,omitempty"`
+	Pinned      bool      `json:"pinned,omitempty"`
+	PinRevision uint64    `json:"pinRevision,omitempty"`
+	ID          SessionID `json:"id"`
+	Agent       AgentKind `json:"agent"`
+	Cwd         string    `json:"cwd"`
+	NativeID    string    `json:"nativeId,omitempty"`
+	ParentID    SessionID `json:"parentId,omitempty"`
 	// ForkOf is the session this one branched off from.
 	ForkOf       SessionID     `json:"forkOf,omitempty"`
 	Status       SessionStatus `json:"status"`
@@ -235,7 +239,7 @@ func RestoreSession(snap SessionSnapshot) (*Session, error) {
 		nativeID: snap.NativeID, parentID: snap.ParentID, forkOf: snap.ForkOf, status: StatusDetached,
 		reviewer: snap.ApprovalReviewer, mode: snap.PermissionMode, createdAt: snap.CreatedAt, activeAt: snap.ActiveAt,
 		model: snap.Model, effort: snap.Effort, archivedAt: snap.ArchivedAt,
-		seen: snap.Seen, endedAt: snap.EndedAt,
+		seen: snap.Seen, endedAt: snap.EndedAt, pinned: snap.Pinned, pinRevision: snap.PinRevision,
 	}
 	if snap.Worktree != nil {
 		wt := *snap.Worktree
@@ -419,7 +423,7 @@ func (s *Session) SetAutoContinue(on bool) error {
 
 func (s *Session) Snapshot() SessionSnapshot {
 	return SessionSnapshot{
-		ID: s.id, Agent: s.agent, Cwd: s.cwd, NativeID: s.nativeID, ParentID: s.parentID, ForkOf: s.forkOf,
+		Pinned: s.pinned, PinRevision: s.pinRevision, ID: s.id, Agent: s.agent, Cwd: s.cwd, NativeID: s.nativeID, ParentID: s.parentID, ForkOf: s.forkOf,
 		Status: s.status, Title: s.title, Interruption: s.interruption, AutoContinue: s.autoContinue,
 		ApprovalReviewer: s.reviewer, PermissionMode: s.mode, CreatedAt: s.createdAt, ActiveAt: s.activeAt,
 		Model: s.model, Effort: s.effort, Worktree: s.Worktree(), ArchivedAt: s.archivedAt,
@@ -504,3 +508,5 @@ func (s *Session) Deletable() error {
 	}
 	return nil
 }
+
+func (s *Session) SetPinned(on bool) { s.pinned = on; s.pinRevision++ }

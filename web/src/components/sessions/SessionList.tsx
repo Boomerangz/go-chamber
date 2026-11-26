@@ -91,6 +91,15 @@ export default function SessionList({ onCreateIn, agent = 'claude', creating = f
     return stable(groupSessions(withParents))
   }, [sessions, query, searching])
 
+  const pinned = groups.flatMap((g) => g.nodes.filter((n) => n.session.pinned))
+  const projects = groups.map((g) => {
+    const nodes = g.nodes.filter((n) => !n.session.pinned)
+    const running = nodes.some(function isRunning(node: SessionNode): boolean {
+      return node.session.status === 'running' || node.children.some(isRunning)
+    })
+    return { ...g, nodes, count: nodes.length, running }
+  }).filter((g) => g.nodes.length > 0)
+
   // A folder that is gone takes no new session.
   const gone = useMemo(() => goneFolders(sessions), [sessions])
 
@@ -154,7 +163,18 @@ export default function SessionList({ onCreateIn, agent = 'claude', creating = f
         {status === 'error' && (
           <LoadFailed onRetry={() => void loadSessions()}>{failedTo('load sessions', loadError)}</LoadFailed>
         )}
-        {groups.map((g) => (
+        {pinned.length > 0 && (
+          <section className="group" aria-label="Pinned sessions">
+            <header className="group-header"><span className="group-name">Pinned</span></header>
+            <ul className="sessions">
+              {pinned.map((node, i) => (
+                <SessionRow key={node.session.id} node={node} depth={0} place={i} activeId={activeId}
+                  pendingBySession={pendingBySession} onSelect={(id) => void selectSession(id)} now={now} />
+              ))}
+            </ul>
+          </section>
+        )}
+        {projects.map((g) => (
           <Group
             key={g.cwd}
             group={g}

@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor } from '@testing-library/react'
+import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Session } from '../../lib/api'
@@ -452,4 +452,41 @@ describe('folder groups', () => {
     )
     expect(order()).toEqual(['Project docs', 'Project shop', 'Project api'])
   })
+})
+
+ describe('pinned sessions', () => {
+  it('puts pinned conversations above projects without duplicates, keeps children, hides archived pins', () => {
+    useSessionStore.setState({ sessions: [
+      session('regular', 'Regular'),
+      { ...session('pin', 'Important'), pinned: true },
+      session('child', 'Child', 'pin'),
+      { ...session('archived', 'Archived'), pinned: true, archivedAt: '2026-10-06T09:00:00Z' },
+    ] })
+    render(<SessionList onCreateIn={() => {}} />)
+    const pinned = screen.getByRole('region', { name: 'Pinned sessions' })
+    expect(within(pinned).getByText('Important')).toBeInTheDocument()
+    expect(within(pinned).getByText('Child')).toBeInTheDocument()
+    expect(screen.getAllByText('Important')).toHaveLength(1)
+    expect(screen.queryByText('Archived')).toBeNull()
+    expect(document.querySelector('.groups')?.firstElementChild).toBe(pinned)
+  })
+  it('moves an unpinned session back to its project and filters pinned search matches', () => {
+    const pinned = { ...session('pin', 'Important'), pinned: true }
+    useSessionStore.setState({ sessions: [pinned], query: 'nothing' })
+    render(<SessionList onCreateIn={() => {}} />)
+    expect(screen.queryByRole('region', { name: 'Pinned sessions' })).toBeNull()
+    act(() => useSessionStore.setState({ query: '', sessions: [{ ...pinned, pinned: false }] }))
+    expect(screen.queryByRole('region', { name: 'Pinned sessions' })).toBeNull()
+    expect(within(screen.getByRole('region', { name: 'Project p' })).getByText('Important')).toBeInTheDocument()
+  })
+ })
+
+it('does not mark a project busy for a session moved into Pinned', () => {
+  useSessionStore.setState({ sessions: [
+    { ...session('pinned', 'Pinned work'), pinned: true, status: 'running' },
+    session('regular', 'Regular work'),
+  ] })
+  render(<SessionList onCreateIn={() => {}} />)
+  const project = screen.getByText('Regular work').closest('section')!
+  expect(project.querySelector('.live-dot')).toBeNull()
 })

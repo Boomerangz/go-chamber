@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { ApiError, archiveSession, deleteSession, unarchiveSession } from './api'
+import { ApiError, setPinned, archiveSession, deleteSession, unarchiveSession } from './api'
 
 afterEach(() => {
   vi.unstubAllGlobals()
@@ -39,4 +39,11 @@ describe('archive API', () => {
     await expect(deleteSession('s1')).rejects.toMatchObject({ status: 409 })
     await expect(deleteSession('s1')).rejects.toBeInstanceOf(ApiError)
   })
+})
+
+it('posts an explicit pin state with an encoded session ID', async () => {
+  const fn = stubFetch(async () => json({ id: 's a', pinned: true }))
+  expect(await setPinned('s a', true)).toEqual({ id: 's a', pinned: true })
+  expect(fn.mock.calls[0]![0]).toBe('/api/sessions/s%20a/pin')
+  expect(fn.mock.calls[0]![1]).toMatchObject({ method: 'POST', body: '{"pinned":true}' })
 })

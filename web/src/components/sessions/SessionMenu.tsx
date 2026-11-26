@@ -168,6 +168,14 @@ function MenuSheet(props: {
   const worktree = session.worktree && !session.worktree.removed ? session.worktree : undefined
   const [withFolder, setWithFolder] = useState(false)
 
+  const setPinned = useSessionStore((s) => s.setPinned)
+  const [pin, pinning] = usePending(async () => {
+    const refocus = neighbourOf(trigger, session.id)
+    if (await setPinned(session.id, !session.pinned)) {
+      onClose()
+      requestAnimationFrame(refocus)
+    }
+  })
   const renameSession = useSessionStore((s) => s.renameSession)
   const archiveSession = useSessionStore((s) => s.archiveSession)
   const unarchiveSession = useSessionStore((s) => s.unarchiveSession)
@@ -351,6 +359,11 @@ function MenuSheet(props: {
           <button type="button" role="menuitem" tabIndex={-1} onClick={() => setStep('rename')}>
             Rename
           </button>
+          {!session.parentId && !archived && (
+            <button type="button" role="menuitem" tabIndex={-1} aria-busy={pinning || undefined} onClick={() => void pin()}>
+              {session.pinned ? 'Unpin' : 'Pin'}
+            </button>
+          )}
           {running && (
             <button type="button" role="menuitem" tabIndex={-1} aria-busy={stopping || undefined} onClick={() => void stop()}>
               {stopping ? 'Stopping…' : 'Stop turn'}

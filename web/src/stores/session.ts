@@ -101,6 +101,7 @@ export interface SessionStore {
   importHistory: (agent: api.AgentKind, nativeId: string) => Promise<boolean>
   stopTask: (sessionId: string, taskId: string) => Promise<boolean>
   setApprovalReviewer: (sessionId: string, reviewer: api.ApprovalReviewer) => Promise<boolean>
+  setPinned: (sessionId: string, pinned: boolean) => Promise<boolean>
   renameSession: (sessionId: string, title: string) => Promise<boolean>
   // archiveSession puts a session away from the list; unarchiveSession
   // brings it back.
@@ -233,6 +234,9 @@ function recordSessionChanges(before: api.Session | undefined, updated: api.Sess
 // merging would keep values the server has cleared.
 function replaceSession(sessions: api.Session[], updated: api.Session): api.Session[] {
   const before = sessions.find((s) => s.id === updated.id)
+  if ((before?.pinRevision ?? 0) > (updated.pinRevision ?? 0)) {
+    updated = { ...updated, pinned: before?.pinned, pinRevision: before?.pinRevision }
+  }
   // A gone folder is seen by a listing or a refused send; a state update
   // doesn't look, so it keeps the mark until a turn proves the folder back.
   if (before?.folderGone && !('folderGone' in updated) && before.cwd === updated.cwd && updated.status !== 'running' && updated.status !== 'idle') {
@@ -535,6 +539,18 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       return true
     } catch (err) {
       fail("Couldn't change the permission mode", err)
+      return false
+    }
+  },
+
+  async setPinned(sessionId, pinned) {
+    const before = sessionRevision
+    try {
+      const updated = await api.setPinned(sessionId, pinned)
+      set({ sessions: applySessionMutation(get().sessions, before, updated) })
+      return true
+    } catch (err) {
+      fail("Couldn't pin the session", err)
       return false
     }
   },

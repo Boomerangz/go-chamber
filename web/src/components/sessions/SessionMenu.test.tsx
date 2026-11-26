@@ -14,6 +14,7 @@ const base: Session = { id: 's1', title: 'Release notes', agent: 'claude', cwd: 
 type Act = Mock<(id: string) => Promise<boolean>>
 let actions: {
   renameSession: Mock<(id: string, title: string) => Promise<boolean>>
+  setPinned: Mock<(id: string, pinned: boolean) => Promise<boolean>>
   archiveSession: Act
   unarchiveSession: Act
   deleteSession: Act
@@ -24,6 +25,7 @@ beforeEach(() => {
   useNotices.setState({ notices: [] })
   actions = {
     renameSession: vi.fn(async (_id: string, _title: string) => true),
+    setPinned: vi.fn(async (_id: string, _pinned: boolean) => true),
     archiveSession: vi.fn(async (_id: string) => true),
     unarchiveSession: vi.fn(async (_id: string) => true),
     deleteSession: vi.fn(async (_id: string) => true),
@@ -182,7 +184,7 @@ describe('SessionMenu', () => {
     await userEvent.click(trigger())
     expect(trigger()).toHaveAttribute('aria-expanded', 'true')
     const items = screen.getAllByRole('menuitem')
-    expect(items.map((i) => i.textContent)).toEqual(['Rename', 'Archive', 'Delete…'])
+    expect(items.map((i) => i.textContent)).toEqual(['Rename', 'Pin', 'Archive', 'Delete…'])
     expect(items[0]).toHaveFocus()
     await userEvent.keyboard('{Escape}')
     expect(screen.queryByRole('menu')).toBeNull()
@@ -196,14 +198,14 @@ describe('SessionMenu', () => {
     const items = screen.getAllByRole('menuitem')
     await userEvent.keyboard('{ArrowDown}')
     expect(items[1]).toHaveFocus()
-    await userEvent.keyboard('{ArrowDown}{ArrowDown}')
+    await userEvent.keyboard('{ArrowDown}{ArrowDown}{ArrowDown}')
     expect(items[0]).toHaveFocus()
     await userEvent.keyboard('{ArrowUp}')
-    expect(items[2]).toHaveFocus()
+    expect(items.at(-1)).toHaveFocus()
     await userEvent.keyboard('{Home}')
     expect(items[0]).toHaveFocus()
     await userEvent.keyboard('{End}')
-    expect(items[2]).toHaveFocus()
+    expect(items.at(-1)).toHaveFocus()
     await userEvent.keyboard('{Tab}')
     expect(screen.queryByRole('menu')).toBeNull()
   })
@@ -494,5 +496,60 @@ describe('SessionMenu', () => {
     expect(item).toHaveTextContent('stop first')
     await userEvent.click(item)
     expect(screen.queryByRole('group', { name: /Delete/ })).toBeNull()
+  })
+})
+
+it.each([false, true])('changes pin state from the menu (pinned=%s)', async (pinned) => {
+  const user = userEvent.setup()
+  render(<Row session={{ ...base, pinned }} />)
+  await user.click(trigger())
+  await user.click(screen.getByRole('menuitem', { name: pinned ? 'Unpin' : 'Pin' }))
+  expect(actions.setPinned).toHaveBeenCalledWith('s1', !pinned)
+})
+
+
+describe('SessionMenu focus after pinning moves a row between parents', () => {
+  function Groups({ pinned, hidden = false, neighbour = true }: { pinned: boolean; hidden?: boolean; neighbour?: boolean }) {
+    const row = (
+      <li>
+        <button className="session" data-session={base.id}>{base.title}</button>
+        <SessionMenu session={{ ...base, pinned }} />
+      </li>
+    )
+    return (
+      <>
+        <input aria-label="Search sessions" />
+        <ul aria-label="Pinned">{pinned && !hidden && row}</ul>
+        <ul aria-label="Project">
+          {!pinned && !hidden && row}
+          {neighbour && <li><button className="session" data-session="s2">Second</button></li>}
+        </ul>
+      </>
+    )
+  }
+
+  it.each([false, true])('follows the relocated row by identity (pinned=%s)', async (pinned) => {
+    const view = render(<Groups pinned={pinned} />)
+    const oldTrigger = trigger()
+    actions.setPinned.mockImplementation(async () => {
+      view.rerender(<Groups pinned={!pinned} />)
+      return true
+    })
+    await userEvent.click(oldTrigger)
+    await userEvent.click(screen.getByRole('menuitem', { name: pinned ? 'Unpin' : 'Pin' }))
+    await waitFor(() => expect(screen.getByRole('button', { name: base.title! })).toHaveFocus())
+    expect(oldTrigger.isConnected).toBe(false)
+    expect(screen.queryByRole('menu')).toBeNull()
+  })
+
+  it.each([true, false])('falls back when the destination is collapsed (neighbour=%s)', async (neighbour) => {
+    const view = render(<Groups pinned neighbour={neighbour} />)
+    actions.setPinned.mockImplementation(async () => {
+      view.rerender(<Groups pinned={false} hidden neighbour={neighbour} />)
+      return true
+    })
+    await userEvent.click(trigger())
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Unpin' }))
+    await waitFor(() => expect(neighbour ? screen.getByRole('button', { name: 'Second' }) : screen.getByLabelText('Search sessions')).toHaveFocus())
   })
 })

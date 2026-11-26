@@ -27,6 +27,8 @@ export interface SessionGoal {
 }
 
 export interface Session {
+  pinned?: boolean
+  pinRevision?: number
   id: string
   agent: AgentKind
   cwd: string
@@ -676,4 +678,8 @@ export function listHistory(): Promise<ExternalSession[]> {
 
 export function importHistory(agent: AgentKind, nativeId: string): Promise<Session> {
   return request<Session>('/api/history/import', json({ agent, nativeId }), SLOW_MS)
+}
+
+export function setPinned(id: string, pinned: boolean): Promise<Session> {
+  return request<Session>(`/api/sessions/${encodeURIComponent(id)}/pin`, json({ pinned }))
 }

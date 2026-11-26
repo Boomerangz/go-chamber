@@ -226,3 +226,28 @@ func TestOAuthTokensAreKeptTakenAndExpired(t *testing.T) {
 		}
 	}
 }
+
+func TestStaleSessionSavePreservesPin(t *testing.T) {
+	r := openTest(t).Sessions()
+	ctx := context.Background()
+	stale := domain.SessionSnapshot{ID: "pin", Agent: domain.AgentClaude, Cwd: "/tmp", Status: domain.StatusDetached}
+	for _, revision := range []uint64{1, 2} {
+		latest := stale
+		latest.Pinned = revision == 1
+		latest.PinRevision = revision
+		if err := r.Save(ctx, latest); err != nil {
+			t.Fatal(err)
+		}
+		stale.Title = "renamed concurrently"
+		if err := r.Save(ctx, stale); err != nil {
+			t.Fatal(err)
+		}
+		got, err := r.Get(ctx, stale.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got.Pinned != latest.Pinned || got.PinRevision != revision || got.Title != stale.Title {
+			t.Fatalf("stale save overwrote pin or lost rename: %+v", got)
+		}
+	}
+}
